@@ -31,6 +31,7 @@ public class DeleteDialog extends JDialog {
 		setResizable(false);
 		setBounds(100, 100, 426, 177);
 		setTitle("discrub");
+		setLocation(main.getLocation());
 		main.disable();
 		JTextArea debugTextBox = new JTextArea();
 		GroupLayout groupLayout = new GroupLayout(getContentPane());
