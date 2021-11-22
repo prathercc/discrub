@@ -3,7 +3,7 @@
 
 **Latest Build:** 11/14/2021
 
- [<img src="https://img.shields.io/badge/Discrub.jar-Download-blue.svg?style=for-the-badge&logo=appveyor">](https://github.com/prathercc/discrub/raw/master/Discrub.jar)
+<a href="https://github.com/prathercc/discrub/raw/development/Discrub.jar"><img src="https://img.shields.io/badge/Discrub.jar-Download-blue.svg?style=plastic&logo=java"></a>
 
 #  - Discrub - 
 
