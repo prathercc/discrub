@@ -4,6 +4,8 @@ import java.awt.EventQueue;
 
 import javax.swing.JFrame;
 
+import com.formdev.flatlaf.FlatLightLaf;
+
 import discrub.services.FileService;
 import discrub.windows.Login;
 
@@ -23,6 +25,7 @@ public class Main extends JFrame {
 		EventQueue.invokeLater(new Runnable() {
 			public void run() {
 				try {
+					FlatLightLaf.setup();
 					Main frame = new Main();
 					frame.setVisible(true);
 					Dimension dim = Toolkit.getDefaultToolkit().getScreenSize();
@@ -39,7 +42,7 @@ public class Main extends JFrame {
 	 */
 	public Main() {
 		setFont(new Font("DejaVu Math TeX Gyre", Font.PLAIN, 12));
-		setTitle("discrub");
+		setTitle("Discrub");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, 313, 285);
 		Login loginMenu = new Login();

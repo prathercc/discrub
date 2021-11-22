@@ -39,7 +39,11 @@
 			<artifactId>httpclient</artifactId>
 			<version>4.5.13</version>
 		</dependency>
-
+		<dependency>
+			<groupId>com.formdev</groupId>
+			<artifactId>flatlaf</artifactId>
+			<version>1.6.4</version>
+		</dependency>
 	</dependencies>
 	<build>
 		<plugins>
