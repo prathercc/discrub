@@ -5,7 +5,7 @@
 
 <a href="https://github.com/prathercc/discrub/raw/development/Discrub.jar"><img src="https://img.shields.io/badge/Discrub.jar-Download-blue.svg?style=plastic&logo=java"></a>
 
-#  - Discrub - 
+#  Discrub
 
  **Discrub** is a [Java](https://java.com/en/) application that is used to manipulate message data for [Discord](https://discord.com/).
  Using [Swing](https://openjdk.java.net/groups/swing/#:~:text=Swing%20is%20a%20Graphical%20User,color%20choosers%20and%20combo%20boxes.) and hitting the public [Discord API](https://discord.com/developers/docs/intro) for all data manipulation.
