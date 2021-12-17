@@ -1,0 +1,10 @@
+
+*.class
+
+target/discrub-0.0.1-SNAPSHOT-shaded.jar
+
+target/discrub-0.0.1-SNAPSHOT.jar
+
+target/original-discrub-0.0.1-SNAPSHOT.jar
+
+target/classes/
