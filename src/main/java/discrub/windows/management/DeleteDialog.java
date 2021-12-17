@@ -1,5 +1,7 @@
 package discrub.windows.management;
 
+import java.awt.Point;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
@@ -7,9 +9,11 @@ import java.util.List;
 
 import javax.swing.JDialog;
 import javax.swing.JFrame;
+import javax.imageio.ImageIO;
 import javax.swing.GroupLayout;
 import javax.swing.GroupLayout.Alignment;
 
+import discrub.Main;
 import discrub.domain.Channel;
 import discrub.domain.Conversation;
 import discrub.domain.DiscordAccount;
@@ -28,9 +32,10 @@ public class DeleteDialog extends JDialog {
 	public DeleteDialog(JFrame main, DiscordAccount discordAccount, int[] selectedRows, List<Message> messages,
 			Object o) {
 		MessageService ms = new MessageService();
+		try {setIconImage(ImageIO.read(Main.class.getResourceAsStream("/logo.png")));} catch (IOException e) {}
 		setResizable(false);
-		setBounds(100, 100, 426, 177);
-		setTitle("discrub");
+		setBounds(100, 100, 426, 99);
+		setTitle("Discrub");
 		setLocation(main.getLocation());
 		main.disable();
 		JTextArea debugTextBox = new JTextArea();
@@ -46,8 +51,8 @@ public class DeleteDialog extends JDialog {
 			groupLayout.createParallelGroup(Alignment.LEADING)
 				.addGroup(groupLayout.createSequentialGroup()
 					.addContainerGap()
-					.addComponent(debugTextBox, GroupLayout.PREFERRED_SIZE, 126, GroupLayout.PREFERRED_SIZE)
-					.addContainerGap(GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
+					.addComponent(debugTextBox, GroupLayout.PREFERRED_SIZE, 49, GroupLayout.PREFERRED_SIZE)
+					.addContainerGap(88, Short.MAX_VALUE))
 		);
 		getContentPane().setLayout(groupLayout);
 		List<Message> selectedMessages = new ArrayList<Message>();
@@ -85,6 +90,11 @@ public class DeleteDialog extends JDialog {
 				thread.stop();
 				main.enable();
 				main.setContentPane(new Configuration(discordAccount));
+				Point oldLoc = main.getLocation();
+				main.setVisible(false);
+				main.setBounds(100, 100, 249, 197);
+				main.setLocation(oldLoc);
+				main.setVisible(true);
 				main.revalidate();
 				main.repaint();
 			}

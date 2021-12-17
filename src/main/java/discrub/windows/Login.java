@@ -44,10 +44,13 @@ public class Login extends JPanel {
 		JPasswordField passwordTextField;
 		setForeground(Color.MAGENTA);
 		JCheckBox rememberMeCheckBox = new JCheckBox("Remember Me");
+		rememberMeCheckBox.setFont(new Font("Tahoma", Font.BOLD, 11));
 		JTextField emailTextField = new JTextField();
 		emailTextField.setColumns(10);
 		JLabel lblNewLabel_1 = new JLabel("Password:");
+		lblNewLabel_1.setFont(new Font("Tahoma", Font.BOLD, 11));
 		JLabel lblNewLabel = new JLabel("Email:");
+		lblNewLabel.setFont(new Font("Tahoma", Font.BOLD, 11));
 		passwordTextField = new JPasswordField();
 		JButton emailSignInButton = new JButton("Sign-In");
 		emailSignInButton.setEnabled(passwordTextField.getText().length() > 0 ? true : false);
@@ -64,52 +67,41 @@ public class Login extends JPanel {
 		}
 
 		this.setBorder(new EmptyBorder(5, 5, 5, 5));
-		
-		JLabel lblNewLabel_2 = new JLabel("Sign into Discord");
-		lblNewLabel_2.setFont(new Font("Tahoma", Font.BOLD, 14));
 
 		GroupLayout gl_loginMenu = new GroupLayout(this);
 		gl_loginMenu.setHorizontalGroup(
 			gl_loginMenu.createParallelGroup(Alignment.LEADING)
 				.addGroup(gl_loginMenu.createSequentialGroup()
+					.addContainerGap()
 					.addGroup(gl_loginMenu.createParallelGroup(Alignment.LEADING)
-						.addGroup(gl_loginMenu.createSequentialGroup()
-							.addContainerGap()
-							.addGroup(gl_loginMenu.createParallelGroup(Alignment.TRAILING)
-								.addComponent(passwordTextField, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 420, Short.MAX_VALUE)
-								.addComponent(lblNewLabel_1, Alignment.LEADING)
-								.addComponent(lblNewLabel, Alignment.LEADING)
-								.addComponent(rememberMeCheckBox, Alignment.LEADING)
-								.addComponent(emailTextField, Alignment.LEADING, GroupLayout.DEFAULT_SIZE, 420, Short.MAX_VALUE)
-								.addComponent(emailSignInButton)
-								.addGroup(gl_loginMenu.createSequentialGroup()
-									.addPreferredGap(ComponentPlacement.RELATED, 306, GroupLayout.PREFERRED_SIZE)
-									.addComponent(networkErrorText))))
-						.addGroup(gl_loginMenu.createSequentialGroup()
-							.addGap(85)
-							.addComponent(lblNewLabel_2)))
-					.addContainerGap())
+						.addComponent(lblNewLabel)
+						.addComponent(lblNewLabel_1)
+						.addGroup(gl_loginMenu.createParallelGroup(Alignment.LEADING, false)
+							.addComponent(passwordTextField)
+							.addGroup(gl_loginMenu.createSequentialGroup()
+								.addComponent(rememberMeCheckBox)
+								.addPreferredGap(ComponentPlacement.RELATED, GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+								.addComponent(emailSignInButton))
+							.addComponent(emailTextField, GroupLayout.PREFERRED_SIZE, 200, GroupLayout.PREFERRED_SIZE)
+							.addComponent(networkErrorText, Alignment.TRAILING)))
+					.addContainerGap(28, Short.MAX_VALUE))
 		);
 		gl_loginMenu.setVerticalGroup(
 			gl_loginMenu.createParallelGroup(Alignment.LEADING)
 				.addGroup(gl_loginMenu.createSequentialGroup()
-					.addContainerGap()
-					.addComponent(lblNewLabel_2)
-					.addGap(18)
 					.addComponent(lblNewLabel)
 					.addPreferredGap(ComponentPlacement.RELATED)
 					.addComponent(emailTextField, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
-					.addPreferredGap(ComponentPlacement.RELATED)
+					.addGap(2)
 					.addComponent(lblNewLabel_1)
 					.addPreferredGap(ComponentPlacement.RELATED)
 					.addComponent(passwordTextField, GroupLayout.PREFERRED_SIZE, GroupLayout.DEFAULT_SIZE, GroupLayout.PREFERRED_SIZE)
 					.addPreferredGap(ComponentPlacement.UNRELATED)
-					.addComponent(rememberMeCheckBox)
-					.addPreferredGap(ComponentPlacement.RELATED)
-					.addComponent(emailSignInButton)
-					.addPreferredGap(ComponentPlacement.RELATED)
-					.addComponent(networkErrorText)
-					.addContainerGap(83, Short.MAX_VALUE))
+					.addGroup(gl_loginMenu.createParallelGroup(Alignment.BASELINE)
+						.addComponent(rememberMeCheckBox)
+						.addComponent(emailSignInButton))
+					.addPreferredGap(ComponentPlacement.RELATED, 8, Short.MAX_VALUE)
+					.addComponent(networkErrorText))
 		);
 		this.setLayout(gl_loginMenu);
 		
