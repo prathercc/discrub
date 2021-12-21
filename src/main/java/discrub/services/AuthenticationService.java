@@ -20,12 +20,13 @@ import discrub.domain.Channel;
 import discrub.domain.Conversation;
 import discrub.domain.Credentials;
 import discrub.domain.DiscordAccount;
+import discrub.domain.ErrorResponse;
 import discrub.domain.Guild;
 import discrub.domain.User;
 import discrub.utilities.Properties;
 
 public class AuthenticationService {
-	
+
 	public Authorization fetchAuthorization(Credentials credentials) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
@@ -38,10 +39,16 @@ public class AuthenticationService {
 					HttpMethod.POST, request, Authorization.class);
 			return response.getStatusCodeValue() == 200 ? response.getBody() : null;
 		} catch (Exception e) {
-			return null;
+			if (e.getMessage().contains("captcha-required")) {
+				return new Authorization(ErrorResponse.CAPTCHA_REQURED);
+			} else if (e.getMessage().contains("Login or password is invalid")) {
+				return new Authorization(ErrorResponse.INVALID_PASSWORD);
+			} else {
+				return new Authorization(ErrorResponse.UNKNOWN);
+			}
 		}
 	}
-	
+
 	public User fetchUserData(DiscordAccount discordAccount) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
@@ -57,7 +64,7 @@ public class AuthenticationService {
 			return null;
 		}
 	}
-	
+
 	public List<Conversation> fetchConversations(DiscordAccount discordAccount) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
@@ -73,7 +80,7 @@ public class AuthenticationService {
 			return null;
 		}
 	}
-	
+
 	public List<Channel> fetchChannels(Guild guild, DiscordAccount discordAccount) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
@@ -90,8 +97,7 @@ public class AuthenticationService {
 			return null;
 		}
 	}
-	
-	
+
 	public List<Guild> fetchGuilds(DiscordAccount discordAccount) {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
