@@ -1,7 +1,7 @@
 
 ## Get Discrub
 
-**Latest Build:** 12/16/2021
+**Latest Build:** 12/26/2021
 
 <a href="https://github.com/prathercc/discrub/raw/development/Discrub.jar"><img src="https://img.shields.io/badge/Discrub.jar-Download-blue.svg?style=plastic&logo=java"></a>
 

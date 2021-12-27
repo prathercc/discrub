@@ -38,7 +38,7 @@ public class MessageService {
 	public boolean editMessage(Message msg, String newMessageContent, String channelId, DiscordAccount discordAccount) {
 		//Unfortunately I cannot use PATCH with RestTemplate, so we have to use Apache's HttpClient to make this request.
 		newMessageContent = newMessageContent.length() >= 2000 ? newMessageContent.substring(0, 1999) : newMessageContent;
-		String sessionAuthorization = discordAccount.getAuthorization();
+		String sessionAuthorization = discordAccount.getAuthorization().getToken();
 		try {
 			String requestUrl = Properties.discordChannelsUrl + "/" + channelId
 					+ "/messages/" + msg.getId();
@@ -58,7 +58,7 @@ public class MessageService {
 	}
 	
 	public boolean deleteMessage(Message msg, String channelId, DiscordAccount discordAccount) {
-		String sessionAuthorization = discordAccount.getAuthorization();
+		String sessionAuthorization = discordAccount.getAuthorization().getToken();
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			String requestUrl = Properties.discordChannelsUrl + "/" + channelId
@@ -78,7 +78,7 @@ public class MessageService {
 
 	public List<Message> fetchConversationMessages(String lastId, Conversation conversation, DiscordAccount discordAccount) {
 		String conversationId = conversation.getId();
-		String sessionAuthorization = discordAccount.getAuthorization();
+		String sessionAuthorization = discordAccount.getAuthorization().getToken();
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			String requestUrl = lastId.length() < 1
@@ -100,7 +100,7 @@ public class MessageService {
 
 	public List<Message> fetchChannelMessages(String lastId, Channel channel, DiscordAccount discordAccount) {
 		String channelId = channel.getId();
-		String sessionAuthorization = discordAccount.getAuthorization();
+		String sessionAuthorization = discordAccount.getAuthorization().getToken();
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			String requestUrl = lastId.length() < 1

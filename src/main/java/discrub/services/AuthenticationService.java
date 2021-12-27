@@ -53,7 +53,7 @@ public class AuthenticationService {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			HttpHeaders headers = new HttpHeaders();
-			headers.set("authorization", discordAccount.getAuthorization());
+			headers.set("authorization", discordAccount.getAuthorization().getToken());
 			headers.set("user-agent", Properties.userAgent);
 			HttpEntity<JsonNode> request = new HttpEntity<JsonNode>(headers);
 			restTemplate.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
@@ -69,7 +69,7 @@ public class AuthenticationService {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			HttpHeaders headers = new HttpHeaders();
-			headers.set("authorization", discordAccount.getAuthorization());
+			headers.set("authorization", discordAccount.getAuthorization().getToken());
 			headers.set("user-agent", Properties.userAgent);
 			HttpEntity<JsonNode> request = new HttpEntity<JsonNode>(headers);
 			restTemplate.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
@@ -85,7 +85,7 @@ public class AuthenticationService {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			HttpHeaders headers = new HttpHeaders();
-			headers.set("authorization", discordAccount.getAuthorization());
+			headers.set("authorization", discordAccount.getAuthorization().getToken());
 			headers.set("user-agent", Properties.userAgent);
 			HttpEntity<JsonNode> request = new HttpEntity<JsonNode>(headers);
 			restTemplate.getMessageConverters().add(new MappingJackson2HttpMessageConverter());
@@ -102,7 +102,7 @@ public class AuthenticationService {
 		try {
 			RestTemplate restTemplate = new RestTemplate();
 			HttpHeaders headers = new HttpHeaders();
-			headers.set("authorization", discordAccount.getAuthorization());
+			headers.set("authorization", discordAccount.getAuthorization().getToken());
 			headers.set("user-agent", Properties.userAgent);
 			HttpEntity<JsonNode> request = new HttpEntity<JsonNode>(headers);
 			restTemplate.getMessageConverters().add(new MappingJackson2HttpMessageConverter());

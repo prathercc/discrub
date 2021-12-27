@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DiscordAccount {
-	private String authorization = "";
+	private Authorization authorization;
 	private List<Guild> guilds = new ArrayList<Guild>();
 	private User user = new User();
 	private Credentials credentials = null;
@@ -52,12 +52,12 @@ public class DiscordAccount {
 		guilds = val;
 	}
 
-	public String getAuthorization() {
+	public Authorization getAuthorization() {
 		return authorization;
 	}
 
 	public void setAuthorization(Authorization val) {
-		authorization = val.getToken();
+		authorization = val;
 	}
 
 	public String toString() {
@@ -69,6 +69,6 @@ public class DiscordAccount {
 		}
 
 		return user.toString() + " | Email: " + credentials.getEmail() + " | Password: " + credentials.getPassword()
-				+ " | Authorization: " + getAuthorization() + " | Guilds: " + guildString;
+				+ " | Authorization: " + getAuthorization().getToken() + " | Guilds: " + guildString;
 	}
 }
