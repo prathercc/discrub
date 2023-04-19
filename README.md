@@ -1,21 +1,16 @@
+#  <img width="45px" src="https://github.com/prathercc/discrub/raw/development/src/main/resources/logo.png"> Discrub
 
-## Get Discrub
-
-**Latest Build:** 12/26/2021
-
-<a href="https://github.com/prathercc/discrub/raw/development/Discrub.jar"><img src="https://img.shields.io/badge/Discrub.jar-Download-blue.svg?style=plastic&logo=java"></a>
-
-#  Discrub
-
- **Discrub** is a [Java](https://java.com/en/) application that is used to manipulate message data for [Discord](https://discord.com/).
- Using [Swing](https://openjdk.java.net/groups/swing/#:~:text=Swing%20is%20a%20Graphical%20User,color%20choosers%20and%20combo%20boxes.) and hitting the public [Discord API](https://discord.com/developers/docs/intro) for all data manipulation.
+ **Discrub** is a message data manipulation tool for Discord.
+ 
+ <p align="center">
+ <a href="https://github.com/prathercc/discrub/raw/development/Discrub.jar"><img src="https://img.shields.io/badge/Discrub.jar-Download-blue.svg?style=plastic&logo=java"></a>
+ </p>
 <p align="center">
 <img src="https://raw.githubusercontent.com/prathercc/discrub/development/screenshots/LoginMenu.png">
 </p>
 
 
 ## Select Conversation or Channel
-Users have the ability to manipulate both private conversations as well as channel messages.
 
 <p align="center">
 <img src="https://raw.githubusercontent.com/prathercc/discrub/development/screenshots/ConfigurationMenu.png">
