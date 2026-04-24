@@ -1,0 +1,26 @@
+[
+  {
+    "id": "901000000000000001",
+    "name": "Cypress Test Server",
+    "icon": "icon_hash_1",
+    "owner": true,
+    "permissions": "2147483639",
+    "features": ["COMMUNITY"]
+  },
+  {
+    "id": "901000000000000002",
+    "name": "Gaming Lounge",
+    "icon": "icon_hash_2",
+    "owner": false,
+    "permissions": "104324673",
+    "features": []
+  },
+  {
+    "id": "901000000000000003",
+    "name": "Dev Community",
+    "icon": null,
+    "owner": false,
+    "permissions": "104324673",
+    "features": ["NEWS"]
+  }
+]

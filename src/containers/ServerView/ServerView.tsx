@@ -1,0 +1,1036 @@
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { Box, Typography, Paper, Button, Alert, AlertTitle, Chip, Badge } from '@mui/material';
+import { Joyride } from 'react-joyride';
+import {
+  FileDownload as ExportIcon,
+  CloudDownload as LoadAllIcon,
+  Forum as ThreadIcon,
+  Analytics as AnalyticsIcon,
+  CheckCircle as CheckCircleIcon,
+  MoreHoriz as MoreHorizIcon,
+  FilterList as FilterListIcon,
+  Fullscreen as FullscreenIcon,
+  FullscreenExit as FullscreenExitIcon,
+} from '@mui/icons-material';
+import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import WelcomePanel from '@components/welcome/WelcomePanel';
+import TourTooltip from '@components/welcome/TourTooltip';
+import TourSpot from '@components/welcome/TourSpot';
+import { contextualTourSteps } from '@components/welcome/tourSteps';
+import { useTour } from '@/hooks/useTour';
+import { selectSelectedChannel, selectChannels, fetchChannelById } from '@features/channel/channelSlice';
+import { selectSelectedDm } from '@features/dm/dmSlice';
+import { selectSelectedGuild, selectRoles, selectCurrentMemberRoles } from '@features/guild/guildSlice';
+import { selectAuthToken } from '@features/auth/authSlice';
+import {
+  selectSettings,
+  selectSearchDelay,
+  selectFocusedView,
+  toggleFocusedView,
+} from '@features/app/appSlice';
+import { selectCachedUserMap } from '@features/cache/cacheSlice';
+import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
+import { DiscrubSetting } from 'discrub-core/discrub-enum';
+import type { Channel } from 'discrub-core/types/discord-types';
+import {
+  selectActiveFilteredMessages,
+  selectActiveSelectedMessages,
+  selectActiveMessages,
+  selectActiveLoading,
+  selectActiveError,
+  selectActivePagination,
+  selectActiveTab,
+  selectMessages,
+  setFilteredMessages,
+  setThreadFilteredMessages,
+  deleteMessages,
+  editMessage,
+  editMessages,
+  fetchReactingUsers,
+  deleteReaction,
+  bulkDeleteAllReactions,
+  bulkDeleteReactionsForEmoji,
+  batchRemoveReactions,
+  deleteAttachment,
+  deleteAllAttachments,
+  fetchAllMessages,
+  fetchAllThreadMessages,
+  searchMessages,
+  searchThreadMessages,
+  loadAllSearchResults,
+  enrichMessageUsers,
+  openThreadTab,
+  selectThreadTabs,
+  setRefineCriteria,
+  clearRefineCriteria,
+  setThreadRefineCriteria,
+  clearThreadRefineCriteria,
+} from '@features/message/messageSlice';
+import type { Message, User, Attachment } from 'discrub-core/types/discord-types';
+import type { SearchCriteria } from 'discrub-core/types/discrub-types';
+import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
+import { IsPinnedType } from 'discrub-core/discord-enum';
+import MessageFeed from '@components/message/MessageFeed';
+import MessageActions from '@containers/ServerView/MessageActions';
+import FilterModal, { countActiveFilters, countTotalFilters } from '@components/search/FilterModal';
+import ActiveFilterChips from '@components/search/ActiveFilterChips';
+import { defaultCriteria } from '@components/search/searchConstants';
+import ExportDialog from '@containers/ExportView/ExportDialog';
+import BulkExportDialog from '@containers/ExportView/BulkExportDialog';
+import LoadAllDialog from '@components/message/LoadAllDialog';
+import ThreadLoadModal from '@components/modals/ThreadLoadModal';
+import AnalyticsModal from '@components/modals/AnalyticsModal';
+import { addStatusEntry } from '@features/status/statusSlice';
+import { canManageMessages } from '@/utils/permissionUtils';
+import { selectUser } from '@features/user/userSlice';
+import EmptyState from '@components/ui/EmptyState';
+import MessageTableSkeleton from '@components/message/MessageTableSkeleton';
+import ThreadTabBar from '@components/message/ThreadTabBar';
+import ForumThreadList from '@components/message/ForumThreadList';
+import { ChannelType } from 'discrub-core/discord-enum';
+import {
+  selectForumThreads,
+  selectForumFirstMessages,
+  selectIsLoadingForumThreads,
+  selectHasMoreForumThreads,
+  selectForumThreadsNextOffset,
+  selectForumThreadsTotalResults,
+  loadMoreForumThreads,
+  searchForumThreads,
+  fetchForumThreads,
+} from '@features/channel/channelSlice';
+
+interface ServerViewProps {
+  onStartShellTour?: () => void;
+}
+
+/**
+ * ServerView container - displays messages for selected channel or DM
+ */
+const ServerView = ({ onStartShellTour }: ServerViewProps) => {
+  const dispatch = useAppDispatch();
+  const selectedChannel = useAppSelector(selectSelectedChannel);
+  const selectedDm = useAppSelector(selectSelectedDm);
+  const selectedGuild = useAppSelector(selectSelectedGuild);
+  const mainMessages = useAppSelector(selectMessages);
+  const allMessages = useAppSelector(selectActiveMessages);
+  const messages = useAppSelector(selectActiveFilteredMessages);
+  const selectedMessages = useAppSelector(selectActiveSelectedMessages);
+  const isLoading = useAppSelector(selectActiveLoading);
+  const error = useAppSelector(selectActiveError);
+  const token = useAppSelector(selectAuthToken);
+  const pagination = useAppSelector(selectActivePagination);
+  const activeTab = useAppSelector(selectActiveTab);
+  const channels = useAppSelector(selectChannels);
+  const guildRoles = useAppSelector(selectRoles);
+  const settings = useAppSelector(selectSettings);
+  const cachedUserMap = useAppSelector(selectCachedUserMap);
+  const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
+  const memberRoles = useAppSelector(selectCurrentMemberRoles);
+  const currentUser = useAppSelector(selectUser).currentUser;
+  const searchDelay = useAppSelector(selectSearchDelay);
+  const focusedView = useAppSelector(selectFocusedView);
+  const threadTabs = useAppSelector(selectThreadTabs);
+  const forumThreads = useAppSelector(selectForumThreads);
+  const isLoadingForumThreads = useAppSelector(selectIsLoadingForumThreads);
+  const forumFirstMessages = useAppSelector(selectForumFirstMessages);
+  const hasMoreForumThreads = useAppSelector(selectHasMoreForumThreads);
+  const forumThreadsNextOffset = useAppSelector(selectForumThreadsNextOffset);
+  const forumThreadsTotalResults = useAppSelector(selectForumThreadsTotalResults);
+  const isForumChannelType = selectedChannel?.type === ChannelType.GUILD_FORUM || selectedChannel?.type === ChannelType.GUILD_MEDIA;
+  // Show forum thread list only when on the main tab (not when viewing a thread tab's messages)
+  const isForumChannel = isForumChannelType && !activeTab;
+  const tabSearchCriteriaRef = useRef<Record<string, SearchCriteria>>({});
+  // Refine criteria now lives in Redux (state.message.refineCriteria,
+  // state.message.threadTabs[id].refineCriteria) so data-arrival reducers
+  // can re-apply it as new pages stream in. Reading via selectors.
+  const mainRefineCriteria = useAppSelector((s) => s.message.refineCriteria);
+  const threadRefineCriteria = useAppSelector((s) =>
+    activeTab ? s.message.threadTabs[activeTab]?.refineCriteria ?? null : null,
+  );
+  const currentRefineCriteria =
+    (activeTab ? threadRefineCriteria : mainRefineCriteria) ?? defaultCriteria;
+  // Helper: dispatch the right refine setter for the active context.
+  const dispatchSetRefine = (criteria: SearchCriteria | null) => {
+    if (activeTab) {
+      dispatch(setThreadRefineCriteria({ threadId: activeTab, criteria }));
+    } else {
+      dispatch(setRefineCriteria(criteria));
+    }
+  };
+  const dispatchClearRefine = () => {
+    if (activeTab) {
+      dispatch(clearThreadRefineCriteria(activeTab));
+    } else {
+      dispatch(clearRefineCriteria());
+    }
+  };
+  const [filterModalOpen, setFilterModalOpen] = useState(false);
+  const filterModalKeyRef = useRef(0);
+  // Close filter modal when switching tabs so it re-opens with correct tab criteria
+  const prevTabRef = useRef(activeTab);
+  useEffect(() => {
+    if (prevTabRef.current !== activeTab) {
+      setFilterModalOpen(false);
+      prevTabRef.current = activeTab;
+    }
+  }, [activeTab]);
+  const [exportDialogOpen, setExportDialogOpen] = useState(false);
+  const [forumExportDialogOpen, setForumExportDialogOpen] = useState(false);
+  const [loadAllDialogOpen, setLoadAllDialogOpen] = useState(false);
+  const [threadLoadOpen, setThreadLoadOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [partialResultsWarnings, setPartialResultsWarnings] = useState<Record<string, boolean>>({});
+  const showPartialResultsWarning = partialResultsWarnings[activeTab ?? 'main'] ?? false;
+  const setShowPartialResultsWarning = (show: boolean) => {
+    setPartialResultsWarnings((prev) => ({ ...prev, [activeTab ?? 'main']: show }));
+  };
+
+  // The hook itself now validates the first-step target on `.start()`
+  // and marks the tour completed if missing — so we don't keep auto-
+  // triggering every session on a cold-boot-to-DM user.
+  const contextualTour = useTour('contextual', {
+    steps: contextualTourSteps,
+    markCompletedOnMissingTarget: true,
+  });
+  const contextualTourTriggered = useRef(false);
+
+  // Trigger contextual tour once after first message load.
+  // Skip in Cypress test environment to avoid blocking interactions.
+  useEffect(() => {
+    if (
+      messages.length > 0 &&
+      !isLoading &&
+      !contextualTour.completed &&
+      !contextualTour.running &&
+      !contextualTourTriggered.current &&
+      !(window as unknown as { Cypress?: unknown }).Cypress
+    ) {
+      contextualTourTriggered.current = true;
+      // Small delay to let the UI settle before start() checks targets.
+      const timer = setTimeout(() => contextualTour.start(), 800);
+      return () => clearTimeout(timer);
+    }
+  }, [messages.length, isLoading, contextualTour.completed, contextualTour.running, contextualTour.start]);
+
+  // Store dispatch results so we can abort operations
+  const loadAllAbortController = useRef<{ abort: () => void } | null>(null);
+
+  const currentContext = selectedChannel || selectedDm;
+  const isDm = !!selectedDm && !selectedChannel;
+  const contextLabel = isDm ? 'conversation' : 'channel';
+  const hasManageMessages = useMemo(() => {
+    if (!selectedGuild?.id || !currentContext) return false;
+    return canManageMessages(selectedGuild.permissions, memberRoles, currentContext, selectedGuild.id);
+  }, [selectedGuild?.id, selectedGuild?.permissions, memberRoles, currentContext]);
+
+  // Resolve active context name (thread name when on thread tab, channel/DM name otherwise)
+  const activeContextName = activeTab && threadTabs[activeTab]
+    ? threadTabs[activeTab].threadName
+    : currentContext?.name || 'Direct Message';
+
+
+  // Clean up saved search criteria for closed thread tabs.
+  // Refine criteria is now per-tab in Redux and cleaned up automatically
+  // when removeThreadTab fires, so it doesn't need a sweep here.
+  useEffect(() => {
+    const openTabIds = new Set(Object.keys(threadTabs));
+    for (const key of Object.keys(tabSearchCriteriaRef.current)) {
+      if (key !== 'main' && !openTabIds.has(key)) {
+        delete tabSearchCriteriaRef.current[key];
+      }
+    }
+    setPartialResultsWarnings((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(next)) {
+        if (key !== 'main' && !openTabIds.has(key)) {
+          delete next[key];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [threadTabs]);
+
+  // Build userMap from message authors for markdown rendering
+  // Merge with cached data to include nicknames and display names
+  const userMap = useMemo(() => {
+    const map: Record<string, { userName?: string; displayName?: string; nick?: string }> = {};
+
+    // Start with cached data
+    Object.keys(cachedUserMap).forEach((userId) => {
+      const cached = cachedUserMap[userId];
+      const guildData = selectedGuild?.id ? cached.guilds?.[selectedGuild.id] : null;
+      map[userId] = {
+        userName: cached.userName || undefined,
+        displayName: cached.displayName || undefined,
+        nick: guildData?.nick || undefined,
+      };
+    });
+
+    // Overlay message author data
+    allMessages.forEach((msg) => {
+      if (msg.author) {
+        map[msg.author.id] = {
+          ...map[msg.author.id],
+          userName: msg.author.username,
+          displayName: msg.author.global_name || map[msg.author.id]?.displayName,
+        };
+      }
+    });
+
+    return map;
+  }, [allMessages, cachedUserMap, selectedGuild?.id]);
+
+  // Build full user map with complete User objects for profile modals
+  const fullUserMap = useMemo(() => {
+    const map: Record<string, User> = {};
+    allMessages.forEach((msg) => {
+      if (msg.author) {
+        map[msg.author.id] = msg.author;
+      }
+    });
+    return map;
+  }, [allMessages]);
+
+  // Build channelMap from channels for channel mentions
+  const channelMap = useMemo(() => {
+    const map: Record<string, { name: string }> = {};
+    channels.forEach((channel) => {
+      map[channel.id] = { name: channel.name || 'unknown-channel' };
+    });
+    return map;
+  }, [channels]);
+
+  // Build formatting context for message preview
+  const formattingContext: HtmlFormattingContext = useMemo(() => ({
+    userMap,
+    channelMap,
+    guildRoles,
+  }), [userMap, channelMap, guildRoles]);
+
+  // Trigger user enrichment when main channel messages change
+  useEffect(() => {
+    if (mainMessages.length > 0 && token && settings) {
+      const shouldEnrich =
+        settings[DiscrubSetting.DISPLAY_NAME_LOOKUP] === 'true' ||
+        settings[DiscrubSetting.SERVER_NICKNAME_LOOKUP] === 'true';
+
+      if (shouldEnrich) {
+        dispatch(
+          enrichMessageUsers({
+            messages: mainMessages,
+            guildId: selectedGuild?.id || null,
+            token,
+          })
+        );
+      }
+    }
+  }, [mainMessages.length, token, settings, selectedGuild?.id, dispatch]);
+
+  // Local refine filter logic moved to `src/features/message/messageFiltering.ts`
+  // (`applyRefineCriteria`) so the message slice can re-apply it as new pages
+  // arrive. This component dispatches setRefineCriteria/setThreadRefineCriteria;
+  // the reducer takes care of deriving filteredMessages.
+
+  // --- Server search handler ---
+  const handleServerSearch = async (criteria: SearchCriteria) => {
+    if (!currentContext || !token) return;
+    tabSearchCriteriaRef.current[activeTab ?? 'main'] = criteria;
+
+    if (isOperationRunning) return;
+    // The search reducer now applies any active refineCriteria itself when
+    // it writes filteredMessages, so no manual re-apply step is needed
+    // after the dispatch resolves.
+    const dispatchResult = activeTab
+      ? dispatch(searchThreadMessages({ threadId: activeTab, token, searchCriteria: criteria }))
+      : dispatch(searchMessages({ channelId: currentContext.id, guildId: selectedGuild?.id, token, searchCriteria: criteria }));
+    await dispatchResult;
+    setShowPartialResultsWarning(false);
+  };
+
+  // --- Local refine handler ---
+  // The setRefineCriteria reducer derives filteredMessages itself from the
+  // current raw `state.messages`, so this handler only needs to dispatch
+  // and update the partial-results warning.
+  const handleRefine = (criteria: SearchCriteria) => {
+    dispatchSetRefine(criteria);
+    const hasMoreMessages = pagination.hasMore || pagination.mode === 'paginated';
+    setShowPartialResultsWarning(hasMoreMessages);
+  };
+
+  // --- Clear handlers ---
+  const handleClearServerSearch = () => {
+    tabSearchCriteriaRef.current[activeTab ?? 'main'] = defaultCriteria;
+    // Restore all messages. The setFilteredMessages dispatch is then
+    // shadowed by setRefineCriteria's derive logic if refine is active —
+    // but since we only call setFilteredMessages here, we manually
+    // re-apply refine afterward by re-dispatching the existing criteria.
+    if (activeTab) {
+      dispatch(setThreadFilteredMessages({ threadId: activeTab, messages: allMessages }));
+    } else {
+      dispatch(setFilteredMessages(allMessages));
+    }
+    if (currentRefineCriteria && countActiveFilters(currentRefineCriteria) > 0) {
+      dispatchSetRefine(currentRefineCriteria);
+    }
+    setShowPartialResultsWarning(false);
+  };
+
+  const handleClearRefine = () => {
+    dispatchClearRefine();
+    setShowPartialResultsWarning(false);
+  };
+
+  const handleClearAll = () => {
+    tabSearchCriteriaRef.current[activeTab ?? 'main'] = defaultCriteria;
+    dispatchClearRefine();
+    if (activeTab) {
+      dispatch(setThreadFilteredMessages({ threadId: activeTab, messages: allMessages }));
+    } else {
+      dispatch(setFilteredMessages(allMessages));
+    }
+    setShowPartialResultsWarning(false);
+  };
+
+  // --- Individual chip clear helpers ---
+  const reduceCriteria = (current: SearchCriteria, field: keyof SearchCriteria, value?: string): SearchCriteria => {
+    if (field === 'userIds' && value) return { ...current, userIds: current.userIds.filter((id) => id !== value) };
+    if (field === 'selectedHasTypes' && value) return { ...current, selectedHasTypes: current.selectedHasTypes.filter((t) => t !== value) };
+    if (field === 'mentionIds' && value) return { ...current, mentionIds: (current.mentionIds || []).filter((id) => id !== value) };
+    if (field === 'searchAfterDate') return { ...current, searchAfterDate: null };
+    if (field === 'searchBeforeDate') return { ...current, searchBeforeDate: null };
+    if (field === 'isPinned') return { ...current, isPinned: IsPinnedType.UNSET };
+    if (field === 'authorType') return { ...current, authorType: null };
+    if (field === 'searchMessageContent') return { ...current, searchMessageContent: null };
+    return current;
+  };
+
+  const handleClearSearchFilter = (field: keyof SearchCriteria, value?: string) => {
+    const current = tabSearchCriteriaRef.current[activeTab ?? 'main'] ?? defaultCriteria;
+    const updated = reduceCriteria(current, field, value);
+    tabSearchCriteriaRef.current[activeTab ?? 'main'] = updated;
+    if (countActiveFilters(updated) > 0) {
+      handleServerSearch(updated);
+    } else {
+      handleClearServerSearch();
+    }
+  };
+
+  const handleClearRefineFilter = (field: keyof SearchCriteria, value?: string) => {
+    const updated = reduceCriteria(currentRefineCriteria, field, value);
+    if (countActiveFilters(updated) > 0) {
+      dispatchSetRefine(updated);
+    } else {
+      handleClearRefine();
+    }
+  };
+
+  const currentSearchCriteria = tabSearchCriteriaRef.current[activeTab ?? 'main'] ?? defaultCriteria;
+  const activeFilterCount = countTotalFilters(currentSearchCriteria, currentRefineCriteria);
+
+  const handleDelete = async (messagesToDelete: Message[]) => {
+    if (!token || isOperationRunning) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      deleteMessages({
+        messages: messagesToDelete,
+        channelId,
+        token,
+      })
+    );
+  };
+
+  const handleEdit = async (message: Message, newContent: string) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      editMessage({
+        messageId: message.id,
+        channelId,
+        content: newContent,
+        token,
+      })
+    );
+  };
+
+  const handleBulkEdit = async (messagesToEdit: Message[], newContent: string) => {
+    if (!token || isOperationRunning) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      editMessages({
+        messages: messagesToEdit,
+        channelId,
+        content: newContent,
+        token,
+      })
+    );
+  };
+
+  const handleFetchReactingUsers = async (messageId: string, emoji: string): Promise<User[]> => {
+    if (!token) return [];
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return [];
+
+    const result = await dispatch(
+      fetchReactingUsers({
+        channelId,
+        messageId,
+        emoji,
+        token,
+      })
+    ).unwrap();
+
+    return result.users;
+  };
+
+  // DM context: return current user from reaction.me without API calls
+  const handleFetchReactingUsersDm = async (messageId: string, emoji: string): Promise<User[]> => {
+    const msg = messages.find((m) => m.id === messageId);
+    if (!msg?.reactions || !currentUser) return [];
+
+    const reaction = msg.reactions.find((r) => {
+      const key = r.emoji?.id ? `${r.emoji.id}` : (r.emoji?.name || '');
+      return key === emoji;
+    });
+
+    if (reaction?.me) {
+      return [currentUser as User];
+    }
+    return [];
+  };
+
+  const handleDeleteReaction = async (messageId: string, emoji: string, userId: string) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      deleteReaction({
+        channelId,
+        messageId,
+        emoji,
+        userId,
+        token,
+      })
+    );
+  };
+
+  const handleBulkDeleteAllReactions = async (messageId: string) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      bulkDeleteAllReactions({ channelId, messageId, token })
+    );
+  };
+
+  const handleBatchRemoveReactions = (params: {
+    messages: Message[];
+    mode: 'all' | 'emoji' | 'user';
+    emojis?: string[];
+    userId?: string;
+  }) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    // Strip to plain serializable objects — full Message objects contain Date instances
+    // which trigger Redux serialization warnings and can prevent dispatch
+    const serializableMessages = params.messages.map((m) => ({
+      id: m.id,
+      reactions: (m.reactions || []).map((r) => ({
+        emoji: { id: r.emoji.id, name: r.emoji.name },
+        count: r.count,
+        me: r.me,
+      })),
+    }));
+
+    dispatch(
+      batchRemoveReactions({
+        channelId,
+        messages: serializableMessages,
+        mode: params.mode,
+        emojis: params.emojis,
+        userId: params.userId,
+        token,
+      })
+    );
+  };
+
+  const handleBulkDeleteReactionsForEmoji = async (messageId: string, emoji: string) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      bulkDeleteReactionsForEmoji({ channelId, messageId, emoji, token })
+    );
+  };
+
+  const handleDeleteAttachment = async (message: Message, attachment: Attachment) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      deleteAttachment({
+        message,
+        attachment,
+        channelId,
+        token,
+      })
+    );
+  };
+
+  const handleDeleteAllAttachments = async (message: Message) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    await dispatch(
+      deleteAllAttachments({
+        message,
+        channelId,
+        token,
+      })
+    );
+  };
+
+  const handleThreadLoad = async (threadId: string) => {
+    if (!token) return;
+
+    setThreadLoadOpen(false);
+    dispatch(addStatusEntry({ level: 'info', message: 'Loading thread...' }));
+
+    try {
+      // Fetch thread metadata to get the name
+      const channel = await dispatch(fetchChannelById({ channelId: threadId, token })).unwrap();
+
+      // Open as a tab instead of navigating away
+      await dispatch(
+        openThreadTab({ threadId: channel.id, threadName: channel.name || `Thread`, token })
+      );
+
+      dispatch(addStatusEntry({ level: 'success', message: `Thread loaded successfully` }));
+    } catch (error) {
+      dispatch(addStatusEntry({ level: 'error', message: `Failed to load thread: ${error}` }));
+    }
+  };
+
+  const handleOpenThread = (message: Message) => {
+    if (!token || isOperationRunning) return;
+    const thread = (message as any).thread;
+    if (!thread) return;
+    dispatch(openThreadTab({ threadId: thread.id, threadName: thread.name || `Thread`, token }));
+  };
+
+  const handleOpenForumThread = (thread: Channel) => {
+    if (!token || isOperationRunning) return;
+    dispatch(openThreadTab({ threadId: thread.id, threadName: thread.name || 'Post', token }));
+  };
+
+  const handleLoadAll = async () => {
+    if (!token || isOperationRunning) return;
+
+    setLoadAllDialogOpen(false);
+
+    let dispatchResult;
+    if (activeTab) {
+      dispatchResult = dispatch(
+        fetchAllThreadMessages({ threadId: activeTab, token })
+      );
+    } else if (pagination.mode === 'search') {
+      // In search mode, Load All loops through remaining pages of the
+      // currently-active search (rather than re-fetching the channel from
+      // scratch via fetchAllMessages, which would drop the filter).
+      dispatchResult = dispatch(
+        loadAllSearchResults({
+          channelId: currentContext?.id,
+          guildId: selectedGuild?.id,
+          token,
+        })
+      );
+    } else {
+      if (!currentContext) return;
+      dispatchResult = dispatch(
+        fetchAllMessages({ channelId: currentContext.id, token })
+      );
+    }
+    loadAllAbortController.current = dispatchResult;
+
+    await dispatchResult;
+
+    loadAllAbortController.current = null;
+  };
+
+  if (!currentContext) {
+    return (
+      <WelcomePanel onStartTour={onStartShellTour ?? (() => {})} />
+    );
+  }
+
+  return (
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
+      <Joyride
+        steps={contextualTourSteps}
+        run={contextualTour.running}
+        stepIndex={contextualTour.stepIndex}
+        onEvent={contextualTour.handleEvent}
+        continuous
+        scrollToFirstStep
+        tooltipComponent={TourTooltip}
+        options={{
+          overlayClickAction: false,
+          blockTargetInteraction: true,
+          overlayColor: 'rgba(0, 0, 0, 0.6)',
+          zIndex: 10000,
+          skipBeacon: true,
+        }}
+      />
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ minWidth: 0, flexShrink: 1 }}>
+            <Typography variant="h6" noWrap>
+              {activeContextName}
+            </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.5 }}>
+              <Typography variant="body2" color="text.secondary" noWrap>
+                {(() => {
+                  if (isForumChannel) {
+                    const total = forumThreadsTotalResults || forumThreads.length;
+                    return `${total} post${total !== 1 ? 's' : ''}`;
+                  }
+                  // Three counts to keep separate when a local refine is on
+                  // top of a server search:
+                  //   visible — what's in the feed (post-refine)
+                  //   loaded  — what the server has returned so far (raw,
+                  //             pre-refine but post-search)
+                  //   total   — server-reported total matches (search mode)
+                  const visible = messages.length;
+                  const loaded = allMessages.length;
+                  const total = pagination.totalCount;
+                  const isRefined = visible !== loaded;
+
+                  if (pagination.mode === 'search' && total !== null) {
+                    if (isRefined) {
+                      return pagination.hasMore
+                        ? `${visible} visible · ${loaded} of ${total} matches loaded`
+                        : `${visible} visible · ${total} matches loaded`;
+                    }
+                    return pagination.hasMore
+                      ? `${loaded} of ${total} matches loaded (${total - loaded} remaining)`
+                      : `${total} match${total !== 1 ? 'es' : ''}`;
+                  }
+
+                  // Paginated (no server search). Channel total is unknown,
+                  // so we surface raw "loaded" instead of total — and explicitly
+                  // show that scrolling can pull more, even when refine has
+                  // narrowed the visible set down.
+                  if (isRefined) {
+                    return pagination.hasMore
+                      ? `${visible} visible · ${loaded} loaded — scroll for more`
+                      : `${visible} visible · ${loaded} loaded`;
+                  }
+                  return `${loaded} message${loaded !== 1 ? 's' : ''}`;
+                })()}
+              </Typography>
+              {!isForumChannel && pagination.mode === 'search' && (
+                <TourSpot stepKey="search-match-counter" size="compact" placement="bottom" />
+              )}
+              {!isForumChannel && pagination.hasMore && pagination.mode === 'paginated' && (
+                <Chip
+                  icon={<MoreHorizIcon />}
+                  label="More available"
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 22, fontSize: '0.72rem', '& .MuiChip-icon': { fontSize: 14 } }}
+                />
+              )}
+              {!isForumChannel && pagination.hasMore && pagination.mode === 'search' && (
+                <Chip
+                  icon={<MoreHorizIcon />}
+                  label="Scroll or Load All"
+                  size="small"
+                  variant="outlined"
+                  sx={{ height: 22, fontSize: '0.72rem', '& .MuiChip-icon': { fontSize: 14 } }}
+                />
+              )}
+              {!isForumChannel && !pagination.hasMore && messages.length > 0 && (
+                <Chip
+                  icon={<CheckCircleIcon />}
+                  label="All loaded"
+                  size="small"
+                  color="success"
+                  variant="outlined"
+                  sx={{ height: 22, fontSize: '0.72rem', '& .MuiChip-icon': { fontSize: 14 } }}
+                />
+              )}
+            </Box>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
+            {!isForumChannel && pagination.hasMore &&
+              (pagination.mode === 'paginated' || pagination.mode === 'search') && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LoadAllIcon />}
+                onClick={() => setLoadAllDialogOpen(true)}
+                disabled={isLoading || pagination.isLoadingAll || isOperationRunning}
+              >
+                Load All
+              </Button>
+            )}
+            {!isForumChannel && (
+              <Badge
+                badgeContent={activeFilterCount}
+                color="primary"
+                sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}
+              >
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<FilterListIcon />}
+                  onClick={() => { filterModalKeyRef.current++; setFilterModalOpen(true); }}
+                  data-tour="search-filters"
+                  data-testid="search-filters-button"
+                >
+                  Filters
+                </Button>
+              </Badge>
+            )}
+            {!isForumChannel && (
+              <TourSpot stepKey="search-filters" size="compact" placement="bottom" />
+            )}
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ThreadIcon />}
+              onClick={() => setThreadLoadOpen(true)}
+            >
+              Load Thread
+            </Button>
+            {!isForumChannel && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AnalyticsIcon />}
+                onClick={() => setAnalyticsOpen(true)}
+                disabled={messages.length === 0}
+                data-tour="analytics-button"
+              >
+                Analytics
+              </Button>
+            )}
+            {!isForumChannel && (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={focusedView ? <FullscreenExitIcon /> : <FullscreenIcon />}
+                onClick={() => dispatch(toggleFocusedView())}
+                data-testid="focus-mode-toggle"
+                data-tour="focus-button"
+                title={focusedView ? 'Exit focus mode (F or Esc)' : 'Enter focus mode (F)'}
+              >
+                {focusedView ? 'Exit Focus' : 'Focus'}
+              </Button>
+            )}
+            {!isForumChannel && (
+              <TourSpot stepKey="focus-button" size="compact" placement="bottom" />
+            )}
+            {isForumChannel ? (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<ExportIcon />}
+                onClick={() => setForumExportDialogOpen(true)}
+                disabled={forumThreads.length === 0 || isOperationRunning}
+                data-tour="export-button"
+              >
+                Export
+              </Button>
+            ) : (
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<ExportIcon />}
+                onClick={() => setExportDialogOpen(true)}
+                data-tour="export-button"
+                disabled={messages.length === 0 || isOperationRunning}
+              >
+                Export
+              </Button>
+            )}
+          </Box>
+        </Box>
+      </Paper>
+
+      {!isForumChannel && activeFilterCount > 0 && (
+        <ActiveFilterChips
+          searchCriteria={currentSearchCriteria}
+          refineCriteria={currentRefineCriteria}
+          onClearSearchFilter={handleClearSearchFilter}
+          onClearRefineFilter={handleClearRefineFilter}
+          onClearAll={handleClearAll}
+        />
+      )}
+
+      {!isForumChannel && (
+        <FilterModal
+          key={filterModalKeyRef.current}
+          open={filterModalOpen}
+          onClose={() => setFilterModalOpen(false)}
+          onServerSearch={handleServerSearch}
+          onRefine={handleRefine}
+          onClearSearch={handleClearServerSearch}
+          onClearRefine={handleClearRefine}
+          savedSearchCriteria={tabSearchCriteriaRef.current[activeTab ?? 'main']}
+          savedRefineCriteria={currentRefineCriteria}
+          cachedUserMap={cachedUserMap}
+          currentUserId={currentUser?.id || ''}
+        />
+      )}
+
+      {!isForumChannel && showPartialResultsWarning && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          <AlertTitle>Filtering Loaded Messages Only</AlertTitle>
+          You're filtering {allMessages.length} loaded messages.{' '}
+          {pagination.hasMore && `More messages may exist in this ${contextLabel}. `}
+          For complete results, use server search or click "Load All" first.
+        </Alert>
+      )}
+
+      <ThreadTabBar channelName={currentContext?.name || 'Direct Message'} />
+
+      {!isForumChannel && (
+        <MessageActions
+          selectedMessages={selectedMessages}
+          onDelete={handleDelete}
+          onEdit={handleEdit}
+          onBulkEdit={handleBulkEdit}
+          formattingContext={formattingContext}
+          isOperationRunning={isOperationRunning}
+          canManageMessages={hasManageMessages}
+          currentUserId={currentUser?.id}
+          currentUsername={currentUser?.global_name || currentUser?.username}
+          fetchDelayMs={searchDelay}
+          onBatchRemoveReactions={handleBatchRemoveReactions}
+          onFetchReactingUsers={isDm ? handleFetchReactingUsersDm : handleFetchReactingUsers}
+        />
+      )}
+
+      {!isForumChannel && isLoading && (
+        <MessageTableSkeleton />
+      )}
+
+      {error && (
+        <Paper sx={{ p: 2, backgroundColor: 'error.dark', mb: 2 }}>
+          <Typography color="error.contrastText">{error}</Typography>
+        </Paper>
+      )}
+
+      {isForumChannel && (
+        <ForumThreadList
+          threads={forumThreads}
+          firstMessages={forumFirstMessages}
+          totalResults={forumThreadsTotalResults}
+          isLoading={isLoadingForumThreads}
+          hasMore={hasMoreForumThreads}
+          forumChannel={selectedChannel}
+          onThreadClick={handleOpenForumThread}
+          onLoadMore={() => {
+            if (token && selectedChannel) {
+              dispatch(loadMoreForumThreads({
+                channelId: selectedChannel.id,
+                token,
+                offset: forumThreadsNextOffset,
+              }));
+            }
+          }}
+          onSearch={(query) => {
+            if (token && selectedChannel) {
+              dispatch(searchForumThreads({
+                channelId: selectedChannel.id,
+                token,
+                name: query,
+              }));
+            }
+          }}
+          onClearSearch={() => {
+            if (token && selectedChannel) {
+              dispatch(fetchForumThreads({
+                channelId: selectedChannel.id,
+                token,
+              }));
+            }
+          }}
+        />
+      )}
+
+      {!isForumChannel && !isLoading && !error && messages.length === 0 && (
+        <EmptyState message={`No messages found in this ${contextLabel}`} icon="💬" />
+      )}
+
+      {!isForumChannel && !isLoading && !error && messages.length > 0 && (
+        <Box data-tour="message-table" data-testid="message-feed" sx={{ flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
+          <MessageFeed
+            formattingContext={formattingContext}
+            fullUserMap={fullUserMap}
+            onDeleteReaction={handleDeleteReaction}
+            onFetchReactingUsers={isDm ? handleFetchReactingUsersDm : handleFetchReactingUsers}
+            onDeleteAttachment={handleDeleteAttachment}
+            onDeleteAllAttachments={handleDeleteAllAttachments}
+            onOpenThread={handleOpenThread}
+            canManageMessages={hasManageMessages}
+            currentUserId={currentUser?.id}
+            onBulkDeleteAllReactions={handleBulkDeleteAllReactions}
+            onBulkDeleteReactionsForEmoji={handleBulkDeleteReactionsForEmoji}
+          />
+        </Box>
+      )}
+
+      <ExportDialog
+        open={exportDialogOpen}
+        onClose={() => setExportDialogOpen(false)}
+      />
+
+      <BulkExportDialog
+        open={forumExportDialogOpen}
+        onClose={() => setForumExportDialogOpen(false)}
+        channels={forumThreads}
+        mode="channels"
+        guildId={selectedGuild?.id}
+      />
+
+      <LoadAllDialog
+        open={loadAllDialogOpen}
+        onClose={() => setLoadAllDialogOpen(false)}
+        onConfirm={handleLoadAll}
+        contextLabel={contextLabel}
+      />
+
+      <ThreadLoadModal
+        open={threadLoadOpen}
+        onClose={() => setThreadLoadOpen(false)}
+        onLoad={handleThreadLoad}
+      />
+
+      <AnalyticsModal
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        messages={messages}
+        userMap={userMap}
+      />
+    </Box>
+  );
+};
+
+export default ServerView;

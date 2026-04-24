@@ -1,0 +1,2518 @@
+import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import type { Message, Attachment, User } from 'discrub-core/types/discord-types';
+import type { SearchCriteria } from 'discrub-core/types/discrub-types';
+import { getSortedMessages } from 'discrub-core/discrub-utils';
+import { ReactionType, IsPinnedType } from 'discrub-core/discord-enum';
+import { MessageOrder, initialMessageState, initialPaginationState, ThreadTabState } from './messageTypes';
+import { getDiscordService } from '@services/discordService';
+import type { RootState } from '@/app/store';
+import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
+import { calculateRandomDelay } from '@/utils/delayUtils';
+import { userEnrichmentService } from '@services/userEnrichmentService';
+import { mergeCachedUserMap, addFailedUserId, saveCacheToLocalStorage } from '@features/cache/cacheSlice';
+import { waitWhilePaused, checkCancelled, cancellableDelay } from '@/utils/operationLoopUtils';
+import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
+import { getEmojiKey } from '@/utils/emojiUtils';
+import { applyRefineCriteria, criteriaIsActive } from './messageFiltering';
+
+/**
+ * Emit a status-log entry when a just-loaded page produced zero matches
+ * against the currently-active refine. Gives the user an explicit signal
+ * that the fetch succeeded — important because otherwise the UI looks
+ * frozen (same filtered list, no new rows appeared).
+ */
+const maybeEmitPhantomLoadStatus = (
+  dispatch: (action: unknown) => void,
+  refineCriteria: SearchCriteria | null,
+  newPage: Message[],
+): void => {
+  if (!criteriaIsActive(refineCriteria) || newPage.length === 0) return;
+  const matched = applyRefineCriteria(newPage, refineCriteria);
+  if (matched.length === 0) {
+    dispatch(
+      addStatusEntry({
+        level: 'info',
+        message: `Loaded ${newPage.length} more — 0 matched the active refine`,
+      }),
+    );
+  }
+};
+
+/**
+ * Message slice - manages message state, filtering, and selection
+ */
+
+/**
+ * Delete a single message
+ */
+export const deleteMessage = createAsyncThunk(
+  'message/deleteMessage',
+  async (
+    {
+      messageId,
+      channelId,
+      token,
+    }: {
+      messageId: string;
+      channelId: string;
+      token: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.deleteMessage(token, messageId, channelId);
+
+      if (!response.success) {
+        return rejectWithValue('Failed to delete message');
+      }
+
+      return messageId;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete message'
+      );
+    }
+  }
+);
+
+/**
+ * Delete multiple messages
+ */
+export const deleteMessages = createAsyncThunk(
+  'message/deleteMessages',
+  async (
+    {
+      messages,
+      channelId,
+      token,
+    }: {
+      messages: Message[];
+      channelId: string;
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      dispatch(showOperationTip('Delete Operation Queued'));
+      const deletedIds: string[] = [];
+
+      // Get delay settings once before loop
+      const state = getState() as RootState;
+      const deleteDelay = selectDeleteDelay(state);
+      const delayModifier = selectDelayModifier(state);
+
+      for (let i = 0; i < messages.length; i++) {
+        const message = messages[i];
+
+        // Check pause/cancel before each iteration
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        try {
+          await dispatch(deleteMessage({ messageId: message.id, channelId, token })).unwrap();
+          deletedIds.push(message.id);
+
+          // Apply delay between deletions (skip after the last one)
+          if (i < messages.length - 1) {
+            const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
+
+            const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+            if (wasCancelled) break;
+          }
+        } catch (error) {
+          console.error(`Failed to delete message ${message.id}:`, error);
+        }
+      }
+
+      if (deletedIds.length > 0) {
+        dispatch(addStatusEntry({ level: 'success', message: `Deleted ${deletedIds.length} message${deletedIds.length !== 1 ? 's' : ''}` }));
+      }
+      return deletedIds;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete messages'
+      );
+    }
+  }
+);
+
+/**
+ * Edit a message
+ */
+export const editMessage = createAsyncThunk(
+  'message/editMessage',
+  async (
+    {
+      messageId,
+      channelId,
+      content,
+      token,
+    }: {
+      messageId: string;
+      channelId: string;
+      content: string;
+      token: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.editMessage(
+        token,
+        messageId,
+        { content },
+        channelId
+      );
+
+      if (!response.success || !response.data) {
+        return rejectWithValue('Failed to edit message');
+      }
+
+      return response.data as Message;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to edit message'
+      );
+    }
+  }
+);
+
+/**
+ * Edit multiple messages to the same content
+ */
+export const editMessages = createAsyncThunk(
+  'message/editMessages',
+  async (
+    {
+      messages,
+      channelId,
+      content,
+      token,
+    }: {
+      messages: Message[];
+      channelId: string;
+      content: string;
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      dispatch(showOperationTip('Edit Operation Queued'));
+      const editedMessages: Message[] = [];
+
+      const state = getState() as RootState;
+      const deleteDelay = selectDeleteDelay(state);
+      const delayModifier = selectDelayModifier(state);
+
+      for (const message of messages) {
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        try {
+          const result = await dispatch(
+            editMessage({ messageId: message.id, channelId, content, token })
+          ).unwrap();
+          editedMessages.push(result);
+
+          const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
+          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+          if (wasCancelled) break;
+        } catch (error) {
+          console.error(`Failed to edit message ${message.id}:`, error);
+        }
+      }
+
+      if (editedMessages.length > 0) {
+        dispatch(addStatusEntry({ level: 'success', message: `Edited ${editedMessages.length} message${editedMessages.length !== 1 ? 's' : ''}` }));
+      }
+      return editedMessages;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to edit messages'
+      );
+    }
+  }
+);
+
+/**
+ * Fetch users who reacted with a specific emoji on a message
+ */
+export const fetchReactingUsers = createAsyncThunk(
+  'message/fetchReactingUsers',
+  async (
+    {
+      channelId,
+      messageId,
+      emoji,
+      token,
+    }: {
+      channelId: string;
+      messageId: string;
+      emoji: string;
+      token: string;
+    },
+    { rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const allUsers: User[] = [];
+      let lastId: string | null = null;
+
+      // Paginate through all reacting users
+      while (true) {
+        const response = await discordService.getReactions(
+          token,
+          channelId,
+          messageId,
+          emoji,
+          ReactionType.NORMAL,
+          lastId
+        );
+
+        if (!response.success || !response.data) {
+          break;
+        }
+
+        const users = response.data as User[];
+        if (users.length === 0) break;
+
+        allUsers.push(...users);
+        lastId = users[users.length - 1].id;
+
+        // Discord returns max 100 per page
+        if (users.length < 100) break;
+      }
+
+      return { messageId, emoji, users: allUsers };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch reacting users'
+      );
+    }
+  }
+);
+
+/**
+ * Delete a specific reaction from a message
+ */
+export const deleteReaction = createAsyncThunk(
+  'message/deleteReaction',
+  async (
+    {
+      channelId,
+      messageId,
+      emoji,
+      userId,
+      token,
+    }: {
+      channelId: string;
+      messageId: string;
+      emoji: string;
+      userId: string;
+      token: string;
+    },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.deleteReaction(
+        token,
+        channelId,
+        messageId,
+        emoji,
+        userId
+      );
+
+      if (!response.success) {
+        return rejectWithValue('Failed to delete reaction');
+      }
+
+      dispatch(addStatusEntry({ level: 'info', message: `Removed reaction ${emoji} from message ${messageId}` }));
+      return { messageId, emoji, userId };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete reaction'
+      );
+    }
+  }
+);
+
+/**
+ * Delete all reactions of a specific emoji from a message
+ */
+export const deleteAllReactions = createAsyncThunk(
+  'message/deleteAllReactions',
+  async (
+    {
+      channelId,
+      messageId,
+      emoji,
+      userIds,
+      token,
+    }: {
+      channelId: string;
+      messageId: string;
+      emoji: string;
+      userIds: string[];
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as RootState;
+      const deleteDelay = selectDeleteDelay(state);
+      const delayModifier = selectDelayModifier(state);
+      const deletedUserIds: string[] = [];
+
+      dispatch(addStatusEntry({ level: 'info', message: `Deleting ${userIds.length} reaction(s) for ${emoji}...` }));
+
+      for (const userId of userIds) {
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        try {
+          await dispatch(deleteReaction({ channelId, messageId, emoji, userId, token })).unwrap();
+          deletedUserIds.push(userId);
+
+          if (userIds.indexOf(userId) < userIds.length - 1) {
+            const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
+            const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+            if (wasCancelled) break;
+          }
+        } catch (error) {
+          console.error(`Failed to delete reaction ${emoji} by user ${userId}:`, error);
+        }
+      }
+
+      dispatch(addStatusEntry({ level: 'success', message: `Deleted ${deletedUserIds.length} of ${userIds.length} reaction(s) for ${emoji}` }));
+      return { messageId, emoji, deletedUserIds };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete reactions'
+      );
+    }
+  }
+);
+
+/**
+ * Bulk delete all reactions from a message (requires MANAGE_MESSAGES).
+ * Uses DELETE /channels/{id}/messages/{id}/reactions — one API call.
+ */
+export const bulkDeleteAllReactions = createAsyncThunk(
+  'message/bulkDeleteAllReactions',
+  async (
+    {
+      channelId,
+      messageId,
+      token,
+    }: {
+      channelId: string;
+      messageId: string;
+      token: string;
+    },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.deleteAllReactionsFromMessage(
+        token,
+        channelId,
+        messageId,
+      );
+
+      if (!response.success) {
+        return rejectWithValue('Failed to delete all reactions');
+      }
+
+      dispatch(addStatusEntry({ level: 'success', message: `Removed all reactions from message` }));
+      return { messageId };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete all reactions'
+      );
+    }
+  }
+);
+
+/**
+ * Bulk delete all reactions for a specific emoji from a message (requires MANAGE_MESSAGES).
+ * Uses DELETE /channels/{id}/messages/{id}/reactions/{emoji} — one API call.
+ */
+export const bulkDeleteReactionsForEmoji = createAsyncThunk(
+  'message/bulkDeleteReactionsForEmoji',
+  async (
+    {
+      channelId,
+      messageId,
+      emoji,
+      token,
+    }: {
+      channelId: string;
+      messageId: string;
+      emoji: string;
+      token: string;
+    },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.deleteAllReactionsForEmoji(
+        token,
+        channelId,
+        messageId,
+        emoji,
+      );
+
+      if (!response.success) {
+        return rejectWithValue('Failed to delete reactions for emoji');
+      }
+
+      dispatch(addStatusEntry({ level: 'success', message: `Removed all ${emoji} reactions from message` }));
+      return { messageId, emoji };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete reactions for emoji'
+      );
+    }
+  }
+);
+
+/**
+ * Batch remove reactions across multiple messages.
+ * Modes: 'all' (bulk endpoint per message), 'emoji' (bulk per-emoji endpoint), 'user' (per-user deletion).
+ */
+export const batchRemoveReactions = createAsyncThunk(
+  'message/batchRemoveReactions',
+  async (
+    {
+      channelId,
+      messages,
+      mode,
+      emojis,
+      userId,
+      token,
+    }: {
+      channelId: string;
+      messages: { id: string; reactions?: { emoji: { id?: string | null; name?: string | null }; count: number; me?: boolean }[] }[];
+      mode: 'all' | 'emoji' | 'user';
+      emojis?: string[];
+      userId?: string;
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as RootState;
+      const deleteDelay = selectDeleteDelay(state);
+      const delayModifier = selectDelayModifier(state);
+      const discordService = getDiscordService();
+      let processed = 0;
+      let removed = 0;
+
+      // Filter to messages that actually have reactions
+      const messagesWithReactions = messages.filter((m) => m.reactions && m.reactions.length > 0);
+      const total = messagesWithReactions.length;
+
+      if (total === 0) {
+        dispatch(addStatusEntry({ level: 'info', message: 'No reactions to remove from selected messages' }));
+        return { processedMessageIds: [], mode, emojis };
+      }
+
+      dispatch(addStatusEntry({ level: 'info', message: `Processing reactions on ${total} message${total !== 1 ? 's' : ''}...` }));
+
+      for (const msg of messagesWithReactions) {
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        let didRemove = false;
+
+        if (mode === 'all') {
+          try {
+            await discordService.deleteAllReactionsFromMessage(token, channelId, msg.id);
+            didRemove = true;
+          } catch {
+            // Continue on failure — partial success is acceptable
+          }
+        } else if (mode === 'emoji' && emojis) {
+          for (const emoji of emojis) {
+            try {
+              await discordService.deleteAllReactionsForEmoji(token, channelId, msg.id, emoji);
+              didRemove = true;
+            } catch {
+              // Continue on failure
+            }
+          }
+        } else if (mode === 'user' && userId) {
+          // Per-user: only process emojis the user actually reacted to (me flag)
+          const targetReactions = (msg.reactions || []).filter((r) => {
+            if (r.me === false) return false;
+            if (emojis) return emojis.includes(getEmojiKey(r.emoji));
+            return true;
+          });
+          for (const reaction of targetReactions) {
+            const emojiKey = getEmojiKey(reaction.emoji);
+            try {
+              await discordService.deleteReaction(token, channelId, msg.id, emojiKey, userId);
+              didRemove = true;
+            } catch {
+              // User may not have reacted with this emoji — continue
+            }
+          }
+        }
+
+        processed++;
+        if (didRemove) removed++;
+
+        if (processed % 10 === 0 || processed === total) {
+          dispatch(addStatusEntry({ level: 'info', message: `Processed ${processed} of ${total} messages` }));
+        }
+
+        if (processed < total) {
+          const { delayMs } = calculateRandomDelay(deleteDelay, delayModifier);
+          const wasCancelled = await cancellableDelay(delayMs, getState as () => RootState);
+          if (wasCancelled) break;
+        }
+      }
+
+      if (removed > 0) {
+        dispatch(addStatusEntry({ level: 'success', message: `Removed reactions from ${removed} message${removed !== 1 ? 's' : ''}` }));
+      } else {
+        dispatch(addStatusEntry({ level: 'info', message: 'No matching reactions found to remove' }));
+      }
+      return { processedMessageIds: messages.slice(0, processed).map((m) => m.id), mode, emojis };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to batch remove reactions'
+      );
+    }
+  }
+);
+
+/**
+ * Delete a single attachment from a message
+ * If message has multiple attachments, edits message to remove the attachment.
+ * If it's the last attachment and message has no content, deletes the entire message.
+ */
+export const deleteAttachment = createAsyncThunk(
+  'message/deleteAttachment',
+  async (
+    {
+      message,
+      attachment,
+      channelId,
+      token,
+    }: {
+      message: Message;
+      attachment: Attachment;
+      channelId: string;
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      // Read fresh message from Redux state to ensure accurate attachment list
+      const state = getState() as RootState;
+      const freshMessage = state.message.messages.find((m) => m.id === message.id) || message;
+      const remainingAttachments = (freshMessage.attachments || []).filter(
+        (a) => a.id !== attachment.id
+      );
+
+      // If no attachments remain and no content, delete the entire message
+      if (remainingAttachments.length === 0 && !freshMessage.content?.trim()) {
+        const deleteResponse = await discordService.deleteMessage(token, message.id, channelId);
+        if (!deleteResponse.success) {
+          return rejectWithValue('Failed to delete message');
+        }
+        dispatch(addStatusEntry({ level: 'info', message: `Deleted message ${message.id} (last attachment removed)` }));
+        return { messageId: message.id, deleted: true };
+      }
+
+      // Otherwise, edit the message to remove the attachment
+      const editResponse = await discordService.editMessage(
+        token,
+        message.id,
+        { attachments: remainingAttachments },
+        channelId
+      );
+
+      if (!editResponse.success || !editResponse.data) {
+        return rejectWithValue('Failed to remove attachment');
+      }
+
+      dispatch(addStatusEntry({ level: 'info', message: `Removed attachment ${attachment.filename} from message ${message.id}` }));
+      return { messageId: message.id, deleted: false, updatedMessage: editResponse.data as Message };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete attachment'
+      );
+    }
+  }
+);
+
+/**
+ * Delete all attachments from a message
+ */
+export const deleteAllAttachments = createAsyncThunk(
+  'message/deleteAllAttachments',
+  async (
+    {
+      message,
+      channelId,
+      token,
+    }: {
+      message: Message;
+      channelId: string;
+      token: string;
+    },
+    { dispatch, rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+
+      // If no content, delete the entire message
+      if (!message.content?.trim()) {
+        const deleteResponse = await discordService.deleteMessage(token, message.id, channelId);
+        if (!deleteResponse.success) {
+          return rejectWithValue('Failed to delete message');
+        }
+        dispatch(addStatusEntry({ level: 'info', message: `Deleted message ${message.id} (all attachments removed)` }));
+        return { messageId: message.id, deleted: true };
+      }
+
+      // Otherwise, edit message to remove all attachments
+      const editResponse = await discordService.editMessage(
+        token,
+        message.id,
+        { attachments: [] },
+        channelId
+      );
+
+      if (!editResponse.success || !editResponse.data) {
+        return rejectWithValue('Failed to remove attachments');
+      }
+
+      dispatch(addStatusEntry({ level: 'info', message: `Removed all attachments from message ${message.id}` }));
+      return { messageId: message.id, deleted: false, updatedMessage: editResponse.data as Message };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to delete attachments'
+      );
+    }
+  }
+);
+
+/**
+ * Fetch messages for a channel (initial load)
+ */
+export const fetchMessages = createAsyncThunk(
+  'message/fetchMessages',
+  async (
+    {
+      channelId,
+      token,
+    }: {
+      guildId?: string;
+      channelId: string;
+      token: string;
+      searchCriteria?: SearchCriteria;
+    },
+    { rejectWithValue, dispatch }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+
+      // Fetch first page (most recent 100)
+      const response = await discordService.fetchMessageData(
+        token,
+        '', // Empty lastId for initial load
+        channelId
+      );
+
+      if (!response.success || !response.data) {
+        return rejectWithValue('Failed to fetch messages');
+      }
+
+      const messages = response.data as Message[];
+
+      dispatch(addStatusEntry({ level: 'info', message: `Loaded ${messages.length} messages` }));
+
+      return {
+        messages,
+        hasMore: messages.length === 100, // If we got 100, there might be more
+        lastMessageId: messages.length > 0 ? messages[messages.length - 1].id : null,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch messages'
+      );
+    }
+  }
+);
+
+/**
+ * Fetch more messages (infinite scroll)
+ */
+export const fetchMoreMessages = createAsyncThunk(
+  'message/fetchMoreMessages',
+  async (
+    {
+      channelId,
+      token,
+      lastMessageId,
+    }: {
+      channelId: string;
+      token: string;
+      lastMessageId: string;
+    },
+    { rejectWithValue, dispatch, getState }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+
+      // Fetch next page using lastMessageId as cursor
+      const response = await discordService.fetchMessageData(
+        token,
+        lastMessageId,
+        channelId
+        // QueryStringParam.BEFORE is the default
+      );
+
+      if (!response.success || !response.data) {
+        return rejectWithValue('Failed to fetch more messages');
+      }
+
+      const messages = response.data as Message[];
+
+      dispatch(addStatusEntry({ level: 'info', message: `Loaded ${messages.length} more messages` }));
+      maybeEmitPhantomLoadStatus(
+        dispatch,
+        (getState() as RootState).message.refineCriteria,
+        messages,
+      );
+
+      return {
+        messages,
+        hasMore: messages.length === 100,
+        lastMessageId: messages.length > 0 ? messages[messages.length - 1].id : lastMessageId,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch more messages'
+      );
+    }
+  }
+);
+
+const SEARCH_PAGE_SIZE = 25;
+
+/**
+ * Search messages using Discord Search API — fetches page 1 only.
+ *
+ * Historically this thunk looped until every matching message was returned,
+ * which meant huge channels took minutes to surface any results. Now it
+ * fetches a single page of 25 matches and sets up pagination state so
+ * subsequent pages can be pulled lazily (via `fetchNextSearchPage` on scroll)
+ * or all-at-once (via `loadAllSearchResults` when the user clicks Load All).
+ *
+ * Discord's search endpoint caps each query at 5000 matches. Going past that
+ * requires restarting the search with a new `searchAfterDate` boundary —
+ * handled in `loadAllSearchResults`, not here.
+ */
+export const searchMessages = createAsyncThunk(
+  'message/searchMessages',
+  async (
+    {
+      channelId,
+      guildId,
+      token,
+      searchCriteria,
+    }: {
+      channelId?: string;
+      guildId?: string;
+      token: string;
+      searchCriteria: SearchCriteria;
+    },
+    { rejectWithValue, dispatch }
+  ) => {
+    try {
+      dispatch(showOperationTip('Search Operation Queued'));
+      dispatch(addStatusEntry({ level: 'info', message: 'Search: Starting...' }));
+      const discordService = getDiscordService();
+
+      const response = await discordService.fetchSearchMessageData(
+        token,
+        0,
+        channelId || null,
+        guildId || null,
+        searchCriteria
+      );
+
+      if (!response.success || !response.data) {
+        return rejectWithValue(
+          'Failed to search messages. Please check your connection and try again.'
+        );
+      }
+
+      const messages = response.data.messages
+        ? response.data.messages.flatMap((group) => group)
+        : [];
+      const totalResults = response.data.total_results ?? messages.length;
+
+      dispatch(
+        addStatusEntry({
+          level: 'success',
+          message: `Search: found ${messages.length} of ${totalResults} results`,
+        })
+      );
+
+      return {
+        messages,
+        totalResults,
+        // Next page starts after the results we just got. If the page returned
+        // fewer than the page size, Discord has no more for us — hasMore false.
+        // Also guard against the (unusual) case where messages.length >= total.
+        nextOffset: messages.length,
+        hasMore:
+          messages.length === SEARCH_PAGE_SIZE && messages.length < totalResults,
+        // Persist the criteria so fetchNextSearchPage / loadAllSearchResults
+        // know which search they're paginating without the caller having to
+        // dispatch setSearchCriteria separately.
+        searchCriteria,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred while searching messages'
+      );
+    }
+  }
+);
+
+/**
+ * Fetch the next page of an already-active search. Reads the current offset
+ * and searchCriteria from state; appends results; updates hasMore/offset.
+ * A no-op if there's no active search (mode !== 'search') or hasMore is false.
+ */
+export const fetchNextSearchPage = createAsyncThunk(
+  'message/fetchNextSearchPage',
+  async (
+    {
+      channelId,
+      guildId,
+      token,
+    }: { channelId?: string; guildId?: string; token: string },
+    { rejectWithValue, getState, dispatch }
+  ) => {
+    const state = getState() as RootState;
+    const { searchCriteria, pagination, refineCriteria } = state.message;
+
+    if (
+      pagination.mode !== 'search' ||
+      !pagination.hasMore ||
+      !searchCriteria
+    ) {
+      return rejectWithValue('No active search page to fetch');
+    }
+
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.fetchSearchMessageData(
+        token,
+        pagination.searchOffset,
+        channelId || null,
+        guildId || null,
+        searchCriteria
+      );
+
+      if (!response.success || !response.data) {
+        return rejectWithValue('Failed to fetch next search page');
+      }
+
+      const messages = response.data.messages
+        ? response.data.messages.flatMap((group) => group)
+        : [];
+      const totalResults = response.data.total_results ?? pagination.totalCount ?? 0;
+      const newOffset = pagination.searchOffset + messages.length;
+
+      maybeEmitPhantomLoadStatus(dispatch, refineCriteria, messages);
+
+      return {
+        messages,
+        totalResults,
+        newOffset,
+        hasMore:
+          messages.length === SEARCH_PAGE_SIZE && newOffset < totalResults,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred while fetching the next search page'
+      );
+    }
+  }
+);
+
+/**
+ * Explicit Load All for the currently-active search — loops through remaining
+ * pages until hasMore goes false, with per-milestone status entries and
+ * load-all progress. Preserves the old eager-search behavior but now gated
+ * behind a user action.
+ *
+ * Also handles the >5000-match case by restarting the search with an updated
+ * `searchAfterDate` boundary, matching the historical behavior of the
+ * auto-looping `searchMessages`.
+ */
+export const loadAllSearchResults = createAsyncThunk(
+  'message/loadAllSearchResults',
+  async (
+    {
+      channelId,
+      guildId,
+      token,
+    }: { channelId?: string; guildId?: string; token: string },
+    { rejectWithValue, dispatch, getState, signal }
+  ) => {
+    const initial = getState() as RootState;
+    const initialCriteria = initial.message.searchCriteria;
+    if (!initialCriteria || initial.message.pagination.mode !== 'search') {
+      return rejectWithValue('No active search to load all for');
+    }
+
+    const discordService = getDiscordService();
+    const searchDelay = selectSearchDelay(initial);
+    const delayModifier = selectDelayModifier(initial);
+    const MAX_PER_QUERY = 5000;
+
+    const aggregated: Message[] = [...initial.message.messages];
+    let currentCriteria = { ...initialCriteria };
+    let offset = initial.message.pagination.searchOffset;
+    let totalForCurrentQuery = initial.message.pagination.totalCount ?? 0;
+    let nextMilestone = aggregated.length + 100 - (aggregated.length % 100);
+
+    try {
+      while (!signal.aborted) {
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) {
+          return rejectWithValue('Load all cancelled');
+        }
+
+        const response = await discordService.fetchSearchMessageData(
+          token,
+          offset,
+          channelId || null,
+          guildId || null,
+          currentCriteria
+        );
+
+        if (!response.success || !response.data) {
+          return rejectWithValue('Failed while loading all search results');
+        }
+
+        const page = response.data.messages
+          ? response.data.messages.flatMap((group) => group)
+          : [];
+        const pageTotal = response.data.total_results ?? page.length;
+        totalForCurrentQuery = pageTotal;
+
+        if (page.length === 0) break;
+
+        aggregated.push(...page);
+        offset += page.length;
+
+        dispatch(
+          updateLoadAllProgress({
+            current: aggregated.length,
+            total: pageTotal,
+            message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
+          })
+        );
+
+        if (aggregated.length >= nextMilestone) {
+          dispatch(
+            addStatusEntry({
+              level: 'info',
+              message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
+            })
+          );
+          nextMilestone = aggregated.length + 100 - (aggregated.length % 100);
+        }
+
+        // End of this query's results
+        if (page.length < SEARCH_PAGE_SIZE || offset >= totalForCurrentQuery) {
+          // If we hit the 5000-match cap exactly, continue with a new
+          // searchAfterDate boundary. Otherwise we're genuinely done.
+          if (offset >= MAX_PER_QUERY) {
+            const last = page[page.length - 1];
+            currentCriteria = {
+              ...currentCriteria,
+              searchAfterDate: new Date(last.timestamp),
+            };
+            offset = 0;
+          } else {
+            break;
+          }
+        }
+
+        const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+        const wasCancelled = await cancellableDelay(
+          delayCalc.delayMs,
+          getState as () => RootState
+        );
+        if (wasCancelled) return rejectWithValue('Load all cancelled');
+      }
+
+      if (signal.aborted) {
+        return rejectWithValue('Load all cancelled');
+      }
+
+      dispatch(
+        addStatusEntry({
+          level: 'success',
+          message: `Search complete: ${aggregated.length} results loaded`,
+        })
+      );
+
+      return {
+        messages: aggregated,
+        totalResults: aggregated.length,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error
+          ? error.message
+          : 'An unexpected error occurred while loading all search results'
+      );
+    }
+  }
+);
+
+/**
+ * Fetch all messages from a channel (bulk load)
+ */
+export const fetchAllMessages = createAsyncThunk(
+  'message/fetchAllMessages',
+  async (
+    {
+      channelId,
+      token,
+    }: {
+      channelId: string;
+      token: string;
+    },
+    { rejectWithValue, dispatch, signal, getState }
+  ) => {
+    try {
+      dispatch(showOperationTip('Load All Operation Queued'));
+      dispatch(addStatusEntry({ level: 'info', message: 'Load All: Starting...' }));
+      const discordService = getDiscordService();
+
+      // Get delay settings once at start
+      const state = getState() as RootState;
+      const searchDelay = selectSearchDelay(state);
+      const delayModifier = selectDelayModifier(state);
+
+      let allMessages: Message[] = [];
+      let lastMessageId = '';
+      let batchCount = 0;
+      let hasMore = true;
+      let nextMilestone = 500;
+
+      while (hasMore && !signal.aborted) {
+        // Check pause/cancel
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        // Fetch next batch
+        const response = await discordService.fetchMessageData(
+          token,
+          lastMessageId,
+          channelId
+        );
+
+        if (!response.success || !response.data) {
+          return rejectWithValue('Failed to fetch all messages');
+        }
+
+        const messages = response.data as Message[];
+        allMessages = [...allMessages, ...messages];
+        batchCount++;
+
+        // Update progress
+        dispatch(
+          updateLoadAllProgress({
+            current: allMessages.length,
+            total: 0, // Unknown until we reach the end
+            message: `Loaded ${allMessages.length} messages...`,
+          })
+        );
+
+        if (allMessages.length >= nextMilestone) {
+          dispatch(addStatusEntry({ level: 'info', message: `Load All: ${allMessages.length} messages fetched` }));
+          nextMilestone = allMessages.length + 500 - (allMessages.length % 500);
+        }
+
+        // Check if we've reached the end
+        if (messages.length < 100) {
+          hasMore = false;
+        } else {
+          lastMessageId = messages[messages.length - 1].id;
+
+          // Calculate random delay between batches
+          const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+
+          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+          if (wasCancelled) return rejectWithValue('Load cancelled');
+        }
+      }
+
+      // Check if cancelled
+      if (signal.aborted) {
+        return rejectWithValue('Load cancelled');
+      }
+
+      dispatch(addStatusEntry({ level: 'success', message: `Load All complete: ${allMessages.length} messages` }));
+      return {
+        messages: allMessages,
+        hasMore: false,
+        lastMessageId: allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null,
+      };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch all messages'
+      );
+    }
+  }
+);
+
+/**
+ * Enrich user data for messages
+ * Fetches display names and server nicknames based on settings
+ */
+export const enrichMessageUsers = createAsyncThunk(
+  'message/enrichMessageUsers',
+  async (
+    {
+      messages,
+      guildId,
+      token,
+    }: {
+      messages: Message[];
+      guildId: string | null;
+      token: string;
+    },
+    { getState, dispatch, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as RootState;
+      const settings = selectSettings(state);
+      const existingUserMap = state.cache.userMap;
+      const failedUserIds = state.cache.failedUserIds;
+
+      if (!settings) {
+        return rejectWithValue('Settings not available');
+      }
+
+      // Enrich user data (skip users that previously returned 404)
+      const result = await userEnrichmentService.enrichMessages(
+        messages,
+        guildId,
+        token,
+        settings,
+        existingUserMap,
+        undefined,
+        undefined,
+        failedUserIds
+      );
+
+      // Cache newly failed user IDs (404 only) so they're skipped in future runs
+      if (result.failedUserIds && result.failedUserIds.length > 0) {
+        result.failedUserIds.forEach((id) => dispatch(addFailedUserId(id)));
+        // Persist to storage so failed IDs survive page refreshes
+        await dispatch(saveCacheToLocalStorage()).unwrap();
+      }
+
+      // Merge enriched data into cache
+      const enrichedUserMap = result.userMap;
+      await dispatch(mergeCachedUserMap(enrichedUserMap)).unwrap();
+
+      return enrichedUserMap;
+    } catch (error) {
+      console.error('Failed to enrich user data:', error);
+      // Don't reject - enrichment failures shouldn't block message display
+      return {};
+    }
+  }
+);
+
+/**
+ * Open a thread tab — creates tab state and fetches first 100 messages
+ */
+export const openThreadTab = createAsyncThunk(
+  'message/openThreadTab',
+  async (
+    {
+      threadId,
+      threadName,
+      token,
+    }: {
+      threadId: string;
+      threadName: string;
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as RootState;
+
+      // If tab already exists, just switch to it
+      if (state.message.threadTabs[threadId]) {
+        dispatch(messageSlice.actions.setActiveTab(threadId));
+        return { threadId, alreadyOpen: true };
+      }
+
+      // Create the tab (sets loading=true, switches activeTab)
+      dispatch(messageSlice.actions.addThreadTab({ threadId, threadName }));
+
+      // Fetch first page — threads are channels in Discord's API
+      const discordService = getDiscordService();
+      const response = await discordService.fetchMessageData(token, '', threadId);
+
+      if (!response.success || !response.data) {
+        // Remove the failed tab so user returns to main channel
+        dispatch(messageSlice.actions.removeThreadTab(threadId));
+        return rejectWithValue('Failed to fetch thread messages');
+      }
+
+      const messages = response.data as Message[];
+      const sorted = getSortedMessages(
+        messages,
+        (getState() as RootState).message.threadTabs[threadId]?.order.order ?? 'desc'
+      );
+
+      dispatch(messageSlice.actions.setThreadMessages({ threadId, messages: sorted }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: {
+          hasMore: messages.length === 100,
+          lastMessageId: messages.length > 0 ? messages[messages.length - 1].id : null,
+          mode: 'paginated',
+        },
+      }));
+      dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
+
+      dispatch(addStatusEntry({ level: 'info', message: `Thread loaded: ${messages.length} messages` }));
+
+      return { threadId, alreadyOpen: false };
+    } catch (error) {
+      // Remove the failed tab so user returns to main channel
+      dispatch(messageSlice.actions.removeThreadTab(threadId));
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch thread messages'
+      );
+    }
+  }
+);
+
+/**
+ * Deep-link to a message ID in the currently-visible feed (backlog #123,
+ * Phase 1). We check `filteredMessages` — the set actually rendered —
+ * rather than the raw `messages[]`, so a refine-hidden message doesn't
+ * "succeed" the find only to silently fail at scroll-time. If the
+ * target isn't visible we surface a toast (more visible than a
+ * status-panel entry). Lazy fetch-around for unloaded targets is Phase
+ * 2; cross-channel jumps are Phase 3.
+ */
+export const navigateToMessage = createAsyncThunk(
+  'message/navigateToMessage',
+  async (
+    { messageId }: { messageId: string },
+    { dispatch, getState },
+  ) => {
+    const state = getState() as RootState;
+    const activeTab = state.message.activeTab;
+    const pool = activeTab
+      ? state.message.threadTabs[activeTab]?.filteredMessages ?? []
+      : state.message.filteredMessages;
+
+    const found = pool.some((m) => m.id === messageId);
+    if (!found) {
+      dispatch(showToast({
+        level: 'info',
+        message: "That message isn't in the current view",
+        duration: 4000,
+      }));
+      return { found: false };
+    }
+
+    dispatch(messageSlice.actions.setHighlightedMessageId(messageId));
+    return { found: true };
+  },
+);
+
+/**
+ * Apply a single-user filter (#129 inline filter-by-user). Reads the
+ * active context (main channel or active thread tab), merges the new
+ * userId/mentionId into the existing searchCriteria, and dispatches
+ * the appropriate search thunk. Other filter fields (date, content,
+ * has-types, pinned, authorType) are preserved — only the userIds
+ * (mode='author') or mentionIds (mode='mentions') slot is replaced.
+ */
+export const applyUserFilter = createAsyncThunk(
+  'message/applyUserFilter',
+  async (
+    {
+      userId,
+      displayName,
+      mode,
+    }: { userId: string; displayName: string; mode: 'author' | 'mentions' },
+    { dispatch, getState },
+  ) => {
+    const state = getState() as RootState;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const token = (state as any).auth?.token as string | undefined;
+    if (!token) return { skipped: 'no-token' as const };
+
+    const fallback: SearchCriteria = {
+      searchAfterDate: null,
+      searchBeforeDate: null,
+      searchMessageContent: null,
+      selectedHasTypes: [],
+      userIds: [],
+      mentionIds: [],
+      channelIds: [],
+      isPinned: IsPinnedType.UNSET,
+      authorType: null,
+    };
+
+    const activeTab = state.message.activeTab;
+    const baseCriteria: SearchCriteria = activeTab
+      ? state.message.threadTabs[activeTab]?.searchCriteria ?? fallback
+      : state.message.searchCriteria ?? fallback;
+
+    const newCriteria: SearchCriteria = mode === 'author'
+      ? { ...baseCriteria, userIds: [userId] }
+      : { ...baseCriteria, mentionIds: [userId] };
+
+    if (activeTab) {
+      await dispatch(searchThreadMessages({
+        threadId: activeTab,
+        token,
+        searchCriteria: newCriteria,
+      }));
+    } else {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const channelId = (state as any).channel?.selectedChannel?.id
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ?? (state as any).dm?.selectedDm?.id;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const guildId = (state as any).guild?.selectedGuild?.id;
+      if (!channelId) return { skipped: 'no-channel' as const };
+      await dispatch(searchMessages({
+        guildId,
+        channelId,
+        token,
+        searchCriteria: newCriteria,
+      }));
+    }
+
+    const verb = mode === 'author' ? 'from' : 'mentioning';
+    dispatch(showToast({
+      level: 'info',
+      message: `Showing messages ${verb} ${displayName}`,
+      duration: 3000,
+    }));
+
+    return { applied: true as const, mode };
+  },
+);
+
+/**
+ * Fetch more messages for a thread tab (infinite scroll)
+ */
+export const fetchMoreThreadMessages = createAsyncThunk(
+  'message/fetchMoreThreadMessages',
+  async (
+    {
+      threadId,
+      token,
+      lastMessageId,
+    }: {
+      threadId: string;
+      token: string;
+      lastMessageId: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: { isLoadingMore: true },
+      }));
+
+      const discordService = getDiscordService();
+      const response = await discordService.fetchMessageData(token, lastMessageId, threadId);
+
+      if (!response.success || !response.data) {
+        dispatch(messageSlice.actions.updateThreadPagination({
+          threadId,
+          pagination: { isLoadingMore: false },
+        }));
+        return rejectWithValue('Failed to fetch more thread messages');
+      }
+
+      const newMessages = response.data as Message[];
+      const state = getState() as RootState;
+      const tab = state.message.threadTabs[threadId];
+      if (!tab) return rejectWithValue('Thread tab no longer exists');
+
+      const combined = [...tab.messages, ...newMessages];
+      const sorted = getSortedMessages(combined, tab.order.order);
+
+      dispatch(messageSlice.actions.setThreadMessages({ threadId, messages: sorted }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: {
+          isLoadingMore: false,
+          hasMore: newMessages.length === 100,
+          lastMessageId: newMessages.length > 0 ? newMessages[newMessages.length - 1].id : lastMessageId,
+        },
+      }));
+
+      dispatch(addStatusEntry({ level: 'info', message: `Loaded ${newMessages.length} more messages` }));
+
+      return { threadId, count: newMessages.length };
+    } catch (error) {
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: { isLoadingMore: false },
+      }));
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch more thread messages'
+      );
+    }
+  }
+);
+
+/**
+ * Fetch all messages from a thread (bulk load)
+ */
+export const fetchAllThreadMessages = createAsyncThunk(
+  'message/fetchAllThreadMessages',
+  async (
+    {
+      threadId,
+      token,
+    }: {
+      threadId: string;
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue, signal }
+  ) => {
+    try {
+      dispatch(showOperationTip('Load All Operation Queued'));
+      dispatch(addStatusEntry({ level: 'info', message: 'Load All: Starting...' }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: {
+          isLoadingAll: true,
+          mode: 'all',
+          loadAllProgress: { current: 0, total: 0, message: 'Starting to load all messages...' },
+        },
+      }));
+
+      const discordService = getDiscordService();
+      const state = getState() as RootState;
+      const searchDelay = selectSearchDelay(state);
+      const delayModifier = selectDelayModifier(state);
+
+      let allMessages: Message[] = [];
+      let lastMsgId = '';
+      let hasMore = true;
+      let nextMilestone = 500;
+
+      while (hasMore && !signal.aborted) {
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        const response = await discordService.fetchMessageData(token, lastMsgId, threadId);
+
+        if (!response.success || !response.data) {
+          dispatch(messageSlice.actions.updateThreadPagination({
+            threadId,
+            pagination: { isLoadingAll: false, loadAllProgress: null },
+          }));
+          return rejectWithValue('Failed to fetch all thread messages');
+        }
+
+        const messages = response.data as Message[];
+        allMessages = [...allMessages, ...messages];
+
+        dispatch(messageSlice.actions.updateThreadPagination({
+          threadId,
+          pagination: {
+            loadAllProgress: {
+              current: allMessages.length,
+              total: 0,
+              message: `Loaded ${allMessages.length} messages...`,
+            },
+          },
+        }));
+
+        if (allMessages.length >= nextMilestone) {
+          dispatch(addStatusEntry({ level: 'info', message: `Load All: ${allMessages.length} messages fetched` }));
+          nextMilestone = allMessages.length + 500 - (allMessages.length % 500);
+        }
+
+        if (messages.length < 100) {
+          hasMore = false;
+        } else {
+          lastMsgId = messages[messages.length - 1].id;
+
+          const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+          if (wasCancelled) break;
+        }
+      }
+
+      if (signal.aborted) {
+        dispatch(messageSlice.actions.updateThreadPagination({
+          threadId,
+          pagination: { isLoadingAll: false, loadAllProgress: null },
+        }));
+        return rejectWithValue('Load cancelled');
+      }
+
+      const tab = (getState() as RootState).message.threadTabs[threadId];
+      if (!tab) return rejectWithValue('Thread tab no longer exists');
+
+      const sorted = getSortedMessages(allMessages, tab.order.order);
+      dispatch(messageSlice.actions.setThreadMessages({ threadId, messages: sorted }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: {
+          isLoadingAll: false,
+          loadAllProgress: null,
+          hasMore: false,
+          lastMessageId: allMessages.length > 0 ? allMessages[allMessages.length - 1].id : null,
+        },
+      }));
+
+      dispatch(addStatusEntry({ level: 'success', message: `Load All complete: ${allMessages.length} messages` }));
+      return { threadId, count: allMessages.length };
+    } catch (error) {
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: { isLoadingAll: false, loadAllProgress: null },
+      }));
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch all thread messages'
+      );
+    }
+  }
+);
+
+/**
+ * Search messages in a thread using Discord Search API
+ */
+export const searchThreadMessages = createAsyncThunk(
+  'message/searchThreadMessages',
+  async (
+    {
+      threadId,
+      token,
+      searchCriteria,
+    }: {
+      threadId: string;
+      token: string;
+      searchCriteria: SearchCriteria;
+    },
+    { dispatch, getState, rejectWithValue, signal }
+  ) => {
+    try {
+      dispatch(showOperationTip('Search Operation Queued'));
+      dispatch(addStatusEntry({ level: 'info', message: 'Search: Starting...' }));
+      dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: true }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: {
+          mode: 'search',
+          loadAllProgress: { current: 0, total: 0, message: 'Searching messages...' },
+        },
+      }));
+
+      const discordService = getDiscordService();
+      const state = getState() as RootState;
+      const searchDelay = selectSearchDelay(state);
+      const delayModifier = selectDelayModifier(state);
+
+      let allMessages: Message[] = [];
+      let currentCriteria = { ...searchCriteria };
+      let shouldContinue = true;
+      let batchNumber = 0;
+      let nextMilestone = 100;
+
+      while (shouldContinue && !signal.aborted) {
+        let batchMessages: Message[] = [];
+        let offset = 0;
+        const maxPerBatch = 5000;
+        batchNumber++;
+
+        while (batchMessages.length < maxPerBatch && !signal.aborted) {
+          await waitWhilePaused(getState as () => RootState);
+          if (checkCancelled(getState as () => RootState)) {
+            shouldContinue = false;
+            break;
+          }
+
+          // Threads are channels — search by channelId
+          const response = await discordService.fetchSearchMessageData(
+            token,
+            offset,
+            threadId,
+            null,
+            currentCriteria
+          );
+
+          if (!response.success || !response.data) {
+            dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
+            dispatch(messageSlice.actions.updateThreadPagination({
+              threadId,
+              pagination: { loadAllProgress: null },
+            }));
+            return rejectWithValue('Failed to search thread messages');
+          }
+
+          const searchResult = response.data;
+          const messages = searchResult.messages
+            ? searchResult.messages.flatMap((group) => group)
+            : [];
+
+          if (messages.length === 0) {
+            shouldContinue = false;
+            break;
+          }
+
+          batchMessages = [...batchMessages, ...messages];
+          const fetched = allMessages.length + batchMessages.length;
+          const total = searchResult.total_results;
+
+          dispatch(messageSlice.actions.updateThreadPagination({
+            threadId,
+            pagination: {
+              loadAllProgress: {
+                current: fetched,
+                total,
+                message: `Search: fetched ${fetched} of ${total} results`,
+              },
+            },
+          }));
+
+          if (fetched >= nextMilestone) {
+            dispatch(addStatusEntry({ level: 'info', message: `Search: fetched ${fetched} of ${total} results` }));
+            nextMilestone = fetched + 100 - (fetched % 100);
+          }
+
+          if (messages.length < 25 || batchMessages.length >= searchResult.total_results) {
+            break;
+          }
+
+          offset += 25;
+
+          const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+          if (wasCancelled) return rejectWithValue('Search cancelled');
+        }
+
+        allMessages = [...allMessages, ...batchMessages];
+
+        if (batchMessages.length >= maxPerBatch && shouldContinue) {
+          const lastMessage = batchMessages[batchMessages.length - 1];
+          currentCriteria = {
+            ...currentCriteria,
+            searchAfterDate: new Date(lastMessage.timestamp),
+          };
+
+          const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+          if (wasCancelled) return rejectWithValue('Search cancelled');
+        } else {
+          shouldContinue = false;
+        }
+      }
+
+      if (signal.aborted) {
+        dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
+        dispatch(messageSlice.actions.updateThreadPagination({
+          threadId,
+          pagination: { loadAllProgress: null },
+        }));
+        return rejectWithValue('Search cancelled');
+      }
+
+      const tab = (getState() as RootState).message.threadTabs[threadId];
+      if (!tab) return rejectWithValue('Thread tab no longer exists');
+
+      const sorted = getSortedMessages(allMessages, tab.order.order);
+      dispatch(messageSlice.actions.setThreadMessages({ threadId, messages: sorted }));
+      dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: {
+          loadAllProgress: null,
+          hasMore: false,
+          totalCount: allMessages.length,
+          lastMessageId: null,
+        },
+      }));
+
+      dispatch(addStatusEntry({ level: 'success', message: `Search complete: ${allMessages.length} results found` }));
+      return { threadId, count: allMessages.length };
+    } catch (error) {
+      dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
+      dispatch(messageSlice.actions.updateThreadPagination({
+        threadId,
+        pagination: { loadAllProgress: null },
+      }));
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to search thread messages'
+      );
+    }
+  }
+);
+
+/**
+ * Helper to get the active message container (thread tab or main state).
+ * Returns an object with messages, filteredMessages, and selectedMessages
+ * that can be mutated in place (Immer draft).
+ */
+const getActiveContainer = (state: import('./messageTypes').MessageState) => {
+  if (state.activeTab && state.threadTabs[state.activeTab]) {
+    return state.threadTabs[state.activeTab];
+  }
+  return state;
+};
+
+const messageSlice = createSlice({
+  name: 'message',
+  initialState: initialMessageState,
+  reducers: {
+    setMessages: (state, action: PayloadAction<Message[]>) => {
+      state.messages = action.payload;
+      state.filteredMessages = action.payload;
+    },
+    setFilteredMessages: (state, action: PayloadAction<Message[]>) => {
+      state.filteredMessages = action.payload;
+    },
+    setSelectedMessages: (state, action: PayloadAction<Message[]>) => {
+      state.selectedMessages = action.payload;
+    },
+    toggleMessageSelection: (state, action: PayloadAction<Message>) => {
+      const index = state.selectedMessages.findIndex(
+        (msg: Message) => msg.id === action.payload.id
+      );
+      if (index >= 0) {
+        state.selectedMessages.splice(index, 1);
+      } else {
+        state.selectedMessages.push(action.payload);
+      }
+    },
+    selectAllMessages: (state) => {
+      state.selectedMessages = [...state.filteredMessages];
+    },
+    deselectAllMessages: (state) => {
+      state.selectedMessages = [];
+    },
+    setSearchCriteria: (state, action: PayloadAction<SearchCriteria | null>) => {
+      state.searchCriteria = action.payload;
+    },
+    setRefineCriteria: (state, action: PayloadAction<SearchCriteria | null>) => {
+      state.refineCriteria = action.payload;
+      // Re-derive filteredMessages now so the UI snaps to the new refine
+      // without the caller needing a second dispatch.
+      state.filteredMessages = applyRefineCriteria(state.messages, action.payload);
+    },
+    clearRefineCriteria: (state) => {
+      state.refineCriteria = null;
+      state.filteredMessages = state.messages;
+    },
+    setThreadRefineCriteria: (
+      state,
+      action: PayloadAction<{ threadId: string; criteria: SearchCriteria | null }>,
+    ) => {
+      const tab = state.threadTabs?.[action.payload.threadId];
+      if (!tab) return;
+      tab.refineCriteria = action.payload.criteria;
+      tab.filteredMessages = applyRefineCriteria(tab.messages, action.payload.criteria);
+    },
+    clearThreadRefineCriteria: (state, action: PayloadAction<string>) => {
+      const tab = state.threadTabs?.[action.payload];
+      if (!tab) return;
+      tab.refineCriteria = null;
+      tab.filteredMessages = tab.messages;
+    },
+    setOrder: (state, action: PayloadAction<MessageOrder>) => {
+      state.order = action.payload;
+      // Re-sort messages when order changes
+      if (state.filteredMessages.length > 0) {
+        state.filteredMessages = getSortedMessages(
+          state.filteredMessages,
+          action.payload.order
+        );
+      }
+    },
+    clearMessages: (state) => {
+      state.messages = [];
+      state.filteredMessages = [];
+      state.selectedMessages = [];
+      state.searchCriteria = null;
+      // Reset pagination state and cancel any ongoing operations
+      state.pagination = initialMessageState.pagination;
+      state.isLoading = false;
+      state.isDeleting = false;
+      state.error = null;
+      state.activeTab = null;
+      state.threadTabs = {};
+    },
+    resetPagination: (state) => {
+      state.pagination = initialMessageState.pagination;
+    },
+    updateLoadAllProgress: (
+      state,
+      action: PayloadAction<{ current: number; total: number; message: string }>
+    ) => {
+      state.pagination.loadAllProgress = action.payload;
+    },
+    cancelLoadAll: (state) => {
+      state.pagination.isLoadingAll = false;
+      state.pagination.loadAllProgress = null;
+    },
+    // Thread tab management
+    setActiveTab: (state, action: PayloadAction<string | null>) => {
+      state.activeTab = action.payload;
+    },
+    addThreadTab: (
+      state,
+      action: PayloadAction<{ threadId: string; threadName: string }>
+    ) => {
+      const { threadId, threadName } = action.payload;
+      if (!state.threadTabs) state.threadTabs = {};
+      if (!state.threadTabs[threadId]) {
+        state.threadTabs[threadId] = {
+          threadId,
+          threadName,
+          messages: [],
+          filteredMessages: [],
+          selectedMessages: [],
+          searchCriteria: null,
+          refineCriteria: null,
+          order: { ...state.order },
+          isLoading: true,
+          error: null,
+          pagination: { ...initialPaginationState },
+        };
+      }
+      state.activeTab = threadId;
+    },
+    removeThreadTab: (state, action: PayloadAction<string>) => {
+      const threadId = action.payload;
+      if (!state.threadTabs) return;
+      delete state.threadTabs[threadId];
+      if (state.activeTab === threadId) {
+        state.activeTab = null;
+      }
+    },
+    // Thread-tab-aware reducers
+    setThreadMessages: (
+      state,
+      action: PayloadAction<{ threadId: string; messages: Message[] }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.messages = action.payload.messages;
+        tab.filteredMessages = applyRefineCriteria(
+          action.payload.messages,
+          tab.refineCriteria,
+        );
+      }
+    },
+    setThreadFilteredMessages: (
+      state,
+      action: PayloadAction<{ threadId: string; messages: Message[] }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.filteredMessages = action.payload.messages;
+      }
+    },
+    toggleThreadMessageSelection: (
+      state,
+      action: PayloadAction<{ threadId: string; message: Message }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        const index = tab.selectedMessages.findIndex(
+          (msg: Message) => msg.id === action.payload.message.id
+        );
+        if (index >= 0) {
+          tab.selectedMessages.splice(index, 1);
+        } else {
+          tab.selectedMessages.push(action.payload.message);
+        }
+      }
+    },
+    selectAllThreadMessages: (state, action: PayloadAction<string>) => {
+      const tab = state.threadTabs[action.payload];
+      if (tab) {
+        tab.selectedMessages = [...tab.filteredMessages];
+      }
+    },
+    deselectAllThreadMessages: (state, action: PayloadAction<string>) => {
+      const tab = state.threadTabs[action.payload];
+      if (tab) {
+        tab.selectedMessages = [];
+      }
+    },
+    setThreadOrder: (
+      state,
+      action: PayloadAction<{ threadId: string; order: MessageOrder }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.order = action.payload.order;
+        if (tab.filteredMessages.length > 0) {
+          tab.filteredMessages = getSortedMessages(
+            tab.filteredMessages,
+            action.payload.order.order
+          );
+        }
+      }
+    },
+    setThreadSearchCriteria: (
+      state,
+      action: PayloadAction<{ threadId: string; criteria: SearchCriteria | null }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.searchCriteria = action.payload.criteria;
+      }
+    },
+    setThreadLoading: (
+      state,
+      action: PayloadAction<{ threadId: string; isLoading: boolean }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.isLoading = action.payload.isLoading;
+      }
+    },
+    setThreadError: (
+      state,
+      action: PayloadAction<{ threadId: string; error: string | null }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.error = action.payload.error;
+      }
+    },
+    updateThreadPagination: (
+      state,
+      action: PayloadAction<{
+        threadId: string;
+        pagination: Partial<ThreadTabState['pagination']>;
+      }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        Object.assign(tab.pagination, action.payload.pagination);
+      }
+    },
+    setHighlightedMessageId: (state, action: PayloadAction<string | null>) => {
+      state.highlightedMessageId = action.payload;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Fetch messages (initial load)
+      .addCase(fetchMessages.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.pagination.mode = 'paginated';
+      })
+      .addCase(fetchMessages.fulfilled, (state, action) => {
+        state.isLoading = false;
+        // Sort messages by order
+        const sorted = getSortedMessages(action.payload.messages, state.order.order);
+        state.messages = sorted;
+        state.filteredMessages = sorted;
+        state.selectedMessages = [];
+        state.error = null;
+
+        // Update pagination state
+        state.pagination.lastMessageId = action.payload.lastMessageId;
+        state.pagination.hasMore = action.payload.hasMore;
+        state.pagination.totalCount = null;
+        state.pagination.isLoadingMore = false;
+      })
+      .addCase(fetchMessages.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      })
+      // Fetch more messages (infinite scroll)
+      .addCase(fetchMoreMessages.pending, (state) => {
+        state.pagination.isLoadingMore = true;
+        state.error = null;
+      })
+      .addCase(fetchMoreMessages.fulfilled, (state, action) => {
+        state.pagination.isLoadingMore = false;
+
+        // Append new messages (don't replace). Then re-apply any active
+        // refine so newly-loaded pages stay filtered as the user scrolls.
+        const newMessages = [...state.messages, ...action.payload.messages];
+        const sorted = getSortedMessages(newMessages, state.order.order);
+        state.messages = sorted;
+        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+
+        // Update pagination state
+        state.pagination.lastMessageId = action.payload.lastMessageId;
+        state.pagination.hasMore = action.payload.hasMore;
+      })
+      .addCase(fetchMoreMessages.rejected, (state, action) => {
+        state.pagination.isLoadingMore = false;
+        state.error = action.payload as string;
+      })
+      // Delete single message
+      .addCase(deleteMessage.fulfilled, (state, action) => {
+        const messageId = action.payload;
+        const container = getActiveContainer(state);
+        container.messages = container.messages.filter((m) => m.id !== messageId);
+        container.filteredMessages = container.filteredMessages.filter((m) => m.id !== messageId);
+        container.selectedMessages = container.selectedMessages.filter((m) => m.id !== messageId);
+      })
+      // Delete multiple messages
+      .addCase(deleteMessages.pending, (state) => {
+        state.isDeleting = true;
+      })
+      .addCase(deleteMessages.fulfilled, (state) => {
+        state.isDeleting = false;
+        const container = getActiveContainer(state);
+        container.selectedMessages = [];
+      })
+      .addCase(deleteMessages.rejected, (state, action) => {
+        state.isDeleting = false;
+        state.error = action.payload as string;
+      })
+      // Edit message
+      .addCase(editMessage.pending, (state) => {
+        state.isEditing = true;
+      })
+      .addCase(editMessage.fulfilled, (state, action) => {
+        state.isEditing = false;
+        const updatedMessage = action.payload;
+        const container = getActiveContainer(state);
+        const updateInArray = (arr: Message[]) =>
+          arr.map((m) => (m.id === updatedMessage.id ? updatedMessage : m));
+        container.messages = updateInArray(container.messages);
+        container.filteredMessages = updateInArray(container.filteredMessages);
+        container.selectedMessages = updateInArray(container.selectedMessages);
+      })
+      .addCase(editMessage.rejected, (state, action) => {
+        state.isEditing = false;
+        state.error = action.payload as string;
+      })
+      // Fetch all messages (bulk load)
+      .addCase(fetchAllMessages.pending, (state) => {
+        state.pagination.isLoadingAll = true;
+        state.pagination.loadAllProgress = {
+          current: 0,
+          total: 0,
+          message: 'Starting to load all messages...',
+        };
+        state.pagination.mode = 'all';
+        state.error = null;
+      })
+      .addCase(fetchAllMessages.fulfilled, (state, action) => {
+        state.pagination.isLoadingAll = false;
+        state.pagination.loadAllProgress = null;
+
+        const sorted = getSortedMessages(action.payload.messages, state.order.order);
+        state.messages = sorted;
+        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+        state.selectedMessages = [];
+
+        state.pagination.lastMessageId = action.payload.lastMessageId;
+        state.pagination.hasMore = false;
+        state.error = null;
+      })
+      .addCase(fetchAllMessages.rejected, (state, action) => {
+        state.pagination.isLoadingAll = false;
+        state.pagination.loadAllProgress = null;
+        state.error = action.payload as string;
+      })
+      // Bulk edit messages
+      .addCase(editMessages.pending, (state) => {
+        state.isEditing = true;
+      })
+      .addCase(editMessages.fulfilled, (state, action) => {
+        state.isEditing = false;
+        const editedMessages = action.payload;
+        const container = getActiveContainer(state);
+        const updateInArray = (arr: Message[]) =>
+          arr.map((m) => {
+            const edited = editedMessages.find((e: Message) => e.id === m.id);
+            return edited || m;
+          });
+        container.messages = updateInArray(container.messages);
+        container.filteredMessages = updateInArray(container.filteredMessages);
+        container.selectedMessages = [];
+      })
+      .addCase(editMessages.rejected, (state, action) => {
+        state.isEditing = false;
+        state.error = action.payload as string;
+      })
+      // Search messages (Discord Search API)
+      .addCase(searchMessages.pending, (state) => {
+        state.isLoading = true;
+        state.pagination.mode = 'search';
+        state.pagination.loadAllProgress = null;
+        state.error = null;
+      })
+      .addCase(searchMessages.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.pagination.loadAllProgress = null;
+
+        const sorted = getSortedMessages(action.payload.messages, state.order.order);
+        state.messages = sorted;
+        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+        state.selectedMessages = [];
+
+        state.pagination.totalCount = action.payload.totalResults;
+        state.pagination.hasMore = action.payload.hasMore;
+        state.pagination.searchOffset = action.payload.nextOffset;
+        state.pagination.lastMessageId = null;
+        state.searchCriteria = action.payload.searchCriteria;
+        state.error = null;
+      })
+      .addCase(searchMessages.rejected, (state, action) => {
+        state.isLoading = false;
+        state.pagination.loadAllProgress = null;
+        state.error = action.payload as string;
+      })
+      .addCase(fetchNextSearchPage.pending, (state) => {
+        state.pagination.isLoadingMore = true;
+      })
+      .addCase(fetchNextSearchPage.fulfilled, (state, action) => {
+        state.pagination.isLoadingMore = false;
+
+        const existingIds = new Set(state.messages.map((m) => m.id));
+        const newMessages = action.payload.messages.filter(
+          (m) => !existingIds.has(m.id)
+        );
+        const combined = [...state.messages, ...newMessages];
+        const sorted = getSortedMessages(combined, state.order.order);
+        state.messages = sorted;
+        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+
+        state.pagination.totalCount = action.payload.totalResults;
+        state.pagination.hasMore = action.payload.hasMore;
+        state.pagination.searchOffset = action.payload.newOffset;
+      })
+      .addCase(fetchNextSearchPage.rejected, (state) => {
+        state.pagination.isLoadingMore = false;
+      })
+      .addCase(loadAllSearchResults.pending, (state) => {
+        state.pagination.isLoadingAll = true;
+        state.pagination.loadAllProgress = {
+          current: state.messages.length,
+          total: state.pagination.totalCount ?? 0,
+          message: 'Loading all search results...',
+        };
+      })
+      .addCase(loadAllSearchResults.fulfilled, (state, action) => {
+        state.pagination.isLoadingAll = false;
+        state.pagination.loadAllProgress = null;
+
+        const sorted = getSortedMessages(action.payload.messages, state.order.order);
+        state.messages = sorted;
+        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+
+        state.pagination.totalCount = action.payload.totalResults;
+        state.pagination.hasMore = false;
+        state.pagination.searchOffset = action.payload.messages.length;
+      })
+      .addCase(loadAllSearchResults.rejected, (state, action) => {
+        state.pagination.isLoadingAll = false;
+        state.pagination.loadAllProgress = null;
+        state.error = action.payload as string;
+      })
+      // Delete single reaction
+      .addCase(deleteReaction.fulfilled, (state, action) => {
+        const { messageId, emoji } = action.payload;
+        const container = getActiveContainer(state);
+        const updateReactions = (arr: Message[]) =>
+          arr.map((m) => {
+            if (m.id !== messageId || !m.reactions) return m;
+            const updatedReactions = m.reactions
+              .map((r) => {
+                const emojiKey = r.emoji.id || r.emoji.name;
+                if (emojiKey === emoji || `${r.emoji.name}:${r.emoji.id}` === emoji) {
+                  return { ...r, count: (r.count || 1) - 1 };
+                }
+                return r;
+              })
+              .filter((r) => (r.count || 0) > 0);
+            return { ...m, reactions: updatedReactions };
+          });
+        container.messages = updateReactions(container.messages);
+        container.filteredMessages = updateReactions(container.filteredMessages);
+        container.selectedMessages = updateReactions(container.selectedMessages);
+      })
+      // Delete all reactions of an emoji
+      .addCase(deleteAllReactions.fulfilled, (state, action) => {
+        const { messageId, emoji } = action.payload;
+        const container = getActiveContainer(state);
+        const removeEmoji = (arr: Message[]) =>
+          arr.map((m) => {
+            if (m.id !== messageId || !m.reactions) return m;
+            const updatedReactions = m.reactions.filter((r) => {
+              const emojiKey = r.emoji.id || r.emoji.name;
+              return emojiKey !== emoji && `${r.emoji.name}:${r.emoji.id}` !== emoji;
+            });
+            return { ...m, reactions: updatedReactions };
+          });
+        container.messages = removeEmoji(container.messages);
+        container.filteredMessages = removeEmoji(container.filteredMessages);
+        container.selectedMessages = removeEmoji(container.selectedMessages);
+      })
+      // Bulk delete all reactions from a message (MANAGE_MESSAGES)
+      .addCase(bulkDeleteAllReactions.fulfilled, (state, action) => {
+        const { messageId } = action.payload;
+        const container = getActiveContainer(state);
+        const clearReactions = (arr: Message[]) =>
+          arr.map((m) => m.id === messageId ? { ...m, reactions: [] } : m);
+        container.messages = clearReactions(container.messages);
+        container.filteredMessages = clearReactions(container.filteredMessages);
+        container.selectedMessages = clearReactions(container.selectedMessages);
+      })
+      // Bulk delete all reactions for a specific emoji (MANAGE_MESSAGES)
+      .addCase(bulkDeleteReactionsForEmoji.fulfilled, (state, action) => {
+        const { messageId, emoji } = action.payload;
+        const container = getActiveContainer(state);
+        const removeEmoji = (arr: Message[]) =>
+          arr.map((m) => {
+            if (m.id !== messageId || !m.reactions) return m;
+            const updatedReactions = m.reactions.filter((r) => {
+              const emojiKey = r.emoji.id || r.emoji.name;
+              return emojiKey !== emoji && `${r.emoji.name}:${r.emoji.id}` !== emoji;
+            });
+            return { ...m, reactions: updatedReactions };
+          });
+        container.messages = removeEmoji(container.messages);
+        container.filteredMessages = removeEmoji(container.filteredMessages);
+        container.selectedMessages = removeEmoji(container.selectedMessages);
+      })
+      // Batch remove reactions across multiple messages
+      .addCase(batchRemoveReactions.pending, (state) => {
+        state.isRemovingReactions = true;
+      })
+      .addCase(batchRemoveReactions.rejected, (state) => {
+        state.isRemovingReactions = false;
+      })
+      .addCase(batchRemoveReactions.fulfilled, (state, action) => {
+        state.isRemovingReactions = false;
+        const { processedMessageIds, mode, emojis } = action.payload;
+        const idSet = new Set(processedMessageIds);
+        const emojiSet = emojis ? new Set(emojis) : null;
+        const container = getActiveContainer(state);
+        const update = (arr: Message[]) =>
+          arr.map((m) => {
+            if (!idSet.has(m.id) || !m.reactions) return m;
+            if (mode === 'all') return { ...m, reactions: [] };
+            if (mode === 'emoji' && emojiSet) {
+              return {
+                ...m,
+                reactions: m.reactions.filter((r) => !emojiSet.has(getEmojiKey(r.emoji))),
+              };
+            }
+            return {
+              ...m,
+              reactions: m.reactions
+                .map((r) => {
+                  if (emojiSet && !emojiSet.has(getEmojiKey(r.emoji))) return r;
+                  return { ...r, count: Math.max(0, (r.count || 1) - 1), me: false };
+                })
+                .filter((r) => r.count > 0),
+            };
+          });
+        container.messages = update(container.messages);
+        container.filteredMessages = update(container.filteredMessages);
+        container.selectedMessages = update(container.selectedMessages);
+      })
+      // Delete single attachment
+      .addCase(deleteAttachment.fulfilled, (state, action) => {
+        const { messageId, deleted, updatedMessage } = action.payload;
+        const container = getActiveContainer(state);
+        if (deleted) {
+          container.messages = container.messages.filter((m) => m.id !== messageId);
+          container.filteredMessages = container.filteredMessages.filter((m) => m.id !== messageId);
+          container.selectedMessages = container.selectedMessages.filter((m) => m.id !== messageId);
+        } else if (updatedMessage) {
+          const updateInArray = (arr: Message[]) =>
+            arr.map((m) => (m.id === messageId ? updatedMessage : m));
+          container.messages = updateInArray(container.messages);
+          container.filteredMessages = updateInArray(container.filteredMessages);
+          container.selectedMessages = updateInArray(container.selectedMessages);
+        }
+      })
+      // Delete all attachments
+      .addCase(deleteAllAttachments.fulfilled, (state, action) => {
+        const { messageId, deleted, updatedMessage } = action.payload;
+        const container = getActiveContainer(state);
+        if (deleted) {
+          container.messages = container.messages.filter((m) => m.id !== messageId);
+          container.filteredMessages = container.filteredMessages.filter((m) => m.id !== messageId);
+          container.selectedMessages = container.selectedMessages.filter((m) => m.id !== messageId);
+        } else if (updatedMessage) {
+          const updateInArray = (arr: Message[]) =>
+            arr.map((m) => (m.id === messageId ? updatedMessage : m));
+          container.messages = updateInArray(container.messages);
+          container.filteredMessages = updateInArray(container.filteredMessages);
+          container.selectedMessages = updateInArray(container.selectedMessages);
+        }
+      })
+      // User enrichment (light operation — spinner only)
+      .addCase(enrichMessageUsers.pending, (state) => {
+        state.isEnriching = true;
+      })
+      .addCase(enrichMessageUsers.fulfilled, (state) => {
+        state.isEnriching = false;
+      })
+      .addCase(enrichMessageUsers.rejected, (state) => {
+        state.isEnriching = false;
+      });
+  },
+});
+
+export const {
+  setMessages,
+  setFilteredMessages,
+  setSelectedMessages,
+  toggleMessageSelection,
+  selectAllMessages,
+  deselectAllMessages,
+  setSearchCriteria,
+  setRefineCriteria,
+  clearRefineCriteria,
+  setThreadRefineCriteria,
+  clearThreadRefineCriteria,
+  setOrder,
+  clearMessages,
+  resetPagination,
+  updateLoadAllProgress,
+  cancelLoadAll,
+  setActiveTab,
+  addThreadTab,
+  removeThreadTab,
+  setThreadMessages,
+  setThreadFilteredMessages,
+  toggleThreadMessageSelection,
+  selectAllThreadMessages,
+  deselectAllThreadMessages,
+  setThreadOrder,
+  setThreadSearchCriteria,
+  setThreadLoading,
+  setThreadError,
+  updateThreadPagination,
+  setHighlightedMessageId,
+} = messageSlice.actions;
+
+// Base selectors (always return main channel state)
+export const selectMessage = (state: RootState) => state.message;
+export const selectMessages = (state: RootState) => state.message.messages;
+export const selectHighlightedMessageId = (state: RootState) =>
+  state.message.highlightedMessageId;
+export const selectFilteredMessages = (state: RootState) => state.message.filteredMessages;
+export const selectSelectedMessages = (state: RootState) => state.message.selectedMessages;
+export const selectSearchCriteria = (state: RootState) => state.message.searchCriteria;
+export const selectMessageOrder = (state: RootState) => state.message.order;
+export const selectMessageLoading = (state: RootState) => state.message.isLoading;
+export const selectMessageDeleting = (state: RootState) => state.message.isDeleting;
+export const selectMessageEditing = (state: RootState) => state.message.isEditing;
+export const selectMessageError = (state: RootState) => state.message.error;
+export const selectPagination = (state: RootState) => state.message.pagination;
+
+// Thread tab selectors
+export const selectActiveTab = (state: RootState) => state.message.activeTab;
+export const selectThreadTabs = (state: RootState) => state.message.threadTabs ?? {};
+export const selectThreadTab = (state: RootState, threadId: string) =>
+  state.message.threadTabs[threadId] ?? null;
+
+// Active-tab-aware selectors (return data from whichever tab is active)
+export const selectActiveMessages = (state: RootState) => {
+  const { activeTab, threadTabs, messages } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].messages;
+  }
+  return messages;
+};
+
+export const selectActiveFilteredMessages = (state: RootState) => {
+  const { activeTab, threadTabs, filteredMessages } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].filteredMessages;
+  }
+  return filteredMessages;
+};
+
+export const selectActiveSelectedMessages = (state: RootState) => {
+  const { activeTab, threadTabs, selectedMessages } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].selectedMessages;
+  }
+  return selectedMessages;
+};
+
+export const selectActiveSearchCriteria = (state: RootState) => {
+  const { activeTab, threadTabs, searchCriteria } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].searchCriteria;
+  }
+  return searchCriteria;
+};
+
+export const selectActiveOrder = (state: RootState) => {
+  const { activeTab, threadTabs, order } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].order;
+  }
+  return order;
+};
+
+export const selectActiveLoading = (state: RootState) => {
+  const { activeTab, threadTabs, isLoading } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].isLoading;
+  }
+  return isLoading;
+};
+
+export const selectActiveError = (state: RootState) => {
+  const { activeTab, threadTabs, error } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].error;
+  }
+  return error;
+};
+
+export const selectActivePagination = (state: RootState) => {
+  const { activeTab, threadTabs, pagination } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].pagination;
+  }
+  return pagination;
+};
+
+export default messageSlice.reducer;

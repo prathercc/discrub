@@ -1,0 +1,341 @@
+[
+  {
+    "id": "700000000000000001",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "Hello everyone! Welcome to the server.",
+    "timestamp": "2026-02-01T10:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000002",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Thanks for setting this up!",
+    "timestamp": "2026-02-01T10:05:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000003",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "333444555666777888",
+      "username": "bob_gamer",
+      "discriminator": "0",
+      "avatar": null,
+      "global_name": "Bob"
+    },
+    "content": "Anyone up for some gaming later?",
+    "timestamp": "2026-02-01T11:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "count": 2,
+        "count_details": { "burst": 0, "normal": 2 },
+        "me": false,
+        "me_burst": false,
+        "emoji": { "id": null, "name": "\ud83d\udc4d" },
+        "burst_colors": []
+      },
+      {
+        "count": 1,
+        "count_details": { "burst": 0, "normal": 1 },
+        "me": true,
+        "me_burst": false,
+        "emoji": { "id": null, "name": "\u2764\ufe0f" },
+        "burst_colors": []
+      }
+    ],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000004",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "Sure! Let me finish this code first.",
+    "timestamp": "2026-02-01T11:30:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000005",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Check out this cool project: https://github.com/example/project",
+    "timestamp": "2026-02-01T12:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [
+      {
+        "title": "example/project",
+        "type": "rich",
+        "description": "A **cool** project with [docs](https://docs.example.com)\nCheck out <#801000000000000001> for details",
+        "url": "https://github.com/example/project",
+        "color": 5814783,
+        "fields": [
+          { "name": "Status", "value": "**Active** - last updated *yesterday*" },
+          { "name": "Contributors", "value": "<@222333444555666777> and <@111222333444555666>" }
+        ],
+        "footer": { "text": "GitHub" }
+      }
+    ],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000006",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "333444555666777888",
+      "username": "bob_gamer",
+      "discriminator": "0",
+      "avatar": null,
+      "global_name": "Bob"
+    },
+    "content": "Here's a screenshot",
+    "timestamp": "2026-02-01T13:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [
+      {
+        "id": "600000000000000001",
+        "filename": "screenshot.png",
+        "size": 204800,
+        "url": "https://cdn.discordapp.com/attachments/801000000000000001/600000000000000001/screenshot.png",
+        "proxy_url": "https://media.discordapp.net/attachments/801000000000000001/600000000000000001/screenshot.png",
+        "width": 1920,
+        "height": 1080,
+        "content_type": "image/png"
+      },
+      {
+        "id": "600000000000000002",
+        "filename": "debug-log.txt",
+        "size": 4096,
+        "url": "https://cdn.discordapp.com/attachments/801000000000000001/600000000000000002/debug-log.txt",
+        "proxy_url": "https://media.discordapp.net/attachments/801000000000000001/600000000000000002/debug-log.txt",
+        "content_type": "text/plain"
+      }
+    ],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000007",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "Nice screenshot! The UI looks great.",
+    "timestamp": "2026-02-01T13:15:00.000Z",
+    "edited_timestamp": "2026-02-01T13:20:00.000Z",
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": true,
+    "type": 0
+  },
+  {
+    "id": "700000000000000008",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "I agree, the design is coming along nicely.",
+    "timestamp": "2026-02-01T14:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000009",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "333444555666777888",
+      "username": "bob_gamer",
+      "discriminator": "0",
+      "avatar": null,
+      "global_name": "Bob"
+    },
+    "content": "Let's ship it!",
+    "timestamp": "2026-02-01T15:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000010",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "Sounds good, deploying now.",
+    "timestamp": "2026-02-01T16:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000011",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "333444555666777888",
+      "username": "charlie_ops",
+      "discriminator": "0",
+      "avatar": "ghi789avatar",
+      "global_name": "Charlie Ops"
+    },
+    "content": "Hey <@111222333444555666> can you review this PR?",
+    "timestamp": "2026-02-01T17:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [{"id": "111222333444555666", "username": "discrub_tester"}],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000012",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "<@222333444555666777> and <@333444555666777888> take a look at this too",
+    "timestamp": "2026-02-01T17:30:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [{"id": "222333444555666777", "username": "alice_dev"}, {"id": "333444555666777888", "username": "charlie_ops"}],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "700000000000000013",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "<@111222333444555666> sure, I'll take a look!",
+    "timestamp": "2026-02-01T17:45:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [{"id": "111222333444555666", "username": "discrub_tester"}],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 19,
+    "message_reference": {
+      "message_id": "700000000000000012",
+      "channel_id": "801000000000000001"
+    }
+  }
+]

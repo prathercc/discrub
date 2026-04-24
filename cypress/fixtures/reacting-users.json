@@ -1,0 +1,16 @@
+[
+  {
+    "id": "111222333444555666",
+    "username": "discrub_tester",
+    "discriminator": "0",
+    "avatar": "abc123avatar",
+    "global_name": "Discrub Tester"
+  },
+  {
+    "id": "222333444555666777",
+    "username": "alice_dev",
+    "discriminator": "0",
+    "avatar": "alice_avatar",
+    "global_name": "Alice"
+  }
+]

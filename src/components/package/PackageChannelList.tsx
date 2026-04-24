@@ -1,0 +1,333 @@
+import { useMemo, useState } from 'react';
+import {
+  Avatar,
+  Box,
+  Button,
+  Chip,
+  Collapse,
+  IconButton,
+  List,
+  ListItemButton,
+  ListSubheader,
+  Stack,
+  Typography,
+} from '@mui/material';
+import {
+  Archive as ArchiveIcon,
+  AlternateEmail as DmIcon,
+  ExpandLess,
+  ExpandMore,
+  Forum as ThreadIcon,
+  GroupAdd as GroupDmIcon,
+  Tag as TextChannelIcon,
+  VisibilityOff as HideIcon,
+  Visibility as ShowIcon,
+} from '@mui/icons-material';
+import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import {
+  selectPackageChannel,
+  selectParsedPackage,
+  selectSelectedPackageChannelId,
+} from '@features/package/packageSlice';
+import type { PackageChannel } from '@features/package/packageTypes';
+import {
+  getPackageChannelCategory,
+  getPackageChannelLabel,
+  getPackageChannelSubtitle,
+  type PackageChannelCategory,
+} from '@features/package/packageDisplayUtils';
+
+interface PackageChannelListProps {
+  filterText?: string;
+}
+
+/**
+ * Sidebar channel browser for a loaded data package.
+ *
+ * Channels are grouped by category (servers / DMs / threads / left servers)
+ * so the user can scan "what's in here" at a glance. Within each group
+ * entries are sorted by message count descending. A type icon sits next
+ * to each row so the kind of channel (text, DM, thread, orphan) is
+ * identifiable without reading the subtitle.
+ *
+ * Empty channels (messageCount === 0) are hidden by default — Discord
+ * packages commonly contain hundreds of historical metadata-only
+ * channel stubs that add noise without signal.
+ */
+const PackageChannelList = ({ filterText = '' }: PackageChannelListProps) => {
+  const dispatch = useAppDispatch();
+  const parsed = useAppSelector(selectParsedPackage);
+  const selectedId = useAppSelector(selectSelectedPackageChannelId);
+  const [showEmpty, setShowEmpty] = useState(false);
+  const [collapsed, setCollapsed] = useState<Record<PackageChannelCategory, boolean>>({
+    guildText: false,
+    thread: false,
+    dm: false,
+    groupDm: false,
+    orphan: true, // collapsed by default — less noise
+  });
+
+  const filtered = useMemo(() => {
+    if (!parsed) return [];
+    const q = filterText.trim().toLowerCase();
+    return parsed.channels.filter((c) => {
+      if (!showEmpty && c.messageCount === 0) return false;
+      if (!q) return true;
+      const label = getPackageChannelLabel(c);
+      return (
+        label.toLowerCase().includes(q) ||
+        (c.guildName?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [parsed, filterText, showEmpty]);
+
+  const emptyCount = useMemo(
+    () => (parsed ? parsed.channels.filter((c) => c.messageCount === 0).length : 0),
+    [parsed],
+  );
+
+  const grouped = useMemo(() => {
+    const map: Record<PackageChannelCategory, PackageChannel[]> = {
+      guildText: [],
+      thread: [],
+      dm: [],
+      groupDm: [],
+      orphan: [],
+    };
+    for (const c of filtered) {
+      map[getPackageChannelCategory(c)].push(c);
+    }
+    // Sort each bucket by message count desc.
+    (Object.keys(map) as PackageChannelCategory[]).forEach((k) =>
+      map[k].sort((a, b) => b.messageCount - a.messageCount),
+    );
+    return map;
+  }, [filtered]);
+
+  if (!parsed) {
+    // Main pane already shows the import CTA — keep the sidebar quiet.
+    return (
+      <Box sx={{ p: 3, textAlign: 'center' }}>
+        <Typography variant="caption" color="text.disabled">
+          Import a package to browse its channels.
+        </Typography>
+      </Box>
+    );
+  }
+
+  const sections: Array<{
+    key: PackageChannelCategory;
+    label: string;
+    items: PackageChannel[];
+  }> = [
+    { key: 'guildText', label: 'Servers', items: grouped.guildText },
+    { key: 'thread', label: 'Threads', items: grouped.thread },
+    { key: 'dm', label: 'Direct Messages', items: grouped.dm },
+    { key: 'groupDm', label: 'Group DMs', items: grouped.groupDm },
+    { key: 'orphan', label: 'Left Servers', items: grouped.orphan },
+  ];
+
+  const totalShown = sections.reduce((n, s) => n + s.items.length, 0);
+
+  return (
+    <>
+      {emptyCount > 0 && (
+        <Box sx={{ px: 1.5, py: 1 }}>
+          <Button
+            size="small"
+            fullWidth
+            variant="text"
+            startIcon={showEmpty ? <HideIcon /> : <ShowIcon />}
+            onClick={() => setShowEmpty((v) => !v)}
+            sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
+          >
+            {showEmpty
+              ? `Hide ${emptyCount} empty channel${emptyCount === 1 ? '' : 's'}`
+              : `Show ${emptyCount} empty channel${emptyCount === 1 ? '' : 's'}`}
+          </Button>
+        </Box>
+      )}
+
+      {totalShown === 0 ? (
+        <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
+          No channels match your filter.
+        </Typography>
+      ) : (
+        <List dense disablePadding>
+          {sections.map(
+            (section) =>
+              section.items.length > 0 && (
+                <SidebarSection
+                  key={section.key}
+                  label={section.label}
+                  count={section.items.length}
+                  collapsed={collapsed[section.key]}
+                  onToggle={() =>
+                    setCollapsed((c) => ({ ...c, [section.key]: !c[section.key] }))
+                  }
+                >
+                  {section.items.map((channel) => (
+                    <ChannelRow
+                      key={channel.id}
+                      channel={channel}
+                      selected={channel.id === selectedId}
+                      onSelect={() => dispatch(selectPackageChannel(channel.id))}
+                    />
+                  ))}
+                </SidebarSection>
+              ),
+          )}
+        </List>
+      )}
+    </>
+  );
+};
+
+interface SidebarSectionProps {
+  label: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+}
+
+const SidebarSection = ({
+  label,
+  count,
+  collapsed,
+  onToggle,
+  children,
+}: SidebarSectionProps) => (
+  <>
+    <ListSubheader
+      disableSticky
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 1,
+        lineHeight: 1.8,
+        backgroundColor: 'transparent',
+        px: 1.5,
+        color: 'text.secondary',
+        fontSize: '0.7rem',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+        fontWeight: 700,
+      }}
+    >
+      <Box sx={{ flexGrow: 1 }}>{label}</Box>
+      <Chip
+        label={count}
+        size="small"
+        variant="outlined"
+        sx={{ height: 18, '& .MuiChip-label': { px: 0.75, fontSize: '0.65rem' } }}
+      />
+      <IconButton size="small" onClick={onToggle} sx={{ p: 0.25 }}>
+        {collapsed ? <ExpandMore fontSize="small" /> : <ExpandLess fontSize="small" />}
+      </IconButton>
+    </ListSubheader>
+    <Collapse in={!collapsed} unmountOnExit>
+      {children}
+    </Collapse>
+  </>
+);
+
+interface ChannelRowProps {
+  channel: PackageChannel;
+  selected: boolean;
+  onSelect: () => void;
+}
+
+const ChannelRow = ({ channel, selected, onSelect }: ChannelRowProps) => {
+  const primary = getPackageChannelLabel(channel);
+  const subtitle = getPackageChannelSubtitle(channel);
+  const category = getPackageChannelCategory(channel);
+  const countLabel =
+    channel.messageCount === 0
+      ? 'empty'
+      : channel.messageCount.toLocaleString();
+
+  return (
+    <ListItemButton
+      selected={selected}
+      onClick={onSelect}
+      sx={{
+        px: 1.5,
+        py: 0.75,
+        opacity: channel.isOrphan ? 0.82 : 1,
+        borderLeft: '3px solid transparent',
+        borderLeftColor: channel.isOrphan
+          ? 'warning.main'
+          : selected
+            ? 'primary.main'
+            : 'transparent',
+      }}
+    >
+      <ChannelIcon category={category} />
+      <Box sx={{ flexGrow: 1, minWidth: 0, ml: 1 }}>
+        <Stack direction="row" spacing={1} alignItems="baseline">
+          <Typography
+            variant="body2"
+            noWrap
+            sx={{
+              fontWeight: selected ? 600 : 500,
+              color: channel.name ? 'text.primary' : 'text.secondary',
+              fontStyle: channel.name ? 'normal' : 'italic',
+              flexGrow: 1,
+            }}
+          >
+            {primary}
+          </Typography>
+          <Typography
+            variant="caption"
+            color={channel.messageCount === 0 ? 'text.disabled' : 'text.secondary'}
+            sx={{ flexShrink: 0 }}
+          >
+            {countLabel}
+          </Typography>
+        </Stack>
+        <Typography
+          variant="caption"
+          noWrap
+          sx={{
+            color: channel.isOrphan ? 'warning.main' : 'text.secondary',
+            display: 'block',
+          }}
+        >
+          {subtitle}
+        </Typography>
+      </Box>
+    </ListItemButton>
+  );
+};
+
+const ICON_SX = { fontSize: 18, color: 'text.secondary', flexShrink: 0 };
+
+const ChannelIcon = ({ category }: { category: PackageChannelCategory }) => {
+  switch (category) {
+    case 'dm':
+      return (
+        <Avatar
+          sx={{
+            width: 22,
+            height: 22,
+            bgcolor: 'action.selected',
+            color: 'text.primary',
+          }}
+        >
+          <DmIcon sx={{ fontSize: 14 }} />
+        </Avatar>
+      );
+    case 'groupDm':
+      return <GroupDmIcon sx={ICON_SX} />;
+    case 'thread':
+      return <ThreadIcon sx={ICON_SX} />;
+    case 'orphan':
+      return <ArchiveIcon sx={{ ...ICON_SX, color: 'warning.main' }} />;
+    case 'guildText':
+    default:
+      return <TextChannelIcon sx={ICON_SX} />;
+  }
+};
+
+export default PackageChannelList;

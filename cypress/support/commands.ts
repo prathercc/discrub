@@ -1,0 +1,229 @@
+/// <reference types="cypress" />
+
+const API = '**/api/v10';
+
+/**
+ * Set up all common Discord API intercepts at once.
+ * Intercept order matters in Cypress (LIFO — last registered wins).
+ * More specific patterns are registered last so they take priority.
+ */
+Cypress.Commands.add('interceptDiscordApi', () => {
+  // Mock GitHub gist API calls to prevent AnnouncementModal/DonationDrawer crashes.
+  // Donation gist (new contributions format)
+  cy.intercept('GET', '**/gists/eb9a7ef2cf49ecab72adebeacea420bf', {
+    statusCode: 200,
+    body: {
+      files: { 'contributions.json': { content: '[]' } },
+    },
+  }).as('getDonationGist');
+
+  // Announcement data gist — rev '0' matches default CACHED_ANNOUNCEMENT_REV (no modal)
+  cy.intercept('GET', '**/gists/e5558088744dbe52edca729425900a69', {
+    statusCode: 200,
+    body: {
+      files: { 'announcement.json': { content: JSON.stringify({ rev: '0', version: '1.0.0' }) } },
+    },
+  }).as('getAnnouncementGist');
+
+  // Announcement markdown gist
+  cy.intercept('GET', '**/gists/a73736574a1a994e97cbc2d6f467c574', {
+    statusCode: 200,
+    body: {
+      files: { 'announcement_markdown.md': { content: '# Test' } },
+    },
+  }).as('getAnnouncementMarkdownGist');
+
+  // Guild member lookup
+  cy.intercept('GET', `${API}/guilds/*/members/*`, {
+    statusCode: 200,
+    body: {},
+  }).as('getGuildMember');
+
+  // Roles endpoint
+  cy.intercept('GET', `${API}/guilds/*/roles`, {
+    statusCode: 200,
+    body: [],
+  }).as('getRoles');
+
+  cy.fixture('channels.json').then((channels) => {
+    cy.intercept('GET', `${API}/guilds/*/channels`, {
+      statusCode: 200,
+      body: channels,
+    }).as('getChannels');
+  });
+
+  cy.fixture('messages.json').then((messages) => {
+    cy.intercept('GET', `${API}/channels/*/messages?*`, {
+      statusCode: 200,
+      body: messages,
+    }).as('getMessages');
+  });
+
+  cy.fixture('dms.json').then((dms) => {
+    cy.intercept('GET', `${API}/users/@me/channels`, {
+      statusCode: 200,
+      body: dms,
+    }).as('getDMs');
+  });
+
+  cy.fixture('guilds.json').then((guilds) => {
+    cy.intercept('GET', `${API}/users/@me/guilds`, {
+      statusCode: 200,
+      body: guilds,
+    }).as('getGuilds');
+  });
+
+  // Most specific last (LIFO: last registered wins)
+  cy.fixture('user.json').then((user) => {
+    cy.intercept('GET', `${API}/users/@me`, {
+      statusCode: 200,
+      body: user,
+    }).as('getUser');
+  });
+});
+
+/**
+ * Block auto-authentication from VITE_DISCORD_TOKEN env variable.
+ * Intercepts /users/@me with 401 so the app stays on LandingPage.
+ * Must be called BEFORE cy.visit('/').
+ */
+Cypress.Commands.add('blockAutoAuth', () => {
+  cy.intercept('GET', `${API}/users/@me`, {
+    statusCode: 401,
+    body: { message: '401: Unauthorized', code: 0 },
+  }).as('blockedAutoAuth');
+});
+
+/**
+ * Log in by visiting the page with all API intercepts.
+ * The dev server has VITE_DISCORD_TOKEN set, so the app auto-authenticates
+ * when the /users/@me intercept returns a valid user.
+ *
+ * Resets IndexedDB on the AUT origin before letting the app boot — the
+ * blanket `beforeEach` in support/e2e.ts may have run against a stale
+ * window (about:blank on first test). Defense in depth ensures storage
+ * never leaks between tests after the #110 migration.
+ */
+Cypress.Commands.add('login', () => {
+  cy.interceptDiscordApi();
+  cy.visit('/', {
+    onBeforeLoad(win) {
+      // Wipe any stale per-purpose databases on the AUT origin before
+      // app boot. Mirrors the global beforeEach in support/e2e.ts —
+      // see that file for the full rationale.
+      for (const name of [
+        'Discrub-settings',
+        'Discrub-state',
+        'Discrub-presets',
+        'Discrub-cache',
+        'Discrub-history',
+        'Discrub-statuslog',
+        'Discrub-package',
+        'Discrub-media',
+        'keyval-store',
+      ]) {
+        try {
+          win.indexedDB.deleteDatabase(name);
+        } catch {
+          /* best-effort */
+        }
+      }
+    },
+  });
+  // The env token triggers auto-auth; wait for the main layout
+  cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
+});
+
+/**
+ * Select a server by name from the sidebar server list
+ */
+Cypress.Commands.add('selectServer', (name: string) => {
+  cy.contains(name).click();
+  cy.wait('@getChannels');
+});
+
+/**
+ * Select a channel by name from the channel list.
+ */
+Cypress.Commands.add('selectChannel', (name: string) => {
+  cy.contains(name).click();
+  cy.wait('@getMessages');
+});
+
+/**
+ * Switch to DMs tab and select a DM by recipient name
+ */
+Cypress.Commands.add('selectDm', (name: string) => {
+  // Click DMs tab
+  cy.contains('button', 'DMs').click();
+  cy.wait('@getDMs');
+
+  // Override the default messages intercept with DM messages
+  cy.fixture('dm-messages.json').then((dmMessages) => {
+    cy.intercept('GET', `${API}/channels/*/messages?*`, {
+      statusCode: 200,
+      body: dmMessages,
+    }).as('getDmMessages');
+  });
+
+  cy.contains(name).click();
+  cy.wait('@getDmMessages');
+});
+
+/**
+ * Upload a data-package ZIP fixture into the ImportDialog.
+ *
+ * Navigates to the "Package" sidebar tab, opens the import dialog, and
+ * selects the given fixture (relative to cypress/fixtures). Default
+ * fixture is `test-package.zip`.
+ */
+Cypress.Commands.add('uploadPackage', (fixture = 'test-package.zip') => {
+  cy.contains('button', 'Package').click();
+  cy.contains('button', /Choose ZIP file|Import package/).click();
+  cy.get('[data-testid="package-file-input"]').selectFile(
+    `cypress/fixtures/${fixture}`,
+    { force: true },
+  );
+});
+
+/**
+ * Click the "Package" sidebar tab.
+ */
+Cypress.Commands.add('openPackageTab', () => {
+  cy.contains('button', 'Package').click();
+});
+
+/**
+ * Read every value out of one of the per-purpose `Discrub-<store>`
+ * IndexedDB databases. Returns an array of values (key order is not
+ * guaranteed). Used by tests that need to assert on persisted state
+ * since localStorage is no longer the storage backend.
+ */
+Cypress.Commands.add('readIdbStore', (store: string) => {
+  return cy.window({ log: false }).then((win) => {
+    return new Cypress.Promise<unknown[]>((resolve) => {
+      const req = win.indexedDB.open(`Discrub-${store}`);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('keyval')) {
+          db.close();
+          resolve([]);
+          return;
+        }
+        const tx = db.transaction('keyval', 'readonly');
+        const objStore = tx.objectStore('keyval');
+        const all = objStore.getAll();
+        all.onsuccess = () => {
+          db.close();
+          resolve(all.result || []);
+        };
+        all.onerror = () => {
+          db.close();
+          resolve([]);
+        };
+      };
+      req.onerror = () => resolve([]);
+      req.onblocked = () => resolve([]);
+    });
+  });
+});

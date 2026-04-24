@@ -1,0 +1,54 @@
+{
+  "messages": [
+    [
+      {
+        "id": "710000000000000002",
+        "channel_id": "501000000000000001",
+        "author": {
+          "id": "111222333444555666",
+          "username": "discrub_tester",
+          "discriminator": "0",
+          "avatar": "abc123avatar",
+          "global_name": "Discrub Tester"
+        },
+        "content": "Yes! It looks great.",
+        "timestamp": "2026-02-02T09:05:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "id": "710000000000000004",
+        "channel_id": "501000000000000001",
+        "author": {
+          "id": "111222333444555666",
+          "username": "discrub_tester",
+          "discriminator": "0",
+          "avatar": "abc123avatar",
+          "global_name": "Discrub Tester"
+        },
+        "content": "Sure, I'll take a look after lunch.",
+        "timestamp": "2026-02-02T09:15:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ]
+  ],
+  "total_results": 2,
+  "threads": []
+}

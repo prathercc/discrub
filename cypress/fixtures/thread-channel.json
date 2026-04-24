@@ -1,0 +1,16 @@
+{
+  "id": "802000000000000001",
+  "type": 11,
+  "guild_id": "901000000000000001",
+  "parent_id": "801000000000000001",
+  "name": "test-thread",
+  "owner_id": "111222333444555666",
+  "message_count": 5,
+  "member_count": 3,
+  "thread_metadata": {
+    "archived": false,
+    "auto_archive_duration": 4320,
+    "archive_timestamp": "2026-02-15T10:00:00.000Z",
+    "locked": false
+  }
+}

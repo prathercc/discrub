@@ -1,0 +1,77 @@
+{
+  "manifest_version": 3,
+  "name": "Discrub - Discord Message Manager",
+  "short_name": "Discrub",
+  "version": "2.0.0",
+  "description": "Manage, search, and export your Discord messages with ease.",
+
+  "permissions": [
+    "storage"
+  ],
+
+  "host_permissions": [
+    "*://discord.com/*",
+    "*://*.discord.com/*",
+    "*://*.discordapp.com/*",
+    "*://*.discordapp.net/*"
+  ],
+
+  "background": {
+    "scripts": ["background.js"],
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": [
+        "*://discord.com/*",
+        "*://*.discord.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end",
+      "all_frames": false
+    }
+  ],
+
+  "action": {
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "Open Discrub"
+  },
+
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png",
+    "512": "icons/icon-512.png"
+  },
+
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "prathercc@gmail.com"
+    }
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "discrub.png",
+        "bridge/*",
+        "index.html",
+        "assets/*",
+        "*/*.zip",
+        "launcher.html",
+        "launcher.css",
+        "launcher.js",
+        "classic-wrapper.html",
+        "classic-wrapper.css",
+        "classic-wrapper.js",
+        "classic/*"
+      ],
+      "matches": ["*://discord.com/*", "*://*.discord.com/*"]
+    }
+  ]
+}

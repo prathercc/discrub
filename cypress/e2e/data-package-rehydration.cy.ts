@@ -1,0 +1,456 @@
+/// <reference types="cypress" />
+
+/**
+ * E2E coverage for the Tier 2 rehydration flow (backlog #109).
+ *
+ * Exercises the enrichment pipeline end-to-end via intercepted
+ * `GET /channels/{id}/messages?around={id}` calls — no real Discord
+ * traffic. Covers the happy path (200 → enriched chip), misses
+ * (404 → unavailable, 403 → forbidden), rate-limit retry (429),
+ * cache re-entry (no API calls on re-open), and cancel mid-run.
+ *
+ * Fixture: test-package.zip ships channel "general" (id 200) with
+ * message IDs 1001 / 1002 / 1003 / 1004.
+ */
+
+const API = '**/api/v10';
+
+/**
+ * Shrink the search delay to 0 so the enrichment loop doesn't burn
+ * Cypress's default command timeout on 4 real-time-spaced API calls.
+ */
+function setZeroDelay() {
+  cy.window().then((win) => {
+    const store = (win as any).__store__;
+    store.dispatch({
+      type: 'app/setSettings',
+      payload: {
+        ...store.getState().app.settings,
+        searchDelay: '0',
+      },
+    });
+  });
+}
+
+describe('Data package rehydration (Tier 2)', () => {
+  beforeEach(() => {
+    cy.login();
+    cy.uploadPackage();
+    cy.contains('general').click();
+    cy.contains('hello world').should('be.visible');
+    setZeroDelay();
+    // Short-circuit the author-scoped search preflight (#109 efficiency
+    // pass, post-2026-04-19) so it returns zero hits. The preflight
+    // breaks out of its loop as soon as it sees a page smaller than
+    // SEARCH_PREFLIGHT_PAGE_SIZE, which then lets the AROUND-based
+    // enrichment loop that the individual tests DO mock actually run.
+    // Without this, the preflight hits the real Discord endpoint
+    // (404 CORS) and the test sees no `@enrichCall` fire.
+    cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+      statusCode: 200,
+      body: { messages: [], total_results: 0 },
+    }).as('searchPreflight');
+  });
+
+  it('banner offers to load rich data when none has been fetched', () => {
+    cy.contains('button', /Load rich data/i).should('be.enabled');
+    // Rows default to the source chip.
+    cy.contains('source').should('exist');
+  });
+
+  it('rehydrates via the API and flips rows to the enriched chip', () => {
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        req.reply({
+          statusCode: 200,
+          body: [
+            {
+              id: targetId,
+              content: `LIVE ${targetId}`,
+              author: { id: 'a1', username: 'live-author' },
+              reactions: [{ emoji: { name: '👍' }, count: 1 }],
+              embeds: [],
+              mentions: [],
+              type: 0,
+              channel_id: '200',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          ],
+        });
+      },
+    ).as('enrichCall');
+
+    cy.contains('button', /Load rich data/i).click();
+    // Four calls, one per message. Wait for the last one.
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+
+    cy.contains('enriched', { timeout: 10000 }).should('exist');
+    // Status log mentions completion counts.
+    cy.contains(/Package rehydration complete/i, { timeout: 10000 })
+      .should('exist');
+    // Banner flips to the done state with a Refresh button.
+    cy.contains('button', /Refresh/i).should('be.visible');
+  });
+
+  it('marks 404 responses as unavailable (deleted) rows', () => {
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        if (targetId === '1002') {
+          req.reply({ statusCode: 404, body: { message: 'Unknown' } });
+        } else {
+          req.reply({
+            statusCode: 200,
+            body: [
+              {
+                id: targetId,
+                content: `LIVE ${targetId}`,
+                author: { id: 'a1', username: 'u' },
+                reactions: [],
+                embeds: [],
+                mentions: [],
+                type: 0,
+                channel_id: '200',
+                timestamp: '2024-01-01T00:00:00.000Z',
+                attachments: [],
+              },
+            ],
+          });
+        }
+      },
+    ).as('enrichCall');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+
+    // Status log summarizes both outcomes.
+    cy.contains(/3 enriched, 1 deleted/i, { timeout: 10000 }).should('exist');
+    cy.contains('unavailable', { timeout: 10000 }).should('exist');
+  });
+
+  it('marks 403 responses as forbidden rows', () => {
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        if (targetId === '1003') {
+          req.reply({ statusCode: 403, body: { message: 'Forbidden' } });
+        } else {
+          req.reply({
+            statusCode: 200,
+            body: [
+              {
+                id: targetId,
+                content: `LIVE ${targetId}`,
+                author: { id: 'a1', username: 'u' },
+                reactions: [],
+                embeds: [],
+                mentions: [],
+                type: 0,
+                channel_id: '200',
+                timestamp: '2024-01-01T00:00:00.000Z',
+                attachments: [],
+              },
+            ],
+          });
+        }
+      },
+    ).as('enrichCall');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+
+    cy.contains(/3 enriched.*1 forbidden/i, { timeout: 10000 }).should('exist');
+    cy.contains('forbidden', { timeout: 10000 }).should('exist');
+  });
+
+  it('retries after a 429 rate-limit response', () => {
+    let hitCount = 0;
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        hitCount++;
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        // First call to 1001 gets 429; subsequent calls all succeed.
+        if (targetId === '1001' && hitCount === 1) {
+          req.reply({
+            statusCode: 429,
+            headers: { 'retry-after': '0' },
+            body: { message: 'Too many requests', retry_after: 0, global: false },
+          });
+        } else {
+          req.reply({
+            statusCode: 200,
+            body: [
+              {
+                id: targetId,
+                content: `LIVE ${targetId}`,
+                author: { id: 'a1', username: 'u' },
+                reactions: [],
+                embeds: [],
+                mentions: [],
+                type: 0,
+                channel_id: '200',
+                timestamp: '2024-01-01T00:00:00.000Z',
+                attachments: [],
+              },
+            ],
+          });
+        }
+      },
+    ).as('enrichCall');
+
+    cy.contains('button', /Load rich data/i).click();
+
+    // Status log surfaces the rate-limit notice from the global handler.
+    cy.contains(/Rate limited by Discord/i, { timeout: 10000 }).should('exist');
+    // Eventually the run finishes with all 4 enriched.
+    cy.contains(/4 enriched/i, { timeout: 15000 }).should('exist');
+  });
+
+  it('short-circuits to cache on re-entry — no new API calls', () => {
+    // First run — actually enrich everything.
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        req.reply({
+          statusCode: 200,
+          body: [
+            {
+              id: targetId,
+              content: `LIVE ${targetId}`,
+              author: { id: 'a1', username: 'u' },
+              reactions: [],
+              embeds: [],
+              mentions: [],
+              type: 0,
+              channel_id: '200',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          ],
+        });
+      },
+    ).as('firstRun');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@firstRun');
+    cy.wait('@firstRun');
+    cy.wait('@firstRun');
+    cy.wait('@firstRun');
+    cy.contains('button', /Refresh/i, { timeout: 10000 }).should('be.visible');
+
+    // Navigate away, then back — the cache-hit path should fire.
+    cy.get('[aria-label="Back to analytics"]').click();
+    cy.contains('general').click();
+
+    // Register a SPY that would match any new API call. We do not want
+    // to see any of these.
+    let secondRunHits = 0;
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      () => {
+        secondRunHits++;
+      },
+    );
+
+    // Assert UI state came back from cache, not a fresh run.
+    cy.contains(/Rich data loaded/, { timeout: 10000 }).should('be.visible');
+    cy.contains('enriched').should('exist');
+    cy.then(() => expect(secondRunHits).to.eq(0));
+  });
+
+  it('"Rehydrate before export" runs enrichment first, then fires the export', () => {
+    let enrichHits = 0;
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        enrichHits++;
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        req.reply({
+          statusCode: 200,
+          body: [
+            {
+              id: targetId,
+              content: `LIVE ${targetId}`,
+              author: { id: 'a1', username: 'u' },
+              reactions: [],
+              embeds: [],
+              mentions: [],
+              type: 0,
+              channel_id: '200',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          ],
+        });
+      },
+    ).as('enrichCall');
+
+    // Open export dialog, tick the rehydrate checkbox, confirm.
+    cy.contains('button', /^Export$/).click();
+    cy.get('[role="dialog"]').should('be.visible');
+    cy.contains(/Rehydrate before export/).click();
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click();
+
+    // Enrichment loop fires 4 calls before the export kicks in.
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+    cy.then(() => expect(enrichHits).to.eq(4));
+
+    // Dialog closes; the post-export toolbar Export button re-enables.
+    cy.contains('button', /^Export$/, { timeout: 15000 }).should('not.be.disabled');
+    // Status log reflects the full flow.
+    cy.contains(/Package rehydration complete/i).should('exist');
+    cy.contains(/Package export: completed/i, { timeout: 10000 }).should('exist');
+  });
+
+  it('Fix A: after cancel, retrying rehydration works (cancel flag auto-resets)', () => {
+    // First round — cancel mid-run.
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        req.reply({
+          delay: 200,
+          statusCode: 200,
+          body: [
+            {
+              id: targetId,
+              content: `LIVE ${targetId}`,
+              author: { id: 'a1', username: 'u' },
+              reactions: [],
+              embeds: [],
+              mentions: [],
+              type: 0,
+              channel_id: '200',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          ],
+        });
+      },
+    ).as('enrichCall');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@enrichCall');
+    cy.contains('button', /Cancel/i).click();
+
+    // Banner flips to a non-running state.
+    cy.contains(
+      /Rehydration cancelled|Rich data loaded/,
+      { timeout: 10000 },
+    ).should('exist');
+
+    // Before Fix A, the discrubCancelled flag stayed true after an
+    // enrichment cancel (it's only reset by MainLayout's
+    // isOperationRunning effect, which didn't include enrichment).
+    // Verify the flag is now false in Redux state before retrying.
+    cy.window().then((win) => {
+      const store = (win as { __store__?: { getState: () => unknown } }).__store__;
+      const st = store?.getState() as { app: { discrubCancelled: boolean } } | undefined;
+      expect(st?.app.discrubCancelled, 'discrubCancelled must reset after enrich cancel').to.eq(false);
+    });
+
+    // Retry from the banner — it should actually run (not instantly
+    // re-cancel).
+    cy.contains('button', /Retry rich data|Refresh/i).click({ force: true });
+
+    // Second round should progress beyond message 1.
+    cy.wait('@enrichCall');
+    cy.wait('@enrichCall');
+  });
+
+  it('cancel button aborts the run and saves partial results', () => {
+    // Add a tiny artificial delay so the user has time to click cancel
+    // between API responses.
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        req.reply({
+          delay: 200,
+          statusCode: 200,
+          body: [
+            {
+              id: targetId,
+              content: `LIVE ${targetId}`,
+              author: { id: 'a1', username: 'u' },
+              reactions: [],
+              embeds: [],
+              mentions: [],
+              type: 0,
+              channel_id: '200',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          ],
+        });
+      },
+    ).as('slowEnrich');
+
+    cy.contains('button', /Load rich data/i).click();
+    // Wait for the first call to land, then cancel.
+    cy.wait('@slowEnrich');
+    cy.contains('button', /Cancel/i).click();
+
+    // Banner returns to a non-running state — either cancelled prompt
+    // or done-with-partial, depending on timing.
+    cy.contains(
+      /Rehydration cancelled|Rich data loaded/,
+      { timeout: 10000 },
+    ).should('exist');
+  });
+});
+
+/**
+ * Read-only packages (from a different user) can't rehydrate — the
+ * banner button is disabled by `canEnrich` gating. Separate describe
+ * so the test gets its own fixture, not the default one.
+ */
+describe('Data package rehydration (read-only)', () => {
+  beforeEach(() => {
+    cy.login();
+    cy.uploadPackage('test-package-mismatched.zip');
+    cy.contains(/different user/i).should('be.visible');
+  });
+
+  it('banner Load button is disabled on read-only packages', () => {
+    cy.contains('general').click();
+    cy.contains('hello world').should('be.visible');
+    cy.contains('button', /Load rich data/i).should('be.disabled');
+  });
+});

@@ -1,0 +1,101 @@
+[
+  {
+    "id": "801000000000000005",
+    "type": 4,
+    "guild_id": "901000000000000001",
+    "position": 0,
+    "name": "Text Channels",
+    "topic": null,
+    "nsfw": false,
+    "last_message_id": null
+  },
+  {
+    "id": "801000000000000001",
+    "type": 0,
+    "guild_id": "901000000000000001",
+    "position": 1,
+    "name": "general",
+    "topic": "General discussion",
+    "nsfw": false,
+    "last_message_id": "700000000000000010",
+    "parent_id": "801000000000000005"
+  },
+  {
+    "id": "801000000000000002",
+    "type": 0,
+    "guild_id": "901000000000000001",
+    "position": 2,
+    "name": "dev-chat",
+    "topic": "Development talk",
+    "nsfw": false,
+    "last_message_id": "700000000000000020",
+    "parent_id": "801000000000000005"
+  },
+  {
+    "id": "801000000000000004",
+    "type": 0,
+    "guild_id": "901000000000000001",
+    "position": 3,
+    "name": "announcements",
+    "topic": "Important announcements",
+    "nsfw": false,
+    "last_message_id": "700000000000000030",
+    "parent_id": "801000000000000005"
+  },
+  {
+    "id": "801000000000000006",
+    "type": 4,
+    "guild_id": "901000000000000001",
+    "position": 4,
+    "name": "Voice Chat",
+    "topic": null,
+    "nsfw": false,
+    "last_message_id": null
+  },
+  {
+    "id": "801000000000000003",
+    "type": 2,
+    "guild_id": "901000000000000001",
+    "position": 5,
+    "name": "Voice Lounge",
+    "topic": null,
+    "nsfw": false,
+    "last_message_id": null,
+    "parent_id": "801000000000000006"
+  },
+  {
+    "id": "801000000000000007",
+    "type": 15,
+    "guild_id": "901000000000000001",
+    "position": 6,
+    "name": "feedback",
+    "topic": "Share your feedback",
+    "nsfw": false,
+    "last_message_id": null,
+    "parent_id": "801000000000000005",
+    "available_tags": [
+      { "id": "tag-bug", "name": "Bug", "moderated": false, "emoji_id": null, "emoji_name": "🐛" },
+      { "id": "tag-feature", "name": "Feature", "moderated": false, "emoji_id": null, "emoji_name": "✨" },
+      { "id": "tag-question", "name": "Question", "moderated": false, "emoji_id": null, "emoji_name": "❓" }
+    ]
+  },
+  {
+    "id": "801000000000000008",
+    "type": 0,
+    "guild_id": "901000000000000001",
+    "position": 7,
+    "name": "admin-only",
+    "topic": "Restricted channel",
+    "nsfw": false,
+    "last_message_id": null,
+    "parent_id": "801000000000000005",
+    "permission_overwrites": [
+      {
+        "id": "901000000000000001",
+        "type": 0,
+        "allow": "0",
+        "deny": "1024"
+      }
+    ]
+  }
+]

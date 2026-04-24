@@ -1,0 +1,62 @@
+Discrub is a Discord data management tool. It runs as a browser extension that activates on Discord, letting you export messages, search and filter conversations, purge messages and reactions, work with offline data packages, and analyze your message history.
+
+Discord Data Package
+- Drop the official Discord ZIP (Privacy & Safety, Request All My Data) directly into Discrub
+- Browse every server, channel, and DM in your archive without touching the Discord API
+- Rich rendering: markdown, mentions, custom emojis, reply quotes, embed previews
+- Optional rehydration to fetch reactions, edits, and replies from Discord, with smart caching
+- Bulk delete or bulk edit straight from the package
+- Export package channels to HTML for portable archives
+- Mention analytics across an entire package
+
+Export
+- Formats: HTML, CSV, JSON, media-only
+- 9 built-in presets plus custom preset creation
+- Downloads avatars, attachments, emojis, and media for offline viewing
+- Thread messages exported as separate files
+- HTML exports include search, image lightbox, system message rendering, and dark/light theme toggle
+- Bulk export across multiple channels with filter support
+- Streaming downloads stay flat in memory regardless of file size
+
+Message Feed
+- Discord-style chunked feed with role colors, role icons, reply indicators, and inline system messages (pins, joins, boosts, thread-created)
+- Virtualization for smooth scrolling on large channels
+- Click-to-jump on reply bars, pinned-message notices, and thread-created notices
+- Focused view mode that hides chrome for full-width reading
+
+Search and Filter
+- Search hits Discord's API: filter by content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), date range with time-of-day precision, pinned status, author type
+- Lazy pagination: results stream in as you scroll, with optional Load All
+- Refine narrows already-loaded messages client-side, with no API calls
+
+Purge
+- Search-based message deletion with per-user targeting
+- Attachments-only mode strips attachments while keeping text
+- Reactions mode removes specific users' reactions
+- Multi-channel bulk purge with filter support
+- Archived threads auto-unarchive during purge and re-archive when done
+
+Reactions
+- View who reacted, with avatars
+- Remove individual reactions or batch-remove across selected messages
+- Admin bulk removal of all reactions or all of a specific emoji
+
+Analytics
+- Mention counts across loaded messages
+- CSV export of analytics data
+
+Privacy
+- Discord token stays in the browser
+- No data sent to external servers
+- All processing is local
+
+Additional
+- Dark and light mode (matches Discord theme)
+- Forum channel support with thread discovery
+- Guided tour and contextual help icons
+- Pause, resume, and cancel for long operations
+- Status log with real-time operation feedback
+- Configurable operation delays
+- Discrub Classic (v1) built in for legacy users
+
+Click the Discrub icon while using Discord in your browser to start.

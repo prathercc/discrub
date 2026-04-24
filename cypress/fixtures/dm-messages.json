@@ -1,0 +1,121 @@
+[
+  {
+    "id": "710000000000000001",
+    "channel_id": "501000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Hey, did you see the latest build?",
+    "timestamp": "2026-02-02T09:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "count": 1,
+        "count_details": { "burst": 0, "normal": 1 },
+        "me": true,
+        "me_burst": false,
+        "emoji": { "id": null, "name": "\ud83d\udc4d" },
+        "burst_colors": []
+      }
+    ],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "710000000000000002",
+    "channel_id": "501000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "Yes! It looks great.",
+    "timestamp": "2026-02-02T09:05:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "710000000000000003",
+    "channel_id": "501000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Can you review my PR when you get a chance?",
+    "timestamp": "2026-02-02T09:10:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "710000000000000004",
+    "channel_id": "501000000000000001",
+    "author": {
+      "id": "111222333444555666",
+      "username": "discrub_tester",
+      "discriminator": "0",
+      "avatar": "abc123avatar",
+      "global_name": "Discrub Tester"
+    },
+    "content": "Sure, I'll take a look after lunch.",
+    "timestamp": "2026-02-02T09:15:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "710000000000000005",
+    "channel_id": "501000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Thanks! No rush.",
+    "timestamp": "2026-02-02T09:20:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  }
+]

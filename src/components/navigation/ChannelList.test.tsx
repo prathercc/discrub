@@ -1,0 +1,277 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderWithProviders, screen, fireEvent } from '../../test/test-utils';
+import ChannelList from './ChannelList';
+import { createBaseState } from '../../test/state-factories';
+import { createMockGuild, createMockChannel } from '../../test/fixtures';
+
+vi.mock('@services/discordService', () => ({
+  getDiscordService: vi.fn(() => ({
+    fetchMessages: vi.fn().mockResolvedValue({ messages: [], hasMore: false }),
+  })),
+}));
+
+vi.mock('@/extension/storage', () => {
+  function makeAdapter() {
+    return {
+      get: vi.fn().mockResolvedValue(null),
+      set: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      clear: vi.fn().mockResolvedValue(undefined),
+      keys: vi.fn().mockResolvedValue([]),
+      getMany: vi.fn().mockResolvedValue([]),
+      setMany: vi.fn().mockResolvedValue(undefined),
+      entries: vi.fn().mockResolvedValue([]),
+    };
+  }
+  return {
+    storage: {
+      settings: makeAdapter(),
+      state: makeAdapter(),
+      presets: makeAdapter(),
+      cache: makeAdapter(),
+      history: makeAdapter(),
+      statuslog: makeAdapter(),
+      package: makeAdapter(),
+      media: makeAdapter(),
+    },
+    migrateAllStorage: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
+// ChannelType enum values: GUILD_TEXT = 0, DM = 1, GUILD_VOICE = 2, GUILD_CATEGORY = 4, GUILD_ANNOUNCEMENT = 5
+const textChannel = createMockChannel({ id: 'ch-1', name: 'general', type: 0 });
+const announcementChannel = createMockChannel({ id: 'ch-2', name: 'announcements', type: 5 });
+const voiceChannel = createMockChannel({ id: 'ch-3', name: 'voice-chat', type: 2 });
+const guild = createMockGuild({ id: 'g1', name: 'Test Guild' });
+
+describe('ChannelList', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe('No Guild Selected', () => {
+    it('should show prompt to select a server', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          guild: { guilds: [], selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+        }),
+      });
+      expect(screen.getByText('Select a server to view channels')).toBeInTheDocument();
+    });
+  });
+
+  describe('Loading State', () => {
+    it('should show loading spinner when channels are loading', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: true, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.queryByText('Loading channels...')).not.toBeInTheDocument();
+      const skeletons = document.querySelectorAll('.MuiSkeleton-root');
+      expect(skeletons.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Empty State', () => {
+    it('should show "No channels found" when no channels exist', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByText('No channels found')).toBeInTheDocument();
+    });
+  });
+
+  describe('Channel Rendering', () => {
+    it('should render only text-based channels', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel, voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByText('general')).toBeInTheDocument();
+      expect(screen.getByText('announcements')).toBeInTheDocument();
+      // Voice channels now shown since they contain text chat
+      expect(screen.getByText('voice-chat')).toBeInTheDocument();
+    });
+
+    it('should show guild name in header', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByText(/Test Guild/)).toBeInTheDocument();
+    });
+  });
+
+  describe('Filtering', () => {
+    it('should filter channels by name', () => {
+      renderWithProviders(<ChannelList filterText="general" />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByText('general')).toBeInTheDocument();
+      expect(screen.queryByText('announcements')).toBeNull();
+    });
+
+    it('should show filter-specific empty state when nothing matches', () => {
+      renderWithProviders(<ChannelList filterText="nonexistent" />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByText(/No channels matching "nonexistent"/)).toBeInTheDocument();
+    });
+
+    it('should filter case-insensitively', () => {
+      renderWithProviders(<ChannelList filterText="GENERAL" />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByText('general')).toBeInTheDocument();
+    });
+  });
+
+  describe('Selection', () => {
+    it('should dispatch setSelectedChannel when a channel is clicked', () => {
+      const { store } = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      fireEvent.click(screen.getByText('general'));
+      const state = store.getState();
+      expect(state.channel.selectedChannel?.id).toBe('ch-1');
+    });
+
+    it('should clear DM selection on channel click', () => {
+      const { store } = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          dm: { dms: [], selectedDm: createMockChannel({ id: 'dm-old', type: 1 }), selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+      fireEvent.click(screen.getByText('general'));
+      expect(store.getState().dm.selectedDm).toBeNull();
+    });
+
+    it('should mark selected channel as selected', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: textChannel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      const generalButton = screen.getByText('general').closest('[role="button"]');
+      expect(generalButton).toHaveClass('Mui-selected');
+    });
+  });
+
+  describe('Copy Names', () => {
+    it('should render copy button in header', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(screen.getByLabelText('Copy channel names')).toBeInTheDocument();
+    });
+
+    it('should copy channel names to clipboard when copy button clicked', () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Copy channel names'));
+      expect(writeText).toHaveBeenCalledWith('general\nannouncements');
+    });
+
+    it('should dispatch toast after copying', () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, { clipboard: { writeText } });
+
+      const { store } = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Copy channel names'));
+      expect(store.getState().status.toast.isVisible).toBe(true);
+      expect(store.getState().status.toast.message).toBe('Copied to clipboard');
+    });
+  });
+
+  describe('Channel Permissions', () => {
+    // @ts-ignore reserved for future permission tests
+    const VIEW_CHANNEL = (1n << 10n).toString();
+    const NO_VIEW = '0';
+
+    it('should show lock icon for channels user cannot access', () => {
+      const restrictedGuild = createMockGuild({ id: 'g1', name: 'Test Guild', permissions: NO_VIEW });
+      const { container } = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(container.querySelector('[data-testid="LockIcon"]')).toBeInTheDocument();
+    });
+
+    it('should not show lock icon for accessible channels', () => {
+      const { container } = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      expect(container.querySelector('[data-testid="LockIcon"]')).not.toBeInTheDocument();
+    });
+
+    it('should disable locked channels', () => {
+      const restrictedGuild = createMockGuild({ id: 'g1', name: 'Test Guild', permissions: NO_VIEW });
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      const button = screen.getByText('general').closest('div[role="button"]');
+      expect(button).toHaveClass('Mui-disabled');
+    });
+  });
+});

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "501000000000000001",
+    "type": 1,
+    "last_message_id": "710000000000000005",
+    "recipients": [
+      {
+        "id": "222333444555666777",
+        "username": "alice_dev",
+        "discriminator": "0",
+        "avatar": "alice_avatar",
+        "global_name": "Alice"
+      }
+    ]
+  },
+  {
+    "id": "501000000000000002",
+    "type": 1,
+    "last_message_id": "710000000000000010",
+    "recipients": [
+      {
+        "id": "333444555666777888",
+        "username": "bob_gamer",
+        "discriminator": "0",
+        "avatar": null,
+        "global_name": "Bob"
+      }
+    ]
+  },
+  {
+    "id": "501000000000000003",
+    "type": 1,
+    "last_message_id": "710000000000000015",
+    "recipients": [
+      {
+        "id": "444555666777888999",
+        "username": "charlie_mod",
+        "discriminator": "0",
+        "avatar": "charlie_avatar",
+        "global_name": "Charlie"
+      }
+    ]
+  }
+]

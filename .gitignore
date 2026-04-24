@@ -1,0 +1,71 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-extension-chrome/
+dist-extension-firefox/
+discrub-chrome.zip
+discrub-firefox.zip
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Test coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# Cypress artifacts
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
+
+# Visual audit output
+docs/visual-audit/
+
+# Store release assets (generated build outputs)
+store/*
+# Description source files are tracked (read by prepare-store-release.js)
+!store/STORE_DESCRIPTION_*.md
+
+# Storybook build
+storybook-static/
+*storybook.log
+
+# TypeScript cache
+*.tsbuildinfo
+
+# IDE / OS
+.idea/
+.vscode-test/
+.DS_Store
+
+# Local-only tooling (plans, reference docs, memory, history bundles)
+tooling/
+.claude*
+CLAUDE.md
+EXTENSION_LOADING.md
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Misc
+*.tgz
+*.pid
+*.seed
+*.pid.lock
+.cache/
+.eslintcache
+.stylelintcache
+.npm/

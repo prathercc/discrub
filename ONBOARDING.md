@@ -1,0 +1,169 @@
+# Upgrading from Discrub Classic
+
+Welcome! If you're coming from Discrub Classic, this guide covers everything that's new, what's changed, and how to get the most out of the new version.
+
+---
+
+## Table of Contents
+
+- [What's New](#whats-new)
+  - [Major New Features](#major-new-features)
+  - [Export Improvements](#export-improvements)
+  - [Purge Improvements](#purge-improvements)
+  - [Search Improvements](#search-improvements)
+- [What's Changed](#whats-changed)
+  - [Authentication](#authentication)
+  - [Navigation](#navigation)
+  - [Settings](#settings)
+  - ["Other Files" Media Type](#other-files-media-type)
+  - [Operations](#operations)
+- [Quick Start for Discrub Classic Users](#quick-start-for-discrub-classic-users)
+- [Still Prefer Discrub Classic?](#still-prefer-discrub-classic)
+
+---
+
+## What's New
+
+Discrub 2.0 is the next major version of Discrub. Here's what you get that Discrub Classic didn't have:
+
+### Major New Features
+
+- **Discord-Style Chunked Feed** — Messages render inline in a Discord-style chunked feed with hover-only gutter timestamps, virtualization for smooth scroll on huge channels, and inline content rendering (no separate Preview modal needed).
+- **System Messages** — Pinned, joined, boosted, thread-created and other Discord system events render properly as compact native-style notices instead of blank rows.
+- **Click-to-Jump Navigation** — Click any reply bar, pinned-message notice, or thread-created notice to jump to the referenced message. The target row briefly flashes amber.
+- **Inline Filter-by-User** — Click any author's avatar or name to open their profile, then one-click to filter the channel to messages by them or messages mentioning them. Other active filters preserved.
+- **Focus Mode** — Distraction-free reading mode that hides the sidebar and status panel for a full-width feed. Press `F` to toggle, `Escape` to exit.
+- **Two-Layer Filter Modal** — Search hits Discord's API; Refine narrows already-loaded messages client-side. Date filters now support **time-of-day precision** (hour and minute, not just whole days). Search results stream in lazily with a live "X of Y matches loaded" counter.
+- **Tour Mode + Targeted Help** — A guided tour runs once for new users covering the major features. For day-to-day "what does this do?" moments, small `?` help icons sit next to the trickier affordances (multi-select, filters, focus, purge mode, pause/resume, operation delays, export presets, etc.) and open a one-paragraph explainer on click.
+- **Stale-Feed Reload Toast** — After a purge that targets the channel you're viewing, a one-click toast offers to reload the feed so you see Discord's post-purge state instead of the cached snapshot.
+- **Discord Layout HTML Exports** — Exported HTML wraps in a Discord-like shell with server sidebar, channel navigation, and theme toggle. Browse between channels within a single export file.
+- **Data Package Import & Rehydration** — Import Discord's "Request All of My Data" ZIP to browse, analyze, and re-export your entire message history — including servers you've left. Per-channel Tier 2 rehydration fetches live reactions, mentions, embeds, and fresh CDN URLs so old exports match the live app.
+- **Forum Channel Support** — Full support for Discord forum and media channels. Browse threads, load thread messages, and export them individually.
+- **Bulk Reaction Removal** — Remove reactions across multiple messages at once with emoji picker and user targeting. Admins get one-click bulk removal.
+- **Analytics Modal** — View mention frequency, user engagement metrics, and export analytics to CSV.
+- **9 Export Presets** — Quick Text Backup, Full Archive, Data Analysis, Spreadsheet Export, Media Gallery, Lightweight Backup, Chronological Log, Images Only, Thread Archive. Plus custom preset creation.
+- **Donation Wall** — Ko-Fi supporter feed with tier system and leaderboard.
+- **Role Colors & Icons** — Author names colored by their highest role, with role icons displayed in the feed and user profiles.
+- **Reply Indicators** — Messages that are replies show the referenced message author and a preview of what they replied to. Click the reply bar to jump to the original.
+- **Channel Categories** — Channels grouped by Discord categories with collapsible headers.
+- **Permission-Based Visibility** — Locked channels shown with lock icons, admin features gated by Manage Messages permission.
+- **Status Log** — Terminal-style real-time operation log with color-coded entries, downloadable as a `.log` file.
+- **Skeleton Loading** — Smooth placeholder loading states instead of blank screens.
+- **Error Recovery** — Persistent error logging with crash recovery and downloadable error reports.
+
+![Forum Threads](docs/screenshots/forum/thread-list.png)
+![Analytics Modal](docs/screenshots/analytics/analytics-modal.png)
+![Package Analytics](docs/screenshots/package/package-analytics.png)
+![Package Rehydrated](docs/screenshots/package/package-rehydrated.png)
+
+### Export Improvements
+
+| Feature | Discrub Classic | Discrub |
+|---------|------------|---------|
+| HTML Templates | Standard only | Standard + Discord Layout (default) |
+| Export Presets | None | 9 built-in + custom |
+| Media Breakdown | None | Per-type counts and sizes with preview |
+| README in Export | No | Yes — bundled guide explaining file structure |
+| Role Colors in HTML | Basic | Enhanced with role icon support next to author names |
+| Reply Bars in HTML | Basic | Enhanced with formatted content preview |
+
+![Export Presets](docs/screenshots/export/preset-selector.png)
+
+### Purge Improvements
+
+| Feature | Discrub Classic | Discrub |
+|---------|------------|---------|
+| Clear All Reactions (admin) | No | Yes — one API call per message |
+| `reaction.me` Optimization | No | Skips emojis user hasn't reacted to |
+| Batch Reaction Removal | No | Remove reactions across selected messages with emoji picker |
+| Strip Attachments Only | No | Edits messages to remove attachments without deleting text (own messages) |
+| Bulk Filters | No | Filter bulk purge by author, date range, content, has-types, mentions |
+| Archived Thread Handling | Skip with warning | Auto-unarchive → operate → restore archive state |
+| Stale-Feed Reload Toast | No | One-click reload after a purge targets the visible channel |
+
+### Search Improvements
+
+| Feature | Discrub Classic | Discrub |
+|---------|------------|---------|
+| Progress Feedback | Basic | Milestone-based status log entries with operation tracking |
+| Client-Side Filter | Basic | Full criteria support with mode indicator |
+| Two-Layer Model | Single layer | Search (Discord API) + Refine (client-side, no API) in one modal |
+| Date Precision | Whole days | Hour and minute (time-of-day) |
+| Pagination | All-at-once | Lazy 25-msg pages with "X of Y matches loaded" counter, optional Load All |
+| Inline Filter-by-User | No | Click an author → one-click filter by them or messages mentioning them |
+
+---
+
+## What's Changed
+
+### Authentication
+
+- **Discrub Classic:** Auto-retrieves your Discord token from the Discord page (extension runs on discord.com)
+- **Discrub (Web App):** You manually enter your Discord token on the landing page
+- **Discrub (Extension):** Auto-retrieves your token like Classic. When you first launch, a **splash screen** lets you choose between Discrub 2.0 and Discrub Classic — your choice is remembered for future sessions.
+
+Your token is stored in memory only and cleared when you close the tab. It never touches a server.
+
+![Landing Page](docs/screenshots/auth/landing-page.png)
+
+### Navigation
+
+The layout is similar to Discrub Classic but enhanced:
+- Server list on the left (same)
+- Channel list with category grouping (new — Discrub Classic showed a flat list)
+- DMs accessible via tab switch (same)
+- Multi-select mode for bulk operations (toggle button instead of separate toolbar)
+
+![Channel List with Categories](docs/screenshots/browsing/channel-list.png)
+![Multi-Select Mode](docs/screenshots/browsing/multi-select.png)
+
+### Settings
+
+Settings location has moved:
+- **Discrub Classic:** Settings were in the extension popup or inline panels
+- **Discrub:** Settings are in a gear icon in the top bar, organized across tabs (Display, Operation Delays, Export Preferences, Purge)
+
+All settings from Discrub Classic have been migrated. New settings include:
+- Date/time format customization
+- User data refresh rate
+- Export template selection
+- Export preset management
+
+![Settings Dialog](docs/screenshots/settings/settings-dialog.png)
+
+### "Other Files" Media Type
+
+In Discrub Classic, you could download all attachment types including PDFs, ZIPs, and documents. In the web app version, the "Other files" toggle is hidden because browser CORS restrictions prevent downloading non-media files from Discord's CDN.
+
+**In extension mode**, "Other files" is available — the extension bypasses CORS restrictions.
+
+### Operations
+
+All operations now show in the status log at the bottom of the screen (instead of inline progress bars). The status log provides:
+- Color-coded entries with timestamps
+- Pause/resume/cancel controls in the status bar
+- Downloadable log file for debugging
+
+![Status Log](docs/screenshots/ui/status-log.png)
+
+---
+
+## Quick Start for Discrub Classic Users
+
+1. **Get your token** — If using the web app, open Discord in your browser, press F12 to open DevTools, go to the Network tab, click any request to discord.com/api, and copy the `Authorization` header value. If using the extension, it auto-authenticates.
+
+2. **Navigate** — Same as before: pick a server, pick a channel, messages load. New: you'll see channel categories and lock icons on channels you can't access.
+
+3. **Export** — Click the Export button. The dialog has more options now but defaults are sensible. The new default template is "Discord Layout" which makes exported HTML look like Discord. Try it!
+
+4. **Purge** — Enter multi-select mode (toggle button on the channel list header), select channels, click the purge icon. The dialog now supports Messages, Reactions, and Clear All Reactions modes.
+
+5. **Search** — Click "Advanced Search & Filters" above the message table. Works the same as before but with more criteria options and automatic continuation past 5,000 results.
+
+---
+
+## Still Prefer Discrub Classic?
+
+Discrub Classic is **built into the extension** — no separate install needed. When you launch Discrub on discord.com, the splash screen lets you choose between Discrub 2.0 and Discrub Classic. Your preference is saved automatically.
+
+If you want the standalone legacy extension instead, you can download it from the [releases page](https://github.com/prathercc/discrub-ext/releases) and load it manually in your browser.

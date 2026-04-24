@@ -1,0 +1,55 @@
+[
+  {
+    "id": "790000000000000001",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Message with reactions",
+    "timestamp": "2026-02-01T10:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [
+      {
+        "count": 2,
+        "count_details": { "burst": 0, "normal": 2 },
+        "me": true,
+        "me_burst": false,
+        "emoji": { "id": null, "name": "\ud83d\udc4d" },
+        "burst_colors": []
+      }
+    ],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "790000000000000002",
+    "channel_id": "801000000000000001",
+    "author": {
+      "id": "333444555666777888",
+      "username": "bob_gamer",
+      "discriminator": "0",
+      "avatar": null,
+      "global_name": "Bob"
+    },
+    "content": "Another message no reactions",
+    "timestamp": "2026-02-01T11:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  }
+]

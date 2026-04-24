@@ -1,0 +1,87 @@
+{
+  "messages": [
+    [
+      {
+        "id": "700000000000000005",
+        "channel_id": "801000000000000001",
+        "author": {
+          "id": "222333444555666777",
+          "username": "alice_dev",
+          "discriminator": "0",
+          "avatar": "alice_avatar",
+          "global_name": "Alice"
+        },
+        "content": "Check out this cool project: https://github.com/example/project",
+        "timestamp": "2026-02-01T12:00:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "id": "700000000000000006",
+        "channel_id": "801000000000000001",
+        "author": {
+          "id": "111222333444555666",
+          "username": "discrub_tester",
+          "discriminator": "0",
+          "avatar": "abc123avatar",
+          "global_name": "Discrub Tester"
+        },
+        "content": "Great project! I'll fork it.",
+        "timestamp": "2026-02-01T12:05:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": true,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "id": "700000000000000007",
+        "channel_id": "801000000000000001",
+        "author": {
+          "id": "222333444555666777",
+          "username": "alice_dev",
+          "discriminator": "0",
+          "avatar": "alice_avatar",
+          "global_name": "Alice"
+        },
+        "content": "The project docs have been updated with new examples",
+        "timestamp": "2026-02-02T09:00:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [
+          {
+            "id": "900000000000000001",
+            "filename": "docs.pdf",
+            "size": 102400,
+            "url": "https://cdn.discordapp.com/attachments/801000000000000001/900000000000000001/docs.pdf",
+            "proxy_url": "https://media.discordapp.net/attachments/801000000000000001/900000000000000001/docs.pdf",
+            "content_type": "application/pdf"
+          }
+        ],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ]
+  ],
+  "total_results": 3,
+  "threads": []
+}

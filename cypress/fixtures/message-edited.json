@@ -1,0 +1,22 @@
+{
+  "id": "700000000000000001",
+  "channel_id": "801000000000000001",
+  "author": {
+    "id": "111222333444555666",
+    "username": "discrub_tester",
+    "discriminator": "0",
+    "avatar": "abc123avatar",
+    "global_name": "Discrub Tester"
+  },
+  "content": "Hello everyone! Welcome to the updated server.",
+  "timestamp": "2026-02-01T10:00:00.000Z",
+  "edited_timestamp": "2026-02-02T10:00:00.000Z",
+  "tts": false,
+  "mention_everyone": false,
+  "mentions": [],
+  "attachments": [],
+  "embeds": [],
+  "reactions": [],
+  "pinned": false,
+  "type": 0
+}

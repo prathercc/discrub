@@ -1,0 +1,46 @@
+[
+  {
+    "id": "760000000000000001",
+    "channel_id": "803000000000000001",
+    "author": {
+      "id": "222333444555666777",
+      "username": "alice_dev",
+      "discriminator": "0",
+      "avatar": "alice_avatar",
+      "global_name": "Alice"
+    },
+    "content": "Second thread first message",
+    "timestamp": "2026-02-10T12:00:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  },
+  {
+    "id": "760000000000000002",
+    "channel_id": "803000000000000001",
+    "author": {
+      "id": "333444555666777888",
+      "username": "bob_gamer",
+      "discriminator": "0",
+      "avatar": null,
+      "global_name": "Bob"
+    },
+    "content": "Second thread reply from Bob",
+    "timestamp": "2026-02-10T12:05:00.000Z",
+    "edited_timestamp": null,
+    "tts": false,
+    "mention_everyone": false,
+    "mentions": [],
+    "attachments": [],
+    "embeds": [],
+    "reactions": [],
+    "pinned": false,
+    "type": 0
+  }
+]

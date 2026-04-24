@@ -1,0 +1,14 @@
+{
+  "id": "111222333444555666",
+  "username": "discrub_tester",
+  "discriminator": "0",
+  "avatar": "abc123avatar",
+  "global_name": "Discrub Tester",
+  "bot": false,
+  "system": false,
+  "mfa_enabled": true,
+  "verified": true,
+  "email": "test@example.com",
+  "flags": 0,
+  "premium_type": 0
+}

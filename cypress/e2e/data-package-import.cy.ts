@@ -1,0 +1,210 @@
+/// <reference types="cypress" />
+
+/**
+ * E2E coverage for the Discord data package import feature (backlog #54).
+ *
+ * Fixtures are built by `npm run build:cypress:package-fixtures`:
+ *   - test-package.zip            — user ID matches cypress/fixtures/user.json
+ *   - test-package-mismatched.zip — different user ID (soft-warn read-only)
+ *   - test-package-invalid.zip    — no account/user.json
+ */
+
+const API = '**/api/v10';
+
+describe('Data package import', () => {
+  beforeEach(() => {
+    cy.login();
+  });
+
+  describe('Sidebar entry point', () => {
+    it('renders the Package tab with an empty state', () => {
+      cy.openPackageTab();
+      cy.contains(/Import a Discord Data Package/i).should('be.visible');
+      cy.contains('button', /Choose ZIP file/i).should('be.visible');
+    });
+
+    it('switches the main pane to the package view', () => {
+      cy.openPackageTab();
+      cy.contains(/Import a Discord Data Package/i).should('be.visible');
+    });
+  });
+
+  describe('Upload + validation', () => {
+    it('accepts a valid package and shows summary chips', () => {
+      cy.uploadPackage();
+      cy.contains(/6 messages/).should('be.visible');       // 4 + 1 + 1 across 3 channels
+      cy.contains(/3 channels/).should('be.visible');
+      cy.contains(/from a left server/i).should('be.visible');
+    });
+
+    it('soft-warns on mismatched user and enters read-only mode', () => {
+      cy.uploadPackage('test-package-mismatched.zip');
+      cy.contains(/different user/i).should('be.visible');
+    });
+
+    it('shows an error for a package without account/user.json', () => {
+      cy.uploadPackage('test-package-invalid.zip');
+      cy.get('[role="alert"]').should('contain.text', 'user.json');
+    });
+
+    it('surfaces the left-server banner cross-referenced with live guilds', () => {
+      cy.uploadPackage();
+      cy.contains(/no longer in 1 server/i).should('be.visible');
+      cy.contains('Abandoned Server').should('be.visible');
+    });
+  });
+
+  describe('Analytics', () => {
+    beforeEach(() => {
+      cy.uploadPackage();
+    });
+
+    it('renders metadata-driven sections immediately', () => {
+      cy.contains(/Top channels by message count/i).should('be.visible');
+      cy.contains('general').should('be.visible');
+      cy.contains(/Messages by server/i).should('be.visible');
+      cy.contains(/Channel types/i).should('be.visible');
+    });
+
+    it('opts into the activity timeline and renders charts', () => {
+      cy.contains('button', /Load timeline/i).click();
+      cy.contains(/Monthly activity/i, { timeout: 10000 }).should('be.visible');
+      cy.contains(/Activity by hour/i).should('be.visible');
+      cy.contains(/peak month/i).should('be.visible');
+    });
+  });
+
+  describe('Channel browser', () => {
+    beforeEach(() => {
+      cy.uploadPackage();
+    });
+
+    it('selecting a channel renders its messages', () => {
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+      cy.contains('with, comma').should('be.visible');
+      cy.contains(/multi/).should('be.visible');
+      cy.contains(/line content/).should('be.visible');
+    });
+
+    it('back button returns to the analytics view', () => {
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+      cy.get('[aria-label="Back to analytics"]').click();
+      cy.contains(/Top channels by message count/i).should('be.visible');
+    });
+
+    it('orphan channel shows read-only banner in its header', () => {
+      // Left Servers section is collapsed by default — expand it first.
+      cy.contains('Left Servers').parent().find('button').click();
+      cy.contains('Old Guild Channel').click();
+      cy.contains(/Read only — left server/i).should('be.visible');
+    });
+  });
+
+  describe('Bulk delete', () => {
+    beforeEach(() => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+    });
+
+    it('enables Delete selected only after messages are checked', () => {
+      cy.contains('button', /Delete selected/i).should('be.disabled');
+      cy.get('input[aria-label="Select message 1001"]').click();
+      cy.contains('button', /Delete selected/i).should('not.be.disabled');
+    });
+
+    it('confirms then processes 200 responses as deleted', () => {
+      cy.intercept('DELETE', `${API}/channels/200/messages/*`, {
+        statusCode: 204,
+      }).as('deleteMsg');
+
+      cy.get('input[aria-label="Select message 1001"]').click();
+      cy.get('input[aria-label="Select message 1002"]').click();
+      cy.contains('button', /Delete selected/i).click();
+      cy.get('[role="dialog"]').contains('button', 'Delete').click();
+
+      cy.wait('@deleteMsg');
+      cy.contains(/Deleted 2/i, { timeout: 10000 }).should('be.visible');
+    });
+
+    it('categorizes 404 as already gone', () => {
+      cy.intercept('DELETE', `${API}/channels/200/messages/*`, {
+        statusCode: 404,
+        body: { message: 'Unknown Message', code: 10008 },
+      }).as('delete404');
+
+      cy.get('input[aria-label="Select message 1001"]').click();
+      cy.contains('button', /Delete selected/i).click();
+      cy.get('[role="dialog"]').contains('button', 'Delete').click();
+
+      cy.wait('@delete404');
+      cy.contains(/already gone/i, { timeout: 10000 }).should('be.visible');
+    });
+
+    it('disables Delete on orphan channels', () => {
+      cy.get('[aria-label="Back to analytics"]').click();
+      cy.contains('Left Servers').parent().find('button').click();
+      cy.contains('Old Guild Channel').click();
+      // The row checkbox is disabled in orphan mode, so selection can't happen.
+      cy.get('input[aria-label="Select message 3001"]').should('be.disabled');
+      cy.contains('button', /Delete selected/i).should('be.disabled');
+    });
+  });
+
+  describe('Bulk edit', () => {
+    beforeEach(() => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+    });
+
+    it('opens the edit modal with the correct message count', () => {
+      cy.get('input[aria-label="Select message 1001"]').click();
+      cy.get('input[aria-label="Select message 1002"]').click();
+      cy.contains('button', /Edit selected/i).click();
+      cy.get('[role="dialog"]').should('be.visible');
+      cy.contains(/Bulk Edit/i).should('be.visible');
+      cy.contains(/Editing 2 messages/).should('be.visible');
+    });
+
+    it('submits edits through the API and updates the local cache', () => {
+      cy.intercept('PATCH', `${API}/channels/200/messages/*`, (req) => {
+        req.reply({
+          statusCode: 200,
+          body: {
+            id: req.url.split('/').pop(),
+            content: 'updated via test',
+            channel_id: '200',
+          },
+        });
+      }).as('patchMsg');
+
+      cy.get('input[aria-label="Select message 1001"]').click();
+      cy.contains('button', /Edit selected/i).click();
+      cy.get('[role="dialog"]').find('textarea').first().type('updated via test');
+      cy.get('[role="dialog"]').contains('button', 'Save').click();
+
+      cy.wait('@patchMsg');
+      cy.contains('updated via test', { timeout: 10000 }).should('be.visible');
+    });
+  });
+
+  describe('HTML export', () => {
+    beforeEach(() => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+    });
+
+    it('opens the export dialog and runs a default HTML export', () => {
+      cy.contains('button', /^Export$/).should('be.visible').click();
+      cy.get('[role="dialog"]').should('be.visible');
+      cy.get('[role="dialog"]').contains(/general/).should('be.visible');
+      cy.get('[role="dialog"]').contains('button', /^Export$/).click();
+      // Button re-enables (thunk resolved) and no error alert remains.
+      cy.contains('button', /^Export$/, { timeout: 15000 }).should('not.be.disabled');
+    });
+  });
+});

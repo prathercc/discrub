@@ -1,0 +1,93 @@
+{
+  "threads": [
+    {
+      "id": "900000000000000001",
+      "type": 11,
+      "guild_id": "901000000000000001",
+      "name": "App crashes on startup",
+      "parent_id": "801000000000000007",
+      "owner_id": "500000000000000001",
+      "message_count": 5,
+      "member_count": 3,
+      "last_message_id": "900000000000000010",
+      "thread_metadata": { "archived": true, "locked": false, "auto_archive_duration": 4320, "archive_timestamp": "2026-03-20T10:00:00.000Z" },
+      "applied_tags": ["tag-bug"]
+    },
+    {
+      "id": "900000000000000002",
+      "type": 11,
+      "guild_id": "901000000000000001",
+      "name": "Dark mode support",
+      "parent_id": "801000000000000007",
+      "owner_id": "500000000000000002",
+      "message_count": 12,
+      "member_count": 7,
+      "last_message_id": "900000000000000020",
+      "thread_metadata": { "archived": true, "locked": false, "auto_archive_duration": 4320, "archive_timestamp": "2026-03-19T15:00:00.000Z" },
+      "applied_tags": ["tag-feature"]
+    },
+    {
+      "id": "900000000000000003",
+      "type": 11,
+      "guild_id": "901000000000000001",
+      "name": "How do I export data?",
+      "parent_id": "801000000000000007",
+      "owner_id": "500000000000000003",
+      "message_count": 3,
+      "member_count": 2,
+      "last_message_id": "900000000000000030",
+      "thread_metadata": { "archived": true, "locked": true, "auto_archive_duration": 4320, "archive_timestamp": "2026-03-18T08:00:00.000Z" },
+      "applied_tags": ["tag-question"]
+    }
+  ],
+  "members": [],
+  "has_more": false,
+  "first_messages": [
+    {
+      "id": "900000000000000001",
+      "type": 0,
+      "content": "The app crashes whenever I try to open it on Windows 11. I've tried reinstalling but the issue persists.",
+      "channel_id": "900000000000000001",
+      "author": { "id": "500000000000000001", "username": "alice", "discriminator": "0", "avatar": null },
+      "timestamp": "2026-03-20T10:00:00.000Z",
+      "edited_timestamp": null,
+      "tts": false,
+      "mention_everyone": false,
+      "mentions": [],
+      "attachments": [],
+      "embeds": [],
+      "pinned": false
+    },
+    {
+      "id": "900000000000000002",
+      "type": 0,
+      "content": "It would be great to have a dark mode option. My eyes hurt when using the app at night.",
+      "channel_id": "900000000000000002",
+      "author": { "id": "500000000000000002", "username": "bob", "discriminator": "0", "avatar": null },
+      "timestamp": "2026-03-19T15:00:00.000Z",
+      "edited_timestamp": null,
+      "tts": false,
+      "mention_everyone": false,
+      "mentions": [],
+      "attachments": [],
+      "embeds": [],
+      "pinned": false
+    },
+    {
+      "id": "900000000000000003",
+      "type": 0,
+      "content": "I'm trying to export my data but I can't find the option. Can someone help?",
+      "channel_id": "900000000000000003",
+      "author": { "id": "500000000000000003", "username": "charlie", "discriminator": "0", "avatar": null },
+      "timestamp": "2026-03-18T08:00:00.000Z",
+      "edited_timestamp": null,
+      "tts": false,
+      "mention_everyone": false,
+      "mentions": [],
+      "attachments": [],
+      "embeds": [],
+      "pinned": false
+    }
+  ],
+  "total_results": 3
+}

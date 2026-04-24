@@ -1,0 +1,456 @@
+/**
+ * Feature Showcase — Demo Cypress spec for generating documentation screenshots.
+ *
+ * Run: npx cypress run --spec cypress/e2e/demo/feature-showcase.cy.ts
+ * Screenshots output to: cypress/screenshots/demo/
+ *
+ * These are NOT fast tests — they use realistic delays so the UI
+ * looks natural in screenshots. Do not run in CI.
+ */
+
+const SCREENSHOT_DIR = 'demo';
+const PAUSE = 500; // ms between actions for natural feel
+
+// Enriched roles for demo screenshots (not in standard fixtures)
+const DEMO_ROLES = [
+  { id: 'role-everyone', name: '@everyone', color: 0, position: 0, hoist: false, permissions: '0', managed: false, mentionable: false, flags: 0 },
+  { id: 'role-member', name: 'Member', color: 0, position: 1, hoist: false, permissions: '0', managed: false, mentionable: false, flags: 0 },
+  { id: 'role-moderator', name: 'Moderator', color: 0x2ecc71, position: 5, hoist: true, permissions: '0', managed: false, mentionable: false, flags: 0, unicode_emoji: '🛡️' },
+  { id: 'role-developer', name: 'Developer', color: 0x3498db, position: 4, hoist: true, permissions: '0', managed: false, mentionable: false, flags: 0 },
+  { id: 'role-admin', name: 'Admin', color: 0xe91e63, position: 10, hoist: true, permissions: '0', managed: false, mentionable: false, flags: 0, unicode_emoji: '👑' },
+];
+
+// Guild member with roles for demo
+const DEMO_GUILD_MEMBER = {
+  roles: ['role-admin', 'role-moderator'],
+  nick: 'Discrub Tester',
+  joined_at: '2024-01-01T00:00:00.000Z',
+};
+
+function screenshot(name: string) {
+  cy.wait(PAUSE);
+  cy.screenshot(`${SCREENSHOT_DIR}/${name}`, { overwrite: true });
+}
+
+/** Close the donation drawer via the More options > Supporter Wall toggle in the TopBar */
+function hideDonationDrawer() {
+  cy.wait(1500);
+  cy.get('body').then(($body) => {
+    if ($body.find('button:contains("Support on Ko-Fi"):visible, a[href*="ko-fi"]:visible').length === 0) {
+      return;
+    }
+    cy.get('[aria-label="More options"]').click({ force: true });
+    cy.contains('[role="menuitem"]', 'Supporter Wall').click({ force: true });
+    cy.get('body').click(0, 0);
+    cy.wait(400);
+  });
+}
+
+describe('Feature Showcase — Documentation Screenshots', () => {
+  describe('01 — Authentication', () => {
+    it('landing page with token entry', () => {
+      cy.interceptDiscordApi();
+      cy.blockAutoAuth();
+      cy.visit('/');
+      cy.wait(PAUSE);
+      screenshot('auth/landing-page');
+    });
+  });
+
+  describe('01b — Welcome Panel', () => {
+    it('welcome panel after authentication', () => {
+      cy.login();
+      hideDonationDrawer();
+      cy.wait(PAUSE);
+      screenshot('welcome/welcome-panel');
+    });
+  });
+
+  describe('02 — Server & Channel Browsing', () => {
+    beforeEach(() => {
+      // Use enriched roles for demo
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      }).as('getDemoRoles');
+
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      }).as('getDemoGuildMember');
+
+      cy.login();
+      hideDonationDrawer();
+    });
+
+    it('server list', () => {
+      screenshot('browsing/server-list');
+    });
+
+    it('channel list with categories', () => {
+      cy.selectServer('Cypress Test Server');
+      cy.wait(PAUSE);
+      screenshot('browsing/channel-list');
+    });
+
+    it('DM list', () => {
+      cy.contains('button', 'DMs').click();
+      cy.wait('@getDMs');
+      cy.wait(PAUSE);
+      screenshot('browsing/dm-list');
+    });
+  });
+
+  describe('03 — Message Table', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('message table with messages loaded', () => {
+      cy.contains('[data-testid="message-feed-row"]', 'Sounds good, deploying now.').should('exist');
+      screenshot('messages/message-table');
+    });
+
+    it('message selection and toolbar', () => {
+      // Select some messages
+      cy.contains('[data-testid="message-feed-row"]','Hello everyone').click();
+      cy.wait(200);
+      cy.contains('[data-testid="message-feed-row"]','Thanks for setting this up').click();
+      cy.wait(PAUSE);
+      screenshot('messages/toolbar-selection');
+    });
+
+    it('filter modal open', () => {
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]').should('be.visible');
+      cy.wait(PAUSE);
+      screenshot('messages/search-filters');
+    });
+  });
+
+  describe('04 — User Profile', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('user profile modal', () => {
+      // Click on author name/avatar area to open profile
+      cy.contains('[data-testid="message-chunk"]', 'Hello everyone').scrollIntoView();
+      cy.contains('[data-testid="message-chunk"]', 'Hello everyone').find('[class*="Avatar"]').first().click({ force: true });
+      cy.get('[role="dialog"]').should('be.visible');
+      cy.wait(PAUSE);
+      screenshot('messages/user-profile');
+    });
+  });
+
+  describe('05 — Reactions', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.fixture('reacting-users.json').then((users) => {
+        cy.intercept('GET', '**/api/v10/channels/*/messages/*/reactions/*', {
+          statusCode: 200,
+          body: users,
+        }).as('getReactingUsers');
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('reaction modal with users', () => {
+      // Each reaction pill carries the same aria-label; pick first.
+      cy.contains('[data-testid="message-feed-row"]','Anyone up for some gaming later?')
+        .scrollIntoView()
+        .find('[aria-label="View Reactions"]')
+        .first()
+        .click({ force: true });
+      cy.wait('@getReactingUsers');
+      cy.wait(PAUSE);
+      screenshot('reactions/reaction-modal');
+    });
+  });
+
+  describe('06 — Export', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('export dialog — format selection', () => {
+      cy.contains('button', 'Export').click();
+      cy.wait(PAUSE);
+      screenshot('export/export-dialog');
+    });
+
+    it('export dialog — media settings', () => {
+      cy.contains('button', 'Export').click();
+      // Expand Files & Media section
+      cy.contains('Files & Media').click();
+      cy.wait(PAUSE);
+      screenshot('export/media-settings');
+    });
+
+    it('export dialog — preset selector', () => {
+      cy.contains('button', 'Export').click();
+      cy.wait(PAUSE);
+      // Open the preset dropdown
+      cy.get('[role="dialog"]').find('[role="combobox"]').first().click({ force: true });
+      cy.wait(PAUSE);
+      screenshot('export/preset-selector');
+    });
+  });
+
+  describe('07 — Purge', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      hideDonationDrawer();
+    });
+
+    it('channel list in multi-select mode', () => {
+      // Enter multi-select mode
+      cy.get('[aria-label="Toggle multi-select"]').click();
+      cy.wait(200);
+      // Select some channels
+      cy.contains('general').click();
+      cy.wait(200);
+      cy.contains('dev-chat').click();
+      cy.wait(PAUSE);
+      screenshot('browsing/multi-select');
+    });
+
+    it('bulk purge dialog — multi-select channels', () => {
+      // Enter multi-select mode
+      cy.get('[aria-label="Toggle multi-select"]').click();
+      cy.wait(200);
+      // Select some channels
+      cy.contains('general').click();
+      cy.wait(200);
+      cy.contains('dev-chat').click();
+      cy.wait(200);
+      // Click purge icon button
+      cy.get('[aria-label="Purge selected channels"]').click({ force: true });
+      cy.wait(PAUSE);
+      screenshot('purge/purge-dialog');
+    });
+  });
+
+  describe('08 — Forum Channels', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.fixture('forum-threads.json').then((threads) => {
+        cy.intercept('GET', '**/api/v10/channels/*/threads/search*', {
+          statusCode: 200,
+          body: threads,
+        }).as('getForumThreads');
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      hideDonationDrawer();
+    });
+
+    it('forum thread list', () => {
+      cy.contains('feedback').click();
+      cy.wait('@getForumThreads');
+      cy.wait(PAUSE);
+      screenshot('forum/thread-list');
+    });
+  });
+
+  describe('09 — Settings', () => {
+    beforeEach(() => {
+      cy.login();
+      hideDonationDrawer();
+    });
+
+    it('settings dialog', () => {
+      cy.get('[aria-label="Settings"]').click({ force: true });
+      cy.wait(PAUSE);
+      screenshot('settings/settings-dialog');
+    });
+  });
+
+  describe('10 — Status Log & Theme', () => {
+    beforeEach(() => {
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', {
+        statusCode: 200,
+        body: DEMO_ROLES,
+      });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', {
+        statusCode: 200,
+        body: DEMO_GUILD_MEMBER,
+      });
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('status log expanded', () => {
+      // Expand the status log
+      cy.get('[aria-label="Expand log"]').click();
+      cy.wait(PAUSE);
+      screenshot('ui/status-log');
+    });
+
+    it('dark theme', () => {
+      screenshot('ui/theme-dark');
+    });
+
+    it('light theme', () => {
+      cy.get('[aria-label="Toggle theme"]').click({ force: true });
+      cy.wait(PAUSE);
+      screenshot('ui/theme-light');
+    });
+  });
+
+  describe('11 — Analytics', () => {
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('analytics modal', () => {
+      cy.contains('button', 'Analytics').click();
+      cy.wait(PAUSE);
+      screenshot('analytics/analytics-modal');
+    });
+  });
+
+  describe('10 — Data Package Import', () => {
+    beforeEach(() => {
+      cy.interceptDiscordApi();
+      cy.login();
+      hideDonationDrawer();
+    });
+
+    it('package tab empty state', () => {
+      cy.openPackageTab();
+      cy.contains(/Import a Discord Data Package/i).should('be.visible');
+      screenshot('package/package-empty-state');
+    });
+
+    it('package analytics view', () => {
+      cy.uploadPackage();
+      cy.contains(/Top channels by message count/i).should('be.visible');
+      screenshot('package/package-analytics');
+    });
+
+    it('package message browser (source-only)', () => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+      screenshot('package/package-message-browser');
+    });
+
+    it('package message browser with rehydrated rows', () => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+      // Inject enriched state for the screenshot — actual API traffic
+      // is out of scope for the demo pipeline.
+      cy.window().then((win) => {
+        const store = (win as { __store__?: { dispatch: (a: unknown) => void } }).__store__;
+        if (!store) throw new Error('Redux store not exposed');
+        store.dispatch({
+          type: 'package/hydrateEnrichmentFromCache',
+          payload: {
+            channelId: '200',
+            cache: {
+              lastFetched: Date.now(),
+              messages: {
+                '1001': {
+                  id: '1001',
+                  type: 0,
+                  content: 'hello world 🎉',
+                  author: { id: 'a', username: 'you', global_name: 'You' },
+                  reactions: [
+                    { emoji: { name: '👍' }, count: 4 },
+                    { emoji: { name: '❤️' }, count: 9 },
+                  ],
+                  embeds: [],
+                  mentions: [],
+                  channel_id: '200',
+                  timestamp: '2022-07-28T22:30:52.000Z',
+                  attachments: [],
+                },
+                '1002': {
+                  id: '1002',
+                  type: 0,
+                  content: 'with, comma',
+                  author: { id: 'a', username: 'you', global_name: 'You' },
+                  reactions: [],
+                  embeds: [],
+                  mentions: [],
+                  channel_id: '200',
+                  timestamp: '2022-07-28T22:31:00.000Z',
+                  attachments: [],
+                },
+              },
+              misses: { deleted: [], forbidden: [] },
+            },
+          },
+        });
+      });
+      cy.contains(/Rich data loaded/).should('be.visible');
+      screenshot('package/package-rehydrated');
+    });
+  });
+});

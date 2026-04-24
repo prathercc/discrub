@@ -1,0 +1,78 @@
+{
+  "messages": [
+    [
+      {
+        "id": "780000000000000001",
+        "channel_id": "801000000000000001",
+        "author": {
+          "id": "111222333444555666",
+          "username": "discrub_tester",
+          "discriminator": "0",
+          "avatar": "abc123avatar",
+          "global_name": "Discrub Tester"
+        },
+        "content": "Message to purge 1",
+        "timestamp": "2026-02-01T10:00:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "id": "780000000000000002",
+        "channel_id": "801000000000000001",
+        "author": {
+          "id": "111222333444555666",
+          "username": "discrub_tester",
+          "discriminator": "0",
+          "avatar": "abc123avatar",
+          "global_name": "Discrub Tester"
+        },
+        "content": "Message to purge 2",
+        "timestamp": "2026-02-01T11:00:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ],
+    [
+      {
+        "id": "780000000000000003",
+        "channel_id": "801000000000000001",
+        "author": {
+          "id": "111222333444555666",
+          "username": "discrub_tester",
+          "discriminator": "0",
+          "avatar": "abc123avatar",
+          "global_name": "Discrub Tester"
+        },
+        "content": "Message to purge 3",
+        "timestamp": "2026-02-01T12:00:00.000Z",
+        "edited_timestamp": null,
+        "tts": false,
+        "mention_everyone": false,
+        "mentions": [],
+        "attachments": [],
+        "embeds": [],
+        "reactions": [],
+        "pinned": false,
+        "type": 0
+      }
+    ]
+  ],
+  "total_results": 3,
+  "threads": []
+}

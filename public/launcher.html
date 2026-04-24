@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Discrub Launcher</title>
+  <link rel="stylesheet" href="launcher.css" />
+</head>
+<body>
+  <div class="launcher">
+    <!-- Animated logo -->
+    <div class="logo-container">
+      <div class="logo-glow"></div>
+      <img id="logo" class="logo" alt="Discrub" />
+    </div>
+
+    <h1 class="title">Discrub</h1>
+    <p class="subtitle">Discord Data Management</p>
+
+    <!-- Version selector -->
+    <div class="selector-container">
+      <label class="selector-label" for="version-select">Select version</label>
+      <div class="select-wrapper">
+        <select id="version-select">
+          <option value="" disabled selected>Modern or Classic?</option>
+          <option value="web">Discrub v__APP_VERSION__</option>
+          <option value="classic">Discrub v__CLASSIC_VERSION__ (Classic)</option>
+        </select>
+        <div class="select-arrow">
+          <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+            <path d="M1 1.5L6 6.5L11 1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Launch button with progress bar -->
+    <div class="launch-container">
+      <button id="launch-btn" class="launch-btn" disabled>
+        <span id="launch-text" class="launch-text">Launch Discrub</span>
+      </button>
+      <div id="progress-bar" class="progress-bar-container">
+        <div id="progress-fill" class="progress-bar-fill"></div>
+      </div>
+      <p id="countdown-text" class="countdown-text"></p>
+    </div>
+
+    <p class="hint-text" id="hint-text"></p>
+  </div>
+
+  <script src="launcher.js"></script>
+</body>
+</html>

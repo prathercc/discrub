@@ -1,0 +1,850 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { getExportService } from './exportService';
+import { createMockMessages } from '@/test/fixtures';
+import type { Message } from 'discrub-core/types/discord-types';
+import type { ExportUserMap } from 'discrub-core/types/discrub-types';
+
+// Mock dependencies
+vi.mock('./streamingZipService', () => ({
+  StreamingZipService: vi.fn().mockImplementation(() => ({
+    addFile: vi.fn().mockResolvedValue(undefined),
+    finalize: vi.fn().mockResolvedValue(undefined),
+    cancel: vi.fn().mockResolvedValue(undefined),
+  })),
+}));
+
+vi.mock('./mediaDownloadService', () => ({
+  MediaDownloadService: vi.fn().mockImplementation(() => ({
+    downloadAllMedia: vi.fn().mockResolvedValue({
+      avatarMap: {},
+      attachmentMap: {},
+      emojiMap: {},
+    }),
+  })),
+}));
+
+vi.mock('discrub-core/export-data-service', () => ({
+  prepareExportData: vi.fn().mockReturnValue({
+    mainPages: [{ messages: [], pageNumber: 1, filePath: '' }],
+    threadExports: [],
+    totalPages: 1,
+  }),
+}));
+
+describe('exportService', () => {
+  let service: ReturnType<typeof getExportService>;
+  const mockMessages: Message[] = createMockMessages(5);
+  const mockUserMap: ExportUserMap = {
+    'user-123': {
+      userName: 'testuser',
+      displayName: 'Test User',
+      avatar: null,
+      guilds: {
+        'guild-1': {
+          roles: [],
+          nick: 'TestNick',
+          joinedAt: null,
+          timestamp: Date.now(),
+        },
+      },
+      timestamp: Date.now(),
+    },
+  };
+
+  beforeEach(() => {
+    service = getExportService();
+    vi.clearAllMocks();
+  });
+
+  describe('singleton pattern', () => {
+    it('should return same instance', () => {
+      const instance1 = getExportService();
+      const instance2 = getExportService();
+      expect(instance1).toBe(instance2);
+    });
+  });
+
+  describe('sanitizeFilename', () => {
+    it('should replace special characters with underscores and collapse them', () => {
+      const sanitize = (service as any).sanitizeFilename.bind(service);
+      expect(sanitize('Hello World!')).toBe('hello_world');
+      expect(sanitize('test@#$%channel')).toBe('test_channel');
+      expect(sanitize('General-Chat')).toBe('general_chat');
+    });
+
+    it('should convert to lowercase', () => {
+      const sanitize = (service as any).sanitizeFilename.bind(service);
+      expect(sanitize('UPPERCASE')).toBe('uppercase');
+      expect(sanitize('MixedCase')).toBe('mixedcase');
+    });
+
+    it('should handle empty string', () => {
+      const sanitize = (service as any).sanitizeFilename.bind(service);
+      expect(sanitize('')).toBe('');
+    });
+
+    it('should preserve alphanumeric characters', () => {
+      const sanitize = (service as any).sanitizeFilename.bind(service);
+      expect(sanitize('channel123')).toBe('channel123');
+      expect(sanitize('test123ABC')).toBe('test123abc');
+    });
+
+    it('should handle unicode characters', () => {
+      const sanitize = (service as any).sanitizeFilename.bind(service);
+      expect(sanitize('test-émoji-🎉')).toBe('test_moji');
+    });
+
+    it('should append ID suffix when provided', () => {
+      const sanitize = (service as any).sanitizeFilename.bind(service);
+      expect(sanitize('general', '12345')).toBe('general_12345');
+    });
+  });
+
+  describe('escapeHtml', () => {
+    it('should escape HTML special characters', () => {
+      const escape = (service as any).escapeHtml.bind(service);
+      expect(escape('<script>alert("xss")</script>')).toContain('&lt;');
+      expect(escape('Test & <tag>')).toContain('&amp;');
+    });
+
+    it('should handle quotes', () => {
+      const escape = (service as any).escapeHtml.bind(service);
+      const result = escape('Say "hello"');
+      expect(result).toContain('hello');
+    });
+
+    it('should handle empty string', () => {
+      const escape = (service as any).escapeHtml.bind(service);
+      expect(escape('')).toBe('');
+    });
+
+    it('should handle plain text', () => {
+      const escape = (service as any).escapeHtml.bind(service);
+      expect(escape('plain text')).toBe('plain text');
+    });
+  });
+
+  describe('escapeCSV', () => {
+    it('should escape double quotes', () => {
+      const escape = (service as any).escapeCSV.bind(service);
+      expect(escape('Say "hello"')).toBe('Say ""hello""');
+      expect(escape('"quoted"')).toBe('""quoted""');
+    });
+
+    it('should handle text without quotes', () => {
+      const escape = (service as any).escapeCSV.bind(service);
+      expect(escape('plain text')).toBe('plain text');
+    });
+
+    it('should handle empty string', () => {
+      const escape = (service as any).escapeCSV.bind(service);
+      expect(escape('')).toBe('');
+    });
+
+    it('should handle multiple quotes', () => {
+      const escape = (service as any).escapeCSV.bind(service);
+      expect(escape('He said "hello" and "goodbye"')).toBe('He said ""hello"" and ""goodbye""');
+    });
+  });
+
+  describe('formatBytes', () => {
+    it('should format zero bytes', () => {
+      const format = (service as any).formatBytes.bind(service);
+      expect(format(0)).toBe('0 Bytes');
+    });
+
+    it('should format bytes', () => {
+      const format = (service as any).formatBytes.bind(service);
+      expect(format(500)).toBe('500 Bytes');
+    });
+
+    it('should format kilobytes', () => {
+      const format = (service as any).formatBytes.bind(service);
+      const result = format(1024);
+      expect(result).toContain('KB');
+      expect(result).toContain('1');
+    });
+
+    it('should format megabytes', () => {
+      const format = (service as any).formatBytes.bind(service);
+      const result = format(1024 * 1024);
+      expect(result).toContain('MB');
+    });
+
+    it('should format gigabytes', () => {
+      const format = (service as any).formatBytes.bind(service);
+      const result = format(1024 * 1024 * 1024);
+      expect(result).toContain('GB');
+    });
+
+    it('should round to 2 decimal places', () => {
+      const format = (service as any).formatBytes.bind(service);
+      const result = format(1536); // 1.5 KB
+      expect(result).toMatch(/1\.5 KB/);
+    });
+  });
+
+  describe('getFileIcon', () => {
+    it('should return image icon for image files', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('photo.jpg')).toBe('🖼️');
+      expect(getIcon('image.png')).toBe('🖼️');
+      expect(getIcon('animation.gif')).toBe('🖼️');
+    });
+
+    it('should return video icon for video files', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('video.mp4')).toBe('🎬');
+      expect(getIcon('movie.webm')).toBe('🎬');
+      expect(getIcon('clip.mov')).toBe('🎬');
+    });
+
+    it('should return audio icon for audio files', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('song.mp3')).toBe('🎵');
+      expect(getIcon('audio.wav')).toBe('🎵');
+    });
+
+    it('should return document icon for document files', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('document.pdf')).toBe('📄');
+      expect(getIcon('text.txt')).toBe('📄');
+    });
+
+    it('should return archive icon for archive files', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('archive.zip')).toBe('📦');
+      expect(getIcon('compressed.rar')).toBe('📦');
+    });
+
+    it('should return code icon for code files', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('script.js')).toBe('📜');
+      expect(getIcon('component.tsx')).toBe('📜');
+      expect(getIcon('data.json')).toBe('📜');
+    });
+
+    it('should return default icon for unknown extensions', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('file.unknown')).toBe('📁');
+      expect(getIcon('noextension')).toBe('📁');
+    });
+
+    it('should be case insensitive', () => {
+      const getIcon = (service as any).getFileIcon.bind(service);
+      expect(getIcon('IMAGE.PNG')).toBe('🖼️');
+      expect(getIcon('VIDEO.MP4')).toBe('🎬');
+    });
+  });
+
+  describe('generateCSV', () => {
+    it('should generate CSV with headers', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const result = generateCSV([], {}, null);
+
+      expect(result).toContain('ID,Timestamp,Username,Display Name,Server Nickname');
+    });
+
+    it('should include message data in CSV', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: 'Test message',
+        author: {
+          id: 'user-123',
+          username: 'testuser',
+          discriminator: '0001',
+        },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, mockUserMap, null);
+
+      expect(result).toContain('msg-1');
+      expect(result).toContain('testuser');
+      expect(result).toContain('Test message');
+    });
+
+    it('should escape CSV special characters in content', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: 'Message with "quotes"',
+        author: {
+          id: 'user-123',
+          username: 'testuser',
+          discriminator: '0001',
+        },
+        attachments: [],
+        embeds: [],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, {}, null);
+
+      expect(result).toContain('""quotes""');
+    });
+
+    it('should handle messages with attachments and embeds', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: 'Test',
+        author: {
+          id: 'user-123',
+          username: 'testuser',
+          discriminator: '0001',
+        },
+        attachments: [{ id: 'att-1', filename: 'test.png' }],
+        embeds: [{ title: 'Embed' }],
+        reactions: [{ emoji: { name: '👍' }, count: 5 }],
+      } as any];
+
+      const result = generateCSV(messages, {}, null);
+
+      expect(result).toContain(',1,'); // 1 attachment
+      expect(result).toContain(',1,'); // 1 embed
+      expect(result).toContain(',5'); // 5 reactions
+    });
+
+    it('should use cached user data when available', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: 'Test',
+        author: {
+          id: 'user-123',
+          username: 'original',
+          discriminator: '0001',
+        },
+        attachments: [],
+        embeds: [],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, mockUserMap, 'guild-1');
+
+      expect(result).toContain('testuser'); // From cache
+      expect(result).toContain('Test User'); // Display name from cache
+      expect(result).toContain('TestNick'); // Nickname from cache
+    });
+
+    it('should handle missing author data', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: 'Test',
+        attachments: [],
+        embeds: [],
+      } as any];
+
+      const result = generateCSV(messages, {}, null);
+
+      expect(result).toContain('Unknown');
+    });
+  });
+
+  describe('exportToZip', () => {
+    it('should call StreamingZipService', async () => {
+      const { StreamingZipService } = await import('./streamingZipService');
+
+      await service.exportToZip(
+        mockMessages,
+        'test-channel',
+        'json',
+        100,
+        false,
+        null,
+        {},
+        null
+      );
+
+      expect(StreamingZipService).toHaveBeenCalled();
+    });
+
+    it('should download media when includeMedia is true', async () => {
+      const { MediaDownloadService } = await import('./mediaDownloadService');
+
+      await service.exportToZip(
+        mockMessages,
+        'test-channel',
+        'json',
+        100,
+        true,
+        null,
+        {},
+        null
+      );
+
+      expect(MediaDownloadService).toHaveBeenCalled();
+    });
+
+    it('should not download media when includeMedia is false', async () => {
+      const { MediaDownloadService } = await import('./mediaDownloadService');
+      vi.clearAllMocks();
+
+      await service.exportToZip(
+        mockMessages,
+        'test-channel',
+        'json',
+        100,
+        false,
+        null,
+        {},
+        null
+      );
+
+      expect(MediaDownloadService).not.toHaveBeenCalled();
+    });
+
+    it('should call onProgress callback', async () => {
+      const onProgress = vi.fn();
+
+      await service.exportToZip(
+        mockMessages,
+        'test-channel',
+        'json',
+        100,
+        false,
+        null,
+        {},
+        null,
+        onProgress
+      );
+
+      expect(onProgress).toHaveBeenCalled();
+    });
+
+    it('should sanitize channel name', async () => {
+      const { StreamingZipService } = await import('./streamingZipService');
+
+      await service.exportToZip(
+        mockMessages,
+        'Test Channel!',
+        'json',
+        100,
+        false,
+        null,
+        {},
+        null
+      );
+
+      expect(StreamingZipService).toHaveBeenCalledWith('test_channel');
+    });
+
+    it('should finalize zip on success', async () => {
+      const { StreamingZipService } = await import('./streamingZipService');
+      const mockFinalize = vi.fn().mockResolvedValue(undefined);
+      (StreamingZipService as any).mockImplementation(() => ({
+        addFile: vi.fn().mockResolvedValue(undefined),
+        finalize: mockFinalize,
+        cancel: vi.fn(),
+      }));
+
+      await service.exportToZip(
+        mockMessages,
+        'test-channel',
+        'json',
+        100,
+        false,
+        null,
+        {},
+        null
+      );
+
+      expect(mockFinalize).toHaveBeenCalled();
+    });
+
+    it('should cancel zip on error', async () => {
+      const { StreamingZipService } = await import('./streamingZipService');
+      const mockCancel = vi.fn();
+      const mockAddFile = vi.fn().mockRejectedValue(new Error('Test error'));
+
+      (StreamingZipService as any).mockImplementation(() => ({
+        addFile: mockAddFile,
+        finalize: vi.fn(),
+        cancel: mockCancel,
+      }));
+
+      await expect(
+        service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'json',
+          100,
+          false,
+          null,
+          {},
+          null
+        )
+      ).rejects.toThrow();
+
+      expect(mockCancel).toHaveBeenCalled();
+    });
+  });
+
+  describe('generateCSV with ExportConfig', () => {
+    it('should use configured date/time format when ExportConfig provided', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'Test',
+        author: { id: 'u1', username: 'user1', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, {}, null, {
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: true,
+        dateFormat: 'yyyy-MM-dd',
+        timeFormat: 'HH:mm',
+      });
+
+      // Should use formatMessageTimestamp with configured format
+      expect(result).toContain('2026-06-15');
+    });
+
+    it('should fall back to default format when no ExportConfig provided', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'Test',
+        author: { id: 'u1', username: 'user1', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, {}, null);
+
+      // Should use default 'yyyy-MM-dd HH:mm:ss' format
+      expect(result).toContain('2026-06-15');
+    });
+  });
+
+  describe('generateHTMLPage with ExportConfig', () => {
+    it('should use configured date/time format in timestamps', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'Hello world',
+        author: { id: 'u1', username: 'testuser', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      } as unknown as Message];
+
+      const html = generateHTML(messages, 'test-channel', 1, 1, null, 'test_channel', undefined, {
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: true,
+        dateFormat: 'dd/MM/yyyy',
+        timeFormat: 'HH:mm:ss',
+      });
+
+      expect(html).toContain('15/06/2026');
+    });
+
+    it('should add attachment-preview-img CSS class to attachment previews', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'Photo',
+        author: { id: 'u1', username: 'testuser', discriminator: '0001' },
+        attachments: [{ id: 'att-1', url: 'https://cdn.discordapp.com/test.png', filename: 'test.png', size: 1024 }],
+        embeds: [],
+        reactions: [],
+      } as any];
+
+      const html = generateHTML(messages, 'test-channel', 1, 1, null, 'test_channel', undefined, {
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: true,
+        dateFormat: 'MM/dd/yyyy',
+        timeFormat: 'h:mm aa',
+      });
+
+      expect(html).toContain('attachment-preview-img');
+    });
+
+    it('should not render image/video previews when previewMedia is false', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'Photo',
+        author: { id: 'u1', username: 'testuser', discriminator: '0001' },
+        attachments: [{ id: 'att-1', url: 'https://cdn.discordapp.com/test.png', filename: 'test.png', size: 1024 }],
+        embeds: [],
+        reactions: [],
+      } as any];
+
+      const html = generateHTML(messages, 'test-channel', 1, 1, null, 'test_channel', undefined, {
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: false,
+        dateFormat: 'MM/dd/yyyy',
+        timeFormat: 'h:mm aa',
+      });
+
+      // Should not contain img tag with attachment-preview class in message content
+      expect(html).not.toContain('<img class="attachment-preview');
+      expect(html).not.toContain('<video class="attachment-preview');
+      // But should still have the download link
+      expect(html).toContain('test.png');
+    });
+
+    it('should include attachment-preview-img CSS class in styles', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const html = generateHTML([], 'test-channel', 1, 1, null, 'test_channel');
+
+      expect(html).toContain('.attachment-preview-img');
+    });
+  });
+
+  describe('system message rendering in HTML export', () => {
+    const runRender = (msg: any, guildName?: string) => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const formattingContext: any = {
+        userMap: {},
+        channelMap: {},
+        guildRoles: [],
+        sanitizedName: 'test_channel',
+        guildName,
+      };
+      return generateHTML(
+        [msg],
+        'test-channel',
+        1,
+        1,
+        null,
+        'test_channel',
+        formattingContext,
+      );
+    };
+
+    it('renders a CHANNEL_PINNED_MESSAGE (type 6) as a system-message row', () => {
+      const msg = {
+        id: 'sys-pin',
+        type: 6,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'u1', username: 'alice', global_name: 'Alice' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      };
+      const html = runRender(msg);
+      expect(html).toContain('class="system-message"');
+      expect(html).toContain('data-system-kind="pin"');
+      expect(html).toContain('pinned a message to this channel');
+      // Normal-message container must NOT appear for a system message.
+      expect(html).not.toContain('<div class="message"');
+    });
+
+    it('renders a USER_JOIN (type 7) using one of the 13 variants', () => {
+      const msg = {
+        id: 'sys-join',
+        type: 7,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'u1', username: 'alice', global_name: 'Alice' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      };
+      const html = runRender(msg);
+      expect(html).toContain('data-system-kind="join"');
+      expect(html).toContain('Alice');
+    });
+
+    it('renders GUILD_BOOST_TIER_2 (type 10) with the guild name', () => {
+      const msg = {
+        id: 'sys-boost',
+        type: 10,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'u1', username: 'alice', global_name: 'Alice' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      };
+      const html = runRender(msg, 'Aquarium');
+      expect(html).toContain('data-system-kind="boost"');
+      expect(html).toContain('Aquarium');
+      expect(html).toContain('Level 2');
+    });
+
+    it('renders a THREAD_CREATED (type 18) with the thread name', () => {
+      const msg = {
+        id: 'sys-thread',
+        type: 18,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'u1', username: 'alice', global_name: 'Alice' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        thread: { name: 'Project planning' },
+      };
+      const html = runRender(msg);
+      expect(html).toContain('data-system-kind="thread"');
+      expect(html).toContain('Project planning');
+    });
+
+    it('renders an AUTO_MODERATION_ACTION (type 24) with its embed beneath the notice', () => {
+      const msg = {
+        id: 'sys-automod',
+        type: 24,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'automod', username: 'AutoMod' },
+        attachments: [],
+        embeds: [{ type: 'rich', title: 'Blocked message', description: 'spam' }],
+        reactions: [],
+      };
+      const html = runRender(msg);
+      expect(html).toContain('data-system-kind="autoMod"');
+      expect(html).toContain('class="system-message-embed"');
+      expect(html).toContain('Blocked message');
+    });
+
+    it('does NOT render a default (type 0) message as a system message', () => {
+      const msg = {
+        id: 'normal',
+        type: 0,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'hello',
+        author: { id: 'u1', username: 'alice', global_name: 'Alice' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      };
+      const html = runRender(msg);
+      expect(html).not.toContain('class="system-message"');
+      expect(html).toContain('hello');
+    });
+
+    it('does NOT render a reply (type 19) as a system message', () => {
+      const msg = {
+        id: 'reply',
+        type: 19,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'hi',
+        author: { id: 'u1', username: 'alice', global_name: 'Alice' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      };
+      const html = runRender(msg);
+      expect(html).not.toContain('class="system-message"');
+    });
+
+    it('includes .system-message CSS in the generated stylesheet', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const html = generateHTML([], 'test-channel', 1, 1, null, 'test_channel');
+      expect(html).toContain('.system-message');
+      expect(html).toContain('.system-message-icon');
+      expect(html).toContain('.system-message-text');
+    });
+  });
+
+  describe('exportToZip with ExportConfig sort order', () => {
+    it('should sort messages before export based on sortOrder', async () => {
+      // Reset StreamingZipService mock to avoid leakage from prior tests
+      const { StreamingZipService } = await import('./streamingZipService');
+      (StreamingZipService as any).mockImplementation(() => ({
+        addFile: vi.fn().mockResolvedValue(undefined),
+        finalize: vi.fn().mockResolvedValue(undefined),
+        cancel: vi.fn().mockResolvedValue(undefined),
+      }));
+
+      const { prepareExportData } = await import('discrub-core/export-data-service');
+      vi.mocked(prepareExportData).mockReturnValue({
+        mainPages: [{ messages: [], pageNumber: 1, filePath: '' }],
+        threadExports: [],
+        totalPages: 1,
+      } as any);
+
+      const messages: Message[] = [
+        { id: '1', timestamp: '2026-06-15T14:00:00.000Z', content: 'First' } as any,
+        { id: '2', timestamp: '2026-06-15T12:00:00.000Z', content: 'Second' } as any,
+        { id: '3', timestamp: '2026-06-15T16:00:00.000Z', content: 'Third' } as any,
+      ];
+
+      await service.exportToZip(
+        messages, 'test', 'json', 100, false, null, {}, null,
+        undefined, undefined,
+        { artistMode: false, sortOrder: 'ascending', previewMedia: true, dateFormat: 'MM/dd/yyyy', timeFormat: 'h:mm aa' }
+      );
+
+      // Verify prepareExportData received sorted messages
+      const callArgs = vi.mocked(prepareExportData).mock.calls[0][0];
+      const sortedMessages = callArgs.messages;
+      expect(new Date(sortedMessages[0].timestamp!).getTime()).toBeLessThan(
+        new Date(sortedMessages[1].timestamp!).getTime()
+      );
+      expect(new Date(sortedMessages[1].timestamp!).getTime()).toBeLessThan(
+        new Date(sortedMessages[2].timestamp!).getTime()
+      );
+    });
+  });
+
+  describe('exportMediaOnly', () => {
+    it('should call MediaDownloadService.downloadMediaOnly', async () => {
+      const { MediaDownloadService } = await import('./mediaDownloadService');
+      const mockDownloadMediaOnly = vi.fn().mockResolvedValue(undefined);
+      (MediaDownloadService as any).mockImplementation(() => ({
+        downloadMediaOnly: mockDownloadMediaOnly,
+      }));
+
+      await service.exportMediaOnly(mockMessages, 'test-channel');
+
+      expect(mockDownloadMediaOnly).toHaveBeenCalled();
+    });
+
+    it('should pass artistMode to mediaDownloadService', async () => {
+      const { MediaDownloadService } = await import('./mediaDownloadService');
+      const mockDownloadMediaOnly = vi.fn().mockResolvedValue(undefined);
+      (MediaDownloadService as any).mockImplementation(() => ({
+        downloadMediaOnly: mockDownloadMediaOnly,
+      }));
+
+      await service.exportMediaOnly(mockMessages, 'test-channel', undefined, undefined, {
+        artistMode: true,
+        sortOrder: 'descending',
+        previewMedia: true,
+        dateFormat: 'MM/dd/yyyy',
+        timeFormat: 'h:mm aa',
+      });
+
+      // artistMode should be passed to downloadMediaOnly
+      expect(mockDownloadMediaOnly).toHaveBeenCalledWith(
+        mockMessages,
+        expect.any(String),
+        expect.anything(),
+        expect.any(Function),
+        undefined,
+        true,
+        undefined
+      );
+    });
+  });
+
+  describe('prepareExportData', () => {
+    it('should expose prepareExportData from discrub-core', () => {
+      expect(service.prepareExportData).toBeDefined();
+      expect(typeof service.prepareExportData).toBe('function');
+    });
+  });
+});
