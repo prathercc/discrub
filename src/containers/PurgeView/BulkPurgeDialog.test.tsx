@@ -569,4 +569,57 @@ describe('BulkPurgeDialog', () => {
       expect(screen.getByText(/All reactions will be removed from every message/)).toBeInTheDocument();
     });
   });
+
+  describe('FilterModal hideAuthorFilters wiring (Backlog #137)', () => {
+    const openFilters = () => fireEvent.click(screen.getByRole('button', { name: 'Add filters' }));
+
+    it('hides Search From + Author Type when DM mode is in Messages family', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" guildId={null} />,
+        { preloadedState: stateWithUser },
+      );
+      // Default uiMode for DM is "messages" — target is locked to self,
+      // so the FilterModal opens with author fields hidden.
+      openFilters();
+      expect(screen.queryByTestId('filter-modal-search-from')).toBeNull();
+      expect(screen.queryByTestId('filter-modal-search-author-type')).toBeNull();
+    });
+
+    it('hides Search From + Author Type when DM mode is Attachments Only', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" guildId={null} />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
+      openFilters();
+      expect(screen.queryByTestId('filter-modal-search-from')).toBeNull();
+      expect(screen.queryByTestId('filter-modal-search-author-type')).toBeNull();
+    });
+
+    it('KEEPS Search From + Author Type visible in DM Reactions mode (regression guard)', () => {
+      // Critical: in DM Reactions, the reactor is locked but the
+      // message-author filter is independent. Hiding From here would
+      // silently break the "remove my reactions only from the other
+      // person's messages" workflow.
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" guildId={null} />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Reactions' }));
+      openFilters();
+      expect(screen.getByTestId('filter-modal-search-from')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-modal-search-author-type')).toBeInTheDocument();
+    });
+
+    it('keeps Search From + Author Type visible in any guild mode', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="g1" canManageMessages />,
+        { preloadedState: stateWithUser },
+      );
+      // Guild Messages — author isn't locked.
+      openFilters();
+      expect(screen.getByTestId('filter-modal-search-from')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-modal-search-author-type')).toBeInTheDocument();
+    });
+  });
 });

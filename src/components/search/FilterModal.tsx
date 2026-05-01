@@ -48,6 +48,14 @@ interface FilterModalProps {
   // (live in-table search); bulk callers override to "Apply filters"
   // to match their "narrow this bulk op" semantics.
   applyButtonLabel?: string;
+  // When true, hides the "From" UserPicker and "Author Type" filter in
+  // the Search section (#137). Use when the parent dialog has already
+  // locked the message-author concept to the current user — e.g. DM
+  // Messages Purge / DM Attachments Only Purge — so the filters can't
+  // contradict the lock and produce confusing 0-result searches.
+  // Reactions modes should NOT pass true: their target is the reactor,
+  // and the message-author filter remains independently useful.
+  hideAuthorFilters?: boolean;
 }
 
 /**
@@ -89,6 +97,7 @@ const FilterModal = ({
   cachedUserMap, currentUserId,
   hideRefineSection = false,
   applyButtonLabel,
+  hideAuthorFilters = false,
 }: FilterModalProps) => {
   // Search section state
   const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>(savedSearchCriteria ?? defaultCriteria);
@@ -229,10 +238,12 @@ const FilterModal = ({
                 />
               </Box>
 
-              <Box>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>From</Typography>
-                <UserPicker selectedUserIds={searchCriteria.userIds} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, userIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
-              </Box>
+              {!hideAuthorFilters && (
+                <Box data-testid="filter-modal-search-from">
+                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>From</Typography>
+                  <UserPicker selectedUserIds={searchCriteria.userIds} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, userIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
+                </Box>
+              )}
 
               <MessageTypeFilter selectedTypes={searchCriteria.selectedHasTypes} onChange={(types) => updateSearchCriteria((p) => ({ ...p, selectedHasTypes: types }))} />
 
@@ -250,7 +261,11 @@ const FilterModal = ({
                 onDateModeChange={setDateMode}
               />
 
-              <AuthorTypeFilter value={searchCriteria.authorType} onChange={(v: AuthorType | null) => updateSearchCriteria((p) => ({ ...p, authorType: v }))} />
+              {!hideAuthorFilters && (
+                <Box data-testid="filter-modal-search-author-type">
+                  <AuthorTypeFilter value={searchCriteria.authorType} onChange={(v: AuthorType | null) => updateSearchCriteria((p) => ({ ...p, authorType: v }))} />
+                </Box>
+              )}
 
               <PinnedFilter value={searchCriteria.isPinned} onChange={(v) => updateSearchCriteria((p) => ({ ...p, isPinned: v }))} />
             </Box>

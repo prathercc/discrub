@@ -760,6 +760,38 @@ describe('Bulk Purge Operations', () => {
         .should('be.visible');
     });
 
+    describe('FilterModal hideAuthorFilters wiring (Backlog #137)', () => {
+      it('hides Search From + Author Type when DM Messages mode is active', () => {
+        selectChannelsForPurge('alice_dev');
+        openPurgeDialog('DMs');
+        // Default uiMode for DMs is "messages" — target is locked to self,
+        // so the FilterModal should open with author fields hidden.
+        cy.get('[role="dialog"]').find('button[aria-label="Add filters"]').click();
+        // FilterModal renders inside the same dialog tree.
+        cy.get('[data-testid="filter-modal-search-from"]').should('not.exist');
+        cy.get('[data-testid="filter-modal-search-author-type"]').should('not.exist');
+        // Other Search fields still visible (sanity).
+        cy.contains('Mentions').should('be.visible');
+      });
+
+      it('KEEPS Search From + Author Type rendered in DM Reactions mode (regression guard)', () => {
+        // Critical: in DM Reactions, the reactor is locked but the
+        // message-author filter is independent and required for the
+        // "remove my reactions only from the other person's messages"
+        // workflow. Hiding From here would silently break that.
+        // Use `should('exist')` rather than `be.visible` — Author Type
+        // sits below the FilterModal's initial scroll position; the
+        // assertion we care about is "this UI element is rendered (the
+        // conditional gate is open)", not "happens to be in viewport".
+        selectChannelsForPurge('alice_dev');
+        openPurgeDialog('DMs');
+        cy.get('[role="dialog"]').contains('button', 'Reactions').click();
+        cy.get('[role="dialog"]').find('button[aria-label="Add filters"]').click();
+        cy.get('[data-testid="filter-modal-search-from"]').should('exist');
+        cy.get('[data-testid="filter-modal-search-author-type"]').should('exist');
+      });
+    });
+
     it('should execute DM purge without thread discovery', () => {
       // Set up DM search intercepts
       let dmSearchCallCount = 0;

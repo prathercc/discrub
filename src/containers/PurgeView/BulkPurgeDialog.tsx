@@ -408,6 +408,13 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
         currentUserId={currentUserId}
         hideRefineSection
         applyButtonLabel="Apply filters"
+        // Hide From + Author Type only when the message-author concept
+        // itself is locked to self by the parent dialog (#137). For
+        // Reactions / Clear All Reactions, the reactor is locked but
+        // the message-author filter is independent and required for
+        // the "remove my reactions only from the other person's
+        // messages" workflow.
+        hideAuthorFilters={isTargetLockedToSelf && isMessagesFamily}
       />
     </Dialog>
   );

@@ -199,4 +199,46 @@ describe('FilterModal', () => {
       expect(onServerSearch).not.toHaveBeenCalled();
     });
   });
+
+  describe('hideAuthorFilters (Backlog #137)', () => {
+    it('renders the Search-section From and Author Type fields by default', () => {
+      renderWithProviders(<FilterModal {...defaultProps} />);
+      expect(screen.getByTestId('filter-modal-search-from')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-modal-search-author-type')).toBeInTheDocument();
+    });
+
+    it('renders both fields when hideAuthorFilters is explicitly false', () => {
+      renderWithProviders(<FilterModal {...defaultProps} hideAuthorFilters={false} />);
+      expect(screen.getByTestId('filter-modal-search-from')).toBeInTheDocument();
+      expect(screen.getByTestId('filter-modal-search-author-type')).toBeInTheDocument();
+    });
+
+    it('hides the Search-section From field when hideAuthorFilters is true', () => {
+      renderWithProviders(<FilterModal {...defaultProps} hideAuthorFilters />);
+      expect(screen.queryByTestId('filter-modal-search-from')).toBeNull();
+    });
+
+    it('hides the Search-section Author Type field when hideAuthorFilters is true', () => {
+      renderWithProviders(<FilterModal {...defaultProps} hideAuthorFilters />);
+      expect(screen.queryByTestId('filter-modal-search-author-type')).toBeNull();
+    });
+
+    it('keeps every other Search-section field visible when hideAuthorFilters is true', () => {
+      renderWithProviders(<FilterModal {...defaultProps} hideAuthorFilters />);
+      expect(screen.getByPlaceholderText(/Search message content/i)).toBeInTheDocument();
+      expect(screen.getAllByText('Has').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Mentions')).toBeInTheDocument();
+      expect(screen.getByText('Date')).toBeInTheDocument();
+      expect(screen.getAllByText(/Pinned/i).length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('still renders the Refine-section From (which has its own scope)', () => {
+      // Refine's "From" filters already-loaded messages — independent of
+      // the Search-section author lock. hideAuthorFilters only affects
+      // the Search section. With Search-From hidden, the total From
+      // count drops from 2 (search + refine) to 1 (refine only).
+      renderWithProviders(<FilterModal {...defaultProps} hideAuthorFilters />);
+      expect(screen.getAllByText('From')).toHaveLength(1);
+    });
+  });
 });
