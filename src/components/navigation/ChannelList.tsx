@@ -9,7 +9,6 @@ import {
   Typography,
   Divider,
   IconButton,
-  Chip,
   Checkbox,
   Tooltip,
 } from '@mui/material';
@@ -20,14 +19,12 @@ import {
   Folder as CategoryIcon,
   CheckBox as SelectModeIcon,
   CheckBoxOutlineBlank as SelectModeOffIcon,
-  SelectAll as SelectAllIcon,
-  Download as DownloadIcon,
-  DeleteSweep as PurgeIcon,
   ContentCopy as CopyIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as CollapseIcon,
   Lock as LockIcon,
 } from '@mui/icons-material';
+import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
 import { ChannelType } from 'discrub-core/discord-enum';
 import TourSpot from '@components/welcome/TourSpot';
@@ -188,6 +185,18 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     );
   }, [textChannels, filterText]);
 
+  // Channels eligible for "Select all" in multi-select mode: skip voice
+  // channels (no messages) and any the user can't access (locked icon).
+  const accessibleChannels = useMemo(() => {
+    return filteredChannels.filter((ch) => {
+      const isVoice =
+        ch.type === ChannelType.GUILD_VOICE || ch.type === ChannelType.GUILD_STAGE_VOICE;
+      return (
+        !isVoice && canAccessChannel(guildPermissions, memberRoles, ch, selectedGuild?.id || '')
+      );
+    });
+  }, [filteredChannels, guildPermissions, memberRoles, selectedGuild?.id]);
+
   // Build category map from all channels (including type 4 categories)
   const categoryMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -320,61 +329,27 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
           startIcon={multiSelectMode ? <SelectModeIcon fontSize="small" /> : <SelectModeOffIcon fontSize="small" />}
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
-          {multiSelectMode ? 'Done' : 'Multi-select'}
+          Multi-select
         </Button>
         <TourSpot stepKey="multi-select-toggle" size="compact" placement="bottom" />
       </Box>
 
-      {multiSelectMode && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 2, pb: 1, flexWrap: 'wrap' }}>
-          <Chip
-            label={`${selectedChannels.length} selected`}
-            size="small"
-            color={selectedChannels.length > 0 ? 'primary' : 'default'}
-          />
-          <Button
-            size="small"
-            onClick={() => {
-              const accessibleChannels = filteredChannels.filter((ch) => {
-                const isVoice = ch.type === ChannelType.GUILD_VOICE || ch.type === ChannelType.GUILD_STAGE_VOICE;
-                return !isVoice && canAccessChannel(guildPermissions, memberRoles, ch, selectedGuild?.id || '');
-              });
-              dispatch(selectedChannels.length === accessibleChannels.length && accessibleChannels.length > 0 ? deselectAllChannels() : selectAllChannels(accessibleChannels));
-            }}
-            aria-label={selectedChannels.length > 0 ? 'Deselect all channels' : 'Select all channels'}
-            startIcon={<SelectAllIcon fontSize="small" />}
-            sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.72rem' }}
-          >
-            {selectedChannels.length > 0 && selectedChannels.length === filteredChannels.length ? 'Deselect all' : 'Select all'}
-          </Button>
-          {selectedChannels.length > 0 && (
-            <>
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
-                onClick={() => setBulkExportOpen(true)}
-                aria-label="Export selected channels"
-                startIcon={<DownloadIcon fontSize="small" />}
-                sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.72rem' }}
-              >
-                Export
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                color="error"
-                onClick={() => setBulkPurgeOpen(true)}
-                aria-label="Purge selected channels"
-                startIcon={<PurgeIcon fontSize="small" />}
-                sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.72rem' }}
-              >
-                Purge
-              </Button>
-            </>
-          )}
-        </Box>
-      )}
+      <MultiSelectControls
+        active={multiSelectMode}
+        selectedCount={selectedChannels.length}
+        totalCount={accessibleChannels.length}
+        allSelected={accessibleChannels.length > 0 && selectedChannels.length === accessibleChannels.length}
+        onToggleAll={() =>
+          dispatch(
+            accessibleChannels.length > 0 && selectedChannels.length === accessibleChannels.length
+              ? deselectAllChannels()
+              : selectAllChannels(accessibleChannels),
+          )
+        }
+        onExport={() => setBulkExportOpen(true)}
+        onPurge={() => setBulkPurgeOpen(true)}
+        noun="channels"
+      />
 
       <Divider />
       <List dense>

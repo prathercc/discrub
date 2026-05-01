@@ -128,7 +128,9 @@ const selectChannelsForPurge = (...channelNames: string[]) => {
  * Open BulkPurgeDialog by clicking the purge button.
  */
 const openPurgeDialog = (context: 'channels' | 'DMs' = 'channels') => {
-  const label = context === 'channels' ? 'Purge selected channels' : 'Purge selected DMs';
+  // #135 cleanup renamed the DM bulk action aria-label to use the
+  // existing "conversations" terminology convention.
+  const label = context === 'channels' ? 'Purge selected channels' : 'Purge selected conversations';
   cy.get(`[aria-label="${label}"]`).click();
   cy.get('[role="dialog"]').should('be.visible');
 };
@@ -268,13 +270,13 @@ describe('Bulk Purge Operations', () => {
       selectChannelsForPurge('general');
       openPurgeDialog();
       cy.contains('Purge Channels').should('be.visible');
-      cy.contains('1 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '1 of');
     });
 
     it('should show multiple selected channels in dialog', () => {
       selectChannelsForPurge('general', 'dev-chat');
       openPurgeDialog();
-      cy.contains('2 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '2 of');
       cy.get('[role="dialog"]').contains('general').should('be.visible');
       cy.get('[role="dialog"]').contains('dev-chat').should('be.visible');
     });
@@ -545,7 +547,7 @@ describe('Bulk Purge Operations', () => {
     it('should purge multiple channels sequentially', () => {
       selectChannelsForPurge('general', 'dev-chat');
       openPurgeDialog();
-      cy.contains('2 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '2 of');
 
       addUserById('111222333444555666');
       cy.wait('@lookupUser');
@@ -745,7 +747,7 @@ describe('Bulk Purge Operations', () => {
       selectChannelsForPurge('alice_dev');
       openPurgeDialog('DMs');
       cy.contains('Purge DMs').should('be.visible');
-      cy.contains('1 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '1 of');
     });
 
     it('should restrict messages mode to current user in DMs', () => {
@@ -839,7 +841,7 @@ describe('Bulk Purge Operations', () => {
 
       selectChannelsForPurge('general', 'dev-chat', 'announcements');
       openPurgeDialog();
-      cy.contains('3 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '3 of');
 
       addUserById('111222333444555666');
       cy.wait('@lookupUser');
@@ -2050,7 +2052,7 @@ describe('Bulk Purge Operations', () => {
 
     it('forum channel can be selected in multi-select mode', () => {
       selectChannelsForPurge('feedback');
-      cy.contains('1 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '1 of');
     });
 
     it('forum channel appears in purge dialog', () => {
@@ -2097,7 +2099,8 @@ describe('Bulk Purge Operations', () => {
     it('forum channel can be purged alongside regular channels', () => {
       selectChannelsForPurge('general', 'feedback');
       openPurgeDialog();
-      cy.get('[role="dialog"]').contains('2 selected').should('be.visible');
+      // Dialog displays the SelectedChannelsPill ("2 channels"), not a "selected" count.
+      cy.get('[role="dialog"]').contains('2 channels').should('be.visible');
       cy.get('[role="dialog"]').contains('general').should('be.visible');
       cy.get('[role="dialog"]').contains('feedback').should('be.visible');
     });

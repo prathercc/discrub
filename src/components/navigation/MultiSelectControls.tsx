@@ -1,0 +1,114 @@
+import { Box, Button, Divider, Link, Stack, Typography } from '@mui/material';
+import {
+  Download as DownloadIcon,
+  DeleteSweep as PurgeIcon,
+} from '@mui/icons-material';
+
+export interface MultiSelectControlsProps {
+  /** Whether multi-select mode is active. Component renders nothing when false. */
+  active: boolean;
+  /** How many items in the filtered list are currently selected. */
+  selectedCount: number;
+  /** Total selectable items in the filtered list (denominator for "X of Y"). */
+  totalCount: number;
+  /** True when every selectable item is selected — toggles link label to "Deselect all". */
+  allSelected: boolean;
+  /** Toggle between Select all / Deselect all. */
+  onToggleAll: () => void;
+  /** Open the bulk-export dialog. */
+  onExport: () => void;
+  /** Open the bulk-purge dialog. */
+  onPurge: () => void;
+  /** Plural noun for aria labels — e.g. "channels", "conversations". */
+  noun: string;
+}
+
+/**
+ * Shared toolbar that renders below the multi-select toggle button in
+ * `ChannelList` and `DMList`. Layout principles (#135):
+ * - Status (count + select-all toggle link) is plain text + a quiet
+ *   link, not buttons. It conveys state, not actions.
+ * - Action buttons (Export / Purge) reserve the visual weight of a
+ *   filled button. They only appear when the user has something
+ *   selected — the status row implies "you need to select first."
+ * - Thin divider separates status from actions when both are visible,
+ *   for clear hierarchy without excess chrome.
+ */
+const MultiSelectControls = ({
+  active,
+  selectedCount,
+  totalCount,
+  allSelected,
+  onToggleAll,
+  onExport,
+  onPurge,
+  noun,
+}: MultiSelectControlsProps) => {
+  if (!active) return null;
+
+  const toggleLabel = allSelected ? 'Deselect all' : 'Select all';
+  const showActions = selectedCount > 0;
+
+  return (
+    <Stack spacing={1} sx={{ px: 2, pb: 1 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          data-testid="multi-select-count"
+        >
+          {selectedCount} of {totalCount}
+        </Typography>
+        <Typography variant="caption" color="text.disabled" component="span">
+          ·
+        </Typography>
+        <Link
+          component="button"
+          type="button"
+          variant="caption"
+          underline="hover"
+          onClick={onToggleAll}
+          aria-label={`${toggleLabel} ${noun}`}
+          sx={{ color: 'primary.main', cursor: 'pointer' }}
+          data-testid="multi-select-toggle-all"
+        >
+          {toggleLabel}
+        </Link>
+      </Box>
+
+      {showActions && (
+        <>
+          <Divider sx={{ my: 0.25 }} />
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            <Button
+              size="small"
+              variant="contained"
+              color="primary"
+              startIcon={<DownloadIcon fontSize="small" />}
+              onClick={onExport}
+              aria-label={`Export selected ${noun}`}
+              data-testid="multi-select-export"
+              sx={{ textTransform: 'none' }}
+            >
+              Export
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              color="error"
+              startIcon={<PurgeIcon fontSize="small" />}
+              onClick={onPurge}
+              aria-label={`Purge selected ${noun}`}
+              data-testid="multi-select-purge"
+              sx={{ textTransform: 'none' }}
+            >
+              Purge
+            </Button>
+          </Box>
+        </>
+      )}
+    </Stack>
+  );
+};
+
+export default MultiSelectControls;

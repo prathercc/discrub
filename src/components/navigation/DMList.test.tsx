@@ -269,4 +269,26 @@ describe('DMList', () => {
       expect(button.getAttribute('data-tour')).toBe('multi-select-toggle');
     });
   });
+
+  /**
+   * #135 hard requirement: the Multi-select toggle label stays
+   * "Multi-select" in both states. State is conveyed by the button's
+   * variant + icon swap, not by switching the text to "Done".
+   */
+  describe('Multi-select toggle label', () => {
+    it('reads "Multi-select" both before and after enabling multi-select mode', () => {
+      const dm = createMockChannel({ id: 'dm-1', name: null, type: 1 });
+      renderWithProviders(<DMList filterText="" />, {
+        preloadedState: createBaseState({
+          auth: { token: 't', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          dm: { dms: [dm], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+      const button = screen.getByLabelText('Toggle multi-select');
+      expect(button).toHaveTextContent('Multi-select');
+      fireEvent.click(button);
+      expect(button).toHaveTextContent('Multi-select');
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    });
+  });
 });

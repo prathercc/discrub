@@ -9,7 +9,6 @@ import {
   Button,
   Typography,
   IconButton,
-  Chip,
   Checkbox,
   Tooltip,
   Divider,
@@ -18,11 +17,9 @@ import {
   Message as MessageIcon,
   CheckBox as SelectModeIcon,
   CheckBoxOutlineBlank as SelectModeOffIcon,
-  SelectAll as SelectAllIcon,
-  Download as DownloadIcon,
-  DeleteSweep as PurgeIcon,
   ContentCopy as CopyIcon,
 } from '@mui/icons-material';
+import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
 import TourSpot from '@components/welcome/TourSpot';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -225,55 +222,27 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           startIcon={multiSelectMode ? <SelectModeIcon fontSize="small" /> : <SelectModeOffIcon fontSize="small" />}
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
-          {multiSelectMode ? 'Done' : 'Multi-select'}
+          Multi-select
         </Button>
         <TourSpot stepKey="multi-select-toggle" size="compact" placement="bottom" />
       </Box>
 
-      {multiSelectMode && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 2, pb: 1, flexWrap: 'wrap' }}>
-          <Chip
-            label={`${selectedDms.length} selected`}
-            size="small"
-            color={selectedDms.length > 0 ? 'primary' : 'default'}
-          />
-          <Button
-            size="small"
-            onClick={() => dispatch(selectedDms.length === filteredDMs.length && filteredDMs.length > 0 ? deselectAllDms() : selectAllDms(filteredDMs))}
-            aria-label={selectedDms.length === filteredDMs.length && filteredDMs.length > 0 ? 'Deselect all DMs' : 'Select all DMs'}
-            startIcon={<SelectAllIcon fontSize="small" />}
-            sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.72rem' }}
-          >
-            {selectedDms.length === filteredDMs.length && filteredDMs.length > 0 ? 'Deselect all' : 'Select all'}
-          </Button>
-          {selectedDms.length > 0 && (
-            <>
-              <Button
-                size="small"
-                variant="contained"
-                color="primary"
-                onClick={() => setBulkExportOpen(true)}
-                aria-label="Export selected DMs"
-                startIcon={<DownloadIcon fontSize="small" />}
-                sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.72rem' }}
-              >
-                Export
-              </Button>
-              <Button
-                size="small"
-                variant="contained"
-                color="error"
-                onClick={() => setBulkPurgeOpen(true)}
-                aria-label="Purge selected DMs"
-                startIcon={<PurgeIcon fontSize="small" />}
-                sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.72rem' }}
-              >
-                Purge
-              </Button>
-            </>
-          )}
-        </Box>
-      )}
+      <MultiSelectControls
+        active={multiSelectMode}
+        selectedCount={selectedDms.length}
+        totalCount={filteredDMs.length}
+        allSelected={filteredDMs.length > 0 && selectedDms.length === filteredDMs.length}
+        onToggleAll={() =>
+          dispatch(
+            filteredDMs.length > 0 && selectedDms.length === filteredDMs.length
+              ? deselectAllDms()
+              : selectAllDms(filteredDMs),
+          )
+        }
+        onExport={() => setBulkExportOpen(true)}
+        onPurge={() => setBulkPurgeOpen(true)}
+        noun="conversations"
+      />
 
       <Divider />
       <List>

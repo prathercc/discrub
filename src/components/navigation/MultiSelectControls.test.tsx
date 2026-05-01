@@ -1,0 +1,78 @@
+import { describe, it, expect, vi } from 'vitest';
+import { render, screen, fireEvent } from '@testing-library/react';
+import MultiSelectControls from './MultiSelectControls';
+
+const baseProps = {
+  selectedCount: 0,
+  totalCount: 10,
+  allSelected: false,
+  onToggleAll: () => {},
+  onExport: () => {},
+  onPurge: () => {},
+  noun: 'channels',
+};
+
+describe('MultiSelectControls (Backlog #135)', () => {
+  it('renders nothing when inactive', () => {
+    const { container } = render(<MultiSelectControls {...baseProps} active={false} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it('renders the "X of Y" count when active', () => {
+    render(<MultiSelectControls {...baseProps} active selectedCount={4} totalCount={12} />);
+    expect(screen.getByTestId('multi-select-count')).toHaveTextContent('4 of 12');
+  });
+
+  it('shows the "Select all" link when not all are selected', () => {
+    render(<MultiSelectControls {...baseProps} active selectedCount={2} totalCount={10} allSelected={false} />);
+    const link = screen.getByTestId('multi-select-toggle-all');
+    expect(link).toHaveTextContent('Select all');
+    expect(link).toHaveAttribute('aria-label', 'Select all channels');
+  });
+
+  it('shows the "Deselect all" link when everything is selected', () => {
+    render(<MultiSelectControls {...baseProps} active selectedCount={10} totalCount={10} allSelected />);
+    const link = screen.getByTestId('multi-select-toggle-all');
+    expect(link).toHaveTextContent('Deselect all');
+    expect(link).toHaveAttribute('aria-label', 'Deselect all channels');
+  });
+
+  it('hides Export and Purge buttons when nothing is selected', () => {
+    render(<MultiSelectControls {...baseProps} active selectedCount={0} />);
+    expect(screen.queryByTestId('multi-select-export')).toBeNull();
+    expect(screen.queryByTestId('multi-select-purge')).toBeNull();
+  });
+
+  it('shows Export and Purge buttons once at least one item is selected', () => {
+    render(<MultiSelectControls {...baseProps} active selectedCount={1} />);
+    expect(screen.getByTestId('multi-select-export')).toBeInTheDocument();
+    expect(screen.getByTestId('multi-select-purge')).toBeInTheDocument();
+  });
+
+  it('uses the provided noun in action button aria labels', () => {
+    render(<MultiSelectControls {...baseProps} active selectedCount={1} noun="conversations" />);
+    expect(screen.getByLabelText('Export selected conversations')).toBeInTheDocument();
+    expect(screen.getByLabelText('Purge selected conversations')).toBeInTheDocument();
+  });
+
+  it('calls onToggleAll when the link is clicked', () => {
+    const onToggleAll = vi.fn();
+    render(<MultiSelectControls {...baseProps} active onToggleAll={onToggleAll} />);
+    fireEvent.click(screen.getByTestId('multi-select-toggle-all'));
+    expect(onToggleAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onExport when Export is clicked', () => {
+    const onExport = vi.fn();
+    render(<MultiSelectControls {...baseProps} active selectedCount={3} onExport={onExport} />);
+    fireEvent.click(screen.getByTestId('multi-select-export'));
+    expect(onExport).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onPurge when Purge is clicked', () => {
+    const onPurge = vi.fn();
+    render(<MultiSelectControls {...baseProps} active selectedCount={3} onPurge={onPurge} />);
+    fireEvent.click(screen.getByTestId('multi-select-purge'));
+    expect(onPurge).toHaveBeenCalledTimes(1);
+  });
+});

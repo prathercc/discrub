@@ -274,4 +274,28 @@ describe('ChannelList', () => {
       expect(button).toHaveClass('Mui-disabled');
     });
   });
+
+  /**
+   * #135 hard requirement: the Multi-select toggle label stays
+   * "Multi-select" in both states. State is conveyed by the button's
+   * variant + icon swap, not by switching the text to "Done".
+   */
+  describe('Multi-select toggle label', () => {
+    it('reads "Multi-select" both before and after enabling multi-select mode', () => {
+      const guild = createMockGuild({ id: 'g1', name: 'Test Guild' });
+      const channel = createMockChannel({ id: 'c1', name: 'general', type: 0 });
+      renderWithProviders(<ChannelList filterText="" />, {
+        preloadedState: createBaseState({
+          auth: { token: 't', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [channel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      const button = screen.getByLabelText('Toggle multi-select');
+      expect(button).toHaveTextContent('Multi-select');
+      fireEvent.click(button);
+      expect(button).toHaveTextContent('Multi-select');
+      expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    });
+  });
 });

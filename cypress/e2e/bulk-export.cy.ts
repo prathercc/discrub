@@ -21,14 +21,14 @@ describe('Bulk Export', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       // Click on a channel to select it (multi-select mode)
       cy.contains('general').click();
-      cy.contains('1 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '1 of');
     });
 
     it('should select multiple channels in multi-select mode', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.contains('general').click();
       cy.contains('dev-chat').click();
-      cy.contains('2 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '2 of');
     });
 
     it('should show Export Selected button when channels are selected', () => {
@@ -46,13 +46,13 @@ describe('Bulk Export', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.get('[aria-label="Select all channels"]').click();
       // Should have selected text channels (not voice/category)
-      cy.get('.MuiChip-root').contains('selected').should('exist');
+      cy.get('[data-testid="multi-select-count"]').should('exist');
     });
 
     it('should deselect all channels when multi-select toggle is clicked off', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.get('[aria-label="Select all channels"]').click();
-      cy.get('.MuiChip-root').contains('selected').should('exist');
+      cy.get('[data-testid="multi-select-count"]').should('exist');
       // Toggling multi-select off deselects all channels
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.get('[aria-label="Export selected channels"]').should('not.exist');
@@ -77,7 +77,7 @@ describe('Bulk Export', () => {
       cy.get('[aria-label="Export selected channels"]').click();
       cy.get('[role="dialog"]').should('be.visible');
       cy.contains('Bulk Export').should('be.visible');
-      cy.contains('2 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '2 of');
     });
 
     it('should have HTML as default format', () => {
@@ -393,19 +393,19 @@ describe('Bulk Export', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.contains('alice_dev').click();
       cy.contains('bob_gamer').click();
-      cy.contains('2 selected').should('be.visible');
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '2 of');
     });
 
     it('should show Export Selected button for DMs', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.contains('alice_dev').click();
-      cy.get('[aria-label="Export selected DMs"]').should('be.visible');
+      cy.get('[aria-label="Export selected conversations"]').should('be.visible');
     });
 
     it('should open BulkExportDialog for DMs', () => {
       cy.get('[aria-label="Toggle multi-select"]').first().click();
       cy.contains('alice_dev').click();
-      cy.get('[aria-label="Export selected DMs"]').click();
+      cy.get('[aria-label="Export selected conversations"]').click();
       cy.get('[role="dialog"]').should('be.visible');
       cy.contains('Bulk Export').should('be.visible');
     });
