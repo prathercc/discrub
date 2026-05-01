@@ -3,11 +3,19 @@ import { selectDiscrubPaused, selectDiscrubCancelled } from '@features/app/appSl
 
 /**
  * Error thrown when an operation is cancelled by the user.
+ *
+ * Optionally carries an `partialResult` field — a snapshot of the
+ * function's in-flight accumulator at the moment of the cancel
+ * throw. The caller's catch block can read it to recover work
+ * completed before the cancel signal (#140), e.g. so a "X reactions
+ * removed" summary reflects what really happened rather than zero.
  */
 export class CancelledError extends Error {
-  constructor() {
+  partialResult?: unknown;
+  constructor(partialResult?: unknown) {
     super('Operation cancelled');
     this.name = 'CancelledError';
+    this.partialResult = partialResult;
   }
 }
 

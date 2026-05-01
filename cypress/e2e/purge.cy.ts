@@ -715,6 +715,67 @@ describe('Bulk Purge Operations', () => {
       verifyStatusEntry(/Reaction purge: Complete/);
     });
 
+    // Backlog #140: cancelling mid-purge used to drop the in-flight
+    // accumulator on the floor, so the summary read "Cancelled — 0
+    // reactions removed" even when N had really been removed. Fix
+    // attaches a partial result to CancelledError so the bulk-loop
+    // catch can recover the count before breaking.
+    it('reports partial count in cancel summary when cancelled mid-purge (#140)', () => {
+      // Re-intercept deleteReaction with a delay so we have time to
+      // fire the cancel signal mid-flight after a few removals land.
+      cy.intercept('DELETE', `${API}/channels/*/messages/*/reactions/*/*`, (req) => {
+        req.reply({ statusCode: 204, body: {}, delay: 150 });
+      }).as('slowDeleteReaction');
+
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+      cy.get('[role="dialog"]').find('button[value="reactions"]').click();
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      // Wait until at least 1 reaction has ACTUALLY been removed
+      // (status log shows the per-removal entry). The delete intercept's
+      // call count counts initiated requests, not completed ones, so
+      // gating on intercept count would race against the 150ms delay
+      // and let cancel fire before any totalReactionsRemoved increment.
+      // Threshold is 1 because the cypress reactors fixture only has a
+      // single match for the target user — enough to verify the partial
+      // recovers (1 > 0 distinguishes the fix from the buggy 0 behavior).
+      cy.window({ timeout: 10000 }).should((win) => {
+        const entries = (win as { __store__?: any }).__store__.getState().status.entries;
+        const removedCount = entries.filter((e: { message: string }) =>
+          /^Removed reaction \d+/.test(e.message),
+        ).length;
+        expect(removedCount, 'at least 1 reaction removed before cancel').to.be.gte(1);
+      });
+
+      // Cancel via Redux — same effect as clicking the cancel button
+      // in PauseResumeControls but lets us trigger at a precise moment.
+      cy.window().then((win) => {
+        const store = (win as { __store__?: any }).__store__;
+        store.dispatch({ type: 'app/setDiscrubCancelled', payload: true });
+      });
+
+      waitForPurgeComplete();
+
+      // The summary entry should NOT read "Cancelled — 0 reactions
+      // removed" — at least the deletes that already landed should
+      // appear in the count.
+      cy.window().should((win) => {
+        const entries = (win as { __store__?: any }).__store__.getState().status.entries;
+        const cancelEntry = entries.find(
+          (e: { message: string }) =>
+            e.message.includes('Cancelled') && e.message.includes('reactions removed'),
+        );
+        expect(cancelEntry, 'cancel summary entry should exist').to.not.be.undefined;
+        const match = cancelEntry.message.match(/(\d+) reactions removed/);
+        const count = Number(match?.[1] ?? 0);
+        expect(count, 'partial count should be > 0').to.be.greaterThan(0);
+      });
+    });
+
     it('should scan parent channel and threads for reactions', () => {
       selectChannelsForPurge('general');
       openPurgeDialog();

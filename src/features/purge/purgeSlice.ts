@@ -467,6 +467,16 @@ async function purgeChannelMessages(
   let lastProgressDispatch = 0;
   let searchPageCount = 0;
 
+  // Snapshot the in-flight accumulator at any cancel-throw site so the
+  // caller's catch can recover work-already-done (#140) instead of
+  // dropping it on the floor when control jumps to the catch.
+  const partialMessages = (): ChannelPurgeResult => ({
+    deleted: totalDeleted,
+    skipped: totalSkipped,
+    editedAttachmentsOnly: totalEditedAttachmentsOnly,
+    failed: totalFailed,
+  });
+
   // Threads we un-archived during this run. The finally block re-archives
   // them so we never leave the user's thread state unintentionally changed.
   const unarchivedThisRun = new Set<string>();
@@ -521,7 +531,7 @@ async function purgeChannelMessages(
       },
     })) {
       await waitWhilePaused(getState);
-      if (checkCancelled(getState)) throw new CancelledError();
+      if (checkCancelled(getState)) throw new CancelledError(partialMessages());
 
       if (!announcedTotal) {
         announcedTotal = true;
@@ -557,7 +567,7 @@ async function purgeChannelMessages(
       for (let mi = 0; mi < messages.length; mi++) {
         const message = messages[mi];
         await waitWhilePaused(getState);
-        if (checkCancelled(getState)) throw new CancelledError();
+        if (checkCancelled(getState)) throw new CancelledError(partialMessages());
 
         // Skip system messages (type > 0 that aren't DEFAULT or REPLY)
         if (message.type !== 0 && message.type !== 19) {
@@ -733,7 +743,7 @@ async function purgeChannelMessages(
         // Delay between operations
         const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
         const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
-        if (wasCancelled) throw new CancelledError();
+        if (wasCancelled) throw new CancelledError(partialMessages());
       }
 
       // Log batch completion with running totals
@@ -1144,6 +1154,15 @@ async function purgeChannelReactions(
   let lastProgressDispatch = 0;
   let fetchPageCount = 0;
 
+  // Snapshot the in-flight accumulator at any cancel-throw site so the
+  // caller's catch can recover work-already-done (#140) instead of
+  // dropping it on the floor when control jumps to the catch.
+  const partialReactions = (): ReactionPurgeResult => ({
+    scanned: totalScanned,
+    reactionsRemoved: totalReactionsRemoved,
+    failed: totalFailed,
+  });
+
   const guard = await createThreadMutationGuard(
     channelId, isArchivedThread, token, dispatch,
   );
@@ -1160,7 +1179,7 @@ async function purgeChannelReactions(
   for await (const { scanned, filtered } of iterateReactionPurgeMessages(
     channelId, guildId, token, getState, dispatch, filterOverrides, searchDelay, delayModifier, sharedSeenIds,
   )) {
-    if (checkCancelled(getState)) throw new CancelledError();
+    if (checkCancelled(getState)) throw new CancelledError(partialReactions());
 
     fetchPageCount++;
     const withReactions = filtered.filter((m) => m.reactions && m.reactions.length > 0).length;
@@ -1181,7 +1200,7 @@ async function purgeChannelReactions(
 
     for (const message of filtered) {
       await waitWhilePaused(getState);
-      if (checkCancelled(getState)) throw new CancelledError();
+      if (checkCancelled(getState)) throw new CancelledError(partialReactions());
 
       totalScanned++;
 
@@ -1225,7 +1244,7 @@ async function purgeChannelReactions(
             for (const reactor of reactors) {
               if (targetSet.has(reactor.id)) {
                 await waitWhilePaused(getState);
-                if (checkCancelled(getState)) throw new CancelledError();
+                if (checkCancelled(getState)) throw new CancelledError(partialReactions());
 
                 // Lazy un-archive — only pay the PATCH when we've
                 // actually found a matching reactor. Threads with
@@ -1263,7 +1282,7 @@ async function purgeChannelReactions(
 
                 const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
                 const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
-                if (wasCancelled) throw new CancelledError();
+                if (wasCancelled) throw new CancelledError(partialReactions());
               }
             }
 
@@ -1693,7 +1712,34 @@ export const bulkPurgeChannels = createAsyncThunk<
             }
           }
         } catch (error) {
-          if (error instanceof CancelledError) break;
+          if (error instanceof CancelledError) {
+            // Recover the in-flight accumulator from the cancelled call
+            // (#140) so the final summary reflects work that actually
+            // happened before the cancel signal — without this, a
+            // mid-channel cancel reports zero even when N reactions /
+            // messages were really removed.
+            const partial = error.partialResult as
+              | (Partial<ChannelPurgeResult> & Partial<ReactionPurgeResult>)
+              | undefined;
+            if (partial) {
+              if (typeof partial.deleted === 'number') {
+                completedStats.deleted += partial.deleted;
+              }
+              if (typeof partial.skipped === 'number') {
+                completedStats.skipped += partial.skipped;
+              }
+              if (typeof partial.editedAttachmentsOnly === 'number') {
+                completedStats.editedAttachmentsOnly += partial.editedAttachmentsOnly;
+              }
+              if (typeof partial.failed === 'number') {
+                completedStats.failed += partial.failed;
+              }
+              if (typeof partial.reactionsRemoved === 'number') {
+                completedStats.reactionsRemoved += partial.reactionsRemoved;
+              }
+            }
+            break;
+          }
           const errorMsg = error instanceof Error ? error.message : 'Unknown error';
           errors.push(`${channelName}: ${errorMsg}`);
           dispatch(addStatusEntry({

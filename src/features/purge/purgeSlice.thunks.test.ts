@@ -125,9 +125,13 @@ vi.mock('@utils/operationLoopUtils', () => ({
   checkCancelled: vi.fn().mockReturnValue(false),
   cancellableDelay: vi.fn().mockResolvedValue(false),
   CancelledError: class CancelledError extends Error {
-    constructor() {
+    // Mirrors the real shape (#140) — accepts an optional partial
+    // accumulator so the caller's catch can recover work-already-done.
+    partialResult?: unknown;
+    constructor(partialResult?: unknown) {
       super('Cancelled');
       this.name = 'CancelledError';
+      this.partialResult = partialResult;
     }
   },
 }));
@@ -2551,6 +2555,91 @@ describe('purgeSlice thunks', () => {
         (e) => e.level === 'warning' && e.message.includes('Cancelled') && e.message.includes('reactions removed'),
       );
       expect(cancelEntry).toBeDefined();
+    });
+
+    // ── Backlog #140 — partial-count recovery on mid-channel cancel ──
+    //
+    // Before this fix, a CancelledError thrown mid-loop dropped the
+    // function's local accumulator on the floor when control jumped to
+    // the catch block, so the final summary read "0 X removed" even
+    // when N items had really been removed before the cancel signal.
+    // The CancelledError now carries an in-flight partial result and
+    // the catch extracts + accumulates it before breaking.
+
+    it('reaction purge: cancel after N reactions removed reports N in summary, not 0', async () => {
+      const message = mockMessageWithReactions('m1', [
+        { emoji: { name: '👍' }, count: 5 },
+      ]);
+      setupFetchMessages([[message]]);
+
+      mockGetReactions.mockResolvedValue({
+        success: true,
+        data: [
+          { id: 'user1', username: 'target1' },
+          { id: 'user1', username: 'target1' },
+          { id: 'user1', username: 'target1' },
+          { id: 'user1', username: 'target1' },
+          { id: 'user1', username: 'target1' },
+        ] as User[],
+      });
+      mockDeleteReaction.mockResolvedValue({ success: true, status: 204 });
+
+      // Trip cancel after 2 reactions have actually been deleted —
+      // count-based rather than checkCancelled-call-count-based, so we
+      // don't have to know exactly how many times checkCancelled fires
+      // up the call stack before the deletes start.
+      (checkCancelled as Mock).mockImplementation(
+        () => mockDeleteReaction.mock.calls.length >= 2,
+      );
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['user1']),
+          guildId: 'guild1',
+        }),
+      );
+
+      const entries = store.getState().status.entries;
+      const cancelSummary = entries.find(
+        (e) => e.message.includes('Cancelled') && e.message.includes('reactions removed'),
+      );
+      expect(cancelSummary).toBeDefined();
+      // Pre-fix: this would read "0 reactions removed". Post-fix: "2".
+      expect(cancelSummary?.message).toMatch(/\b2 reactions removed/);
+      expect(cancelSummary?.message).not.toMatch(/\b0 reactions removed/);
+    });
+
+    it('messages purge: cancel after N deletes reports N in summary, not 0', async () => {
+      setupSearchResults([
+        [mockMessage('m1'), mockMessage('m2'), mockMessage('m3'), mockMessage('m4')],
+      ]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      // Same count-based trigger — cancel once 2 deletes have landed.
+      (checkCancelled as Mock).mockImplementation(
+        () => mockDeleteMessage.mock.calls.length >= 2,
+      );
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig(['user1']),
+          guildId: 'guild1',
+        }),
+      );
+
+      const entries = store.getState().status.entries;
+      const cancelSummary = entries.find(
+        (e) => e.message.includes('Cancelled') && /(deleted|messages)/i.test(e.message),
+      );
+      expect(cancelSummary).toBeDefined();
+      // Pre-fix: would report 0 deleted. Post-fix: at least 2 (might
+      // round to 2 or 3 depending on whether the cancel check fires
+      // before or after the third delete attempt — point is, > 0).
+      expect(cancelSummary?.message).not.toMatch(/\b0 messages deleted/);
+      const match = cancelSummary?.message.match(/(\d+) messages? deleted/);
+      expect(Number(match?.[1] ?? 0)).toBeGreaterThanOrEqual(2);
     });
   });
 
