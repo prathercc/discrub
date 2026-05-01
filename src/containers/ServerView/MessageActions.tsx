@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Paper, Box, Button, Chip } from '@mui/material';
+import { Paper, Box, Button, Chip, Tooltip } from '@mui/material';
 import {
   Delete as DeleteIcon,
   Edit as EditIcon,
@@ -24,6 +24,7 @@ interface MessageActionsProps {
   currentUserId?: string;
   currentUsername?: string;
   fetchDelayMs?: number;
+  isDm?: boolean;
   onBatchRemoveReactions?: (params: {
     messages: Message[];
     mode: 'all' | 'emoji' | 'user';
@@ -47,6 +48,7 @@ const MessageActions = ({
   currentUserId,
   currentUsername,
   fetchDelayMs,
+  isDm = false,
   onBatchRemoveReactions,
   onFetchReactingUsers,
 }: MessageActionsProps) => {
@@ -57,6 +59,20 @@ const MessageActions = ({
 
   const selectedCount = selectedMessages.length;
   const singleMessage = selectedCount === 1 ? selectedMessages[0] : null;
+
+  // Discord requires MANAGE_MESSAGES to delete messages authored by others,
+  // and PATCH (edit) is author-only regardless of permission. Surface both
+  // constraints up front so users hit a disabled control with explanation
+  // instead of a 403 in the status log.
+  const hasNonSelfSelection = currentUserId
+    ? selectedMessages.some((m) => m.author?.id !== currentUserId)
+    : false;
+  const deleteBlockedByPermission = hasNonSelfSelection && !canManageMessages;
+  const editBlockedByPermission = hasNonSelfSelection;
+  const deleteLockReason = isDm
+    ? 'You can only delete your own messages in DMs.'
+    : 'You can only delete your own messages without Manage Messages permission in this channel.';
+  const editLockReason = 'You can only edit your own messages. Discord blocks editing other users\' messages.';
 
   const handleDelete = async () => {
     setDeleteModalOpen(false);
@@ -81,26 +97,34 @@ const MessageActions = ({
             color={selectedCount > 0 ? 'primary' : 'default'}
           />
 
-          <Button
-            variant="outlined"
-            size="small"
-            color="error"
-            startIcon={<DeleteIcon />}
-            disabled={selectedCount === 0 || isOperationRunning}
-            onClick={() => setDeleteModalOpen(true)}
-          >
-            Delete
-          </Button>
+          <Tooltip title={deleteBlockedByPermission ? deleteLockReason : ''} disableHoverListener={!deleteBlockedByPermission}>
+            <span>
+              <Button
+                variant="outlined"
+                size="small"
+                color="error"
+                startIcon={<DeleteIcon />}
+                disabled={selectedCount === 0 || isOperationRunning || deleteBlockedByPermission}
+                onClick={() => setDeleteModalOpen(true)}
+              >
+                Delete
+              </Button>
+            </span>
+          </Tooltip>
 
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<EditIcon />}
-            disabled={selectedCount === 0 || (selectedCount > 1 && isOperationRunning)}
-            onClick={() => setEditModalOpen(true)}
-          >
-            Edit
-          </Button>
+          <Tooltip title={editBlockedByPermission ? editLockReason : ''} disableHoverListener={!editBlockedByPermission}>
+            <span>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<EditIcon />}
+                disabled={selectedCount === 0 || (selectedCount > 1 && isOperationRunning) || editBlockedByPermission}
+                onClick={() => setEditModalOpen(true)}
+              >
+                Edit
+              </Button>
+            </span>
+          </Tooltip>
 
           {singleMessage?.embeds && singleMessage.embeds.length > 0 && (
             <Button

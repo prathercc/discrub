@@ -129,6 +129,145 @@ describe('MessageActions', () => {
     });
   });
 
+  describe('Permission gating (Backlog #139)', () => {
+    const selfId = 'user-123';
+    const otherId = 'user-456';
+    const selfMsg = createMockMessage({ id: 'm-self', author: { id: selfId, username: 'me' } as any });
+    const otherMsg = createMockMessage({ id: 'm-other', author: { id: otherId, username: 'them' } as any });
+
+    it('disables Delete when selection includes non-self messages and no MANAGE', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[selfMsg, otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={false}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /Delete/ })).toBeDisabled();
+    });
+
+    it('enables Delete when selection includes non-self messages and user has MANAGE', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[selfMsg, otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={true}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /Delete/ })).not.toBeDisabled();
+    });
+
+    it('enables Delete for self-only selection without MANAGE', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[selfMsg]}
+          currentUserId={selfId}
+          canManageMessages={false}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /Delete/ })).not.toBeDisabled();
+    });
+
+    it('shows lock reason tooltip on disabled Delete button', async () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={false}
+        />,
+      );
+      // Tooltip lives on the wrapping span — hover the wrapper to surface it
+      const button = screen.getByRole('button', { name: /Delete/ });
+      const wrapper = button.parentElement!;
+      fireEvent.mouseOver(wrapper);
+      await waitFor(() => {
+        expect(
+          screen.getByText('You can only delete your own messages without Manage Messages permission in this channel.'),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('shows DM-aware lock reason tooltip when isDm is true', async () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={false}
+          isDm={true}
+        />,
+      );
+      const button = screen.getByRole('button', { name: /Delete/ });
+      const wrapper = button.parentElement!;
+      fireEvent.mouseOver(wrapper);
+      await waitFor(() => {
+        expect(
+          screen.getByText('You can only delete your own messages in DMs.'),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('disables Edit when selection includes non-self messages even with MANAGE', () => {
+      // Discord PATCH is author-only regardless of permission
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={true}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /Edit/ })).toBeDisabled();
+    });
+
+    it('enables Edit when selection is self-only', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[selfMsg]}
+          currentUserId={selfId}
+          canManageMessages={false}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /Edit/ })).not.toBeDisabled();
+    });
+
+    it('disables Edit when mixed-author selection includes any non-self message', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[selfMsg, otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={true}
+        />,
+      );
+      expect(screen.getByRole('button', { name: /Edit/ })).toBeDisabled();
+    });
+
+    it('shows lock reason tooltip on disabled Edit button', async () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[otherMsg]}
+          currentUserId={selfId}
+          canManageMessages={true}
+        />,
+      );
+      const button = screen.getByRole('button', { name: /Edit/ });
+      const wrapper = button.parentElement!;
+      fireEvent.mouseOver(wrapper);
+      await waitFor(() => {
+        expect(
+          screen.getByText("You can only edit your own messages. Discord blocks editing other users' messages."),
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('Edit Callback', () => {
     it('should call onEdit with message and new content when saved', async () => {
       const onEdit = vi.fn().mockResolvedValue(undefined);

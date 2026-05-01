@@ -27,6 +27,7 @@ import { selectSettings } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectCurrentUser } from '@features/user/userSlice';
+import { selectSelectedGuild, selectCurrentMemberRoles } from '@features/guild/guildSlice';
 import { bulkPurgeChannels, bulkPurgeDMs } from '@features/purge/purgeSlice';
 import type { PurgeMode } from '@features/purge/purgeTypes';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
@@ -34,6 +35,7 @@ import UserPicker from '@components/ui/UserPicker';
 import FilterModal, { countActiveFilters } from '@components/search/FilterModal';
 import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
+import { canManageMessages as channelCanManageMessages } from '@/utils/permissionUtils';
 
 // UI-level mode — promotes "Attachments Only" to a first-class choice.
 // Maps to the underlying PurgeMode + deleteAttachmentsOnly flag on dispatch.
@@ -67,6 +69,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
   const cachedUserMap = useAppSelector(selectCachedUserMap);
   const currentUser = useAppSelector(selectCurrentUser);
+  const selectedGuild = useAppSelector(selectSelectedGuild);
+  const memberRoles = useAppSelector(selectCurrentMemberRoles);
 
   const [uiMode, setUiMode] = useState<UiPurgeMode>('messages');
   const [retainAttachedMedia, setRetainAttachedMedia] = useState(false);
@@ -130,10 +134,32 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   // Targeting is hidden only for Clear All Reactions
   const showTargetSection = !isClearReactions;
 
-  // In DM messages/attachments mode, or in reactions without MANAGE_MESSAGES,
+  // Per-channel MANAGE_MESSAGES audit for guild mode. DMs short-circuit (no
+  // guild perms apply) and the result is unused there.
+  const guildPermissions = selectedGuild?.permissions;
+  const guildPermissionAudit = useMemo(() => {
+    if (isDmMode || !guildId || !guildPermissions) {
+      return { blockedChannels: [] as Channel[], allBlocked: false, someBlocked: false };
+    }
+    const blocked = channels.filter(
+      (ch) => !channelCanManageMessages(guildPermissions, memberRoles, ch, guildId),
+    );
+    return {
+      blockedChannels: blocked,
+      allBlocked: channels.length > 0 && blocked.length === channels.length,
+      someBlocked: blocked.length > 0,
+    };
+  }, [isDmMode, guildId, guildPermissions, memberRoles, channels]);
+
+  const { blockedChannels, allBlocked, someBlocked } = guildPermissionAudit;
+
+  // In DM messages/attachments mode, in reactions without MANAGE_MESSAGES,
+  // or in guild messages mode where any selected channel lacks MANAGE_MESSAGES,
   // the target is locked to the current user.
   const isTargetLockedToSelf =
-    (isDmMode && isMessagesFamily) || (uiMode === 'reactions' && !canManageMessages);
+    (isDmMode && isMessagesFamily)
+    || (uiMode === 'reactions' && !canManageMessages)
+    || (isMessagesFamily && !isDmMode && someBlocked);
 
   // Filter-modal-driven target for guild Messages/Attachments Only modes.
   // For DMs / self-locked reactions, target is the current user. For
@@ -201,6 +227,23 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
     : effectiveTargetUserIds.length === 0;
 
   const targetLabel = isReactionsFamily ? 'Remove reactions from' : 'Author';
+
+  const getLockReasonText = () => {
+    if (isDmMode && isMessagesFamily) {
+      return 'You can only target your own messages in DMs.';
+    }
+    if (isMessagesFamily && !isDmMode && someBlocked) {
+      if (allBlocked) {
+        return 'You can only target your own messages without Manage Messages permission in the selected channels.';
+      }
+      const named = blockedChannels.slice(0, 2).map((c) => `#${c.name}`).join(', ');
+      const tail = blockedChannels.length > 2
+        ? `Manage Messages missing in ${blockedChannels.length} of the selected channels.`
+        : `Manage Messages missing in ${named}. Deselect to unlock.`;
+      return `You can only target your own messages. ${tail}`;
+    }
+    return 'You can only remove your own reactions without Manage Messages permission.';
+  };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -278,9 +321,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                       label={targetLabel}
                     />
                     <Alert severity="info" variant="outlined" sx={{ py: 0.5, mt: 1 }}>
-                      {isMessagesFamily
-                        ? 'Only your own messages can be targeted in DMs.'
-                        : 'You can only remove your own reactions without Manage Messages permission.'}
+                      {getLockReasonText()}
                     </Alert>
                     {(isMessagesFamily || isReactionsFamily) && (
                       <Box sx={{ mt: 1.5 }}>

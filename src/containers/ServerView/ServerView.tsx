@@ -922,6 +922,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           currentUserId={currentUser?.id}
           currentUsername={currentUser?.global_name || currentUser?.username}
           fetchDelayMs={searchDelay}
+          isDm={isDm}
           onBatchRemoveReactions={handleBatchRemoveReactions}
           onFetchReactingUsers={isDm ? handleFetchReactingUsersDm : handleFetchReactingUsers}
         />

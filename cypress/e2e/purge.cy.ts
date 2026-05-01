@@ -420,6 +420,93 @@ describe('Bulk Purge Operations', () => {
     });
   });
 
+  describe('Permission gating (Backlog #139)', () => {
+    // The Cypress Test Server guild perms include MANAGE_MESSAGES, but a
+    // per-channel @everyone overwrite can deny it. We override the channels
+    // intercept before login so the guild loads with one allowed and one
+    // permission-denied channel, then verify the dialog locks the target
+    // picker with the channel-name copy variant.
+    const DENY_MANAGE_MESSAGES = String(1 << 13);
+    const GUILD_ID = '901000000000000001';
+
+    beforeEach(() => {
+      // Login first (which registers default channel intercepts via
+      // interceptDiscordApi), then register a LIFO override that wins for
+      // the channel-list fetch on the upcoming selectServer.
+      cy.login();
+      cy.intercept('GET', `${API}/guilds/*/channels`, {
+        statusCode: 200,
+        body: [
+          {
+            id: '801000000000000005',
+            type: 4,
+            guild_id: GUILD_ID,
+            position: 0,
+            name: 'Text Channels',
+            topic: null,
+            nsfw: false,
+            last_message_id: null,
+          },
+          {
+            id: '801000000000000001',
+            type: 0,
+            guild_id: GUILD_ID,
+            position: 1,
+            name: 'general',
+            topic: 'General discussion',
+            nsfw: false,
+            last_message_id: null,
+            parent_id: '801000000000000005',
+          },
+          {
+            id: '801000000000000099',
+            type: 0,
+            guild_id: GUILD_ID,
+            position: 2,
+            name: 'staff-only',
+            topic: 'Mods only',
+            nsfw: false,
+            last_message_id: null,
+            parent_id: '801000000000000005',
+            permission_overwrites: [
+              { id: GUILD_ID, type: 0, allow: '0', deny: DENY_MANAGE_MESSAGES },
+            ],
+          },
+        ],
+      }).as('getChannels');
+
+      cy.selectServer('Cypress Test Server');
+      cy.contains('general').should('be.visible');
+    });
+
+    it('locks target picker with channel-name copy when MANAGE missing in some selected channels', () => {
+      selectChannelsForPurge('general', 'staff-only');
+      openPurgeDialog();
+
+      cy.get('[role="dialog"]')
+        .contains('You can only target your own messages. Manage Messages missing in #staff-only. Deselect to unlock.')
+        .should('be.visible');
+
+      // Confirm the locked target dispatches with current user (no Add-filters required)
+      cy.get('[role="dialog"]')
+        .contains('button', /Purge 2 Ch\.s/)
+        .should('not.be.disabled');
+    });
+
+    it('does not lock when only fully-permitted channels are selected', () => {
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      cy.get('[role="dialog"]')
+        .contains(/Manage Messages missing/)
+        .should('not.exist');
+      // BulkFilterButton is the target surface when no lock applies
+      cy.get('[role="dialog"]')
+        .find('button[aria-label="Add filters"]')
+        .should('be.visible');
+    });
+  });
+
   describe('Selected Channels Summary Pill', () => {
     beforeEach(() => {
       cy.login();
@@ -817,7 +904,7 @@ describe('Bulk Purge Operations', () => {
 
       // UserPicker should show current user and be disabled
       cy.get('[role="dialog"]')
-        .contains('Only your own messages can be targeted in DMs')
+        .contains('You can only target your own messages in DMs')
         .should('be.visible');
     });
 

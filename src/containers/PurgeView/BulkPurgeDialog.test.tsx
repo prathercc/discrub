@@ -2,10 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '@/test/test-utils';
 import BulkPurgeDialog from './BulkPurgeDialog';
-import type { Channel } from 'discrub-core/types/discord-types';
+import type { Channel, Guild } from 'discrub-core/types/discord-types';
 import { ChannelType } from 'discrub-core/discord-enum';
 import { createAuthenticatedState } from '@/test/state-factories';
 import { bulkPurgeChannels, bulkPurgeDMs } from '@features/purge/purgeSlice';
+
+// Permission bits for crafting test guild states
+const VIEW_CHANNEL = 1n << 10n;
+const SEND_MESSAGES = 1n << 11n;
+const MANAGE_MESSAGES = 1n << 13n;
+const READ_MESSAGE_HISTORY = 1n << 16n;
+const PERMS_WITH_MANAGE = String(VIEW_CHANNEL | SEND_MESSAGES | MANAGE_MESSAGES | READ_MESSAGE_HISTORY);
+const PERMS_NO_MANAGE = String(VIEW_CHANNEL | SEND_MESSAGES | READ_MESSAGE_HISTORY);
 
 vi.mock('@features/purge/purgeSlice', async () => {
   const actual = await vi.importActual('@features/purge/purgeSlice');
@@ -27,8 +35,19 @@ const mockDms: Channel[] = [
   { id: '11', type: 4, recipients: [{ id: '101', username: 'Bob' }] } as unknown as Channel,
 ];
 
+const baseAuthed = createAuthenticatedState();
+const guildWithManage: Guild = {
+  ...(baseAuthed.guild.selectedGuild as Guild),
+  permissions: PERMS_WITH_MANAGE,
+};
+
 const stateWithUser = {
-  ...createAuthenticatedState(),
+  ...baseAuthed,
+  guild: {
+    ...baseAuthed.guild,
+    guilds: [guildWithManage],
+    selectedGuild: guildWithManage,
+  },
   user: {
     currentUser: { id: '999', username: 'testuser', discriminator: '0', global_name: 'Test User', avatar: null },
     isLoading: false,
@@ -41,6 +60,22 @@ const stateWithUser = {
       '888': { userName: 'otheruser', displayName: 'Other User', avatar: null, guilds: {}, timestamp: 1 },
     },
     failedUserIds: [],
+  },
+};
+
+// Same shape as stateWithUser, but the selected guild lacks MANAGE_MESSAGES.
+// Used by #139 lock-path tests to verify the dialog gates target picking when
+// the user can't manage messages in any of the selected channels.
+const guildNoManage: Guild = {
+  ...(baseAuthed.guild.selectedGuild as Guild),
+  permissions: PERMS_NO_MANAGE,
+};
+const stateWithUserNoManage = {
+  ...stateWithUser,
+  guild: {
+    ...stateWithUser.guild,
+    guilds: [guildNoManage],
+    selectedGuild: guildNoManage,
   },
 };
 
@@ -296,7 +331,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      expect(screen.getByText(/Only your own messages can be targeted in DMs/)).toBeInTheDocument();
+      expect(screen.getByText('You can only target your own messages in DMs.')).toBeInTheDocument();
     });
 
     it('uses "conversation" terminology in summary', () => {
@@ -620,6 +655,171 @@ describe('BulkPurgeDialog', () => {
       openFilters();
       expect(screen.getByTestId('filter-modal-search-from')).toBeInTheDocument();
       expect(screen.getByTestId('filter-modal-search-author-type')).toBeInTheDocument();
+    });
+  });
+
+  describe('Guild permission gating (Backlog #139)', () => {
+    // Channels constructed to deny MANAGE_MESSAGES to @everyone in a subset
+    const denyManage = String(MANAGE_MESSAGES);
+    const blockedStaff: Channel = {
+      id: '101',
+      name: 'staff-only',
+      type: ChannelType.GUILD_TEXT,
+      permission_overwrites: [
+        { id: 'guild-123', type: 0, allow: '0', deny: denyManage },
+      ],
+    } as unknown as Channel;
+    const blockedArchived: Channel = {
+      id: '102',
+      name: 'archived',
+      type: ChannelType.GUILD_TEXT,
+      permission_overwrites: [
+        { id: 'guild-123', type: 0, allow: '0', deny: denyManage },
+      ],
+    } as unknown as Channel;
+    const allowed: Channel = { id: '103', name: 'general', type: ChannelType.GUILD_TEXT } as Channel;
+
+    it('locks target picker when no selected channel has MANAGE_MESSAGES (all-blocked copy)', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUserNoManage },
+      );
+      expect(
+        screen.getByText('You can only target your own messages without Manage Messages permission in the selected channels.'),
+      ).toBeInTheDocument();
+      // Auto-targets self → confirm enabled even with no filters set
+      expect(screen.getByRole('button', { name: /Purge 3 Ch\.s/ })).not.toBeDisabled();
+    });
+
+    it('locks target picker when MANAGE missing in some selected channels and lists names', () => {
+      renderWithProviders(
+        <BulkPurgeDialog
+          open
+          channels={[allowed, blockedStaff, blockedArchived]}
+          onClose={vi.fn()}
+          mode="channels"
+          guildId="guild-123"
+        />,
+        { preloadedState: stateWithUser },
+      );
+      expect(
+        screen.getByText(/Manage Messages missing in #staff-only, #archived\. Deselect to unlock\./),
+      ).toBeInTheDocument();
+    });
+
+    it('switches to "N selected channels" wording when more than 2 channels are blocked', () => {
+      const extra: Channel = {
+        id: '104',
+        name: 'private',
+        type: ChannelType.GUILD_TEXT,
+        permission_overwrites: [
+          { id: 'guild-123', type: 0, allow: '0', deny: denyManage },
+        ],
+      } as unknown as Channel;
+      renderWithProviders(
+        <BulkPurgeDialog
+          open
+          channels={[allowed, blockedStaff, blockedArchived, extra]}
+          onClose={vi.fn()}
+          mode="channels"
+          guildId="guild-123"
+        />,
+        { preloadedState: stateWithUser },
+      );
+      expect(
+        screen.getByText(/Manage Messages missing in 3 of the selected channels\./),
+      ).toBeInTheDocument();
+    });
+
+    it('does not lock when every selected channel grants MANAGE_MESSAGES', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUser },
+      );
+      // No lock copy, BulkFilterButton is the target surface
+      expect(screen.queryByText(/Manage Messages missing/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/without Manage Messages permission/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add filters' })).toBeInTheDocument();
+    });
+
+    it('hides FilterModal author surface when locked by permission', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUserNoManage },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Add filters' }));
+      expect(screen.queryByTestId('filter-modal-search-from')).toBeNull();
+      expect(screen.queryByTestId('filter-modal-search-author-type')).toBeNull();
+    });
+
+    it('dispatches with current user as target when locked by permission', () => {
+      vi.mocked(bulkPurgeChannels).mockClear();
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUserNoManage },
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Purge 3 Ch\.s/ }));
+      expect(bulkPurgeChannels).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            mode: 'messages',
+            targetUserIds: ['999'],
+          }),
+        }),
+      );
+    });
+
+    it('does not lock when channels prop is empty (allBlocked is false on empty list)', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={[]} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUserNoManage },
+      );
+      expect(screen.queryByText(/without Manage Messages permission/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Manage Messages missing/)).not.toBeInTheDocument();
+    });
+
+    it('does not surface the new permission lock in Reactions mode (regression guard)', () => {
+      // Reactions mode has its own self-lock semantics gated on the
+      // canManageMessages prop. The new isMessagesFamily-scoped check
+      // must not bleed into reactions copy.
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUserNoManage },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Reactions' }));
+      // The reactions-mode self-lock string is shown, NOT the messages-mode one
+      expect(screen.getByText(/only remove your own reactions/)).toBeInTheDocument();
+      expect(screen.queryByText(/target your own messages/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Manage Messages missing/)).not.toBeInTheDocument();
+    });
+
+    it('recomputes the audit when channels prop changes', () => {
+      const { rerender } = renderWithProviders(
+        <BulkPurgeDialog
+          open
+          channels={[allowed]}
+          onClose={vi.fn()}
+          mode="channels"
+          guildId="guild-123"
+        />,
+        { preloadedState: stateWithUser },
+      );
+      // Single allowed channel — no lock
+      expect(screen.queryByText(/Manage Messages missing/)).not.toBeInTheDocument();
+
+      // Adding a blocked channel should trigger the lock copy
+      rerender(
+        <BulkPurgeDialog
+          open
+          channels={[allowed, blockedStaff]}
+          onClose={vi.fn()}
+          mode="channels"
+          guildId="guild-123"
+        />,
+      );
+      expect(
+        screen.getByText(/Manage Messages missing in #staff-only\. Deselect to unlock\./),
+      ).toBeInTheDocument();
     });
   });
 });
