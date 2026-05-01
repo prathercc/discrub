@@ -1,9 +1,10 @@
-import { describe, it, expect, vi } from 'vitest';
-import { renderWithProviders, screen, fireEvent } from '@/test/test-utils';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { renderWithProviders, screen, fireEvent, waitFor } from '@/test/test-utils';
 import { createBaseState } from '@/test/state-factories';
 import StatusPanel from './StatusPanel';
 import { initialStatusState } from '@features/status/statusTypes';
 import { initialExportState } from '@features/export/exportTypes';
+import { storage } from '@/extension/storage';
 
 describe('StatusPanel', () => {
   it('renders with STATUS LOG header', () => {
@@ -353,6 +354,98 @@ describe('StatusPanel', () => {
       expect(screen.getByText(/Session of /)).toBeInTheDocument();
       expect(screen.queryByText('pre-upgrade entry')).toBeNull();
       expect(screen.queryByText('post-upgrade entry')).toBeNull();
+    });
+  });
+
+  describe('resizable height (Backlog #136)', () => {
+    const HEIGHT_KEY = 'statusLogHeight';
+    const DEFAULT_PANEL_HEIGHT = 150;
+
+    beforeEach(async () => {
+      await storage.state.clear();
+      // jsdom defaults innerHeight to 768; ensure tests have predictable max.
+      Object.defineProperty(window, 'innerHeight', {
+        configurable: true,
+        value: 768,
+      });
+    });
+
+    it('renders the resize handle inside the expanded panel', () => {
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      expect(screen.getByTestId('status-panel-resize-handle')).toBeInTheDocument();
+    });
+
+    it('uses the default panel height when storage has no stored value', async () => {
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      const scroll = screen.getByTestId('status-panel-scroll');
+      // Hydration runs in a useEffect; nothing in IDB → height stays at default.
+      await waitFor(() =>
+        expect(scroll.getAttribute('data-height')).toBe(String(DEFAULT_PANEL_HEIGHT)),
+      );
+    });
+
+    it('hydrates the panel height from storage on mount', async () => {
+      await storage.state.set(HEIGHT_KEY, 320);
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      const scroll = screen.getByTestId('status-panel-scroll');
+      await waitFor(() =>
+        expect(scroll.getAttribute('data-height')).toBe('320'),
+      );
+    });
+
+    it('clamps an oversized stored height to the viewport on hydrate', async () => {
+      // viewport - 80 = 688; a 9999 stored value should land at the clamp.
+      await storage.state.set(HEIGHT_KEY, 9999);
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      const scroll = screen.getByTestId('status-panel-scroll');
+      await waitFor(() =>
+        expect(Number(scroll.getAttribute('data-height'))).toBe(768 - 80),
+      );
+    });
+
+    it('ignores a stored value below the minimum panel height', async () => {
+      await storage.state.set(HEIGHT_KEY, 50);
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      const scroll = screen.getByTestId('status-panel-scroll');
+      // Still default — sub-minimum stored values are rejected on hydrate.
+      await waitFor(() =>
+        expect(scroll.getAttribute('data-height')).toBe(String(DEFAULT_PANEL_HEIGHT)),
+      );
+    });
+
+    it('grows the panel when the user drags the handle upward and persists on release', async () => {
+      const setSpy = vi.spyOn(storage.state, 'set');
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      const handle = screen.getByTestId('status-panel-resize-handle');
+      const scroll = screen.getByTestId('status-panel-scroll');
+
+      // Drag upward 100px → height grows from 150 to 250.
+      fireEvent.mouseDown(handle, { clientY: 500 });
+      fireEvent.mouseMove(document, { clientY: 400 });
+      await waitFor(() => expect(scroll.getAttribute('data-height')).toBe('250'));
+
+      fireEvent.mouseUp(document);
+      expect(setSpy).toHaveBeenCalledWith(HEIGHT_KEY, 250);
+      setSpy.mockRestore();
+    });
+
+    it('clamps to the minimum panel height when the user drags downward past the floor', async () => {
+      const setSpy = vi.spyOn(storage.state, 'set');
+      renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      const handle = screen.getByTestId('status-panel-resize-handle');
+      const scroll = screen.getByTestId('status-panel-scroll');
+
+      // Drag downward 999px from a starting height of 150 → would shrink
+      // to -849 unclamped. Should land at PANEL_HEIGHT (150).
+      fireEvent.mouseDown(handle, { clientY: 100 });
+      fireEvent.mouseMove(document, { clientY: 1099 });
+      await waitFor(() =>
+        expect(scroll.getAttribute('data-height')).toBe(String(DEFAULT_PANEL_HEIGHT)),
+      );
+
+      fireEvent.mouseUp(document);
+      expect(setSpy).toHaveBeenCalledWith(HEIGHT_KEY, DEFAULT_PANEL_HEIGHT);
+      setSpy.mockRestore();
     });
   });
 });

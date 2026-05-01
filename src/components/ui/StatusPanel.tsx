@@ -12,6 +12,7 @@ import {
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectStatusEntries, selectStatusCount, clearStatusLog, getCurrentSessionId } from '@features/status/statusSlice';
 import { groupEntriesBySession, LEGACY_SESSION_ID } from '@features/status/statusGrouping';
+import { storage } from '@/extension/storage';
 import { selectOperationSummary } from '@features/app/operationSelectors';
 import type { StatusLevel } from '@features/status/statusTypes';
 import PauseResumeControls from './PauseResumeControls';
@@ -19,6 +20,15 @@ import OperationTip from './OperationTip';
 
 const PAGE_SIZE = 50;
 const PANEL_HEIGHT = 150;
+/** Reserved viewport space so the panel can never push the rest of the app off-screen. */
+const MAX_VIEWPORT_OFFSET = 80;
+/** Persisted user preference for panel height (#136). Lives in `Discrub-state` IDB. */
+const HEIGHT_STORAGE_KEY = 'statusLogHeight';
+
+function clampPanelHeight(value: number): number {
+  const max = Math.max(PANEL_HEIGHT, window.innerHeight - MAX_VIEWPORT_OFFSET);
+  return Math.max(PANEL_HEIGHT, Math.min(value, max));
+}
 
 const blink = keyframes`
   0%, 100% { opacity: 1; }
@@ -54,6 +64,61 @@ const StatusPanel = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [expanded, setExpanded] = useState(false);
+  const [panelHeight, setPanelHeight] = useState<number>(PANEL_HEIGHT);
+
+  // Hydrate persisted panel height (#136). Clamp to the current viewport
+  // so a stored value larger than the visible area doesn't take over.
+  useEffect(() => {
+    let cancelled = false;
+    storage.state
+      .get<number>(HEIGHT_STORAGE_KEY)
+      .then((stored) => {
+        if (cancelled) return;
+        if (typeof stored === 'number' && stored >= PANEL_HEIGHT) {
+          setPanelHeight(clampPanelHeight(stored));
+        }
+      })
+      .catch(() => {
+        /* missing key or storage failure — keep the default */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Drag-to-resize handle (#136). Only attached when the panel is open.
+  const handleResizeStart = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const startY = e.clientY;
+      const startHeight = panelHeight;
+      let lastHeight = startHeight;
+
+      document.body.style.cursor = 'ns-resize';
+      document.body.style.userSelect = 'none';
+
+      const onMove = (ev: MouseEvent) => {
+        // Drag UP grows the panel (deltaY < 0); drag DOWN shrinks it.
+        const deltaY = ev.clientY - startY;
+        const next = clampPanelHeight(startHeight - deltaY);
+        lastHeight = next;
+        setPanelHeight(next);
+      };
+
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+        void storage.state.set(HEIGHT_STORAGE_KEY, lastHeight);
+      };
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    },
+    [panelHeight],
+  );
 
   const visibleEntries = entries.slice(-visibleCount);
   const hasMore = visibleCount < count;
@@ -282,11 +347,31 @@ const StatusPanel = () => {
 
         {/* Log content */}
         <Collapse in={expanded} timeout={350}>
+          {/* Resize handle (#136) — drag up to grow, down to shrink.
+              CSS max-height keeps the panel inside the viewport even if
+              `panelHeight` was set by an old window size. */}
+          <Box
+            data-testid="status-panel-resize-handle"
+            onMouseDown={handleResizeStart}
+            role="separator"
+            aria-orientation="horizontal"
+            aria-label="Resize status log"
+            sx={{
+              height: 4,
+              cursor: 'ns-resize',
+              bgcolor: '#21262d',
+              transition: 'background-color 120ms ease',
+              '&:hover': { bgcolor: '#58a6ff' },
+            }}
+          />
           <Box
             ref={scrollRef}
             onScroll={handleScroll}
+            data-testid="status-panel-scroll"
+            data-height={panelHeight}
             sx={{
-              height: PANEL_HEIGHT,
+              height: panelHeight,
+              maxHeight: `calc(100vh - ${MAX_VIEWPORT_OFFSET}px)`,
               overflow: 'auto',
               px: 1.5,
               py: 0.5,
