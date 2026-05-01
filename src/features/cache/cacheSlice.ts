@@ -3,6 +3,7 @@ import type { ExportUserMap } from 'discrub-core/types/discrub-types';
 import { initialCacheState } from './cacheTypes';
 import type { RootState } from '@/app/store';
 import { storage, migrateAllStorage } from '@/extension/storage';
+import { fetchUserData } from '@features/user/userSlice';
 
 /**
  * Cache slice — persistent caching for user resolution + 404 misses.
@@ -250,6 +251,29 @@ const cacheSlice = createSlice({
       })
       .addCase(clearCachedUserMap.fulfilled, (state, action) => {
         state.userMap = action.payload;
+      })
+      // Stamp the freshly-authenticated user into the user map so any
+      // surface that looks up display info by ID (UserPicker, bulk
+      // purge/export dialogs, etc.) can render "Name (You)" immediately
+      // on sign-in instead of falling back to the raw user ID until
+      // some other enrichment populates it. (#138)
+      .addCase(fetchUserData.fulfilled, (state, action) => {
+        const user = action.payload;
+        const existing = state.userMap[user.id];
+        const entry: ExportUserMap[string] = {
+          userName: user.username,
+          displayName: user.global_name ?? user.username,
+          avatar: user.avatar,
+          // Preserve any guild-membership data already cached by prior
+          // enrichment — fetchUserData only knows about the user, not
+          // their per-guild nick/roles/joinedAt.
+          guilds: existing?.guilds ?? {},
+          timestamp: Date.now(),
+        };
+        state.userMap[user.id] = entry;
+        // Best-effort persist — same fire-and-forget pattern as
+        // `addFailedUserId`. Failures don't block sign-in.
+        void storage.cache.set(userKey(user.id), entry);
       });
   },
 });

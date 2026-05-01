@@ -559,4 +559,86 @@ describe('cacheSlice', () => {
       expect(selectFailedUserIds(store.getState())).toEqual(['404-user']);
     });
   });
+
+  describe('fetchUserData → cache integration (Backlog #138)', () => {
+    // Action creator from userSlice — we don't import the slice's
+    // store wiring, just the action shape, so the cache reducer can
+    // react to it in isolation.
+    const fetchUserDataFulfilled = 'user/fetchUserData/fulfilled';
+
+    it('stamps the authenticated user into cache.userMap on fetchUserData.fulfilled', () => {
+      const store = createTestStore({ cache: cacheReducer });
+      store.dispatch({
+        type: fetchUserDataFulfilled,
+        payload: {
+          id: '12345',
+          username: 'aaron',
+          global_name: 'Aaron',
+          avatar: 'avatarhash',
+          discriminator: '0',
+        },
+      });
+
+      const cached = selectCachedUser('12345')(store.getState());
+      expect(cached).toMatchObject({
+        userName: 'aaron',
+        displayName: 'Aaron',
+        avatar: 'avatarhash',
+      });
+    });
+
+    it('falls back to username when global_name is null', () => {
+      const store = createTestStore({ cache: cacheReducer });
+      store.dispatch({
+        type: fetchUserDataFulfilled,
+        payload: { id: 'u1', username: 'aaron', global_name: null, avatar: null },
+      });
+      const cached = selectCachedUser('u1')(store.getState());
+      expect(cached?.displayName).toBe('aaron');
+    });
+
+    it('preserves existing guilds data when the user is re-fetched', () => {
+      const existingEntry = {
+        userName: 'aaron',
+        displayName: 'Aaron',
+        avatar: 'oldhash',
+        guilds: {
+          'guild-1': { roles: ['role-a'], nick: 'AaronNick', joinedAt: '2024-01-01', timestamp: 1000 },
+        },
+        timestamp: 1000,
+      };
+      const store = createTestStore(
+        { cache: cacheReducer },
+        { cache: { ...initialCacheState, userMap: { '12345': existingEntry } } },
+      );
+
+      store.dispatch({
+        type: fetchUserDataFulfilled,
+        payload: {
+          id: '12345',
+          username: 'aaron-renamed',
+          global_name: 'Aaron Renamed',
+          avatar: 'newhash',
+        },
+      });
+
+      const cached = selectCachedUser('12345')(store.getState());
+      expect(cached?.userName).toBe('aaron-renamed');
+      expect(cached?.displayName).toBe('Aaron Renamed');
+      expect(cached?.avatar).toBe('newhash');
+      expect(cached?.guilds).toEqual(existingEntry.guilds);
+    });
+
+    it('persists the cache entry to storage under the users:<id> key', () => {
+      const store = createTestStore({ cache: cacheReducer });
+      store.dispatch({
+        type: fetchUserDataFulfilled,
+        payload: { id: 'u1', username: 'a', global_name: 'A', avatar: null },
+      });
+      expect(storageMock.set).toHaveBeenCalledWith(
+        'users:u1',
+        expect.objectContaining({ userName: 'a', displayName: 'A' }),
+      );
+    });
+  });
 });
