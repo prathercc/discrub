@@ -20,13 +20,6 @@ import {
   PersonAdd as FollowIcon,
 } from '@mui/icons-material';
 
-/**
- * GitHub destinations exposed in the welcome panel. SHOW_STAR_BUTTON is
- * intentionally false until the repo is in a state worth pointing users
- * at; flip to true when ready. The Follow button stays visible because
- * it's profile-level and stable.
- */
-const SHOW_STAR_BUTTON = false;
 const GITHUB_PROFILE_URL = 'https://github.com/prathercc';
 const GITHUB_REPO_URL = 'https://github.com/prathercc/discrub';
 
@@ -178,28 +171,23 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
           </Button>
         </Box>
 
-        {/* GitHub affordances — Follow is visible now; Star is gated
-            behind SHOW_STAR_BUTTON and will turn on after the rename
-            + repo move (#130) makes the URL one we're ready to share. */}
         <Box
           data-testid="welcome-github-actions"
           sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap', mt: 1.5 }}
         >
-          {SHOW_STAR_BUTTON && (
-            <Button
-              variant="text"
-              size="small"
-              startIcon={<StarIcon />}
-              endIcon={<GitHubIcon sx={{ fontSize: 16 }} />}
-              component="a"
-              href={GITHUB_REPO_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              sx={{ textTransform: 'none', color: 'text.secondary' }}
-            >
-              Star on GitHub
-            </Button>
-          )}
+          <Button
+            variant="text"
+            size="small"
+            startIcon={<StarIcon />}
+            endIcon={<GitHubIcon sx={{ fontSize: 16 }} />}
+            component="a"
+            href={GITHUB_REPO_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            sx={{ textTransform: 'none', color: 'text.secondary' }}
+          >
+            Star on GitHub
+          </Button>
           <Button
             variant="text"
             size="small"

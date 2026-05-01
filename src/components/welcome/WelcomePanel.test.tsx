@@ -55,16 +55,7 @@ describe('WelcomePanel', () => {
       expect(followLink).toHaveAttribute('rel', expect.stringContaining('noreferrer'));
     });
 
-    it('Star button is gated behind SHOW_STAR_BUTTON and currently hidden', () => {
-      // Star button stays out of the DOM until the repo is in a shape
-      // worth advertising (post-#130 rename). Flipping SHOW_STAR_BUTTON
-      // in WelcomePanel.tsx re-enables it; the tests below should be
-      // un-skipped at the same time.
-      renderWithProviders(<WelcomePanel onStartTour={mockOnStartTour} />);
-      expect(screen.queryByRole('link', { name: /star on github/i })).toBeNull();
-    });
-
-    it.skip('[ungate when SHOW_STAR_BUTTON=true] Star targets the project repo', () => {
+    it('Star button targets the project repo and opens in a new tab', () => {
       renderWithProviders(<WelcomePanel onStartTour={mockOnStartTour} />);
       const starLink = screen.getByRole('link', { name: /star on github/i });
       expect(starLink).toHaveAttribute('href', expect.stringContaining('github.com/prathercc/discrub'));
