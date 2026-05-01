@@ -80,6 +80,45 @@ describe('parsePackageZip', () => {
     expect(rows).toHaveLength(3);
   });
 
+  it('parses a package with capitalized top-level directories', async () => {
+    // Real Discord exports sometimes ship with `Account/`, `Messages/`,
+    // `Servers/` instead of lowercase. Reported by user on 2.0.2 (#146).
+    const blob = await buildFixturePackage({
+      capitalizeTopDirs: true,
+      includeOrphanChannel: true,
+      includeGroupDm: true,
+    });
+    const parsed = await parsePackageZip(blob);
+
+    expect(parsed.user.id).toBe('253286221395001345');
+    expect(parsed.user.username).toBe('prathercc');
+    expect(parsed.guilds).toEqual([{ id: '100', name: 'Test Guild' }]);
+    expect(parsed.channels.find((c) => c.id === '200')?.guildName).toBe('Test Guild');
+    expect(parsed.channels.find((c) => c.id === '300')?.recipients).toEqual([
+      '253286221395001345',
+      '999',
+    ]);
+    expect(parsed.channels.find((c) => c.id === '400')?.isOrphan).toBe(true);
+    expect(parsed.totalMessages).toBe(5);
+  });
+
+  it('handles capitalized dirs combined with a wrapper directory', async () => {
+    const blob = await buildFixturePackage({
+      capitalizeTopDirs: true,
+      wrapperDir: 'Discord Data Package - prathercc',
+    });
+    const parsed = await parsePackageZip(blob);
+
+    expect(parsed.user.id).toBe('253286221395001345');
+    expect(parsed.totalMessages).toBe(4);
+  });
+
+  it('loads a capitalized-dirs channel CSV via loadChannelMessages', async () => {
+    const blob = await buildFixturePackage({ capitalizeTopDirs: true });
+    const rows = await loadChannelMessages(blob, '200');
+    expect(rows).toHaveLength(3);
+  });
+
   it('throws on missing account/user.json', async () => {
     const blob = await buildFixturePackage({ omitUserJson: true });
     await expect(parsePackageZip(blob)).rejects.toBeInstanceOf(PackageParseError);

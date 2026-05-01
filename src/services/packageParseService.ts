@@ -27,27 +27,48 @@ function isJunkPath(path: string): boolean {
 }
 
 /**
+ * Map of lowercased ZIP entry paths to their actual cased path. Discord's
+ * package directory structure has shipped with both lowercase and capitalized
+ * top-level dirs (`Account/` vs `account/`); we normalize lookups by always
+ * keying off lowercase and resolving back to the real path via this index.
+ */
+type CaseIndex = Map<string, string>;
+
+function buildCaseIndex(zip: JSZip): CaseIndex {
+  const index = new Map<string, string>();
+  for (const path of Object.keys(zip.files)) {
+    if (isJunkPath(path)) continue;
+    index.set(path.toLowerCase(), path);
+  }
+  return index;
+}
+
+function resolveFile(zip: JSZip, index: CaseIndex, lowerPath: string) {
+  const actual = index.get(lowerPath);
+  return actual ? zip.file(actual) : null;
+}
+
+/**
  * Detects a single wrapper directory that some users end up with when they
  * re-zip their extracted package (e.g. `Discord Data Package - name/`).
- * Returns the prefix (with trailing slash) or `''` if the package is
- * already at the ZIP root.
+ * Returns the (lowercase) prefix with trailing slash, or `''` if the package
+ * is already at the ZIP root. The returned prefix is consumed only by
+ * `index.get()` lookups, so case is irrelevant.
  */
-function detectRootPrefix(zip: JSZip): string {
-  const entries = Object.keys(zip.files).filter((p) => !isJunkPath(p));
-  if (entries.some((p) => p === 'account/user.json')) return '';
+function detectRootPrefix(index: CaseIndex): string {
+  if (index.has('account/user.json')) return '';
 
   const firstSegments = new Set<string>();
-  for (const path of entries) {
-    const idx = path.indexOf('/');
+  for (const lower of index.keys()) {
+    const idx = lower.indexOf('/');
     if (idx === -1) continue;
-    firstSegments.add(path.slice(0, idx));
+    firstSegments.add(lower.slice(0, idx));
     if (firstSegments.size > 1) return '';
   }
   if (firstSegments.size !== 1) return '';
 
   const wrapper = [...firstSegments][0];
-  // Confirm the wrapper contains the expected entry before stripping it.
-  if (!zip.file(`${wrapper}/account/user.json`)) return '';
+  if (!index.has(`${wrapper}/account/user.json`)) return '';
   return `${wrapper}/`;
 }
 
@@ -86,15 +107,16 @@ export class PackageParseError extends Error {
  */
 export async function parsePackageZip(file: File | Blob): Promise<ParsedPackage> {
   const zip = await JSZip.loadAsync(file);
-  const prefix = detectRootPrefix(zip);
+  const caseIndex = buildCaseIndex(zip);
+  const prefix = detectRootPrefix(caseIndex);
 
-  const user = await readUserJson(zip, prefix);
-  const guilds = await readGuilds(zip, prefix);
-  const channelNameIndex = await readChannelNameIndex(zip, prefix);
-  const channels = await readChannels(zip, guilds, channelNameIndex, prefix);
+  const user = await readUserJson(zip, caseIndex, prefix);
+  const guilds = await readGuilds(zip, caseIndex, prefix);
+  const channelNameIndex = await readChannelNameIndex(zip, caseIndex, prefix);
+  const channels = await readChannels(zip, caseIndex, guilds, channelNameIndex, prefix);
 
   const totalMessages = channels.reduce((sum, c) => sum + c.messageCount, 0);
-  const avatarBlobUrl = await readAvatarBlobUrl(zip, prefix);
+  const avatarBlobUrl = await readAvatarBlobUrl(zip, caseIndex, prefix);
 
   return {
     user,
@@ -115,8 +137,9 @@ export async function loadChannelMessages(
   channelId: string,
 ): Promise<PackageMessage[]> {
   const zip = await JSZip.loadAsync(file);
-  const prefix = detectRootPrefix(zip);
-  const entry = zip.file(`${prefix}messages/c${channelId}/messages.csv`);
+  const caseIndex = buildCaseIndex(zip);
+  const prefix = detectRootPrefix(caseIndex);
+  const entry = resolveFile(zip, caseIndex, `${prefix}messages/c${channelId}/messages.csv`);
   if (!entry) {
     throw new PackageParseError(`messages.csv missing for channel ${channelId}`);
   }
@@ -162,8 +185,12 @@ export function validatePackage(
 
 /* ────────── internal helpers ────────── */
 
-async function readUserJson(zip: JSZip, prefix: string): Promise<PackageUser> {
-  const file = zip.file(`${prefix}account/user.json`);
+async function readUserJson(
+  zip: JSZip,
+  index: CaseIndex,
+  prefix: string,
+): Promise<PackageUser> {
+  const file = resolveFile(zip, index, `${prefix}account/user.json`);
   if (!file) {
     throw new PackageParseError('Package is missing account/user.json');
   }
@@ -180,16 +207,18 @@ async function readUserJson(zip: JSZip, prefix: string): Promise<PackageUser> {
   };
 }
 
-async function readGuilds(zip: JSZip, prefix: string): Promise<PackageGuild[]> {
+async function readGuilds(
+  zip: JSZip,
+  index: CaseIndex,
+  prefix: string,
+): Promise<PackageGuild[]> {
   const guilds: PackageGuild[] = [];
   const guildRegex = new RegExp(
     `^${escapeRegex(prefix)}servers\\/\\d+\\/guild\\.json$`,
   );
-  const paths = Object.keys(zip.files).filter(
-    (p) => !isJunkPath(p) && guildRegex.test(p),
-  );
-  for (const path of paths) {
-    const entry = zip.file(path);
+  const lowerPaths = Array.from(index.keys()).filter((p) => guildRegex.test(p));
+  for (const lowerPath of lowerPaths) {
+    const entry = resolveFile(zip, index, lowerPath);
     if (!entry) continue;
     try {
       const raw = JSON.parse(await entry.async('string')) as RawGuildJson;
@@ -207,9 +236,10 @@ function escapeRegex(s: string): string {
 
 async function readChannelNameIndex(
   zip: JSZip,
+  index: CaseIndex,
   prefix: string,
 ): Promise<Record<string, string | null>> {
-  const entry = zip.file(`${prefix}messages/index.json`);
+  const entry = resolveFile(zip, index, `${prefix}messages/index.json`);
   if (!entry) return {};
   try {
     return JSON.parse(await entry.async('string')) as Record<string, string | null>;
@@ -220,6 +250,7 @@ async function readChannelNameIndex(
 
 async function readChannels(
   zip: JSZip,
+  index: CaseIndex,
   guilds: PackageGuild[],
   nameIndex: Record<string, string | null>,
   prefix: string,
@@ -227,9 +258,10 @@ async function readChannels(
   const guildNames = new Map(guilds.map((g) => [g.id, g.name] as const));
   const channelDirs = new Set<string>();
 
-  for (const path of Object.keys(zip.files)) {
-    if (isJunkPath(path)) continue;
-    const relative = prefix && path.startsWith(prefix) ? path.slice(prefix.length) : path;
+  for (const lowerPath of index.keys()) {
+    const relative = prefix && lowerPath.startsWith(prefix)
+      ? lowerPath.slice(prefix.length)
+      : lowerPath;
     if (SKIPPED_PREFIXES.some((p) => relative.startsWith(p))) continue;
     const match = CHANNEL_DIR_REGEX.exec(relative);
     if (match) channelDirs.add(match[1]);
@@ -238,8 +270,8 @@ async function readChannels(
   const channels: PackageChannel[] = [];
 
   for (const id of channelDirs) {
-    const channelJson = zip.file(`${prefix}messages/c${id}/channel.json`);
-    const csvEntry = zip.file(`${prefix}messages/c${id}/messages.csv`);
+    const channelJson = resolveFile(zip, index, `${prefix}messages/c${id}/channel.json`);
+    const csvEntry = resolveFile(zip, index, `${prefix}messages/c${id}/messages.csv`);
     if (!channelJson || !csvEntry) continue;
 
     let raw: RawChannelJson;
@@ -278,9 +310,10 @@ async function readChannels(
 
 async function readAvatarBlobUrl(
   zip: JSZip,
+  index: CaseIndex,
   prefix: string,
 ): Promise<string | undefined> {
-  const entry = zip.file(`${prefix}account/avatar.png`);
+  const entry = resolveFile(zip, index, `${prefix}account/avatar.png`);
   if (!entry) return undefined;
   try {
     const blob = await entry.async('blob');
