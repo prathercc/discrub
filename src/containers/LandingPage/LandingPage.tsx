@@ -19,6 +19,7 @@ import {
   selectManuallyLoggedOut,
 } from '@features/auth/authSlice';
 import { isExtensionMode, requestDiscordToken } from '@/extension/messaging';
+import ResetDiscrubButton from '@components/settings/ResetDiscrubButton';
 
 /**
  * Landing page component - handles user authentication with Discord token
@@ -265,7 +266,7 @@ const LandingPage = () => {
               </Button>
             )}
 
-            <Box>
+            <Stack spacing={0.75} alignItems="center">
               <Link
                 href="https://github.com/prathercc/discrub#finding-your-discord-token"
                 target="_blank"
@@ -275,7 +276,8 @@ const LandingPage = () => {
               >
                 How to find my Discord token?
               </Link>
-            </Box>
+              <ResetDiscrubButton variant="link" />
+            </Stack>
 
             {isExtension && (
               <Typography variant="caption" color="text.secondary" textAlign="center">

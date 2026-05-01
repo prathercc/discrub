@@ -10,6 +10,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   storage,
   migrateAllStorage,
+  resetDiscrubData,
   type StorageAdapter,
   type StoreName,
 } from './storage';
@@ -403,5 +404,112 @@ describe('migrateAllStorage', () => {
 
     expect(await storage.settings.get(DiscrubSetting.SEARCH_DELAY)).toBe('7');
     expect(await storage.cache.get('users:user1')).toEqual({ userName: 'u1' });
+  });
+});
+
+describe('resetDiscrubData (Backlog #134 escape hatch)', () => {
+  let reloadSpy: ReturnType<typeof vi.fn>;
+  let originalChrome: unknown;
+
+  beforeEach(async () => {
+    await clearAllStores();
+    if (typeof localStorage !== 'undefined') localStorage.clear();
+
+    // Replace window.location so tests don't actually reload the runner.
+    reloadSpy = vi.fn();
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { ...window.location, reload: reloadSpy },
+    });
+
+    // Capture and clear any chrome global from prior tests.
+    originalChrome = (globalThis as { chrome?: unknown }).chrome;
+    delete (globalThis as { chrome?: unknown }).chrome;
+  });
+
+  afterEach(() => {
+    if (originalChrome === undefined) {
+      delete (globalThis as { chrome?: unknown }).chrome;
+    } else {
+      (globalThis as { chrome?: unknown }).chrome = originalChrome;
+    }
+  });
+
+  it('clears every Discrub IDB store', async () => {
+    await Promise.all(
+      ALL_STORES.map((name) => storage[name].set('seed', { v: 1 })),
+    );
+    for (const name of ALL_STORES) {
+      expect(await storage[name].get('seed')).toEqual({ v: 1 });
+    }
+
+    await resetDiscrubData();
+
+    for (const name of ALL_STORES) {
+      expect(await storage[name].get('seed')).toBeNull();
+    }
+  });
+
+  it('clears localStorage', async () => {
+    localStorage.setItem('discrub_status_log', '[{"id":"0"}]');
+    localStorage.setItem('something_else', 'value');
+
+    await resetDiscrubData();
+
+    expect(localStorage.getItem('discrub_status_log')).toBeNull();
+    expect(localStorage.getItem('something_else')).toBeNull();
+  });
+
+  it('triggers a page reload after clearing', async () => {
+    await resetDiscrubData();
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('continues clearing other stores when one rejects (Promise.allSettled)', async () => {
+    await Promise.all(
+      ALL_STORES.map((name) => storage[name].set('seed', { v: 1 })),
+    );
+    const failingClear = vi
+      .spyOn(storage.cache, 'clear')
+      .mockRejectedValueOnce(new Error('cache store corrupted'));
+
+    await resetDiscrubData();
+
+    expect(failingClear).toHaveBeenCalled();
+    // Every OTHER store still cleared despite the rejected cache.clear().
+    for (const name of ALL_STORES) {
+      if (name === 'cache') continue;
+      expect(await storage[name].get('seed')).toBeNull();
+    }
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls chrome.storage.local.clear() when the API is available', async () => {
+    const chromeClear = vi.fn().mockResolvedValue(undefined);
+    (globalThis as { chrome?: unknown }).chrome = {
+      storage: { local: { clear: chromeClear } },
+    };
+
+    await resetDiscrubData();
+
+    expect(chromeClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips chrome.storage entirely when chrome is undefined (web-app mode)', async () => {
+    expect((globalThis as { chrome?: unknown }).chrome).toBeUndefined();
+    await expect(resetDiscrubData()).resolves.toBeUndefined();
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it('still reloads when chrome.storage.local.clear() throws', async () => {
+    (globalThis as { chrome?: unknown }).chrome = {
+      storage: {
+        local: { clear: vi.fn().mockRejectedValue(new Error('boom')) },
+      },
+    };
+
+    await resetDiscrubData();
+
+    expect(reloadSpy).toHaveBeenCalledTimes(1);
   });
 });

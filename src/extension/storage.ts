@@ -456,3 +456,41 @@ async function migrateStatusLogLocalStorage(): Promise<number> {
     return 0;
   }
 }
+
+/* ─────────────────── Reset escape hatch ─────────────────── */
+
+/**
+ * Wipe every byte of Discrub data on this device + reload.
+ *
+ * Single source of truth for "what counts as Discrub data" — keep this
+ * in sync with any new IDB store added to `ALL_STORE_NAMES`. Used by the
+ * Reset button on LandingPage and Settings (#134) to recover from any
+ * stale-state issue without DevTools.
+ *
+ * Uses `Promise.allSettled` deliberately: if one store is corrupted and
+ * its `.clear()` rejects, the others must still run. Aborting on first
+ * failure would defeat the whole point of the escape hatch.
+ */
+export async function resetDiscrubData(): Promise<void> {
+  await Promise.allSettled(
+    ALL_STORE_NAMES.map((name) => storage[name].clear()),
+  );
+
+  if (typeof chrome !== 'undefined' && chrome.storage?.local) {
+    try {
+      await chrome.storage.local.clear();
+    } catch (error) {
+      logError('[storage] chrome.storage.local clear failed', error);
+    }
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.clear();
+    } catch (error) {
+      logError('[storage] localStorage clear failed', error);
+    }
+  }
+
+  window.location.reload();
+}

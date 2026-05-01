@@ -112,11 +112,11 @@ describe('SettingsModal', () => {
   });
 
   describe('Actions', () => {
-    it('should render Save, Cancel, and Reset buttons', () => {
+    it('should render Save, Cancel, and Reset to defaults buttons', () => {
       renderSettings();
       expect(screen.getByRole('button', { name: 'Save Settings' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Reset' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeInTheDocument();
     });
 
     it('should call onClose when Cancel is clicked', () => {

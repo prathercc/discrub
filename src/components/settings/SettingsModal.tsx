@@ -9,6 +9,8 @@ import {
   Tab,
   Box,
   Alert,
+  Stack,
+  Typography,
 } from '@mui/material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
@@ -21,6 +23,7 @@ import { ExportPreferencesTab } from './tabs/ExportPreferencesTab';
 import { UserDataTab } from './tabs/UserDataTab';
 import { DisplayTab } from './tabs/DisplayTab';
 import { PurgeTab } from './tabs/PurgeTab';
+import ResetDiscrubButton from './ResetDiscrubButton';
 
 interface SettingsModalProps {
   open: boolean;
@@ -144,6 +147,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
           <Tab label="User Data" />
           <Tab label="Display" />
           <Tab label="Purge Behavior" />
+          <Tab label="Reset Discrub" />
         </Tabs>
 
         <TabPanel value={activeTab} index={0}>
@@ -165,11 +169,25 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         <TabPanel value={activeTab} index={4}>
           <PurgeTab formValues={formValues} onChange={handleChange} />
         </TabPanel>
+
+        <TabPanel value={activeTab} index={5}>
+          <Stack spacing={2} sx={{ pt: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+              Reset
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Clear all data Discrub stores in your browser. Useful if you're hitting persistent issues that signing out and back in doesn't fix. You'll be returned to the sign-in screen afterward.
+            </Typography>
+            <Box>
+              <ResetDiscrubButton variant="button" />
+            </Box>
+          </Stack>
+        </TabPanel>
       </DialogContent>
 
       <DialogActions>
         <Button variant="outlined" onClick={handleReset} disabled={saving}>
-          Reset
+          Reset to defaults
         </Button>
         <Button variant="outlined" onClick={handleClose} disabled={saving}>
           Cancel
