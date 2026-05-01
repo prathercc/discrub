@@ -24,7 +24,7 @@ import type { ExportUserMap } from 'discrub-core/types/discrub-types';
 import { getUserRoleColor } from '@/utils/roleColorUtils';
 import { useAppDispatch } from '@/app/hooks';
 import { showToast } from '@/features/status/statusSlice';
-import TourSpot from '@/components/welcome/TourSpot';
+import TourButton from '@/components/welcome/TourButton';
 
 interface UserProfileModalProps {
   open: boolean;
@@ -302,7 +302,8 @@ const UserProfileModal = ({
               </Button>
             )}
             {onFilterByMentions && (
-              <Button
+              <TourButton
+                stepKey="profile-quick-filters"
                 size="small"
                 variant="outlined"
                 startIcon={<MentionIcon />}
@@ -310,9 +311,8 @@ const UserProfileModal = ({
                 sx={{ textTransform: 'none' }}
               >
                 Filter messages mentioning {serverNickname || displayName || username}
-              </Button>
+              </TourButton>
             )}
-            <TourSpot stepKey="profile-quick-filters" size="compact" placement="top" />
           </Box>
         )}
 

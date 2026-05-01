@@ -1,5 +1,5 @@
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Box, Typography, Paper, Button, Alert, AlertTitle, Chip, Badge } from '@mui/material';
+import { Box, Typography, Paper, Button, Alert, AlertTitle, Chip } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import {
   FileDownload as ExportIcon,
@@ -15,7 +15,8 @@ import {
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import WelcomePanel from '@components/welcome/WelcomePanel';
 import TourTooltip from '@components/welcome/TourTooltip';
-import TourSpot from '@components/welcome/TourSpot';
+import TourButton from '@components/welcome/TourButton';
+import TourFootnote from '@components/welcome/TourFootnote';
 import { contextualTourSteps } from '@components/welcome/tourSteps';
 import { useTour } from '@/hooks/useTour';
 import { selectSelectedChannel, selectChannels, fetchChannelById } from '@features/channel/channelSlice';
@@ -744,7 +745,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                 })()}
               </Typography>
               {!isForumChannel && pagination.mode === 'search' && (
-                <TourSpot stepKey="search-match-counter" size="compact" placement="bottom" />
+                <TourFootnote stepKey="search-match-counter" />
               )}
               {!isForumChannel && pagination.hasMore && pagination.mode === 'paginated' && (
                 <Chip
@@ -790,25 +791,18 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
               </Button>
             )}
             {!isForumChannel && (
-              <Badge
+              <TourButton
+                stepKey="search-filters"
                 badgeContent={activeFilterCount}
-                color="primary"
-                sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}
+                variant="outlined"
+                size="small"
+                startIcon={<FilterListIcon />}
+                onClick={() => { filterModalKeyRef.current++; setFilterModalOpen(true); }}
+                data-tour="search-filters"
+                data-testid="search-filters-button"
               >
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<FilterListIcon />}
-                  onClick={() => { filterModalKeyRef.current++; setFilterModalOpen(true); }}
-                  data-tour="search-filters"
-                  data-testid="search-filters-button"
-                >
-                  Filters
-                </Button>
-              </Badge>
-            )}
-            {!isForumChannel && (
-              <TourSpot stepKey="search-filters" size="compact" placement="bottom" />
+                Filters
+              </TourButton>
             )}
             <Button
               variant="outlined"
@@ -831,7 +825,8 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
               </Button>
             )}
             {!isForumChannel && (
-              <Button
+              <TourButton
+                stepKey="focus-button"
                 variant="outlined"
                 size="small"
                 startIcon={focusedView ? <FullscreenExitIcon /> : <FullscreenIcon />}
@@ -841,10 +836,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                 title={focusedView ? 'Exit focus mode (F or Esc)' : 'Enter focus mode (F)'}
               >
                 {focusedView ? 'Exit Focus' : 'Focus'}
-              </Button>
-            )}
-            {!isForumChannel && (
-              <TourSpot stepKey="focus-button" size="compact" placement="bottom" />
+              </TourButton>
             )}
             {isForumChannel ? (
               <Button

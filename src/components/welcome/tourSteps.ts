@@ -3,12 +3,14 @@ import type { Step } from 'react-joyride';
 /**
  * Catalog entry: a piece of explanatory copy keyed by a stable
  * identifier. Used by both the auto-running joyride tours (via
- * `shellTourSteps` / `contextualTourSteps` below) and the always-
- * available `<TourSpot stepKey="...">` `?` icons.
+ * `shellTourSteps` / `contextualTourSteps` below) and the family of
+ * inline help components — `<TourButton>`, `<TourFootnote>`, and
+ * `<TourCaption>` — that render a `?` affordance keyed to a stepKey.
  *
- * Adding a new entry here is the single source of truth — drop a
- * `<TourSpot>` next to a feature for individual help, or include the
- * key in one of the tour arrays for orientation walkthroughs.
+ * Adding a new entry here is the single source of truth — drop the
+ * appropriate inline component next to a feature for individual help,
+ * or include the key in one of the tour arrays for orientation
+ * walkthroughs.
  */
 export interface TourCatalogEntry {
   /** Heading shown at the top of the tooltip / popover. */
@@ -19,8 +21,8 @@ export interface TourCatalogEntry {
 
 /**
  * The flat catalog. Keep keys kebab-case and stable — they're used
- * as React keys in TourSpot and persisted nowhere, so renaming is
- * safe but should still be deliberate.
+ * as React keys in the inline help components and persisted nowhere,
+ * so renaming is safe but should still be deliberate.
  */
 export const tourCatalog: Record<string, TourCatalogEntry> = {
   // ── Shell (always-rendered chrome) ────────────────────────────────
@@ -91,7 +93,7 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
     content: 'Click a message to select it, then use the toolbar to delete, edit, or manage attachments. Click reply bars or pinned-message notices to jump to the referenced message.',
   },
 
-  // ── Tier 1 spot-only entries (TourSpot, not part of any walkthrough) ──
+  // ── Tier 1 inline-only entries (not part of any walkthrough) ──
   'refine-section': {
     title: 'Refine vs Search',
     content: "Refine narrows the messages already loaded in your feed: instant, client-side, no API calls. Search above hits Discord's API and pulls fresh results. Use Refine to slice what you have, and Search when you need to find more.",

@@ -1,7 +1,7 @@
 import { Box, Slider, Typography, Alert } from '@mui/material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
-import TourSpot from '@components/welcome/TourSpot';
+import TourFootnote from '@components/welcome/TourFootnote';
 
 interface OperationDelaysTabProps {
   formValues: AppSettings;
@@ -161,9 +161,11 @@ export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabP
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-      <Alert severity="info" action={<TourSpot stepKey="operation-delays" size="compact" placement="left" />}>
-        Delays help prevent rate limiting from Discord. Higher delays are safer but slower.
-        The modifier adds randomization to make requests appear more natural.
+      <Alert severity="info" sx={{ '& .MuiAlert-message': { display: 'flex', alignItems: 'center' } }}>
+        <Box component="span">
+          These delays prevent Discord rate-limit errors. Defaults are tuned conservatively.
+        </Box>
+        <TourFootnote stepKey="operation-delays" />
       </Alert>
 
       <DelaySlider config={SEARCH_CONFIG} value={searchDelay} onChange={onChange} />

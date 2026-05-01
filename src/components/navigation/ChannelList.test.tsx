@@ -101,7 +101,7 @@ describe('ChannelList', () => {
       expect(screen.getByText('voice-chat')).toBeInTheDocument();
     });
 
-    it('should show guild name in header', () => {
+    it('should show "Channels" section header (not the guild name — that lives in the sidebar crumb)', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
@@ -109,7 +109,7 @@ describe('ChannelList', () => {
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
-      expect(screen.getByText(/Test Guild/)).toBeInTheDocument();
+      expect(screen.getByText('Channels')).toBeInTheDocument();
     });
   });
 
@@ -189,8 +189,8 @@ describe('ChannelList', () => {
     });
   });
 
-  describe('Copy Names', () => {
-    it('should render copy button in header', () => {
+  describe('Copy Names (multi-select toolbar)', () => {
+    it('does not render the Copy button when nothing is selected', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
@@ -198,10 +198,11 @@ describe('ChannelList', () => {
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
-      expect(screen.getByLabelText('Copy channel names')).toBeInTheDocument();
+      // Multi-select inactive + no selection → MultiSelectControls renders nothing
+      expect(screen.queryByTestId('multi-select-copy')).toBeNull();
     });
 
-    it('should copy channel names to clipboard when copy button clicked', () => {
+    it('copies only the selected channel names when Copy is clicked in multi-select mode', () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.assign(navigator, { clipboard: { writeText } });
 
@@ -209,14 +210,18 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy channel names'));
-      expect(writeText).toHaveBeenCalledWith('general\nannouncements');
+      // Enter multi-select mode so the toolbar renders
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-copy'));
+      // Only the selected channel ("general") makes it to the clipboard,
+      // not "announcements" — proves the new selection-scoped semantics.
+      expect(writeText).toHaveBeenCalledWith('general');
     });
 
-    it('should dispatch toast after copying', () => {
+    it('dispatches a toast after copying selected channel names', () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.assign(navigator, { clipboard: { writeText } });
 
@@ -224,10 +229,11 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy channel names'));
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-copy'));
       expect(store.getState().status.toast.isVisible).toBe(true);
       expect(store.getState().status.toast.message).toBe('Copied to clipboard');
     });

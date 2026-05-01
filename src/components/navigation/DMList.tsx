@@ -6,22 +6,18 @@ import {
   Avatar,
   ListItemText,
   Box,
-  Button,
   Typography,
-  IconButton,
   Checkbox,
-  Tooltip,
   Divider,
 } from '@mui/material';
 import {
   Message as MessageIcon,
   CheckBox as SelectModeIcon,
   CheckBoxOutlineBlank as SelectModeOffIcon,
-  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
-import TourSpot from '@components/welcome/TourSpot';
+import TourButton from '@components/welcome/TourButton';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   selectDMs,
@@ -158,11 +154,12 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     );
   };
 
-  const handleCopyNames = () => {
-    const names = filteredDMs
+  const handleCopySelectedNames = () => {
+    const names = selectedDms
       .map((dm) => getDmName(dm))
       .filter(Boolean)
       .join('\n');
+    if (!names) return;
     navigator.clipboard.writeText(names);
     dispatch(showToast({ level: 'success', message: 'Copied to clipboard' }));
   };
@@ -203,19 +200,11 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         >
           Direct Messages
         </Typography>
-        <Tooltip title="Copy DM names">
-          <IconButton
-            size="small"
-            onClick={handleCopyNames}
-            aria-label="Copy DM names"
-          >
-            <CopyIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Button
+        <TourButton
+          stepKey="multi-select-toggle"
           size="small"
           onClick={handleToggleMultiSelect}
-          variant={multiSelectMode ? 'contained' : 'text'}
+          variant={multiSelectMode ? 'contained' : 'outlined'}
           color={multiSelectMode ? 'primary' : 'inherit'}
           aria-label="Toggle multi-select"
           data-tour="multi-select-toggle"
@@ -223,8 +212,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
           Multi-select
-        </Button>
-        <TourSpot stepKey="multi-select-toggle" size="compact" placement="bottom" />
+        </TourButton>
       </Box>
 
       <MultiSelectControls
@@ -241,6 +229,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         }
         onExport={() => setBulkExportOpen(true)}
         onPurge={() => setBulkPurgeOpen(true)}
+        onCopyNames={handleCopySelectedNames}
         noun="conversations"
       />
 

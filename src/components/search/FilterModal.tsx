@@ -23,7 +23,7 @@ import { IsPinnedType } from 'discrub-core/discord-enum';
 import DateRangeFilter, { type DateFilterMode } from './filters/DateRangeFilter';
 import MessageTypeFilter from './filters/MessageTypeFilter';
 import UserPicker from '@components/ui/UserPicker';
-import TourSpot from '@components/welcome/TourSpot';
+import TourFootnote from '@components/welcome/TourFootnote';
 import PinnedFilter from './filters/PinnedFilter';
 import AuthorTypeFilter from './filters/AuthorTypeFilter';
 import { defaultCriteria } from './searchConstants';
@@ -290,10 +290,10 @@ const FilterModal = ({
             <RefineIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', flex: 1 }}>
               Refine
+              <Box component="span" onClick={(e) => e.stopPropagation()}>
+                <TourFootnote stepKey="refine-section" />
+              </Box>
             </Typography>
-            <Box onClick={(e) => e.stopPropagation()} sx={{ display: 'inline-flex' }}>
-              <TourSpot stepKey="refine-section" size="compact" placement="bottom" />
-            </Box>
             {refineFilterCount > 0 && (
               <Chip label={refineFilterCount} size="small" sx={{ height: 20, fontSize: '0.7rem', minWidth: 20, backgroundColor: 'action.selected' }} />
             )}

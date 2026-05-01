@@ -2,6 +2,7 @@ import { Box, Button, Divider, Link, Stack, Typography } from '@mui/material';
 import {
   Download as DownloadIcon,
   DeleteSweep as PurgeIcon,
+  ContentCopy as CopyIcon,
 } from '@mui/icons-material';
 
 export interface MultiSelectControlsProps {
@@ -19,6 +20,8 @@ export interface MultiSelectControlsProps {
   onExport: () => void;
   /** Open the bulk-purge dialog. */
   onPurge: () => void;
+  /** Copy the names of currently-selected items to the clipboard. */
+  onCopyNames: () => void;
   /** Plural noun for aria labels — e.g. "channels", "conversations". */
   noun: string;
 }
@@ -42,6 +45,7 @@ const MultiSelectControls = ({
   onToggleAll,
   onExport,
   onPurge,
+  onCopyNames,
   noun,
 }: MultiSelectControlsProps) => {
   if (!active) return null;
@@ -103,6 +107,18 @@ const MultiSelectControls = ({
               sx={{ textTransform: 'none' }}
             >
               Purge
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              color="inherit"
+              startIcon={<CopyIcon fontSize="small" />}
+              onClick={onCopyNames}
+              aria-label={`Copy selected ${noun} names`}
+              data-testid="multi-select-copy"
+              sx={{ textTransform: 'none' }}
+            >
+              Copy
             </Button>
           </Box>
         </>

@@ -32,67 +32,69 @@ describe('Copy List', () => {
     });
   });
 
-  describe('Channel List Copy', () => {
+  describe('Channel List Copy (multi-select toolbar)', () => {
     beforeEach(() => {
       cy.selectServer('Cypress Test Server');
       cy.contains('general').should('be.visible');
     });
 
-    it('should have copy channel names button', () => {
-      cy.get('[aria-label="Copy channel names"]').should('be.visible');
+    it('does not show the Copy button when nothing is selected', () => {
+      cy.get('[data-testid="multi-select-copy"]').should('not.exist');
     });
 
-    it('should show Snackbar after clicking copy', () => {
-      cy.window().then((win) => {
-        cy.stub(win.navigator.clipboard, 'writeText').resolves();
-      });
-
-      cy.get('[aria-label="Copy channel names"]').click();
-      cy.contains('Copied to clipboard').should('be.visible');
+    it('shows Copy in the multi-select toolbar once a channel is selected', () => {
+      cy.get('[aria-label="Toggle multi-select"]').click();
+      cy.contains('general').click();
+      cy.get('[data-testid="multi-select-copy"]').should('be.visible');
     });
 
-    it('should copy channel names to clipboard', () => {
+    it('copies only selected channel names and shows the snackbar', () => {
       cy.window().then((win) => {
         const stub = cy.stub(win.navigator.clipboard, 'writeText').resolves();
-        cy.get('[aria-label="Copy channel names"]').click().then(() => {
+        cy.get('[aria-label="Toggle multi-select"]').click();
+        cy.contains('general').click();
+        cy.get('[data-testid="multi-select-copy"]').click().then(() => {
           expect(stub).to.have.been.calledOnce;
           const copiedText = stub.firstCall.args[0];
-          expect(copiedText).to.include('general');
-          expect(copiedText).to.include('dev-chat');
+          expect(copiedText).to.equal('general');
+          // dev-chat is unselected, so it must NOT be in the clipboard
+          expect(copiedText).not.to.include('dev-chat');
         });
+        cy.contains('Copied to clipboard').should('be.visible');
       });
     });
   });
 
-  describe('DM List Copy', () => {
+  describe('DM List Copy (multi-select toolbar)', () => {
     beforeEach(() => {
       cy.contains('button', 'DMs').click();
       cy.wait('@getDMs');
     });
 
-    it('should have copy DM names button', () => {
-      cy.get('[aria-label="Copy DM names"]').should('be.visible');
+    it('does not show the Copy button when nothing is selected', () => {
+      cy.get('[data-testid="multi-select-copy"]').should('not.exist');
     });
 
-    it('should show Snackbar after clicking copy', () => {
-      cy.window().then((win) => {
-        cy.stub(win.navigator.clipboard, 'writeText').resolves();
-      });
-
-      cy.get('[aria-label="Copy DM names"]').click();
-      cy.contains('Copied to clipboard').should('be.visible');
+    it('shows Copy in the multi-select toolbar once a DM is selected', () => {
+      cy.get('[aria-label="Toggle multi-select"]').click();
+      cy.contains('alice_dev').click();
+      cy.get('[data-testid="multi-select-copy"]').should('be.visible');
     });
 
-    it('should copy DM names to clipboard', () => {
+    it('copies only selected DM names and shows the snackbar', () => {
       cy.window().then((win) => {
         const stub = cy.stub(win.navigator.clipboard, 'writeText').resolves();
-        cy.get('[aria-label="Copy DM names"]').click().then(() => {
+        cy.get('[aria-label="Toggle multi-select"]').click();
+        cy.contains('alice_dev').click();
+        cy.get('[data-testid="multi-select-copy"]').click().then(() => {
           expect(stub).to.have.been.calledOnce;
           const copiedText = stub.firstCall.args[0];
           expect(copiedText).to.include('alice_dev');
-          expect(copiedText).to.include('bob_gamer');
-          expect(copiedText).to.include('charlie_mod');
+          // Other DMs not selected, so should NOT appear
+          expect(copiedText).not.to.include('bob_gamer');
+          expect(copiedText).not.to.include('charlie_mod');
         });
+        cy.contains('Copied to clipboard').should('be.visible');
       });
     });
   });

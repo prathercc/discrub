@@ -5,12 +5,9 @@ import {
   ListItemIcon,
   ListItemText,
   Box,
-  Button,
   Typography,
   Divider,
-  IconButton,
   Checkbox,
-  Tooltip,
 } from '@mui/material';
 import {
   Tag as TextChannelIcon,
@@ -19,7 +16,6 @@ import {
   Folder as CategoryIcon,
   CheckBox as SelectModeIcon,
   CheckBoxOutlineBlank as SelectModeOffIcon,
-  ContentCopy as CopyIcon,
   ExpandMore as ExpandMoreIcon,
   ChevronRight as CollapseIcon,
   Lock as LockIcon,
@@ -27,7 +23,7 @@ import {
 import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
 import { ChannelType } from 'discrub-core/discord-enum';
-import TourSpot from '@components/welcome/TourSpot';
+import TourButton from '@components/welcome/TourButton';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   selectChannels,
@@ -126,11 +122,12 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     }
   };
 
-  const handleCopyNames = () => {
-    const names = filteredChannels
+  const handleCopySelectedNames = () => {
+    const names = selectedChannels
       .map((ch) => ch.name)
       .filter(Boolean)
       .join('\n');
+    if (!names) return;
     navigator.clipboard.writeText(names);
     dispatch(showToast({ level: 'success', message: 'Copied to clipboard' }));
   };
@@ -282,7 +279,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
             fontWeight: 600,
           }}
         >
-          {selectedGuild.name}
+          Channels
         </Typography>
         <Divider />
         <EmptyState
@@ -308,21 +305,13 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
             fontWeight: 600,
           }}
         >
-          {selectedGuild.name}
+          Channels
         </Typography>
-        <Tooltip title="Copy channel names">
-          <IconButton
-            size="small"
-            onClick={handleCopyNames}
-            aria-label="Copy channel names"
-          >
-            <CopyIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-        <Button
+        <TourButton
+          stepKey="multi-select-toggle"
           size="small"
           onClick={handleToggleMultiSelect}
-          variant={multiSelectMode ? 'contained' : 'text'}
+          variant={multiSelectMode ? 'contained' : 'outlined'}
           color={multiSelectMode ? 'primary' : 'inherit'}
           aria-label="Toggle multi-select"
           data-tour="multi-select-toggle"
@@ -330,8 +319,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
           Multi-select
-        </Button>
-        <TourSpot stepKey="multi-select-toggle" size="compact" placement="bottom" />
+        </TourButton>
       </Box>
 
       <MultiSelectControls
@@ -348,6 +336,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
         }
         onExport={() => setBulkExportOpen(true)}
         onPurge={() => setBulkPurgeOpen(true)}
+        onCopyNames={handleCopySelectedNames}
         noun="channels"
       />
 

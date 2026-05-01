@@ -139,7 +139,9 @@ describe('Bulk Export', () => {
 
     it('should show preset selector', () => {
       cy.get('[aria-label="Export selected channels"]').click();
-      cy.get('[role="dialog"]').contains('Select a preset...').should('exist');
+      // Selector now has a "Preset" label above and a "Choose..." placeholder
+      cy.get('[role="dialog"]').contains('Preset').should('exist');
+      cy.get('[role="dialog"]').contains('Choose...').should('exist');
     });
 
     it('should show summary chip', () => {

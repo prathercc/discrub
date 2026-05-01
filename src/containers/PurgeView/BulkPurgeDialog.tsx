@@ -22,7 +22,7 @@ import {
 import type { Channel } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import TourSpot from '@components/welcome/TourSpot';
+import TourFootnote from '@components/welcome/TourFootnote';
 import { selectSettings } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
@@ -270,8 +270,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, mb: 0.75 }}>
               <Typography variant="subtitle2">
                 What to purge
+                <TourFootnote stepKey="purge-mode-toggle" />
               </Typography>
-              <TourSpot stepKey="purge-mode-toggle" size="compact" placement="bottom" />
             </Box>
             <ToggleButtonGroup
               exclusive

@@ -9,6 +9,7 @@ const baseProps = {
   onToggleAll: () => {},
   onExport: () => {},
   onPurge: () => {},
+  onCopyNames: () => {},
   noun: 'channels',
 };
 
@@ -37,22 +38,25 @@ describe('MultiSelectControls (Backlog #135)', () => {
     expect(link).toHaveAttribute('aria-label', 'Deselect all channels');
   });
 
-  it('hides Export and Purge buttons when nothing is selected', () => {
+  it('hides Export, Purge, and Copy buttons when nothing is selected', () => {
     render(<MultiSelectControls {...baseProps} active selectedCount={0} />);
     expect(screen.queryByTestId('multi-select-export')).toBeNull();
     expect(screen.queryByTestId('multi-select-purge')).toBeNull();
+    expect(screen.queryByTestId('multi-select-copy')).toBeNull();
   });
 
-  it('shows Export and Purge buttons once at least one item is selected', () => {
+  it('shows Export, Purge, and Copy buttons once at least one item is selected', () => {
     render(<MultiSelectControls {...baseProps} active selectedCount={1} />);
     expect(screen.getByTestId('multi-select-export')).toBeInTheDocument();
     expect(screen.getByTestId('multi-select-purge')).toBeInTheDocument();
+    expect(screen.getByTestId('multi-select-copy')).toBeInTheDocument();
   });
 
   it('uses the provided noun in action button aria labels', () => {
     render(<MultiSelectControls {...baseProps} active selectedCount={1} noun="conversations" />);
     expect(screen.getByLabelText('Export selected conversations')).toBeInTheDocument();
     expect(screen.getByLabelText('Purge selected conversations')).toBeInTheDocument();
+    expect(screen.getByLabelText('Copy selected conversations names')).toBeInTheDocument();
   });
 
   it('calls onToggleAll when the link is clicked', () => {
@@ -74,5 +78,12 @@ describe('MultiSelectControls (Backlog #135)', () => {
     render(<MultiSelectControls {...baseProps} active selectedCount={3} onPurge={onPurge} />);
     fireEvent.click(screen.getByTestId('multi-select-purge'));
     expect(onPurge).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onCopyNames when Copy is clicked', () => {
+    const onCopyNames = vi.fn();
+    render(<MultiSelectControls {...baseProps} active selectedCount={3} onCopyNames={onCopyNames} />);
+    fireEvent.click(screen.getByTestId('multi-select-copy'));
+    expect(onCopyNames).toHaveBeenCalledTimes(1);
   });
 });

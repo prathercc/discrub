@@ -15,7 +15,7 @@ import {
 } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import TourSpot from '@components/welcome/TourSpot';
+import TourFootnote from '@components/welcome/TourFootnote';
 import { applyPreset, selectExport } from '@features/export/exportSlice';
 import {
   removePreset,
@@ -258,7 +258,21 @@ const PresetSelector = () => {
 
   return (
     <>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Box>
+        <Typography
+          variant="caption"
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            mb: 0.5,
+            fontWeight: 600,
+            color: 'text.secondary',
+            fontSize: '0.8rem',
+          }}
+        >
+          Preset
+          <TourFootnote stepKey="export-presets" />
+        </Typography>
         <Select
           value={selectedPresetId}
           onChange={(e) => handleSelectPreset(e.target.value)}
@@ -266,15 +280,14 @@ const PresetSelector = () => {
           size="small"
           fullWidth
           renderValue={(value) => {
-            if (!value) return <Typography color="text.secondary">Select a preset...</Typography>;
+            if (!value) return <Typography color="text.secondary">Choose...</Typography>;
             const preset = allPresets.find((p) => p.id === value);
-            if (!preset) return <Typography color="text.secondary">Select a preset...</Typography>;
+            if (!preset) return <Typography color="text.secondary">Choose...</Typography>;
             return preset.name;
           }}
         >
           {menuItems}
         </Select>
-        <TourSpot stepKey="export-presets" size="compact" placement="left" />
       </Box>
 
       {/* Save Preset Name Dialog */}

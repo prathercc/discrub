@@ -20,7 +20,7 @@ describe('OperationDelaysTab', () => {
 
   it('should render rate-limiting info alert', () => {
     render(<OperationDelaysTab formValues={defaultSettings} onChange={vi.fn()} />);
-    expect(screen.getByText(/Delays help prevent rate limiting/)).toBeInTheDocument();
+    expect(screen.getByText(/These delays prevent Discord rate-limit errors/)).toBeInTheDocument();
   });
 
   it('should show effective delay ranges', () => {

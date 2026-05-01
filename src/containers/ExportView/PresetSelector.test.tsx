@@ -61,7 +61,7 @@ describe('PresetSelector', () => {
 
   it('renders dropdown', () => {
     renderSelector();
-    expect(screen.getByText('Select a preset...')).toBeInTheDocument();
+    expect(screen.getByText('Choose...')).toBeInTheDocument();
   });
 
   it('shows built-in presets when opened', async () => {
@@ -179,7 +179,7 @@ describe('PresetSelector', () => {
 
   it('starts with no preset selected on mount', () => {
     renderSelector();
-    expect(screen.getByText('Select a preset...')).toBeInTheDocument();
+    expect(screen.getByText('Choose...')).toBeInTheDocument();
   });
 
   it('does NOT persist preset selection across sessions', async () => {
@@ -226,7 +226,7 @@ describe('PresetSelector', () => {
       });
     });
 
-    expect(combobox.textContent).toBe('Select a preset...');
+    expect(combobox.textContent).toBe('Choose...');
     // And there is no "(Modified)" suffix in the dropdown anywhere.
     expect(combobox.textContent).not.toContain('Modified');
   });
@@ -259,6 +259,6 @@ describe('PresetSelector', () => {
     await act(async () => { fireEvent.click(deleteBtn); });
 
     // Selection should be cleared to placeholder
-    expect(screen.getByText('Select a preset...')).toBeInTheDocument();
+    expect(screen.getByText('Choose...')).toBeInTheDocument();
   });
 });

@@ -176,7 +176,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
           sx={{ display: 'flex', gap: 1, justifyContent: 'center', flexWrap: 'wrap', mt: 1.5 }}
         >
           <Button
-            variant="text"
+            variant="outlined"
             size="small"
             startIcon={<StarIcon />}
             endIcon={<GitHubIcon sx={{ fontSize: 16 }} />}
@@ -184,12 +184,12 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             href={GITHUB_REPO_URL}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{ textTransform: 'none', color: 'text.secondary' }}
+            sx={{ textTransform: 'none' }}
           >
             Star on GitHub
           </Button>
           <Button
-            variant="text"
+            variant="outlined"
             size="small"
             startIcon={<FollowIcon />}
             endIcon={<GitHubIcon sx={{ fontSize: 16 }} />}
@@ -197,7 +197,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             href={GITHUB_PROFILE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            sx={{ textTransform: 'none', color: 'text.secondary' }}
+            sx={{ textTransform: 'none' }}
           >
             Follow on GitHub
           </Button>

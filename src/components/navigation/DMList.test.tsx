@@ -207,42 +207,45 @@ describe('DMList', () => {
     });
   });
 
-  describe('Copy Names', () => {
-    it('should render copy button in header', () => {
+  describe('Copy Names (multi-select toolbar)', () => {
+    it('does not render the Copy button when nothing is selected', () => {
       renderWithProviders(<DMList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           dm: { dms: [dmWithRecipient, dmWithMultiRecipients], selectedDm: null, selectedDms: [], isLoading: false, error: null },
         }),
       });
-      expect(screen.getByLabelText('Copy DM names')).toBeInTheDocument();
+      expect(screen.queryByTestId('multi-select-copy')).toBeNull();
     });
 
-    it('should copy DM recipient names to clipboard when copy button clicked', () => {
+    it('copies only the selected DM recipient names when Copy is clicked in multi-select mode', () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.assign(navigator, { clipboard: { writeText } });
 
       renderWithProviders(<DMList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          dm: { dms: [dmWithRecipient, dmWithMultiRecipients], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+          dm: { dms: [dmWithRecipient, dmWithMultiRecipients], selectedDm: null, selectedDms: [dmWithRecipient], isLoading: false, error: null },
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy DM names'));
-      expect(writeText).toHaveBeenCalledWith('Alice\nBob, Charlie');
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-copy'));
+      // Only the selected DM ("Alice") makes it to the clipboard, not "Bob, Charlie"
+      expect(writeText).toHaveBeenCalledWith('Alice');
     });
 
-    it('should dispatch toast after copying', () => {
+    it('dispatches a toast after copying selected DM names', () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.assign(navigator, { clipboard: { writeText } });
 
       const { store } = renderWithProviders(<DMList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          dm: { dms: [dmWithRecipient, dmWithMultiRecipients], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+          dm: { dms: [dmWithRecipient, dmWithMultiRecipients], selectedDm: null, selectedDms: [dmWithRecipient], isLoading: false, error: null },
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy DM names'));
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-copy'));
       expect(store.getState().status.toast.isVisible).toBe(true);
       expect(store.getState().status.toast.message).toBe('Copied to clipboard');
     });
