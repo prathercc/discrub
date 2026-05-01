@@ -9,6 +9,12 @@ export interface StatusLogEntry {
   timestamp: number;
   level: StatusLevel;
   message: string;
+  /**
+   * Per-page-load identifier. Stamped at dispatch time so the panel can
+   * group entries by session. Optional because entries persisted before
+   * the field existed (#126) won't have it; treat as a "legacy" group.
+   */
+  sessionId?: string;
 }
 
 export interface OperationTip {

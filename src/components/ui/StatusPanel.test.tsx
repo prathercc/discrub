@@ -27,6 +27,8 @@ describe('StatusPanel', () => {
     });
     // Expand the panel
     fireEvent.click(screen.getByText('STATUS LOG'));
+    // Legacy group is collapsed by default — expand it to see entries.
+    fireEvent.click(screen.getByTestId('session-header-legacy'));
     expect(screen.getByText('Test message')).toBeInTheDocument();
     expect(screen.getByText('Error occurred')).toBeInTheDocument();
   });
@@ -133,6 +135,7 @@ describe('StatusPanel', () => {
       }),
     });
     fireEvent.click(screen.getByText('STATUS LOG'));
+    fireEvent.click(screen.getByTestId('session-header-legacy'));
     expect(screen.getByText('[INFO]')).toBeInTheDocument();
     expect(screen.getByText('[ERR]')).toBeInTheDocument();
     expect(screen.getByText('[OK]')).toBeInTheDocument();
@@ -175,6 +178,7 @@ describe('StatusPanel', () => {
       }),
     });
     fireEvent.click(screen.getByText('STATUS LOG'));
+    fireEvent.click(screen.getByTestId('session-header-legacy'));
     expect(screen.getByText('Entry 79')).toBeInTheDocument();
     expect(screen.queryByText('Entry 0')).not.toBeInTheDocument();
   });
@@ -215,6 +219,7 @@ describe('StatusPanel', () => {
 
     // Expand the panel
     fireEvent.click(screen.getByText('STATUS LOG'));
+    fireEvent.click(screen.getByTestId('session-header-legacy'));
     expect(screen.getByText('Last entry')).toBeInTheDocument();
 
     // Advance past the scroll delay (400ms for Collapse animation)
@@ -242,11 +247,112 @@ describe('StatusPanel', () => {
 
     // Expand
     fireEvent.click(screen.getByText('STATUS LOG'));
+    fireEvent.click(screen.getByTestId('session-header-legacy'));
     expect(screen.getByText('Test')).toBeInTheDocument();
     expect(screen.getByLabelText('Collapse log')).toBeInTheDocument();
 
     // Collapse — button changes back
     fireEvent.click(screen.getByText('STATUS LOG'));
     expect(screen.getByLabelText('Expand log')).toBeInTheDocument();
+  });
+
+  describe('session grouping (Backlog #126)', () => {
+    const expand = () => fireEvent.click(screen.getByText('STATUS LOG'));
+
+    it('renders entries with no sessionId under a collapsed "Earlier activity" group', () => {
+      renderWithProviders(<StatusPanel />, {
+        preloadedState: createBaseState({
+          status: {
+            ...initialStatusState,
+            entries: [
+              { id: '0', timestamp: 1000, level: 'info', message: 'legacy one' },
+              { id: '1', timestamp: 2000, level: 'info', message: 'legacy two' },
+            ],
+          },
+        }),
+      });
+      expand();
+      // Header is visible but content is hidden until the user expands.
+      expect(screen.getByText(/Earlier activity/)).toBeInTheDocument();
+      expect(screen.queryByText('legacy one')).toBeNull();
+      expect(screen.queryByText('legacy two')).toBeNull();
+      // Expanding reveals the entries.
+      fireEvent.click(screen.getByTestId('session-header-legacy'));
+      expect(screen.getByText('legacy one')).toBeInTheDocument();
+      expect(screen.getByText('legacy two')).toBeInTheDocument();
+    });
+
+    it('renders separate headers for distinct sessions', () => {
+      renderWithProviders(<StatusPanel />, {
+        preloadedState: createBaseState({
+          status: {
+            ...initialStatusState,
+            entries: [
+              { id: '0', timestamp: 1000, level: 'info', message: 'session A entry', sessionId: 'session-A' },
+              { id: '1', timestamp: 2000, level: 'info', message: 'session B entry', sessionId: 'session-B' },
+            ],
+          },
+        }),
+      });
+      expand();
+      // Two session headers (one for A, one for B). Neither matches the
+      // runtime current id so both render with "Session of …" labels.
+      const headers = screen.getAllByText(/Session of /);
+      expect(headers).toHaveLength(2);
+    });
+
+    it('collapses non-current, non-legacy sessions by default', () => {
+      renderWithProviders(<StatusPanel />, {
+        preloadedState: createBaseState({
+          status: {
+            ...initialStatusState,
+            entries: [
+              { id: '0', timestamp: 1000, level: 'info', message: 'old entry hidden by default', sessionId: 'old-session' },
+            ],
+          },
+        }),
+      });
+      expand();
+      expect(screen.getByText(/Session of /)).toBeInTheDocument();
+      expect(screen.queryByText('old entry hidden by default')).toBeNull();
+    });
+
+    it('expands a collapsed session when its header is clicked', () => {
+      renderWithProviders(<StatusPanel />, {
+        preloadedState: createBaseState({
+          status: {
+            ...initialStatusState,
+            entries: [
+              { id: '0', timestamp: 1000, level: 'info', message: 'reveal me', sessionId: 'old-session' },
+            ],
+          },
+        }),
+      });
+      expand();
+      expect(screen.queryByText('reveal me')).toBeNull();
+      fireEvent.click(screen.getByTestId('session-header-old-session'));
+      expect(screen.getByText('reveal me')).toBeInTheDocument();
+    });
+
+    it('groups legacy entries above identified sessions; both are collapsed by default', () => {
+      renderWithProviders(<StatusPanel />, {
+        preloadedState: createBaseState({
+          status: {
+            ...initialStatusState,
+            entries: [
+              { id: '0', timestamp: 1000, level: 'info', message: 'pre-upgrade entry' },
+              { id: '1', timestamp: 2000, level: 'info', message: 'post-upgrade entry', sessionId: 'session-A' },
+            ],
+          },
+        }),
+      });
+      expand();
+      // Both groups have headers visible but content hidden — neither
+      // matches the runtime current sessionId, so neither auto-expands.
+      expect(screen.getByText(/Earlier activity/)).toBeInTheDocument();
+      expect(screen.getByText(/Session of /)).toBeInTheDocument();
+      expect(screen.queryByText('pre-upgrade entry')).toBeNull();
+      expect(screen.queryByText('post-upgrade entry')).toBeNull();
+    });
   });
 });

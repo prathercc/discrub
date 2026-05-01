@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Typography, Box, IconButton, Tooltip, Chip, CircularProgress, Collapse, keyframes,
 } from '@mui/material';
@@ -10,7 +10,8 @@ import {
   UnfoldLess as CollapseIcon,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { selectStatusEntries, selectStatusCount, clearStatusLog } from '@features/status/statusSlice';
+import { selectStatusEntries, selectStatusCount, clearStatusLog, getCurrentSessionId } from '@features/status/statusSlice';
+import { groupEntriesBySession, LEGACY_SESSION_ID } from '@features/status/statusGrouping';
 import { selectOperationSummary } from '@features/app/operationSelectors';
 import type { StatusLevel } from '@features/status/statusTypes';
 import PauseResumeControls from './PauseResumeControls';
@@ -56,6 +57,50 @@ const StatusPanel = () => {
 
   const visibleEntries = entries.slice(-visibleCount);
   const hasMore = visibleCount < count;
+
+  // Session grouping (#126): contiguous-by-sessionId. Current session
+  // and legacy bucket default to expanded; other identified sessions
+  // collapsed by default. User toggles override the defaults per session.
+  const sessionGroups = useMemo(() => groupEntriesBySession(visibleEntries), [visibleEntries]);
+  const currentSid = getCurrentSessionId();
+  const [userToggles, setUserToggles] = useState<Map<string, boolean>>(new Map());
+
+  // Only the current session expands by default. The legacy bucket and
+  // any past identified sessions stay collapsed so the panel reads as a
+  // live feed; user can click any header to expand history on demand.
+  const defaultExpanded = useCallback(
+    (sessionId: string) => sessionId === currentSid,
+    [currentSid],
+  );
+
+  const isSessionExpanded = useCallback(
+    (sessionId: string) =>
+      userToggles.has(sessionId) ? userToggles.get(sessionId)! : defaultExpanded(sessionId),
+    [userToggles, defaultExpanded],
+  );
+
+  const toggleSession = useCallback(
+    (sessionId: string) => {
+      setUserToggles((prev) => {
+        const next = new Map(prev);
+        const wasExpanded = prev.has(sessionId) ? prev.get(sessionId)! : defaultExpanded(sessionId);
+        next.set(sessionId, !wasExpanded);
+        return next;
+      });
+    },
+    [defaultExpanded],
+  );
+
+  // Last visible entry across expanded groups — gets the blinking cursor.
+  const lastVisibleEntryId = useMemo(() => {
+    for (let i = sessionGroups.length - 1; i >= 0; i--) {
+      const group = sessionGroups[i];
+      if (isSessionExpanded(group.sessionId) && group.entries.length > 0) {
+        return group.entries[group.entries.length - 1].id;
+      }
+    }
+    return null;
+  }, [sessionGroups, isSessionExpanded]);
 
   // Auto-scroll to bottom when new entries arrive or panel is expanded
   useEffect(() => {
@@ -283,65 +328,120 @@ const StatusPanel = () => {
                     Scroll up for older entries ({count - visibleCount} more)
                   </Typography>
                 )}
-                {visibleEntries.map((entry, idx) => {
-                  const isLast = idx === visibleEntries.length - 1;
-                  const isSession = entry.level === 'session';
+                {sessionGroups.map((group) => {
+                  const expanded = isSessionExpanded(group.sessionId);
+                  const isCurrent = group.sessionId === currentSid;
+                  const isLegacy = group.sessionId === LEGACY_SESSION_ID;
+                  let headerLabel: string;
+                  if (isLegacy) {
+                    headerLabel = 'Earlier activity';
+                  } else if (isCurrent) {
+                    headerLabel = 'Current session';
+                  } else {
+                    const start = new Date(group.startTime);
+                    headerLabel = `Session of ${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                  }
+                  const entryWord = group.entries.length === 1 ? 'entry' : 'entries';
+
                   return (
-                    <Box
-                      key={entry.id}
-                      sx={{
-                        display: 'flex',
-                        gap: 0.75,
-                        py: '1px',
-                        fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
-                        fontSize: '0.68rem',
-                        lineHeight: 1.5,
-                        ...(isSession && {
-                          borderTop: '1px solid #21262d',
-                          borderBottom: '1px solid #21262d',
-                          my: 0.25,
-                          py: '3px',
-                          bgcolor: 'rgba(188, 140, 255, 0.04)',
-                        }),
-                      }}
-                    >
+                    <Box key={group.sessionId}>
                       <Box
-                        component="span"
-                        sx={{ color: '#484f58', flexShrink: 0, whiteSpace: 'nowrap' }}
-                      >
-                        {formatTime(entry.timestamp)}
-                      </Box>
-                      <Box
-                        component="span"
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={expanded}
+                        data-testid={`session-header-${group.sessionId}`}
+                        onClick={() => toggleSession(group.sessionId)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleSession(group.sessionId);
+                          }
+                        }}
                         sx={{
-                          color: terminalColors[entry.level],
-                          flexShrink: 0,
-                          fontWeight: 600,
-                          minWidth: 65,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 0.5,
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          color: '#484f58',
+                          fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+                          fontSize: '0.65rem',
+                          py: '2px',
+                          px: 0.25,
+                          '&:hover': { color: '#8b949e' },
+                          '&:focus-visible': { outline: '1px solid #58a6ff', outlineOffset: 2 },
                         }}
                       >
-                        {levelPrefixes[entry.level]}
+                        <Box component="span" sx={{ width: 12, flexShrink: 0 }}>
+                          {expanded ? '▼' : '▶'}
+                        </Box>
+                        <Box component="span" sx={{ flexGrow: 1 }}>
+                          ── {headerLabel} ({group.entries.length} {entryWord}) ──
+                        </Box>
                       </Box>
-                      <Box
-                        component="span"
-                        sx={{ color: isSession ? '#bc8cff' : '#c9d1d9' }}
-                      >
-                        {entry.message}
-                        {isLast && (
-                          <Box
-                            component="span"
-                            sx={{
-                              display: 'inline-block',
-                              width: 6,
-                              height: 12,
-                              bgcolor: '#58a6ff',
-                              ml: 0.5,
-                              verticalAlign: 'middle',
-                              animation: `${blink} 1s step-end infinite`,
-                            }}
-                          />
-                        )}
-                      </Box>
+                      {expanded &&
+                        group.entries.map((entry) => {
+                          const isLast = entry.id === lastVisibleEntryId;
+                          const isSession = entry.level === 'session';
+                          return (
+                            <Box
+                              key={entry.id}
+                              sx={{
+                                display: 'flex',
+                                gap: 0.75,
+                                py: '1px',
+                                fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+                                fontSize: '0.68rem',
+                                lineHeight: 1.5,
+                                ...(isSession && {
+                                  borderTop: '1px solid #21262d',
+                                  borderBottom: '1px solid #21262d',
+                                  my: 0.25,
+                                  py: '3px',
+                                  bgcolor: 'rgba(188, 140, 255, 0.04)',
+                                }),
+                              }}
+                            >
+                              <Box
+                                component="span"
+                                sx={{ color: '#484f58', flexShrink: 0, whiteSpace: 'nowrap' }}
+                              >
+                                {formatTime(entry.timestamp)}
+                              </Box>
+                              <Box
+                                component="span"
+                                sx={{
+                                  color: terminalColors[entry.level],
+                                  flexShrink: 0,
+                                  fontWeight: 600,
+                                  minWidth: 65,
+                                }}
+                              >
+                                {levelPrefixes[entry.level]}
+                              </Box>
+                              <Box
+                                component="span"
+                                sx={{ color: isSession ? '#bc8cff' : '#c9d1d9' }}
+                              >
+                                {entry.message}
+                                {isLast && (
+                                  <Box
+                                    component="span"
+                                    sx={{
+                                      display: 'inline-block',
+                                      width: 6,
+                                      height: 12,
+                                      bgcolor: '#58a6ff',
+                                      ml: 0.5,
+                                      verticalAlign: 'middle',
+                                      animation: `${blink} 1s step-end infinite`,
+                                    }}
+                                  />
+                                )}
+                              </Box>
+                            </Box>
+                          );
+                        })}
                     </Box>
                   );
                 })}

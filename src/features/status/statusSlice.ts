@@ -19,6 +19,30 @@ import { StatusLevel, initialStatusState } from './statusTypes';
 let nextId = 0;
 
 /**
+ * One id per page-load. Stamped on every `addStatusEntry` so the panel
+ * can group entries by session (#126). Tests can override via
+ * `_setCurrentSessionIdForTesting`.
+ */
+function generateSessionId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+let currentSessionId = generateSessionId();
+
+/** Test-only escape hatch — control session id for grouping tests. */
+export function _setCurrentSessionIdForTesting(id: string | null): void {
+  currentSessionId = id ?? generateSessionId();
+}
+
+/** Read the current page-load session id (used by StatusPanel grouping). */
+export function getCurrentSessionId(): string {
+  return currentSessionId;
+}
+
+/**
  * Load every persisted status entry on app boot. One IDB transaction.
  * Sorted ascending by timestamp so the panel renders in chronological
  * order without per-render sorting.
@@ -73,6 +97,7 @@ const statusSlice = createSlice({
         timestamp: Date.now(),
         level: action.payload.level,
         message: action.payload.message,
+        sessionId: currentSessionId,
       };
       state.entries.push(entry);
       persistEntry(entry);
@@ -118,11 +143,18 @@ const statusSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder.addCase(loadStatusLog.fulfilled, (state, action) => {
-      // Only seed if reducer hasn't been mutated by user actions during boot
-      // (mirrors the same race-fix pattern used in appSlice).
-      if (state.entries.length === 0) {
-        state.entries = action.payload.slice(-state.maxEntries);
-      }
+      // Merge persisted history with anything synchronously dispatched
+      // during boot (e.g. the "New session established" marker fired
+      // from main.tsx before the IDB read resolves). Dedupe by the same
+      // composite key the storage layer uses so a re-load doesn't
+      // double-count rows that are already in memory.
+      const keyOf = (e: StatusLogEntry) => `${e.timestamp}-${e.id}`;
+      const existingKeys = new Set(state.entries.map(keyOf));
+      const merged: StatusLogEntry[] = [
+        ...action.payload.filter((e) => !existingKeys.has(keyOf(e))),
+        ...state.entries,
+      ].sort((a, b) => a.timestamp - b.timestamp);
+      state.entries = merged.slice(-state.maxEntries);
     });
   },
 });
