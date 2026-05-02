@@ -92,8 +92,10 @@ const mockIterateSearchResults = async function* (options: any): AsyncGenerator<
     // Initial-empty fast path
     if (totalResults === 0 && pageMessages.length === 0 && pageIndex === 1) return;
 
-    // Termination: 2 consecutive raw-empty pages
-    if (rawCount === 0) {
+    // Termination: 2 consecutive pages with zero NEW unique messages
+    // (covers truly-empty pages AND fully-dedup'd pages where Discord
+    // re-served already-seen results)
+    if (pageMessages.length === 0) {
       consecutiveEmptyPages++;
       if (consecutiveEmptyPages >= EMPTY_PAGE_TERMINATE_THRESHOLD) return;
     } else {
