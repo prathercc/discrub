@@ -11,6 +11,7 @@ import {
   Collapse,
 } from '@mui/material';
 import type { Message } from 'discrub-core/types/discord-types';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface EditMessageModalProps {
   open: boolean;
@@ -76,7 +77,10 @@ const EditMessageModal = ({
         },
       }}
     >
-      <DialogTitle>{isBulkMode ? 'Bulk Edit' : 'Edit Message'}</DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
+        {isBulkMode ? 'Bulk Edit' : 'Edit Message'}
+        <DialogCloseIcon onClose={handleClose} />
+      </DialogTitle>
       <DialogContent>
         {isBulkMode && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>

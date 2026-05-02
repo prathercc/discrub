@@ -39,15 +39,15 @@ describe('UserProfileModal', () => {
       expect(screen.queryByText('testuser')).toBeNull();
     });
 
-    it('should render Close button', () => {
+    it('should render Cancel button', () => {
       renderWithProviders(<UserProfileModal {...defaultProps} />);
-      expect(screen.getByRole('button', { name: 'Close' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
     });
 
-    it('should call onClose when Close is clicked', () => {
+    it('should call onClose when Cancel is clicked', () => {
       const onClose = vi.fn();
       renderWithProviders(<UserProfileModal {...defaultProps} onClose={onClose} />);
-      fireEvent.click(screen.getByRole('button', { name: 'Close' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(onClose).toHaveBeenCalled();
     });
   });

@@ -8,14 +8,13 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   Typography,
 } from '@mui/material';
 import {
   Archive as ArchiveIcon,
-  Close as CloseIcon,
   CloudUpload as UploadIcon,
 } from '@mui/icons-material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   importPackage,
@@ -68,19 +67,14 @@ const ImportDialog = ({ open, onClose, onImported }: ImportDialogProps) => {
 
   return (
     <Dialog open={open} onClose={isParsing ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 5 }}>
         <ArchiveIcon color="primary" />
         Import Discord Data Package
-        <Box sx={{ flex: 1 }} />
-        <IconButton
-          onClick={onClose}
-          aria-label="Close import dialog"
-          size="small"
+        <DialogCloseIcon
+          onClose={onClose}
           disabled={isParsing}
-          sx={{ color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
+          label="Close import dialog"
+        />
       </DialogTitle>
 
       <DialogContent>

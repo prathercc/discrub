@@ -74,7 +74,7 @@ describe('ReactionModal', () => {
   it('should call onClose when close icon button is clicked', () => {
     const onClose = vi.fn();
     render(<ReactionModal {...defaultProps} onClose={onClose} />);
-    fireEvent.click(screen.getByLabelText('close'));
+    fireEvent.click(screen.getByLabelText('Close'));
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 

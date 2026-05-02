@@ -1,15 +1,16 @@
 import {
   Dialog,
   DialogContent,
+  DialogActions,
+  Button,
   Box,
-  IconButton,
   Typography,
   Chip,
 } from '@mui/material';
 import {
-  Close as CloseIcon,
   MenuBook as GuideIcon,
 } from '@mui/icons-material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import onboardingMarkdown from '../../../ONBOARDING.md?raw';
@@ -121,11 +122,13 @@ const OnboardingGuideModal = ({ open, onClose }: OnboardingGuideModalProps) => {
     >
       <Box
         sx={{
+          position: 'relative',
           display: 'flex',
           alignItems: 'center',
           gap: 1.5,
           px: 3,
           py: 2,
+          pr: 5,
           borderBottom: 1,
           borderColor: 'divider',
         }}
@@ -140,17 +143,7 @@ const OnboardingGuideModal = ({ open, onClose }: OnboardingGuideModalProps) => {
           variant="outlined"
           sx={{ color: 'text.secondary', borderColor: 'divider' }}
         />
-        <IconButton
-          onClick={onClose}
-          aria-label="Close guide"
-          size="small"
-          sx={{
-            color: 'text.disabled',
-            '&:hover': { color: 'text.secondary' },
-          }}
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        <DialogCloseIcon onClose={onClose} label="Close guide" />
       </Box>
       <DialogContent sx={{ px: 3, py: 2 }}>
         <Box sx={markdownStyles}>
@@ -185,6 +178,9 @@ const OnboardingGuideModal = ({ open, onClose }: OnboardingGuideModalProps) => {
           </ReactMarkdown>
         </Box>
       </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+      </DialogActions>
     </Dialog>
   );
 };

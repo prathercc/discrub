@@ -34,6 +34,7 @@ import { reopenAnnouncement, fetchAnnouncementMarkdownThunk } from '@features/an
 import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messaging';
 import SettingsModal from '@components/settings/SettingsModal';
 import UserProfileModal from '@components/modals/UserProfileModal';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 /**
  * TopBar component - shows user info and logout button
@@ -372,14 +373,7 @@ const TopBar = () => {
         PaperProps={{ sx: { bgcolor: 'background.paper' } }}
       >
         <DialogContent sx={{ textAlign: 'center', py: 4, px: 3, position: 'relative' }}>
-          <IconButton
-            onClick={() => setCloseDialogOpen(false)}
-            aria-label="Dismiss"
-            size="small"
-            sx={{ position: 'absolute', top: 8, right: 8, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
+          <DialogCloseIcon onClose={() => setCloseDialogOpen(false)} />
 
           <WarningIcon sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
 
@@ -419,14 +413,7 @@ const TopBar = () => {
         PaperProps={{ sx: { bgcolor: 'background.paper' } }}
       >
         <DialogContent sx={{ textAlign: 'center', py: 4, px: 3, position: 'relative' }}>
-          <IconButton
-            onClick={() => setIdeasOpen(false)}
-            aria-label="Close Ideas"
-            size="small"
-            sx={{ position: 'absolute', top: 8, right: 8, color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
-          >
-            <CloseIcon fontSize="small" />
-          </IconButton>
+          <DialogCloseIcon onClose={() => setIdeasOpen(false)} label="Close Ideas" />
           <IdeasIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
             Ideas & Contact

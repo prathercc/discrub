@@ -8,16 +8,15 @@ import {
   Typography,
   Button,
   TextField,
-  IconButton,
   Chip,
   Collapse,
 } from '@mui/material';
 import {
-  Close as CloseIcon,
   Search as SearchIcon,
   FilterList as RefineIcon,
   ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import type { SearchCriteria, ExportUserMap } from 'discrub-core/types/discrub-types';
 import { IsPinnedType } from 'discrub-core/discord-enum';
 import DateRangeFilter, { type DateFilterMode } from './filters/DateRangeFilter';
@@ -200,13 +199,11 @@ const FilterModal = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <DialogTitle sx={{ pr: 5 }}>
         <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
           Filters
         </Typography>
-        <IconButton size="small" onClick={onClose} aria-label="close">
-          <CloseIcon />
-        </IconButton>
+        <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
 
       <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2, py: 2, px: 2, overflowY: 'auto' }}>

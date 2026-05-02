@@ -12,6 +12,7 @@ import {
 import { Warning as WarningIcon } from '@mui/icons-material';
 import { useAppSelector } from '@/app/hooks';
 import { selectActiveMessages, selectActiveTab } from '@features/message/messageSlice';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface LoadAllDialogProps {
   open: boolean;
@@ -31,11 +32,12 @@ const LoadAllDialog = ({ open, onClose, onConfirm, contextLabel }: LoadAllDialog
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <WarningIcon color="warning" />
           Load All Messages
         </Box>
+        <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
         <Alert severity="warning" sx={{ mb: 2 }}>

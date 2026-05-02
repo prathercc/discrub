@@ -23,6 +23,7 @@ import type { Channel } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import TourFootnote from '@components/welcome/TourFootnote';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { selectSettings } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
@@ -247,7 +248,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
         Purge {isDmMode ? 'DMs' : 'Channels'}
         <Chip
           label={`${channels.length} selected`}
@@ -260,6 +261,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
             fontWeight: 500,
           }}
         />
+        <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>

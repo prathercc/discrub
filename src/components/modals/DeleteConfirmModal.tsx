@@ -6,6 +6,7 @@ import {
   Button,
   Typography,
 } from '@mui/material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface DeleteConfirmModalProps {
   open: boolean;
@@ -37,7 +38,10 @@ const DeleteConfirmModal = ({
         },
       }}
     >
-      <DialogTitle>Delete Messages</DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
+        Delete Messages
+        <DialogCloseIcon onClose={onClose} />
+      </DialogTitle>
       <DialogContent>
         <Typography variant="body1" gutterBottom>
           Are you sure you want to delete {messageCount} message{messageCount !== 1 ? 's' : ''}?

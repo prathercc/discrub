@@ -78,11 +78,11 @@ describe('Attachment Deletion', () => {
   });
 
   describe('Modal Close', () => {
-    it('should close AttachmentModal when clicking Close', () => {
+    it('should close AttachmentModal when clicking Cancel', () => {
       cy.contains('[data-testid="message-feed-row"]',"Here's a screenshot").scrollIntoView().click({ force: true });
       cy.get('[aria-label="View Attachments"]').click({ force: true });
       cy.get('[role="dialog"]').should('be.visible');
-      cy.get('[role="dialog"]').contains('button', 'Close').click();
+      cy.get('[role="dialog"]').contains('button', 'Cancel').click();
       cy.get('[role="dialog"]').should('not.exist');
     });
   });

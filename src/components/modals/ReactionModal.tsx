@@ -3,6 +3,7 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogActions,
   Box,
   Typography,
   List,
@@ -18,11 +19,11 @@ import {
 import {
   Delete as DeleteIcon,
   DeleteSweep as DeleteAllIcon,
-  Close as CloseIcon,
 } from '@mui/icons-material';
 import type { Message, User } from 'discrub-core/types/discord-types';
 import { getEmojiKey } from '@/utils/emojiUtils';
 import DiscordEmoji from '@components/ui/DiscordEmoji';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface ReactionModalProps {
   open: boolean;
@@ -202,7 +203,7 @@ const ReactionModal = ({
         },
       }}
     >
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1, pr: 5 }}>
         Reactions
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {canManageMessages && onBulkDeleteAllReactions && (
@@ -216,10 +217,8 @@ const ReactionModal = ({
               Remove All
             </Button>
           )}
-          <IconButton aria-label="close" onClick={onClose} size="small">
-            <CloseIcon />
-          </IconButton>
         </Box>
+        <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent sx={{ p: 0 }}>
         <Box sx={{ display: 'flex', minHeight: 200, maxHeight: 400 }}>
@@ -348,6 +347,9 @@ const ReactionModal = ({
           </Box>
         </Box>
       </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+      </DialogActions>
     </Dialog>
   );
 };

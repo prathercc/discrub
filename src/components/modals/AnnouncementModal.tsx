@@ -5,14 +5,13 @@ import {
   DialogActions,
   Button,
   Box,
-  IconButton,
   Skeleton,
   Typography,
 } from '@mui/material';
 import {
   Campaign as AnnouncementIcon,
-  Close as CloseIcon,
 } from '@mui/icons-material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -27,18 +26,10 @@ interface AnnouncementModalProps {
 const AnnouncementModal = ({ open, onDismiss, markdown, isLoading, error }: AnnouncementModalProps) => {
   return (
     <Dialog open={open} onClose={onDismiss} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 5 }}>
         <AnnouncementIcon color="primary" />
         Announcement
-        <Box sx={{ flex: 1 }} />
-        <IconButton
-          onClick={onDismiss}
-          aria-label="Close announcement"
-          size="small"
-          sx={{ color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        <DialogCloseIcon onClose={onDismiss} label="Close announcement" />
       </DialogTitle>
       <DialogContent>
         {isLoading && (
@@ -103,7 +94,7 @@ const AnnouncementModal = ({ open, onDismiss, markdown, isLoading, error }: Anno
       </DialogContent>
       <DialogActions>
         <Button onClick={onDismiss} variant="outlined">
-          Dismiss
+          Cancel
         </Button>
       </DialogActions>
     </Dialog>

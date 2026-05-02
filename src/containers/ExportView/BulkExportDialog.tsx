@@ -33,6 +33,7 @@ import ExportSettingsAccordion from './ExportSettingsAccordion';
 import ExportSummaryChip from './ExportSummaryChip';
 import PresetSelector from './PresetSelector';
 import FilterModal, { countActiveFilters } from '@components/search/FilterModal';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
 
@@ -147,7 +148,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
         Bulk Export {mode === 'channels' ? 'Channels' : 'DMs'}
         <Chip
           label={`${channels.length} selected`}
@@ -160,6 +161,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
             fontWeight: 500,
           }}
         />
+        <DialogCloseIcon onClose={handleClose} />
       </DialogTitle>
       <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>

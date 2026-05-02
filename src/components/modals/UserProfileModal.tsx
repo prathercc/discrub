@@ -25,6 +25,7 @@ import { getUserRoleColor } from '@/utils/roleColorUtils';
 import { useAppDispatch } from '@/app/hooks';
 import { showToast } from '@/features/status/statusSlice';
 import TourButton from '@/components/welcome/TourButton';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface UserProfileModalProps {
   open: boolean;
@@ -213,6 +214,7 @@ const UserProfileModal = ({
             borderRadius: '8px 8px 0 0',
           }}
         />
+        <DialogCloseIcon onClose={onClose} label="Close profile" />
 
         {/* Avatar Section */}
         <Box
@@ -731,7 +733,7 @@ const UserProfileModal = ({
           variant="outlined"
           onClick={onClose}
         >
-          Close
+          Cancel
         </Button>
       </DialogActions>
     </Dialog>

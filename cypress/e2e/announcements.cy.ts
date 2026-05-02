@@ -68,7 +68,7 @@ describe('Announcements', () => {
       cy.visit('/');
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
       cy.contains('Announcement', { timeout: 10000 }).should('be.visible');
-      cy.contains('button', 'Dismiss').click();
+      cy.contains('button', 'Cancel').click();
       cy.contains('Announcement').should('not.exist');
     });
 
@@ -92,7 +92,7 @@ describe('Announcements', () => {
       cy.visit('/');
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
       cy.contains('Announcement', { timeout: 10000 }).should('be.visible');
-      cy.contains('button', 'Dismiss').click();
+      cy.contains('button', 'Cancel').click();
 
       cy.window().then((win) => {
         const store = (win as any).__store__;

@@ -11,13 +11,11 @@ import {
   InputLabel,
   Select,
   MenuItem,
-  IconButton,
   CircularProgress,
   Avatar,
   Tooltip,
 } from '@mui/material';
 import {
-  Close as CloseIcon,
   DeleteSweep as DeleteAllIcon,
   SelectAll as AllIcon,
   Person as PersonIcon,
@@ -25,6 +23,7 @@ import {
 import type { Message, User } from 'discrub-core/types/discord-types';
 import { getEmojiKey } from '@/utils/emojiUtils';
 import DiscordEmoji from '@components/ui/DiscordEmoji';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 const ALL_EMOJIS_KEY = '__all__';
 const ALL_USERS_KEY = '__all__';
@@ -242,11 +241,9 @@ const ReactionRemovalModal = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <DialogTitle sx={{ pr: 5 }}>
         Remove Reactions
-        <IconButton aria-label="close" onClick={onClose} size="small">
-          <CloseIcon />
-        </IconButton>
+        <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>

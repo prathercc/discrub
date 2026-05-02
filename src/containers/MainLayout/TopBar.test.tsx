@@ -394,7 +394,7 @@ describe('TopBar', () => {
       });
       fireEvent.click(screen.getByLabelText('Close Discrub'));
       expect(screen.getByText('Operation in Progress')).toBeInTheDocument();
-      fireEvent.click(screen.getByLabelText('Dismiss'));
+      fireEvent.click(screen.getByLabelText('Close'));
       await waitFor(() => {
         expect(screen.queryByText('Operation in Progress')).toBeNull();
       });

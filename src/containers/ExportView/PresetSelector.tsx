@@ -16,6 +16,7 @@ import {
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import TourFootnote from '@components/welcome/TourFootnote';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { applyPreset, selectExport } from '@features/export/exportSlice';
 import {
   removePreset,
@@ -292,7 +293,10 @@ const PresetSelector = () => {
 
       {/* Save Preset Name Dialog */}
       <Dialog open={nameDialogOpen} onClose={() => setNameDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Save as Preset</DialogTitle>
+        <DialogTitle sx={{ pr: 5 }}>
+          Save as Preset
+          <DialogCloseIcon onClose={() => setNameDialogOpen(false)} />
+        </DialogTitle>
         <DialogContent>
           <TextField
             autoFocus

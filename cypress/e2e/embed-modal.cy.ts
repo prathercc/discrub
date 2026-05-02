@@ -76,10 +76,10 @@ describe('Embed Rendering', () => {
       cy.get('.MuiDialog-root').contains('GitHub').should('be.visible');
     });
 
-    it('closes when the Close button is clicked', () => {
+    it('closes when the Cancel button is clicked', () => {
       openModal();
       cy.get('.MuiDialog-root').should('be.visible');
-      cy.get('.MuiDialog-root').contains('button', 'Close').click();
+      cy.get('.MuiDialog-root').contains('button', 'Cancel').click();
       cy.get('.MuiDialog-root').should('not.exist');
     });
   });

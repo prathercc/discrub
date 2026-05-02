@@ -38,6 +38,7 @@ import type { Message } from 'discrub-core/types/discord-types';
 import ExportSettingsAccordion from './ExportSettingsAccordion';
 import ExportSummaryChip from './ExportSummaryChip';
 import PresetSelector from './PresetSelector';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 /**
  * Where the messages being exported come from.
@@ -215,7 +216,10 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Export Messages</DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
+        Export Messages
+        <DialogCloseIcon onClose={handleClose} />
+      </DialogTitle>
       <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1 }}>
           <Box>

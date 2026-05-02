@@ -9,6 +9,7 @@ import {
   Typography,
   Box,
 } from '@mui/material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface ThreadLoadModalProps {
   open: boolean;
@@ -40,7 +41,10 @@ const ThreadLoadModal = ({ open, onClose, onLoad }: ThreadLoadModalProps) => {
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Load Thread</DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
+        Load Thread
+        <DialogCloseIcon onClose={handleClose} />
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <Typography variant="body2" color="text.secondary">

@@ -160,7 +160,7 @@ describe('FilterModal', () => {
     it('should call onClose when X is clicked', () => {
       const onClose = vi.fn();
       renderWithProviders(<FilterModal {...defaultProps} onClose={onClose} />);
-      fireEvent.click(screen.getByLabelText('close'));
+      fireEvent.click(screen.getByLabelText('Close'));
       expect(onClose).toHaveBeenCalled();
     });
 

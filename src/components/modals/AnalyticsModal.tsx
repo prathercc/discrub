@@ -15,14 +15,13 @@ import {
   TableSortLabel,
   Paper,
   Chip,
-  IconButton,
 } from '@mui/material';
 import {
   FileDownload as DownloadIcon,
   BarChart as AnalyticsIcon,
-  Close as CloseIcon,
   Reply as ReplyIcon,
 } from '@mui/icons-material';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import type { Message } from 'discrub-core/types/discord-types';
 import { generateMentionCounts, exportMentionCountsCSV } from '@/utils/analyticsUtils';
 import type { MentionCount } from '@/utils/analyticsUtils';
@@ -102,7 +101,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap }: AnalyticsModalProp
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 3, py: 2, borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 1.5, px: 3, py: 2, pr: 5, borderBottom: 1, borderColor: 'divider' }}>
         <AnalyticsIcon sx={{ color: 'primary.main' }} />
         <Box sx={{ flex: 1 }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
@@ -124,14 +123,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap }: AnalyticsModalProp
           onClick={() => setSkipReplies(!skipReplies)}
           sx={{ cursor: 'pointer' }}
         />
-        <IconButton
-          onClick={onClose}
-          aria-label="Close analytics"
-          size="small"
-          sx={{ color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
-        >
-          <CloseIcon fontSize="small" />
-        </IconButton>
+        <DialogCloseIcon onClose={onClose} label="Close analytics" />
       </Box>
       <DialogContent sx={{ px: 3, py: 2 }}>
         {mentionCounts.length === 0 ? (
@@ -211,8 +203,9 @@ const AnalyticsModal = ({ open, onClose, messages, userMap }: AnalyticsModalProp
           </TableContainer>
         )}
       </DialogContent>
-      {mentionCounts.length > 0 && (
-        <DialogActions sx={{ px: 3, py: 1.5 }}>
+      <DialogActions sx={{ px: 3, py: 1.5 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        {mentionCounts.length > 0 && (
           <Button
             onClick={handleExportCSV}
             variant="outlined"
@@ -221,8 +214,8 @@ const AnalyticsModal = ({ open, onClose, messages, userMap }: AnalyticsModalProp
           >
             Export CSV
           </Button>
-        </DialogActions>
-      )}
+        )}
+      </DialogActions>
     </Dialog>
   );
 };

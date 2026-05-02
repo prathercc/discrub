@@ -47,20 +47,20 @@ describe('AnnouncementModal', () => {
     expect(screen.getByText('Hello, this is an announcement!')).toBeInTheDocument();
   });
 
-  it('should render Dismiss button', () => {
+  it('should render Cancel button', () => {
     renderWithProviders(
       <AnnouncementModal open={true} onDismiss={mockOnDismiss} markdown="Test content" />,
       { preloadedState: createBaseState() }
     );
-    expect(screen.getByText('Dismiss')).toBeInTheDocument();
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
   });
 
-  it('should call onDismiss when Dismiss button clicked', () => {
+  it('should call onDismiss when Cancel button clicked', () => {
     renderWithProviders(
       <AnnouncementModal open={true} onDismiss={mockOnDismiss} markdown="Test content" />,
       { preloadedState: createBaseState() }
     );
-    fireEvent.click(screen.getByText('Dismiss'));
+    fireEvent.click(screen.getByText('Cancel'));
     expect(mockOnDismiss).toHaveBeenCalledTimes(1);
   });
 

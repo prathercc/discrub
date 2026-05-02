@@ -24,6 +24,7 @@ import { UserDataTab } from './tabs/UserDataTab';
 import { DisplayTab } from './tabs/DisplayTab';
 import { PurgeTab } from './tabs/PurgeTab';
 import ResetDiscrubButton from './ResetDiscrubButton';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface SettingsModalProps {
   open: boolean;
@@ -126,7 +127,10 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         },
       }}
     >
-      <DialogTitle>Settings</DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
+        Settings
+        <DialogCloseIcon onClose={handleClose} disabled={saving} />
+      </DialogTitle>
       <DialogContent sx={{ overflow: 'auto' }}>
         {errors.length > 0 && (
           <Alert severity="error" sx={{ mb: 2 }}>

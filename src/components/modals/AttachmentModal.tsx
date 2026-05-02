@@ -27,6 +27,7 @@ import {
   DeleteSweep as DeleteAllIcon,
 } from '@mui/icons-material';
 import type { Message, Attachment } from 'discrub-core/types/discord-types';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface AttachmentModalProps {
   open: boolean;
@@ -161,8 +162,9 @@ const AttachmentModal = ({
         },
       }}
     >
-      <DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
         Attachments ({message.attachments.length})
+        <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
         {wouldDeleteMessage && (
@@ -279,7 +281,7 @@ const AttachmentModal = ({
             Remove All
           </Button>
         )}
-        <Button variant="outlined" onClick={onClose}>Close</Button>
+        <Button variant="outlined" onClick={onClose}>Cancel</Button>
       </DialogActions>
     </Dialog>
   );

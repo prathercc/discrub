@@ -14,6 +14,7 @@ import {
 import type { Message } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { formatEmbedContent } from '@/utils/messageLightFormatting';
+import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface EmbedModalProps {
   open: boolean;
@@ -97,7 +98,10 @@ const EmbedModal = ({ open, onClose, message, formattingContext }: EmbedModalPro
         },
       }}
     >
-      <DialogTitle>Embeds ({message.embeds.length})</DialogTitle>
+      <DialogTitle sx={{ pr: 5 }}>
+        Embeds ({message.embeds.length})
+        <DialogCloseIcon onClose={onClose} />
+      </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
           {message.embeds.map((embed, index) => (
@@ -248,7 +252,7 @@ const EmbedModal = ({ open, onClose, message, formattingContext }: EmbedModalPro
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button variant="outlined" onClick={onClose}>Close</Button>
+        <Button variant="outlined" onClick={onClose}>Cancel</Button>
       </DialogActions>
     </Dialog>
   );
