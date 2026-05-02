@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { Box, IconButton, Tooltip } from '@mui/material';
-import { FullscreenExit as FullscreenExitIcon } from '@mui/icons-material';
+import { Box } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
@@ -222,28 +221,6 @@ const MainLayout = () => {
       </Box>
 
       {!focusedView && <DonationDrawer />}
-
-      {focusedView && (
-        <Tooltip title="Exit focus mode (F or Esc)" placement="left">
-          <IconButton
-            aria-label="Exit focus mode"
-            data-testid="exit-focus-button"
-            onClick={() => dispatch(setFocusedView(false))}
-            size="small"
-            sx={(theme) => ({
-              position: 'fixed',
-              top: 12,
-              right: 12,
-              zIndex: theme.zIndex.drawer + 2,
-              bgcolor: 'background.paper',
-              border: `1px solid ${theme.palette.divider}`,
-              '&:hover': { bgcolor: 'action.hover' },
-            })}
-          >
-            <FullscreenExitIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      )}
 
       <AnnouncementModal
         open={hasNewAnnouncement}

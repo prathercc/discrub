@@ -120,25 +120,6 @@ describe('MainLayout', () => {
       expect(screen.getByTestId('serverview')).toBeInTheDocument();
     });
 
-    it('renders the exit-focus button only while focused', () => {
-      const { rerender, store } = renderWithProviders(<MainLayout />, {
-        preloadedState: createBaseState(),
-      });
-      expect(screen.queryByTestId('exit-focus-button')).not.toBeInTheDocument();
-
-      store.dispatch({ type: 'app/setFocusedView', payload: true });
-      rerender(<MainLayout />);
-      expect(screen.getByTestId('exit-focus-button')).toBeInTheDocument();
-    });
-
-    it('exit-focus button turns focus mode off', () => {
-      const { store } = renderWithProviders(<MainLayout />, {
-        preloadedState: focusedState(),
-      });
-      fireEvent.click(screen.getByTestId('exit-focus-button'));
-      expect(store.getState().app.focusedView).toBe(false);
-    });
-
     it('F key toggles focus mode when not in an input', () => {
       const { store } = renderWithProviders(<MainLayout />, {
         preloadedState: createBaseState(),
