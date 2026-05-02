@@ -76,7 +76,7 @@ describe('Export', () => {
 
   it('shows preset selector', () => {
     cy.contains('button', 'Export').click();
-    cy.get('[role="dialog"]').contains('Select a preset...').should('exist');
+    cy.get('[role="dialog"]').contains('Choose...').should('exist');
   });
 
   describe('Preset application', () => {

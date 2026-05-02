@@ -8,33 +8,43 @@ describe('Bulk Edit', () => {
   });
 
   describe('Edit Button with Multiple Selection', () => {
+    // Discord blocks PATCH on other users' messages regardless of permission,
+    // so the toolbar Edit button only enables when every selected message is
+    // authored by the current user. All selections below are tester-authored.
     it('should enable Edit button with single selection', () => {
       cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
       cy.contains('1 selected').should('be.visible');
       cy.contains('button', 'Edit').should('not.be.disabled');
     });
 
-    it('should enable Edit button when multiple messages are selected', () => {
+    it('should enable Edit button when multiple own messages are selected', () => {
       cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
-      cy.contains('[data-testid="message-feed-row"]',"Let's ship it!").click();
+      cy.contains('[data-testid="message-feed-row"]','Hello everyone! Welcome to the server.').click();
       cy.contains('2 selected').should('be.visible');
       cy.contains('button', 'Edit').should('not.be.disabled');
     });
 
-    it('should enable Edit button with three selections', () => {
+    it('should enable Edit button with three own selections', () => {
       cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
-      cy.contains('[data-testid="message-feed-row"]',"Let's ship it!").click();
-      cy.contains('[data-testid="message-feed-row"]','I agree, the design is coming along nicely.').click();
+      cy.contains('[data-testid="message-feed-row"]','Hello everyone! Welcome to the server.').click();
+      cy.contains('[data-testid="message-feed-row"]','Sure! Let me finish this code first.').click();
       cy.contains('3 selected').should('be.visible');
       cy.contains('button', 'Edit').should('not.be.disabled');
+    });
+
+    it('should disable Edit button when selection includes another user\'s message', () => {
+      cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
+      cy.contains('[data-testid="message-feed-row"]',"Let's ship it!").click();
+      cy.contains('2 selected').should('be.visible');
+      cy.contains('button', 'Edit').should('be.disabled');
     });
   });
 
   describe('Bulk Edit Modal', () => {
     beforeEach(() => {
       cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
-      cy.contains('[data-testid="message-feed-row"]',"Let's ship it!").click();
-      cy.contains('[data-testid="message-feed-row"]','I agree, the design is coming along nicely.').click();
+      cy.contains('[data-testid="message-feed-row"]','Hello everyone! Welcome to the server.').click();
+      cy.contains('[data-testid="message-feed-row"]','Sure! Let me finish this code first.').click();
     });
 
     it('should open modal with correct message count', () => {
