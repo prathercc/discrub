@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import type { Channel, Message, User } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
+import { IsPinnedType } from 'discrub-core/discord-enum';
 import type { PurgeConfig } from './purgeTypes';
 
 import purgeReducer, {
@@ -1215,6 +1216,129 @@ describe('purgeSlice thunks', () => {
       );
 
       expect(mockDeleteMessage).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  // ── Preserve pinned messages (Backlog #156) ──────────────────────────────
+  //
+  // Discord's `/messages/search` endpoint silently *ignores* the
+  // `pinned=false` query param — confirmed via 2026-05 research and
+  // documented in discrub-ext's changelog years ago. Setting the
+  // FilterModal's Pinned dropdown to "False" had no effect on what
+  // actually got purged. The fix at purgeSlice:582 catches pinned
+  // messages client-side using `message.pinned` (a required boolean
+  // on every Discord Message object) before any destructive call.
+
+  describe('bulkPurgeChannels — preserve pinned (Backlog #156)', () => {
+    const pinnedCriteria = (): SearchCriteria => ({
+      searchBeforeDate: null,
+      searchAfterDate: null,
+      searchMessageContent: '',
+      selectedHasTypes: [],
+      userIds: [],
+      mentionIds: [],
+      channelIds: [],
+      isPinned: IsPinnedType.NO,
+    } as unknown as SearchCriteria);
+
+    const unsetCriteria = (): SearchCriteria => ({
+      ...pinnedCriteria(),
+      isPinned: IsPinnedType.UNSET,
+    } as unknown as SearchCriteria);
+
+    const mockPinned = (id: string): Message =>
+      ({ ...mockMessage(id), pinned: true } as Message);
+
+    const mockUnpinned = (id: string): Message =>
+      ({ ...mockMessage(id), pinned: false } as Message);
+
+    it('skips pinned messages client-side when isPinned=NO (Discord ignored the server-side filter)', async () => {
+      // Discord returned a mix even though we asked `pinned=false`.
+      setupSearchResults([[mockPinned('p1'), mockUnpinned('u1'), mockPinned('p2'), mockUnpinned('u2')]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+          searchCriteria: pinnedCriteria(),
+        }),
+      );
+
+      // Only the two unpinned messages should have been deleted.
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]);
+      expect(deletedIds.sort()).toEqual(['u1', 'u2']);
+    });
+
+    it('emits a status entry summarizing how many pinned messages were preserved', async () => {
+      setupSearchResults([[mockPinned('p1'), mockUnpinned('u1'), mockPinned('p2')]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+          searchCriteria: pinnedCriteria(),
+        }),
+      );
+
+      const entries = store.getState().status.entries.map((e) => e.message);
+      expect(entries.some((m) => m.includes('Preserved 2 pinned messages'))).toBe(true);
+    });
+
+    it('does NOT skip pinned messages when isPinned=UNSET (default behavior preserved)', async () => {
+      // Without an explicit "exclude pinned" choice, the user is
+      // signaling "purge everything that matches" — pinned messages
+      // are fair game. Regression guard.
+      setupSearchResults([[mockPinned('p1'), mockUnpinned('u1')]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+          searchCriteria: unsetCriteria(),
+        }),
+      );
+
+      // Both deleted — no client-side filter applied.
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(2);
+    });
+
+    it('protects pinned messages in attachments-only mode too', async () => {
+      // Attachments-only modifies the pinned message via PATCH (clears
+      // its attachments). User opting out of pinned-touching means we
+      // shouldn't strip from pinned messages either — pin status stays
+      // intact, but the message body is changed and that's exactly the
+      // user is telling us not to do.
+      const pinnedWithAttach = {
+        ...mockPinned('p1'),
+        content: 'pinned msg',
+        attachments: [{ id: 'a1' } as any],
+      } as Message;
+      const normalWithAttach = {
+        ...mockUnpinned('u1'),
+        content: 'normal msg',
+        attachments: [{ id: 'a2' } as any],
+      } as Message;
+      setupSearchResults([[pinnedWithAttach, normalWithAttach]]);
+      mockEditMessage.mockResolvedValue({ success: true, status: 200 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id], false, true), // deleteAttachmentsOnly = true
+          guildId: 'guild1',
+          searchCriteria: pinnedCriteria(),
+        }),
+      );
+
+      // Only the unpinned message should have its attachments stripped.
+      const editedIds = mockEditMessage.mock.calls.map((c) => c[1]);
+      expect(editedIds).toEqual(['u1']);
     });
   });
 

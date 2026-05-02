@@ -475,6 +475,7 @@ async function purgeChannelMessages(
   let totalSkippedNotAuthor = 0;
   let totalSkippedUnexpectedAuthor = 0;
   let totalSkippedArchivedNoPerm = 0;
+  let totalSkippedPinned = 0;
   let totalProcessed = 0;
   let lastProgressDispatch = 0;
   let searchPageCount = 0;
@@ -582,6 +583,30 @@ async function purgeChannelMessages(
         const hasAttachments =
           !!message.attachments && message.attachments.length > 0;
         const hasContent = (message.content ?? '').trim().length > 0;
+
+        // Backlog #156: when the user opted out of touching pinned
+        // messages (`isPinned: NO` in the FilterModal), enforce that
+        // client-side. Discord's search endpoint silently *ignores*
+        // `pinned=false` and returns pinned messages anyway — this was
+        // documented in discrub-ext's changelog and re-confirmed via
+        // research in 2026-05. Without this gate, the user's explicit
+        // "exclude pinned" choice has no effect on what actually gets
+        // deleted / edited. `message.pinned` is a required boolean on
+        // every message object (discord-api-types), so the check is
+        // safe to make unconditional.
+        if (
+          filterOverrides?.isPinned === IsPinnedType.NO &&
+          message.pinned === true
+        ) {
+          totalSkipped++;
+          totalSkippedPinned++;
+          totalProcessed++;
+          if (totalProcessed - lastProgressDispatch >= PROGRESS_THROTTLE_MESSAGES || mi === messages.length - 1) {
+            lastProgressDispatch = totalProcessed;
+            onProgress(totalProcessed, totalDeleted, totalSkipped, totalEditedAttachmentsOnly, totalFailed);
+          }
+          continue;
+        }
 
         // Route delete/edit at the message's own channel, not the outer
         // channel we're iterating — a search with thread IDs returns
@@ -793,6 +818,17 @@ async function purgeChannelMessages(
     dispatch(addStatusEntry({
       level: 'warning',
       message: `Skipped ${totalSkippedUnexpectedAuthor} message${totalSkippedUnexpectedAuthor !== 1 ? 's' : ''} returned by search whose author didn't match the target — likely an API anomaly.`,
+    }));
+  }
+
+  // Single info summary when the user opted to exclude pinned messages
+  // and we caught some that Discord's broken `pinned=false` filter let
+  // through (#156). Counts how many actually-pinned messages we
+  // protected from deletion.
+  if (totalSkippedPinned > 0) {
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `Preserved ${totalSkippedPinned} pinned message${totalSkippedPinned !== 1 ? 's' : ''} — your filter is set to exclude pinned messages.`,
     }));
   }
 
