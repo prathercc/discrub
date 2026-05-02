@@ -321,7 +321,7 @@ describe('loadChannelMessages', () => {
     const rows = await loadChannelMessages(blob, '200');
 
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toMatchObject({ id: '1', content: 'hello', attachment: null });
+    expect(rows[0]).toMatchObject({ id: '1', content: 'hello', attachments: [] });
     expect(rows[1].content).toBe('with, comma');
     expect(rows[2].content).toBe('multi\nline');
   });

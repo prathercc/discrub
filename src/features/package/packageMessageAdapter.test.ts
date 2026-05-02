@@ -16,7 +16,7 @@ describe('toDiscordMessage', () => {
         id: 'm1',
         timestamp: '2022-07-28 22:30:52.800000+00:00',
         content: 'hello',
-        attachment: null,
+        attachments: [],
       },
       'c200',
       user,
@@ -31,13 +31,13 @@ describe('toDiscordMessage', () => {
     expect(result.attachments).toEqual([]);
   });
 
-  it('populates attachments array from attachment URL', () => {
+  it('populates a single Attachment from a one-URL list', () => {
     const result = toDiscordMessage(
       {
         id: 'm2',
         timestamp: '2022-08-01 00:00:00.000000+00:00',
         content: 'with file',
-        attachment: 'https://cdn.discordapp.com/attachments/1/2/photo.png?ex=0',
+        attachments: ['https://cdn.discordapp.com/attachments/1/2/photo.png?ex=0'],
       },
       'c200',
       user,
@@ -56,7 +56,7 @@ describe('toDiscordMessage', () => {
         id: 'm3',
         timestamp: '2022-08-01 00:00:00.000000+00:00',
         content: '',
-        attachment: 'not-a-url',
+        attachments: ['not-a-url'],
       },
       'c200',
       user,
@@ -65,9 +65,34 @@ describe('toDiscordMessage', () => {
     expect(result.attachments[0].filename).toBe('not-a-url');
   });
 
+  // Backlog #159: messages with multiple attachments shipped as a
+  // single space-separated CSV cell upstream. The adapter must build
+  // one Attachment per URL with unique synthetic IDs (so React keys
+  // don't collide).
+  it('builds one Attachment per URL for multi-attachment messages (#159)', () => {
+    const result = toDiscordMessage(
+      {
+        id: 'm5',
+        timestamp: '2022-08-01 00:00:00.000000+00:00',
+        content: 'three pics',
+        attachments: [
+          'https://cdn.discordapp.com/attachments/1/2/a.png',
+          'https://cdn.discordapp.com/attachments/1/2/b.jpg',
+          'https://cdn.discordapp.com/attachments/1/2/c.gif',
+        ],
+      },
+      'c200',
+      user,
+    );
+
+    expect(result.attachments).toHaveLength(3);
+    expect(result.attachments.map((a) => a.id)).toEqual(['m5-0', 'm5-1', 'm5-2']);
+    expect(result.attachments.map((a) => a.filename)).toEqual(['a.png', 'b.jpg', 'c.gif']);
+  });
+
   it('sets safe defaults for unused Message fields', () => {
     const result = toDiscordMessage(
-      { id: 'm4', timestamp: 't', content: '', attachment: null },
+      { id: 'm4', timestamp: 't', content: '', attachments: [] },
       'c200',
       user,
     );

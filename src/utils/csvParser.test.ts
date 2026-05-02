@@ -12,7 +12,7 @@ describe('parseMessagesCsv', () => {
         id: '123',
         timestamp: '2022-07-28 22:30:52.800000+00:00',
         content: 'hello',
-        attachment: null,
+        attachments: [],
       },
     ]);
   });
@@ -41,12 +41,46 @@ describe('parseMessagesCsv', () => {
     expect(rows[0].content).toBe('he said "hi"');
   });
 
-  it('captures attachment URLs', () => {
+  it('captures a single attachment URL', () => {
     const csv = `${HEADER}\n123,2022-07-28 22:30:52.800000+00:00,check this,https://cdn.discordapp.com/attachments/1/2/a.png`;
     const rows = parseMessagesCsv(csv);
-    expect(rows[0].attachment).toBe(
+    expect(rows[0].attachments).toEqual([
       'https://cdn.discordapp.com/attachments/1/2/a.png',
-    );
+    ]);
+  });
+
+  // Backlog #159: Discord encodes multi-attachment messages as a
+  // single CSV cell with whitespace-separated URLs. The parser must
+  // expose them as a real list so downstream rendering / export shows
+  // every attachment, not one broken concatenated link.
+  it('splits multi-attachment cells on whitespace (#159)', () => {
+    const cell =
+      'https://cdn.discordapp.com/attachments/1/2/a.png ' +
+      'https://cdn.discordapp.com/attachments/1/2/b.jpg ' +
+      'https://cdn.discordapp.com/attachments/1/2/c.gif';
+    const csv = `${HEADER}\n123,2022-07-28 22:30:52.800000+00:00,three pics,${cell}`;
+    const rows = parseMessagesCsv(csv);
+    expect(rows[0].attachments).toEqual([
+      'https://cdn.discordapp.com/attachments/1/2/a.png',
+      'https://cdn.discordapp.com/attachments/1/2/b.jpg',
+      'https://cdn.discordapp.com/attachments/1/2/c.gif',
+    ]);
+  });
+
+  it('returns [] for an empty Attachments cell', () => {
+    const csv = `${HEADER}\n123,2022-07-28 22:30:52.800000+00:00,no attachment,`;
+    const rows = parseMessagesCsv(csv);
+    expect(rows[0].attachments).toEqual([]);
+  });
+
+  it('drops empty fragments from malformed double-spaced cells', () => {
+    const csv =
+      `${HEADER}\n123,2022-07-28 22:30:52.800000+00:00,trailing,` +
+      'https://cdn.discordapp.com/attachments/1/2/a.png  ';
+    const rows = parseMessagesCsv(csv);
+    expect(rows[0].attachments).toEqual([
+      'https://cdn.discordapp.com/attachments/1/2/a.png',
+    ]);
   });
 
   it('skips empty lines', () => {

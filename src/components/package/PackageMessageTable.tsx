@@ -866,7 +866,9 @@ const MessageRow = memo(function MessageRow({
             }}
           />
         )}
-        {message.attachment && <AttachmentLink url={message.attachment} />}
+        {message.attachments.map((url, i) => (
+          <AttachmentLink key={`${message.id}-${i}`} url={url} />
+        ))}
         {enriched?.reactions && enriched.reactions.length > 0 && (
           <ReactionsRow reactions={enriched.reactions} />
         )}

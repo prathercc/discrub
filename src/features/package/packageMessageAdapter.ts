@@ -24,17 +24,17 @@ export function toDiscordMessage(
     global_name: user.globalName ?? undefined,
   } as User;
 
-  const attachments: Attachment[] = pm.attachment
-    ? [
-        {
-          id: `${pm.id}-0`,
-          filename: deriveFilename(pm.attachment),
-          size: 0,
-          url: pm.attachment,
-          proxy_url: pm.attachment,
-        } as Attachment,
-      ]
-    : [];
+  // One Attachment per URL — Discord's CSV puts multi-attachment
+  // messages' URLs in a single space-separated cell, which the parser
+  // (#159) splits up-front. Synthetic IDs stay unique as `${id}-${i}`
+  // so React keys don't collide on N-attachment rows.
+  const attachments: Attachment[] = pm.attachments.map((url, i) => ({
+    id: `${pm.id}-${i}`,
+    filename: deriveFilename(url),
+    size: 0,
+    url,
+    proxy_url: url,
+  } as Attachment));
 
   return {
     id: pm.id,

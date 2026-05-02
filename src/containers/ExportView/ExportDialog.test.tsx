@@ -698,8 +698,8 @@ describe('ExportDialog', () => {
               selectedChannelId: null,
               loadedChannels: {
                 '200': [
-                  { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'hi', attachment: null },
-                  { id: '2', timestamp: '2022-07-28 22:31:00.000000+00:00', content: 'bye', attachment: null },
+                  { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'hi', attachments: [] },
+                  { id: '2', timestamp: '2022-07-28 22:31:00.000000+00:00', content: 'bye', attachments: [] },
                 ],
               },
               loadedOrder: ['200'],

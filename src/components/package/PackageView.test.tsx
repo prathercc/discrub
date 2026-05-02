@@ -43,7 +43,7 @@ function statePackageLoaded(selectedChannelId: string | null = null) {
                 id: '1',
                 timestamp: '2022-07-28 22:30:52.800000+00:00',
                 content: 'sample message',
-                attachment: null,
+                attachments: [],
               },
             ],
           }

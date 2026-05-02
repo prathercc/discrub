@@ -55,7 +55,13 @@ export interface PackageMessage {
   id: string;
   timestamp: string;
   content: string;
-  attachment: string | null;
+  /**
+   * Discord serializes multi-attachment messages as a single CSV cell
+   * containing the URLs separated by whitespace. We split into a list
+   * up front (Backlog #159) so downstream consumers don't have to know
+   * about the encoding. Empty / no attachments → `[]`.
+   */
+  attachments: string[];
 }
 
 /** Root parsed-package shape returned by parsePackageZip. */

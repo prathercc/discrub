@@ -97,13 +97,13 @@ describe('<PackageMessageTable />', () => {
               id: '1',
               timestamp: '2022-07-28 22:30:52.800000+00:00',
               content: 'hello world',
-              attachment: null,
+              attachments: [],
             },
             {
               id: '2',
               timestamp: '2022-07-29 00:00:00.000000+00:00',
               content: 'with attachment',
-              attachment: 'https://cdn.discordapp.com/attachments/1/2/photo.png?ex=0',
+              attachments: ['https://cdn.discordapp.com/attachments/1/2/photo.png?ex=0'],
             },
           ],
         },
@@ -132,7 +132,7 @@ describe('<PackageMessageTable />', () => {
           id: '1',
           timestamp: '2022-07-28 22:30:52.800000+00:00',
           content: 'msg',
-          attachment: null,
+          attachments: [],
         },
       ],
     };
@@ -150,7 +150,7 @@ describe('<PackageMessageTable />', () => {
           id: '1',
           timestamp: '2022-07-28 22:30:52.800000+00:00',
           content: 'msg',
-          attachment: null,
+          attachments: [],
         },
       ],
     };
@@ -172,7 +172,7 @@ describe('<PackageMessageTable />', () => {
           id: '1',
           timestamp: '2022-07-28 22:30:52.800000+00:00',
           content: 'msg',
-          attachment: null,
+          attachments: [],
         },
       ],
     };
@@ -192,7 +192,7 @@ describe('<PackageMessageTable />', () => {
           id: '1',
           timestamp: '2022-07-28 22:30:52.800000+00:00',
           content: 'msg',
-          attachment: null,
+          attachments: [],
         },
       ],
     };
@@ -207,7 +207,7 @@ describe('<PackageMessageTable />', () => {
   it('enables Edit selected only when messages are selected and writable', () => {
     const loadedChannels = {
       '200': [
-        { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'msg', attachment: null },
+        { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'msg', attachments: [] },
       ],
     };
     renderWithProviders(<PackageMessageTable channel={channel} />, {
@@ -221,7 +221,7 @@ describe('<PackageMessageTable />', () => {
     renderWithProviders(<PackageMessageTable channel={orphan} />, {
       preloadedState: stateWith({
         loadedChannels: {
-          '200': [{ id: '1', timestamp: 't', content: 'x', attachment: null }],
+          '200': [{ id: '1', timestamp: 't', content: 'x', attachments: [] }],
         },
         selectedMessageIds: { '200': ['1'] },
       }),
@@ -232,7 +232,7 @@ describe('<PackageMessageTable />', () => {
   it('export button enabled when messages exist and not exporting', () => {
     const loadedChannels = {
       '200': [
-        { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'msg', attachment: null },
+        { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'msg', attachments: [] },
       ],
     };
     renderWithProviders(<PackageMessageTable channel={channel} />, {
@@ -244,7 +244,7 @@ describe('<PackageMessageTable />', () => {
   it('export button available even when read-only', () => {
     const loadedChannels = {
       '200': [
-        { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'msg', attachment: null },
+        { id: '1', timestamp: '2022-07-28 22:30:52.800000+00:00', content: 'msg', attachments: [] },
       ],
     };
     renderWithProviders(<PackageMessageTable channel={channel} />, {
@@ -263,7 +263,7 @@ describe('<PackageMessageTable />', () => {
               timestamp: '2023-01-01 00:00:00.000000+00:00',
               content:
                 'Hey **world** visit https://discord.com and say hi to <@999> in <#200> with <:party:12345>',
-              attachment: null,
+              attachments: [],
             },
           ],
         },
@@ -301,7 +301,7 @@ describe('<PackageMessageTable />', () => {
             id: '1',
             timestamp: '2023-01-01 00:00:00.000000+00:00',
             content: 'hi <@123456789012345678>',
-            attachment: null,
+            attachments: [],
           },
         ],
       },
@@ -323,13 +323,13 @@ describe('<PackageMessageTable />', () => {
               id: '1',
               timestamp: '2022-01-01 00:00:00.000000+00:00',
               content: 'older',
-              attachment: null,
+              attachments: [],
             },
             {
               id: '2',
               timestamp: '2023-01-01 00:00:00.000000+00:00',
               content: 'newer',
-              attachment: null,
+              attachments: [],
             },
           ],
         },
@@ -349,7 +349,7 @@ describe('<PackageMessageTable />', () => {
       preloadedState: stateWith({
         loadedChannels: {
           '200': [
-            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachment: null },
+            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachments: [] },
           ],
         },
       }),
@@ -361,7 +361,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachments: [] },
         ],
       },
     }) as any;
@@ -391,7 +391,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'gone', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'gone', attachments: [] },
         ],
       },
     }) as any;
@@ -407,7 +407,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'nope', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'nope', attachments: [] },
         ],
       },
     }) as any;
@@ -423,7 +423,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hey', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hey', attachments: [] },
         ],
       },
     }) as any;
@@ -455,7 +455,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'check this', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'check this', attachments: [] },
         ],
       },
     }) as any;
@@ -482,7 +482,7 @@ describe('<PackageMessageTable />', () => {
       preloadedState: stateWith({
         loadedChannels: {
           '200': [
-            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
           ],
         },
       }),
@@ -496,7 +496,7 @@ describe('<PackageMessageTable />', () => {
       preloadedState: stateWith({
         loadedChannels: {
           '200': [
-            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
           ],
         },
       }),
@@ -508,7 +508,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
         ],
       },
     }) as any;
@@ -524,7 +524,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
         ],
       },
     }) as any;
@@ -541,7 +541,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
         ],
       },
     }) as any;
@@ -555,7 +555,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
         ],
       },
     }) as any;
@@ -572,7 +572,7 @@ describe('<PackageMessageTable />', () => {
         readOnly: true,
         loadedChannels: {
           '200': [
-            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
           ],
         },
       }),
@@ -584,7 +584,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
         ],
       },
     }) as any;
@@ -599,7 +599,7 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'msg', attachments: [] },
         ],
       },
     }) as any;
@@ -619,7 +619,7 @@ describe('<PackageMessageTable />', () => {
       preloadedState: stateWith({
         loadedChannels: {
           '200': [
-            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachment: null },
+            { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachments: [] },
           ],
         },
       }),
@@ -639,8 +639,8 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'kept', attachment: null },
-          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'deleted by user', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'kept', attachments: [] },
+          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'deleted by user', attachments: [] },
         ],
       },
     }) as any;
@@ -665,8 +665,8 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'keep', attachment: null },
-          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'gone', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'keep', attachments: [] },
+          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'gone', attachments: [] },
         ],
       },
     }) as any;
@@ -681,9 +681,9 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'a', attachment: null },
-          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'gone', attachment: null },
-          { id: '3', timestamp: '2023-01-01 00:02:00.000000+00:00', content: 'b', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'a', attachments: [] },
+          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'gone', attachments: [] },
+          { id: '3', timestamp: '2023-01-01 00:02:00.000000+00:00', content: 'b', attachments: [] },
         ],
       },
     }) as any;
@@ -703,8 +703,8 @@ describe('<PackageMessageTable />', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
-          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'x', attachment: null },
-          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'y', attachment: null },
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'x', attachments: [] },
+          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'y', attachments: [] },
         ],
       },
     }) as any;
@@ -723,7 +723,7 @@ describe('<PackageMessageTable />', () => {
             id: '1',
             timestamp: '2023-01-01 00:00:00.000000+00:00',
             content: 'hi <@999888777666555444>',
-            attachment: null,
+            attachments: [],
           },
         ],
       },

@@ -6,7 +6,9 @@ import type { PackageMessage } from '@/features/package/packageTypes';
  *
  * Format is fixed: 4 columns (ID, Timestamp, Contents, Attachments) with
  * a header row. Fields containing commas or newlines are quoted; embedded
- * quotes are escaped as "". Attachment is a single URL or empty.
+ * quotes are escaped as "". Multi-attachment messages encode their URLs
+ * in the single Attachments cell separated by whitespace — split here so
+ * downstream consumers see a real list (#159).
  */
 export function parseMessagesCsv(csv: string): PackageMessage[] {
   const result = Papa.parse<Record<string, string>>(csv, {
@@ -26,8 +28,19 @@ export function parseMessagesCsv(csv: string): PackageMessage[] {
       id: row.ID,
       timestamp: row.Timestamp,
       content: row.Contents ?? '',
-      attachment: row.Attachments ? row.Attachments : null,
+      attachments: parseAttachmentCell(row.Attachments),
     }));
+}
+
+/**
+ * Discord's CDN URLs never contain whitespace internally (paths are
+ * URL-encoded), so a naive whitespace split is safe. Empty / missing
+ * cell → `[]`. Filter empty fragments to defend against trailing
+ * whitespace or double spaces in malformed exports.
+ */
+function parseAttachmentCell(cell: string | undefined): string[] {
+  if (!cell) return [];
+  return cell.split(/\s+/).filter((u) => u.length > 0);
 }
 
 /**
