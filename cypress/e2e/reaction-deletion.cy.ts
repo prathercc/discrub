@@ -313,7 +313,7 @@ describe('Reaction Deletion', () => {
         .first()
         .click({ force: true });
       cy.get('[role="dialog"]').should('be.visible');
-      cy.get('[role="dialog"]').find('[aria-label="close"]').click();
+      cy.get('[role="dialog"]').find('[aria-label="Close"]').click();
       cy.get('[role="dialog"]').should('not.exist');
     });
   });

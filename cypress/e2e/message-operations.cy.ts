@@ -63,11 +63,24 @@ describe('Message Operations', () => {
     cy.contains('[data-testid="message-feed-row"]', 'Sounds good, deploying now.').should('exist');
   });
 
-  it('keeps Edit and Delete enabled with multi-message selection', () => {
+  it('keeps Edit and Delete enabled with multi-message selection (all by current user)', () => {
+    // Both messages are authored by discrub_tester (the logged-in user),
+    // so #139's editBlockedByPermission gate stays clear.
     cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
-    cy.contains('[data-testid="message-feed-row"]',"Let's ship it!").click();
+    cy.contains('[data-testid="message-feed-row"]','Sure! Let me finish this code first.').click();
     cy.contains('2 selected').should('be.visible');
     cy.contains('button', 'Edit').should('not.be.disabled');
     cy.contains('button', 'Delete').should('not.be.disabled');
+  });
+
+  // Backlog #139 regression guard: Edit (PATCH) is author-only at the
+  // Discord API layer, so the toolbar disables it whenever any selected
+  // message is by another user. Delete behavior depends on
+  // canManageMessages — that's covered separately in purge.cy.ts.
+  it('disables Edit when the selection includes a message by another user (#139)', () => {
+    cy.contains('[data-testid="message-feed-row"]','Sounds good, deploying now.').click();
+    cy.contains('[data-testid="message-feed-row"]',"Let's ship it!").click();
+    cy.contains('2 selected').should('be.visible');
+    cy.contains('button', 'Edit').should('be.disabled');
   });
 });

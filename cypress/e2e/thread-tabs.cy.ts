@@ -1113,9 +1113,11 @@ describe('Thread Tabs — Comprehensive', () => {
       // Badge should show 1 on main
       cy.get('[data-testid="search-filters-button"]').parent().find('.MuiBadge-badge').should('contain', '1');
 
-      // Load thread — no filters, badge hidden
+      // Load thread — no filters. TourButton conditionally renders the
+      // Badge wrapper only when badgeContent > 0 (per #141), so a zero
+      // count removes the badge from the DOM entirely.
       loadThread();
-      cy.get('[data-testid="search-filters-button"]').parent().find('.MuiBadge-badge').should('not.be.visible');
+      cy.get('[data-testid="search-filters-button"]').parent().find('.MuiBadge-badge').should('not.exist');
 
       // Switch back to main — badge should show 1 again
       switchToMain();
