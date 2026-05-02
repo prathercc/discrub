@@ -8,6 +8,7 @@ import channelReducer, {
   deselectAllChannels,
   fetchChannels,
   fetchChannelById,
+  fetchChannelThreads,
   fetchForumThreads,
   loadMoreForumThreads,
   searchForumThreads,
@@ -564,6 +565,164 @@ describe('channelSlice', () => {
 
       expect(result.type).toBe('channel/fetchChannelById/rejected');
       expect(result.payload).toBe('Failed to fetch thread');
+    });
+  });
+
+  // Backlog #150: discover all threads (active + archived public + archived
+  // private/joined) for a channel so users can find threads whose type-21
+  // starter has been deleted (otherwise invisible in the message feed).
+  describe('fetchChannelThreads (Backlog #150)', () => {
+    const textChannel = { id: 'parent', name: 'general', type: 0 } as Channel;
+    const voiceChannel = { id: 'voice', name: 'voice-chat', type: 2 } as Channel;
+    const stageChannel = { id: 'stage', name: 'live', type: 13 } as Channel;
+
+    const thread = (id: string, parent_id: string, archived = false, ts?: string): Channel =>
+      ({
+        id,
+        name: `t-${id}`,
+        type: 11,
+        parent_id,
+        thread_metadata: archived ? { archived: true, archive_timestamp: ts } : { archived: false },
+      } as unknown as Channel);
+
+    it('merges active + archived public + archived private threads, deduped by id', async () => {
+      const fetchActiveGuildThreads = vi.fn().mockResolvedValue({
+        success: true,
+        data: { threads: [thread('100', 'parent'), thread('200', 'other-parent')] },
+      });
+      const fetchPublicThreads = vi.fn().mockResolvedValue({
+        success: true,
+        data: { threads: [thread('300', 'parent', true, '2026-01-01T00:00:00Z')] },
+      });
+      const fetchPrivateThreads = vi.fn().mockResolvedValue({
+        // Same `100` already in active — must be deduped.
+        success: true,
+        data: { threads: [thread('400', 'parent', true, '2026-02-01T00:00:00Z'), thread('100', 'parent')] },
+      });
+      vi.mocked(discordService.getDiscordService).mockReturnValue({
+        fetchActiveGuildThreads,
+        fetchPublicThreads,
+        fetchPrivateThreads,
+        fetchJoinedPrivateArchivedThreads: vi.fn(),
+      } as any);
+
+      const result = await store.dispatch(
+        fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+      );
+
+      const ids = (result.payload as Channel[]).map((c) => c.id);
+      // 200 belongs to a different parent → filtered out by the active-thread step.
+      expect(ids).not.toContain('200');
+      // 100 appeared in both active + private — must show exactly once.
+      expect(ids.filter((id) => id === '100')).toHaveLength(1);
+      // All three children of `parent` present.
+      expect(new Set(ids)).toEqual(new Set(['100', '300', '400']));
+    });
+
+    it('falls back to joined-private when fetchPrivateThreads returns success=false (no MANAGE_THREADS)', async () => {
+      const fetchActiveGuildThreads = vi.fn().mockResolvedValue({ success: true, data: { threads: [] } });
+      const fetchPublicThreads = vi.fn().mockResolvedValue({ success: true, data: { threads: [] } });
+      const fetchPrivateThreads = vi.fn().mockResolvedValue({ success: false, data: null });
+      const fetchJoinedPrivateArchivedThreads = vi.fn().mockResolvedValue({
+        success: true,
+        data: { threads: [thread('500', 'parent', true, '2026-03-01T00:00:00Z')] },
+      });
+      vi.mocked(discordService.getDiscordService).mockReturnValue({
+        fetchActiveGuildThreads,
+        fetchPublicThreads,
+        fetchPrivateThreads,
+        fetchJoinedPrivateArchivedThreads,
+      } as any);
+
+      const result = await store.dispatch(
+        fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+      );
+
+      expect((result.payload as Channel[]).map((c) => c.id)).toEqual(['500']);
+      expect(fetchJoinedPrivateArchivedThreads).toHaveBeenCalledOnce();
+    });
+
+    it('returns [] without hitting any thread endpoints for voice channels (#160 alignment)', async () => {
+      const fetchActiveGuildThreads = vi.fn();
+      const fetchPublicThreads = vi.fn();
+      const fetchPrivateThreads = vi.fn();
+      vi.mocked(discordService.getDiscordService).mockReturnValue({
+        fetchActiveGuildThreads,
+        fetchPublicThreads,
+        fetchPrivateThreads,
+        fetchJoinedPrivateArchivedThreads: vi.fn(),
+      } as any);
+
+      const voiceResult = await store.dispatch(
+        fetchChannelThreads({ channel: voiceChannel, guildId: 'g1', token: 't' }),
+      );
+      const stageResult = await store.dispatch(
+        fetchChannelThreads({ channel: stageChannel, guildId: 'g1', token: 't' }),
+      );
+
+      expect(voiceResult.payload).toEqual([]);
+      expect(stageResult.payload).toEqual([]);
+      expect(fetchActiveGuildThreads).not.toHaveBeenCalled();
+      expect(fetchPublicThreads).not.toHaveBeenCalled();
+      expect(fetchPrivateThreads).not.toHaveBeenCalled();
+    });
+
+    it('survives a per-endpoint failure and still returns whatever loaded', async () => {
+      const fetchActiveGuildThreads = vi.fn().mockResolvedValue({
+        success: true,
+        data: { threads: [thread('100', 'parent')] },
+      });
+      const fetchPublicThreads = vi.fn().mockRejectedValue(new Error('500 from Discord'));
+      const fetchPrivateThreads = vi.fn().mockResolvedValue({ success: true, data: { threads: [] } });
+      vi.mocked(discordService.getDiscordService).mockReturnValue({
+        fetchActiveGuildThreads,
+        fetchPublicThreads,
+        fetchPrivateThreads,
+        fetchJoinedPrivateArchivedThreads: vi.fn(),
+      } as any);
+
+      const result = await store.dispatch(
+        fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+      );
+
+      // Active threads survived even though public archived failed.
+      expect((result.payload as Channel[]).map((c) => c.id)).toEqual(['100']);
+    });
+
+    it('sorts archived threads by archive_timestamp newest-first; active threads by id snowflake', async () => {
+      // Real Discord snowflakes are 64-bit integers whose high bits are
+      // a millisecond timestamp since the Discord epoch (Jan 2015). Use
+      // believable values so the snowflake-shifted sort key actually
+      // reflects time order. Smaller snowflake → older.
+      const olderActive = thread('1100000000000000000', 'parent'); // older snowflake
+      const newerActive = thread('1300000000000000000', 'parent'); // newer snowflake
+      const olderArchived = thread('300', 'parent', true, '2026-01-01T00:00:00Z');
+      const newerArchived = thread('400', 'parent', true, '2026-06-01T00:00:00Z');
+
+      const fetchActiveGuildThreads = vi.fn().mockResolvedValue({
+        success: true,
+        data: { threads: [olderActive, newerActive] },
+      });
+      const fetchPublicThreads = vi.fn().mockResolvedValue({
+        success: true,
+        data: { threads: [olderArchived, newerArchived] },
+      });
+      vi.mocked(discordService.getDiscordService).mockReturnValue({
+        fetchActiveGuildThreads,
+        fetchPublicThreads,
+        fetchPrivateThreads: vi.fn().mockResolvedValue({ success: true, data: { threads: [] } }),
+        fetchJoinedPrivateArchivedThreads: vi.fn(),
+      } as any);
+
+      const result = await store.dispatch(
+        fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+      );
+
+      const ids = (result.payload as Channel[]).map((c) => c.id);
+      // Active threads' snowflake-derived ms timestamps are in the trillions
+      // (well past 2026 archive_timestamps), so they sort to the top.
+      // Within each bucket, newest first.
+      expect(ids).toEqual(['1300000000000000000', '1100000000000000000', '400', '300']);
     });
   });
 

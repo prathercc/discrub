@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { Channel } from 'discrub-core/types/discord-types';
+import { ChannelType } from 'discrub-core/discord-enum';
 import { initialChannelState } from './channelTypes';
 import { getDiscordService } from '@services/discordService';
 import type { RootState } from '@/app/store';
@@ -64,6 +65,118 @@ export const fetchChannelById = createAsyncThunk(
       );
     }
   }
+);
+
+/**
+ * Discover all threads (active + archived public + archived private/joined)
+ * for a single channel. Used by the ThreadLoadModal to surface threads
+ * whose type-21 starter message has been deleted from the parent channel —
+ * those threads still exist on Discord but are invisible in our message
+ * feed because nothing renders them. See backlog #150.
+ *
+ * Returns the merged + de-duplicated list. Sorted newest-first by the
+ * thread's `archive_timestamp` (or its own snowflake when not archived)
+ * so the most recently active threads appear at the top.
+ *
+ * Voice (type 2) and Stage (type 13) channels do not support threads —
+ * Discord 400s the thread endpoints on those types — so we short-circuit
+ * to an empty list. Forum / media channels have their own listing flow
+ * (`fetchForumThreads`) and are out of scope for this thunk; callers
+ * should branch on type before dispatching.
+ */
+export const fetchChannelThreads = createAsyncThunk(
+  'channel/fetchChannelThreads',
+  async (
+    {
+      channel,
+      guildId,
+      token,
+    }: { channel: Channel; guildId: string; token: string },
+  ) => {
+    if (
+      channel.type === ChannelType.GUILD_VOICE ||
+      channel.type === ChannelType.GUILD_STAGE_VOICE
+    ) {
+      return [] as Channel[];
+    }
+
+    const discordService = getDiscordService();
+    const seen = new Map<string, Channel>();
+
+    // Active threads: scoped to guild, filter to children of this channel.
+    try {
+      const activeResp = await discordService.fetchActiveGuildThreads(token, guildId);
+      if (activeResp.success && activeResp.data) {
+        for (const t of activeResp.data.threads as Channel[]) {
+          if (t.parent_id === channel.id) seen.set(t.id, t);
+        }
+      }
+    } catch {
+      /* non-fatal — fall through to archived */
+    }
+
+    // Archived public — first page only for v1; pagination is a follow-up
+    // if we ever surface a "load older threads" affordance in the modal.
+    try {
+      const publicResp = await discordService.fetchPublicThreads(token, channel.id);
+      if (publicResp.success && publicResp.data) {
+        for (const t of publicResp.data.threads as Channel[]) {
+          if (!seen.has(t.id)) seen.set(t.id, t);
+        }
+      }
+    } catch {
+      /* non-fatal — public archive may be empty / restricted */
+    }
+
+    // Archived private — try MANAGE_THREADS endpoint first, fall back to
+    // joined-only (mirrors the discoverThreadsForChannels pattern in
+    // purgeSlice). 403 / 404 from either is a normal "no access", not an
+    // error worth surfacing here.
+    try {
+      const privateResp = await discordService.fetchPrivateThreads(token, channel.id);
+      if (privateResp.success && privateResp.data) {
+        for (const t of privateResp.data.threads as Channel[]) {
+          if (!seen.has(t.id)) seen.set(t.id, t);
+        }
+      } else {
+        const joinedResp = await discordService.fetchJoinedPrivateArchivedThreads(
+          token,
+          channel.id,
+        );
+        if (joinedResp.success && joinedResp.data) {
+          for (const t of joinedResp.data.threads as Channel[]) {
+            if (!seen.has(t.id)) seen.set(t.id, t);
+          }
+        }
+      }
+    } catch {
+      /* non-fatal */
+    }
+
+    // Sort: active threads first (they're the ones the user is most likely
+    // to want to revisit), then archived. Within each bucket newest-first
+    // by snowflake (active) or `archive_timestamp` (archived). Mixing the
+    // two time bases in a single comparator would be wrong (snowflake
+    // shifts to ms-since-Discord-epoch; archive_timestamp is unix ms), so
+    // bucket-then-sort sidesteps the conversion.
+    const all = Array.from(seen.values());
+    all.sort((a, b) => {
+      const aArchived = !!(a as any).thread_metadata?.archived;
+      const bArchived = !!(b as any).thread_metadata?.archived;
+      if (aArchived !== bArchived) return aArchived ? 1 : -1;
+      if (aArchived) {
+        const at = Date.parse((a as any).thread_metadata?.archive_timestamp ?? '');
+        const bt = Date.parse((b as any).thread_metadata?.archive_timestamp ?? '');
+        return (bt || 0) - (at || 0);
+      }
+      // Active: compare snowflake IDs as BigInt to avoid 53-bit truncation.
+      const aId = BigInt(a.id);
+      const bId = BigInt(b.id);
+      return aId < bId ? 1 : aId > bId ? -1 : 0;
+    });
+
+    return all;
+  },
 );
 
 /**

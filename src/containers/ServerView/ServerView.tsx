@@ -1014,6 +1014,8 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         open={threadLoadOpen}
         onClose={() => setThreadLoadOpen(false)}
         onLoad={handleThreadLoad}
+        channel={selectedChannel}
+        guildId={selectedGuild?.id ?? null}
       />
 
       <AnalyticsModal
