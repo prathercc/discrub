@@ -1481,6 +1481,75 @@ describe('purgeSlice thunks', () => {
       expect(mockGetReactions).toHaveBeenCalledTimes(1);
       expect(mockDeleteReaction).toHaveBeenCalledTimes(1);
     });
+
+    // Backlog #149 regression guard. With a search filter active,
+    // around-fetch returns the hit + ±25 neighbours; reactions on
+    // neighbours that do NOT match the filter must NOT be touched
+    // even when their reactor is in the target set. The safety lives
+    // in `iterateReactionPurgeMessages` line 247 (applyRefineCriteria
+    // on the around-batch) — this test pins it.
+    it('does not touch reactions on around-fetch neighbours that fail the search filter (#149)', async () => {
+      const hit = {
+        ...mockMessageWithReactions('hit', [
+          { emoji: { name: '👍' }, count: 1 },
+        ]),
+        content: 'foo here',
+        channel_id: 'ch1',
+      } as Message;
+      const neighbour = {
+        ...mockMessageWithReactions('neighbour', [
+          { emoji: { name: '👍' }, count: 1 },
+        ]),
+        content: 'unrelated chatter',
+        channel_id: 'ch1',
+      } as Message;
+
+      // Search returns only the hit (Discord would have filtered to it).
+      setupSearchResults([[hit]]);
+      // Around-fetch returns BOTH the hit and the off-topic neighbour.
+      mockFetchMessageData.mockImplementation(
+        (_t: string, _id: string, _ch: string, queryParam?: string) => {
+          if (queryParam === 'around') {
+            return Promise.resolve({ success: true, data: [hit, neighbour] });
+          }
+          return Promise.resolve({ success: true, data: [] });
+        },
+      );
+      mockGetReactions.mockResolvedValue({
+        success: true,
+        data: [{ id: 'targetUser', username: 'tgt' }] as User[],
+      });
+      mockDeleteReaction.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['targetUser']),
+          guildId: 'guild1',
+          searchCriteria: {
+            searchMessageContent: 'foo',
+            userIds: [],
+            mentionIds: [],
+            selectedHasTypes: [],
+            channelIds: [],
+            searchAfterDate: null,
+            searchBeforeDate: null,
+            isPinned: 'null',
+          } as unknown as SearchCriteria,
+        }),
+      );
+
+      // Hit is the only message that should reach the per-reaction loop —
+      // neighbour fails the `searchMessageContent: 'foo'` predicate.
+      expect(mockGetReactions).toHaveBeenCalledTimes(1);
+      expect(mockGetReactions).toHaveBeenCalledWith(
+        expect.any(String), 'ch1', 'hit', expect.any(String), expect.anything(), null,
+      );
+      expect(mockDeleteReaction).toHaveBeenCalledTimes(1);
+      expect(mockDeleteReaction).toHaveBeenCalledWith(
+        expect.any(String), 'ch1', 'hit', expect.any(String), 'targetUser',
+      );
+    });
   });
 
   // ── DM Mode: bulkPurgeDMs ────────────────────────────────────────────────
