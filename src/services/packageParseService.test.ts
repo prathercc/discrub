@@ -193,6 +193,38 @@ describe('parsePackageZip', () => {
       expect(parsed.user.id).toBe('253286221395001345');
       expect(parsed.totalMessages).toBe(4);
     });
+
+    it('parses a Simplified-Chinese package (账户/, 消息/, 服务器/)', async () => {
+      // CJK characters have no notion of case, so .toLowerCase() is a
+      // no-op on the index keys (correct behavior). Sniff identifies
+      // dirs by content regardless of script. Pinning this so a future
+      // refactor can't accidentally introduce Latin-only assumptions.
+      const blob = await buildFixturePackage({
+        localeOverride: { account: '账户', messages: '消息', servers: '服务器' },
+        includeOrphanChannel: true,
+      });
+      const parsed = await parsePackageZip(blob);
+
+      expect(parsed.user.id).toBe('253286221395001345');
+      expect(parsed.guilds).toEqual([{ id: '100', name: 'Test Guild' }]);
+      expect(parsed.channels.find((c) => c.id === '400')?.isOrphan).toBe(true);
+      expect(parsed.totalMessages).toBe(5);
+    });
+
+    it('parses a Russian-locale package (аккаунт/, сообщения/, серверы/) including the lazy CSV path', async () => {
+      // Cyrillic exercises the Unicode-aware lowercase path (Cyrillic
+      // upper/lower exist, unlike CJK). Verifies the second per-call
+      // sniff inside loadChannelMessages also handles non-Latin.
+      const blob = await buildFixturePackage({
+        localeOverride: { account: 'аккаунт', messages: 'сообщения', servers: 'серверы' },
+      });
+      const parsed = await parsePackageZip(blob);
+      expect(parsed.user.id).toBe('253286221395001345');
+      expect(parsed.totalMessages).toBe(4);
+
+      const rows = await loadChannelMessages(blob, '200');
+      expect(rows).toHaveLength(3);
+    });
   });
 
   it('throws on missing account/user.json', async () => {
