@@ -372,7 +372,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -432,7 +432,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -456,7 +456,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], true),
+          config: messagesConfig([CURRENT_USER.id], true),
           guildId: 'guild1',
         }),
       );
@@ -487,7 +487,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -525,7 +525,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -550,7 +550,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -568,7 +568,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -604,7 +604,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -642,7 +642,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -684,7 +684,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -729,7 +729,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
           searchCriteria: filterCriteria,
         }),
@@ -739,7 +739,7 @@ describe('purgeSlice thunks', () => {
       // criteria object for the merged shape.
       expect(mockFetchSearchMessageData).toHaveBeenCalled();
       const criteriaArg = mockFetchSearchMessageData.mock.calls[0][4];
-      expect(criteriaArg.userIds).to.deep.equal(['user1']); // loop-author wins
+      expect(criteriaArg.userIds).to.deep.equal([CURRENT_USER.id]); // loop-author wins
       expect(criteriaArg.searchMessageContent).to.equal('pineapple');
       expect(criteriaArg.searchAfterDate).to.deep.equal(new Date('2025-01-01T00:00:00Z'));
       expect(criteriaArg.selectedHasTypes).to.deep.equal(['image']);
@@ -756,13 +756,13 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
 
       const criteriaArg = mockFetchSearchMessageData.mock.calls[0][4];
-      expect(criteriaArg.userIds).to.deep.equal(['user1']);
+      expect(criteriaArg.userIds).to.deep.equal([CURRENT_USER.id]);
       expect(criteriaArg.searchMessageContent).to.be.null;
       expect(criteriaArg.searchAfterDate).to.be.null;
       expect(criteriaArg.selectedHasTypes).to.deep.equal([]);
@@ -790,7 +790,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -813,7 +813,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -830,7 +830,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -840,6 +840,53 @@ describe('purgeSlice thunks', () => {
         (e) => e.level === 'warning' && e.message.includes("Couldn't delete") && e.message.includes('404'),
       );
       expect(warning).toBeDefined();
+    });
+
+    it('regular-delete defensively skips messages whose author does not match the targeted user (#148)', async () => {
+      // Discord's docs say search returns hits-only, but if that ever
+      // regresses to include context messages, we never want to delete a
+      // neighbor whose author wasn't targeted. Even with MANAGE_MESSAGES,
+      // deleting non-matching authors would betray the user's targeting.
+      const wrongAuthor = { id: 'someone-else', username: 'context-leak' } as User;
+      const msg = mockMessage('m1', 0, [], wrongAuthor);
+      setupSearchResults([[msg]]);
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // No DELETE was issued.
+      expect(mockDeleteMessage).not.toHaveBeenCalled();
+
+      // Status log surfaces a warning so the dev knows something's odd.
+      const entries = store.getState().status.entries.map((e) => e.message);
+      expect(entries.some((m) => m.includes("didn't match the target"))).toBe(true);
+    });
+
+    it('admin purge of another user proceeds when the search returns that user\'s messages (#148)', async () => {
+      // Defensive check must not break the legitimate admin-purges-another-user
+      // flow. When targetUserIds=['otherUser'] and the search returns Bob's
+      // messages, every result satisfies author.id === userId so the check
+      // never fires.
+      const otherUser = { id: 'otherUser', username: 'bob' } as User;
+      const msg = mockMessage('m1', 0, [], otherUser);
+      setupSearchResults([[msg]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig(['otherUser']),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm1', 'ch1');
     });
 
     it('deleteAttachmentsOnly status log reports the stripped count', async () => {
@@ -852,7 +899,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -872,7 +919,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], false, true),
+          config: messagesConfig([CURRENT_USER.id], false, true),
           guildId: 'guild1',
         }),
       );
@@ -898,7 +945,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], true, false),
+          config: messagesConfig([CURRENT_USER.id], true, false),
           guildId: 'guild1',
         }),
       );
@@ -943,7 +990,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], true, true),
+          config: messagesConfig([CURRENT_USER.id], true, true),
           guildId: 'guild1',
         }),
       );
@@ -969,7 +1016,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -990,7 +1037,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1018,7 +1065,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1055,7 +1102,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1074,7 +1121,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1084,8 +1131,10 @@ describe('purgeSlice thunks', () => {
     });
 
     it('processes multiple target user IDs sequentially', async () => {
-      const msg1 = mockMessage('m1');
-      const msg2 = mockMessage('m2');
+      const userA = { id: 'userA', username: 'alice' } as User;
+      const userB = { id: 'userB', username: 'bob' } as User;
+      const msg1 = mockMessage('m1', 0, [], userA);
+      const msg2 = mockMessage('m2', 0, [], userB);
 
       let searchCall = 0;
       mockFetchSearchMessageData.mockImplementation(
@@ -1134,7 +1183,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [selected],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1158,7 +1207,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1173,7 +1222,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -1416,7 +1465,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeDMs({
           channels: [dmChannel],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
         }),
       );
 
@@ -1434,7 +1483,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeDMs({
           channels: [dmChannel],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
         }),
       );
 
@@ -1454,7 +1503,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeDMs({
           channels: [dmChannel],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
         }),
       );
 
@@ -2322,7 +2371,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeDMs({
           channels: [dmChannel],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
         }),
       );
 
@@ -2362,7 +2411,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2387,7 +2436,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2434,7 +2483,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2470,7 +2519,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2505,7 +2554,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2624,7 +2673,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2658,7 +2707,7 @@ describe('purgeSlice thunks', () => {
       const promise = store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2673,7 +2722,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2703,7 +2752,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2717,7 +2766,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeDMs({
           channels: [mockDmChannel('dm1', 'friend')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
         }),
       );
 
@@ -2739,7 +2788,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2758,7 +2807,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2790,7 +2839,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general'), mockChannel('ch2', 'random')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2809,7 +2858,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2828,7 +2877,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -2902,7 +2951,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild123',
         }),
       );
@@ -2912,7 +2961,7 @@ describe('purgeSlice thunks', () => {
         0,
         'ch1',
         'guild123',
-        expect.objectContaining({ userIds: ['user1'] }),
+        expect.objectContaining({ userIds: [CURRENT_USER.id] }),
       );
     });
 
@@ -2994,7 +3043,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3034,7 +3083,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3063,7 +3112,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3085,7 +3134,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3109,7 +3158,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3136,7 +3185,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3247,7 +3296,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3270,7 +3319,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3292,7 +3341,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3323,7 +3372,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3346,7 +3395,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3392,7 +3441,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3450,7 +3499,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3483,8 +3532,9 @@ describe('purgeSlice thunks', () => {
           if (count > 0) {
             // Mark as served so second call returns empty
             msgCounts[userId][channelId] = 0;
+            const author = { id: userId, username: userId } as User;
             const msgs = Array.from({ length: count }, (_, i) =>
-              mockMessage(`${userId}_${channelId}_${i}`),
+              mockMessage(`${userId}_${channelId}_${i}`, 0, [], author),
             );
             return Promise.resolve({
               success: true,
@@ -3531,7 +3581,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1'], true),
+          config: messagesConfig([CURRENT_USER.id], true),
           guildId: 'guild1',
         }),
       );
@@ -3575,7 +3625,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3624,7 +3674,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3765,7 +3815,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3847,7 +3897,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'alpha'), mockChannel('ch2', 'beta')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3915,7 +3965,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3959,7 +4009,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels,
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -3996,7 +4046,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockForumChannel('forum1', 'feedback')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4016,7 +4066,7 @@ describe('purgeSlice thunks', () => {
       const result = await store.dispatch(
         bulkPurgeChannels({
           channels: [mockForumChannel('forum1', 'feedback')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4045,7 +4095,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockForumChannel('forum1', 'feedback')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4069,7 +4119,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4088,7 +4138,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4111,7 +4161,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4134,7 +4184,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4178,7 +4228,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4386,7 +4436,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general'), mockChannel('ch2', 'random')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );
@@ -4521,7 +4571,7 @@ describe('purgeSlice thunks', () => {
       await store.dispatch(
         bulkPurgeChannels({
           channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig(['user1']),
+          config: messagesConfig([CURRENT_USER.id]),
           guildId: 'guild1',
         }),
       );

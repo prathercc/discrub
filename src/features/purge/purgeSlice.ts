@@ -462,6 +462,7 @@ async function purgeChannelMessages(
   let totalEditedAttachmentsOnly = 0;
   let totalFailed = 0;
   let totalSkippedNotAuthor = 0;
+  let totalSkippedUnexpectedAuthor = 0;
   let totalSkippedArchivedNoPerm = 0;
   let totalProcessed = 0;
   let lastProgressDispatch = 0;
@@ -719,6 +720,17 @@ async function purgeChannelMessages(
               }));
             }
           }
+        } else if (message.author?.id !== userId) {
+          // Defensive: search asked Discord for messages by `userId`, so
+          // every result should have author.id === userId. Discord's docs
+          // confirm search currently returns hits-only (no surrounding
+          // context), so this branch is a no-op today. If that ever
+          // regresses to include context messages, we never want to
+          // delete a neighbor whose author wasn't targeted — even with
+          // MANAGE_MESSAGES, deleting non-matching authors would betray
+          // the user's targeting intent.
+          totalSkipped++;
+          totalSkippedUnexpectedAuthor++;
         } else {
           const response = await discordService.deleteMessage(token, message.id, targetChannelId);
           if (response.success) {
@@ -779,6 +791,17 @@ async function purgeChannelMessages(
     dispatch(addStatusEntry({
       level: 'info',
       message: `Skipped ${totalSkippedNotAuthor} message${totalSkippedNotAuthor !== 1 ? 's' : ''} authored by other users — Discord only allows you to edit your own messages.`,
+    }));
+  }
+
+  // Defensive-skip summary: search returned messages whose author didn't
+  // match the targeted user. Should never fire under current Discord
+  // behavior (search returns hits-only); if it does, it likely indicates
+  // an API regression and is worth investigating.
+  if (totalSkippedUnexpectedAuthor > 0) {
+    dispatch(addStatusEntry({
+      level: 'warning',
+      message: `Skipped ${totalSkippedUnexpectedAuthor} message${totalSkippedUnexpectedAuthor !== 1 ? 's' : ''} returned by search whose author didn't match the target — likely an API anomaly.`,
     }));
   }
 
