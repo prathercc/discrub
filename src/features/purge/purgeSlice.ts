@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { Message, Channel, Emoji } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
-import { IsPinnedType, ReactionType, QueryStringParam } from 'discrub-core/discord-enum';
+import { ChannelType, IsPinnedType, ReactionType, QueryStringParam } from 'discrub-core/discord-enum';
 import { initialPurgeState } from './purgeTypes';
 import type { PurgeProgress, PurgeConfig, BulkPurgeContext } from './purgeTypes';
 import type { RootState } from '@/app/store';
@@ -317,6 +317,19 @@ async function discoverThreadsForChannels(
   // Per channel: fetch archived threads (public + private)
   for (let ci = 0; ci < channels.length; ci++) {
     const channel = channels[ci];
+
+    // Voice + Stage channels carry text chat but DO NOT support threads
+    // (Discord blocks thread creation on type 2 / 13). Hitting the thread
+    // endpoints on a voice channel ID 400s and just wastes API calls +
+    // emits "Could not fetch archived threads" warnings. Skip cleanly.
+    // See backlog #160.
+    if (
+      channel.type === ChannelType.GUILD_VOICE ||
+      channel.type === ChannelType.GUILD_STAGE_VOICE
+    ) {
+      continue;
+    }
+
     // Per-channel progress so bulk purges across many channels don't
     // look stuck during the multi-minute discovery phase when searchDelay
     // is high. Firing once per channel (not per page) keeps the log tidy.

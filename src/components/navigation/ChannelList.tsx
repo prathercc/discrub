@@ -80,12 +80,18 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   const handleChannelClick = async (channel: Channel) => {
     if (!token || !selectedGuild) return;
 
-    // Only allow channels that contain fetchable messages
+    // Only allow channels that contain fetchable messages. Voice (2) and
+    // Stage (13) carry persistent text chat under the same channel ID
+    // since Discord's 2021 Voice Channel Messages rollout — same
+    // `GET /channels/{id}/messages` endpoint, same permission gate as
+    // text. See backlog #160.
     const messageChannelTypes = [
       ChannelType.GUILD_TEXT,
       ChannelType.GUILD_ANNOUNCEMENT,
       ChannelType.GUILD_FORUM,
       ChannelType.GUILD_MEDIA,
+      ChannelType.GUILD_VOICE,
+      ChannelType.GUILD_STAGE_VOICE,
     ];
     if (!messageChannelTypes.includes(channel.type)) {
       return;
@@ -157,21 +163,17 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     }
   };
 
-  // Channel types that support fetching messages
+  // Channel types that support fetching messages — see #160 note above
+  // on `handleChannelClick` for why voice + stage are included.
   const messageChannelTypes = [
     ChannelType.GUILD_TEXT,
     ChannelType.GUILD_ANNOUNCEMENT,
     ChannelType.GUILD_FORUM,
     ChannelType.GUILD_MEDIA,
-  ];
-
-  // Channel types to display (includes voice for visibility, but they'll be disabled)
-  const displayChannelTypes = [
-    ...messageChannelTypes,
     ChannelType.GUILD_VOICE,
     ChannelType.GUILD_STAGE_VOICE,
   ];
-  const textChannels = channels.filter((ch) => displayChannelTypes.includes(ch.type));
+  const textChannels = channels.filter((ch) => messageChannelTypes.includes(ch.type));
 
   const filteredChannels = useMemo(() => {
     if (!filterText.trim()) return textChannels;
@@ -182,16 +184,14 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     );
   }, [textChannels, filterText]);
 
-  // Channels eligible for "Select all" in multi-select mode: skip voice
-  // channels (no messages) and any the user can't access (locked icon).
+  // Channels eligible for "Select all" in multi-select mode: anything
+  // the user has VIEW_CHANNEL + READ_MESSAGE_HISTORY for. Voice/stage
+  // are now included since their embedded text chat uses the same
+  // permission gate as text channels (#160).
   const accessibleChannels = useMemo(() => {
-    return filteredChannels.filter((ch) => {
-      const isVoice =
-        ch.type === ChannelType.GUILD_VOICE || ch.type === ChannelType.GUILD_STAGE_VOICE;
-      return (
-        !isVoice && canAccessChannel(guildPermissions, memberRoles, ch, selectedGuild?.id || '')
-      );
-    });
+    return filteredChannels.filter((ch) =>
+      canAccessChannel(guildPermissions, memberRoles, ch, selectedGuild?.id || ''),
+    );
   }, [filteredChannels, guildPermissions, memberRoles, selectedGuild?.id]);
 
   // Build category map from all channels (including type 4 categories)
@@ -378,8 +378,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
             )}
             {(!group.categoryId || !collapsedCategories.has(group.categoryId)) &&
               group.channels.map((channel) => {
-                const isVoiceChannel = channel.type === ChannelType.GUILD_VOICE || channel.type === ChannelType.GUILD_STAGE_VOICE;
-                const hasAccess = !isVoiceChannel && canAccessChannel(
+                const hasAccess = canAccessChannel(
                   guildPermissions,
                   memberRoles,
                   channel,

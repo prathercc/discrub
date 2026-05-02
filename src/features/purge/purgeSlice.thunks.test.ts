@@ -2495,6 +2495,40 @@ describe('purgeSlice thunks', () => {
       expect(mockFetchPublicThreads).not.toHaveBeenCalled();
       expect(mockFetchPrivateThreads).not.toHaveBeenCalled();
     });
+
+    // Backlog #160: voice (type 2) and stage (type 13) channels host
+    // text chat but Discord blocks thread creation on them, so the
+    // thread-enumeration endpoints 400 on a voice channel ID. Skip
+    // discovery cleanly for those types — text channels in the same
+    // selection should still get their threads discovered as normal.
+    it('skips thread discovery for voice + stage channels but still discovers on text channels (#160)', async () => {
+      const channels = [
+        mockChannel('text1', 'general'),
+        { id: 'voice1', name: 'voice-chat', type: 2 } as Channel,
+        { id: 'stage1', name: 'live-chat', type: 13 } as Channel,
+      ];
+
+      mockFetchSearchMessageData.mockResolvedValue({ success: true, data: { messages: [] } });
+      // Active threads + per-channel public/private return no threads.
+      mockFetchActiveGuildThreads.mockResolvedValue({ success: true, data: { threads: [] } });
+      mockFetchPublicThreads.mockResolvedValue({ success: true, data: { threads: [], has_more: false } });
+      mockFetchPrivateThreads.mockResolvedValue({ success: true, data: { threads: [] } });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels,
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // Per-channel discovery endpoints fired exactly once — for the
+      // text channel only. Voice + stage are skipped.
+      const publicCalledFor = mockFetchPublicThreads.mock.calls.map((c) => c[1]);
+      const privateCalledFor = mockFetchPrivateThreads.mock.calls.map((c) => c[1]);
+      expect(publicCalledFor).toEqual(['text1']);
+      expect(privateCalledFor).toEqual(['text1']);
+    });
   });
 
   // ── Error Handling ───────────────────────────────────────────────────────

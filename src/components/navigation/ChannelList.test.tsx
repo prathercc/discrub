@@ -304,4 +304,53 @@ describe('ChannelList', () => {
       expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
     });
   });
+
+  // Backlog #160: voice (type 2) and stage (type 13) channels carry
+  // persistent text chat under the same channel ID and use the same
+  // permission gate as text channels. They must render as clickable,
+  // not as the disabled / locked rows we used to ship.
+  describe('Voice and Stage channels (Backlog #160)', () => {
+    const stageChannel = createMockChannel({ id: 'ch-stage', name: 'live-chat', type: 13 });
+    const accessibleGuild = createMockGuild({ id: 'g1', name: 'Test Guild', permissions: '8' });
+
+    it('renders voice channels as enabled rows (not disabled / locked)', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [accessibleGuild], selectedGuild: accessibleGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      const row = screen.getByText('voice-chat').closest('[role="button"]');
+      expect(row).not.toHaveClass('Mui-disabled');
+    });
+
+    it('renders stage channels as enabled rows (not disabled / locked)', () => {
+      renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [accessibleGuild], selectedGuild: accessibleGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [stageChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      const row = screen.getByText('live-chat').closest('[role="button"]');
+      expect(row).not.toHaveClass('Mui-disabled');
+    });
+
+    it('includes voice channels in the multi-select Select-all set when the user has access', () => {
+      const { store } = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [accessibleGuild], selectedGuild: accessibleGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          channel: { channels: [textChannel, voiceChannel, stageChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-toggle-all'));
+      const selectedIds = store.getState().channel.selectedChannels.map((c: { id: string }) => c.id);
+      expect(selectedIds).toContain('ch-1');
+      expect(selectedIds).toContain('ch-3');
+      expect(selectedIds).toContain('ch-stage');
+    });
+  });
 });
