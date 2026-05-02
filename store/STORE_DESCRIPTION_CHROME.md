@@ -2,8 +2,10 @@ Discrub is a Discord data management tool. It runs as a browser extension that a
 
 Discord Data Package
 - Drop the official Discord ZIP (Privacy & Safety, Request All My Data) directly into Discrub
+- Handles large packages (multi-gigabyte, tens of thousands of entries) and packages from any Discord locale
 - Browse every server, channel, and DM in your archive without touching the Discord API
 - Rich rendering: markdown, mentions, custom emojis, reply quotes, embed previews
+- Multi-attachment messages render every attachment, not just the first
 - Optional rehydration to fetch reactions, edits, and replies from Discord, with smart caching
 - Bulk delete or bulk edit straight from the package
 - Export package channels to HTML for portable archives
@@ -20,8 +22,10 @@ Export
 
 Message Feed
 - Discord-style chunked feed with role colors, role icons, reply indicators, and inline system messages (pins, joins, boosts, thread-created)
+- Voice and Stage channel chat browsable alongside text channels
 - Virtualization for smooth scrolling on large channels
 - Click-to-jump on reply bars, pinned-message notices, and thread-created notices
+- Find threads even when their starter message has been deleted, via the Load Thread modal
 - Focused view mode that hides chrome for full-width reading
 
 Search and Filter
@@ -52,7 +56,7 @@ Privacy
 
 Additional
 - Dark and light mode (matches Discord theme)
-- Forum channel support with thread discovery
+- Forum channel support showing both active and archived posts
 - Guided tour and contextual help icons
 - Pause, resume, and cancel for long operations
 - Status log with real-time operation feedback
