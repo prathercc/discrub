@@ -73,6 +73,11 @@ export const fetchChannelById = createAsyncThunk(
  * Fetch threads/posts for a forum or media channel.
  * Uses Discord's threads/search endpoint (same as web client).
  * Single API call returns active + archived threads sorted by recency.
+ *
+ * NOTE: do NOT pass `archived` here. Discord treats it as a strict
+ * filter (`true` → archived only, `false` → active only); omitting it
+ * returns the union — which matches the native client's "active +
+ * OLDER POSTS" view. (Backlog #151.)
  */
 export const fetchForumThreads = createAsyncThunk(
   'channel/fetchForumThreads',
@@ -89,7 +94,6 @@ export const fetchForumThreads = createAsyncThunk(
         sort_order: 'desc',
         limit: 25,
         offset: 0,
-        archived: true,
       });
 
       if (!response.success || !response.data) {
@@ -136,7 +140,7 @@ export const loadMoreForumThreads = createAsyncThunk(
         sort_order: 'desc',
         limit: 25,
         offset,
-        archived: true,
+        // Omit `archived` — see fetchForumThreads note above (#151).
       });
 
       if (!response.success || !response.data) {

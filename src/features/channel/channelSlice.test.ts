@@ -8,6 +8,9 @@ import channelReducer, {
   deselectAllChannels,
   fetchChannels,
   fetchChannelById,
+  fetchForumThreads,
+  loadMoreForumThreads,
+  searchForumThreads,
   selectChannel,
   selectChannels,
   selectSelectedChannel,
@@ -15,6 +18,7 @@ import channelReducer, {
   selectChannelError,
   selectSelectedChannels,
 } from './channelSlice';
+import statusReducer from '@features/status/statusSlice';
 import { initialChannelState } from './channelTypes';
 import * as discordService from '@services/discordService';
 import type { Channel } from 'discrub-core/types/discord-types';
@@ -560,6 +564,126 @@ describe('channelSlice', () => {
 
       expect(result.type).toBe('channel/fetchChannelById/rejected');
       expect(result.payload).toBe('Failed to fetch thread');
+    });
+  });
+
+  // Backlog #151: Forum channels were silently missing active posts because
+  // the thunks passed `archived: true`, which Discord treats as a strict
+  // filter. Omitting it returns the union (active + archived).
+  describe('forum thread thunks (Backlog #151)', () => {
+    let forumStore: TestStore;
+
+    const activeThread = { id: 'thread-active-1', name: 'Test post', thread_metadata: { archived: false } } as any;
+    const archivedThread = { id: 'thread-archived-1', name: 'OLDER POST', thread_metadata: { archived: true } } as any;
+    const firstMsgs = [{ id: 'm1', channel_id: 'thread-active-1' }, { id: 'm2', channel_id: 'thread-archived-1' }] as any;
+
+    beforeEach(() => {
+      forumStore = createTestStore({ channel: channelReducer, status: statusReducer });
+    });
+
+    describe('fetchForumThreads', () => {
+      it('does NOT pass `archived` to Discord (#151 regression guard)', async () => {
+        const fetchForumThreadSearch = vi.fn().mockResolvedValue({
+          success: true,
+          data: { threads: [activeThread, archivedThread], has_more: false, total_results: 2, first_messages: firstMsgs },
+        });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        await forumStore.dispatch(fetchForumThreads({ channelId: 'forum-1', token: 'tok' }));
+
+        const opts = fetchForumThreadSearch.mock.calls[0][2];
+        expect(opts).not.toHaveProperty('archived');
+        expect(opts).toMatchObject({ sort_by: 'last_message_time', sort_order: 'desc', limit: 25, offset: 0 });
+      });
+
+      it('stores both active and archived threads from the union response', async () => {
+        const fetchForumThreadSearch = vi.fn().mockResolvedValue({
+          success: true,
+          data: { threads: [activeThread, archivedThread], has_more: true, total_results: 6, first_messages: firstMsgs },
+        });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        await forumStore.dispatch(fetchForumThreads({ channelId: 'forum-1', token: 'tok' }));
+
+        const state = forumStore.getState().channel;
+        expect(state.forumThreads.map((t: any) => t.id)).toEqual(['thread-active-1', 'thread-archived-1']);
+        expect(state.forumThreadsTotalResults).toBe(6);
+        expect(state.hasMoreForumThreads).toBe(true);
+        expect(state.forumThreadsNextOffset).toBe(25);
+        expect(state.forumFirstMessages).toEqual(firstMsgs);
+      });
+
+      it('falls through to empty arrays when the response is unsuccessful', async () => {
+        const fetchForumThreadSearch = vi.fn().mockResolvedValue({ success: false, data: null });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        await forumStore.dispatch(fetchForumThreads({ channelId: 'forum-1', token: 'tok' }));
+
+        const state = forumStore.getState().channel;
+        expect(state.forumThreads).toEqual([]);
+        expect(state.forumThreadsTotalResults).toBe(0);
+      });
+
+      it('rejects on a thrown error', async () => {
+        const fetchForumThreadSearch = vi.fn().mockRejectedValue(new Error('boom'));
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        const result = await forumStore.dispatch(fetchForumThreads({ channelId: 'forum-1', token: 'tok' }));
+        expect(result.type).toBe('channel/fetchForumThreads/rejected');
+        expect(result.payload).toBe('boom');
+      });
+    });
+
+    describe('loadMoreForumThreads', () => {
+      it('does NOT pass `archived` to Discord (#151 regression guard)', async () => {
+        const fetchForumThreadSearch = vi.fn().mockResolvedValue({
+          success: true,
+          data: { threads: [archivedThread], has_more: false, total_results: 6, first_messages: [firstMsgs[1]] },
+        });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        await forumStore.dispatch(loadMoreForumThreads({ channelId: 'forum-1', token: 'tok', offset: 25 }));
+
+        const opts = fetchForumThreadSearch.mock.calls[0][2];
+        expect(opts).not.toHaveProperty('archived');
+        expect(opts).toMatchObject({ offset: 25, limit: 25 });
+      });
+
+      it('appends new threads + first messages and advances offset', async () => {
+        // Seed page 1 already in state.
+        forumStore = createTestStore(
+          { channel: channelReducer, status: statusReducer },
+          { channel: { ...initialChannelState, forumThreads: [activeThread], forumFirstMessages: [firstMsgs[0]], forumThreadsNextOffset: 25 } },
+        );
+        const fetchForumThreadSearch = vi.fn().mockResolvedValue({
+          success: true,
+          data: { threads: [archivedThread], has_more: false, total_results: 2, first_messages: [firstMsgs[1]] },
+        });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        await forumStore.dispatch(loadMoreForumThreads({ channelId: 'forum-1', token: 'tok', offset: 25 }));
+
+        const state = forumStore.getState().channel;
+        expect(state.forumThreads.map((t: any) => t.id)).toEqual(['thread-active-1', 'thread-archived-1']);
+        expect(state.forumFirstMessages).toEqual(firstMsgs);
+        expect(state.forumThreadsNextOffset).toBe(50);
+      });
+    });
+
+    describe('searchForumThreads', () => {
+      it('does NOT pass `archived` so search hits both buckets', async () => {
+        const fetchForumThreadSearch = vi.fn().mockResolvedValue({
+          success: true,
+          data: { threads: [activeThread, archivedThread], total_results: 2, first_messages: firstMsgs },
+        });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchForumThreadSearch } as any);
+
+        await forumStore.dispatch(searchForumThreads({ channelId: 'forum-1', token: 'tok', name: 'test' }));
+
+        const opts = fetchForumThreadSearch.mock.calls[0][2];
+        expect(opts).not.toHaveProperty('archived');
+        expect(opts).toMatchObject({ name: 'test' });
+      });
     });
   });
 });
