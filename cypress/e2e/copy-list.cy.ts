@@ -3,31 +3,35 @@ describe('Copy List', () => {
     cy.login();
   });
 
-  describe('Server List Copy', () => {
-    it('should have copy server names button', () => {
-      cy.get('[aria-label="Copy server names"]').should('be.visible');
+  // Backlog #155: Server List adopted the same multi-select Copy
+  // pattern as Channel/DM lists; the legacy header IconButton was
+  // removed. These mirror the Channel/DM blocks below.
+  describe('Server List Copy (multi-select toolbar)', () => {
+    it('does not show the Copy button when nothing is selected', () => {
+      cy.get('[data-testid="multi-select-copy"]').should('not.exist');
     });
 
-    it('should show Snackbar after clicking copy', () => {
-      // Grant clipboard permission by stubbing
-      cy.window().then((win) => {
-        cy.stub(win.navigator.clipboard, 'writeText').resolves();
-      });
-
-      cy.get('[aria-label="Copy server names"]').click();
-      cy.contains('Copied to clipboard').should('be.visible');
+    it('shows Copy in the multi-select toolbar once a server is selected', () => {
+      cy.get('[aria-label="Toggle multi-select"]').click();
+      cy.contains('Cypress Test Server').click();
+      cy.get('[data-testid="multi-select-copy"]').should('be.visible');
     });
 
-    it('should copy server names to clipboard', () => {
+    it('copies only selected server names and shows the snackbar', () => {
       cy.window().then((win) => {
         const stub = cy.stub(win.navigator.clipboard, 'writeText').resolves();
-        cy.get('[aria-label="Copy server names"]').click().then(() => {
+        cy.get('[aria-label="Toggle multi-select"]').click();
+        cy.contains('Cypress Test Server').click();
+        cy.contains('Gaming Lounge').click();
+        cy.get('[data-testid="multi-select-copy"]').click().then(() => {
           expect(stub).to.have.been.calledOnce;
           const copiedText = stub.firstCall.args[0];
           expect(copiedText).to.include('Cypress Test Server');
           expect(copiedText).to.include('Gaming Lounge');
-          expect(copiedText).to.include('Dev Community');
+          // Dev Community is unselected, so it must NOT be in the clipboard
+          expect(copiedText).not.to.include('Dev Community');
         });
+        cy.contains('Copied to clipboard').should('be.visible');
       });
     });
   });
