@@ -65,6 +65,7 @@ import messageReducer, {
   fetchMoreThreadMessages,
   fetchAllThreadMessages,
   searchThreadMessages,
+  loadAllSearchResults,
   navigateToMessage,
   setHighlightedMessageId,
   selectHighlightedMessageId,
@@ -4194,6 +4195,354 @@ describe('messageSlice', () => {
 
       expect(result.payload).toEqual({ skipped: 'no-channel' });
       expect(mockDiscordService.fetchSearchMessageData).not.toHaveBeenCalled();
+    });
+  });
+
+  // ── #148: searchThreadMessages cap-shift uses searchBeforeDate ──
+  describe('searchThreadMessages cap-shift (#148)', () => {
+    const createStoreWithApp = async (messageState: any) => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      return configureStore({
+        reducer: { message: messageReducer, app: appReducer },
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          } as any,
+          message: messageState,
+        },
+      });
+    };
+
+    it('cap-shifts via searchBeforeDate (max_id) when a batch hits maxPerBatch=5000', async () => {
+      // Inner loop accumulates messages until batchMessages.length >= 5000.
+      // Returning 5000 in a single call satisfies that on iteration 1;
+      // the outer cap-shift then fires for the second batch.
+      const oldestTs = '2025-03-15T00:00:00.000Z';
+      const fullBatch = Array.from({ length: 5000 }, (_, i) => ({
+        id: `t${i}`,
+        timestamp: oldestTs,
+      }));
+
+      const criteriaCalls: any[] = [];
+      const mockDiscordService = {
+        fetchSearchMessageData: vi
+          .fn()
+          .mockImplementation(
+            (
+              _token: string,
+              _offset: number,
+              _channelId: string | null,
+              _guildId: string | null,
+              criteria: any,
+            ) => {
+              criteriaCalls.push({ ...criteria });
+              if (criteriaCalls.length === 1) {
+                // First batch: 5000 messages, total_results > 5000 so
+                // cap-shift will be needed.
+                return Promise.resolve({
+                  success: true,
+                  data: { messages: fullBatch.map((m) => [m]), total_results: 6000 },
+                });
+              }
+              // Second batch (after cap-shift): empty → terminate.
+              return Promise.resolve({
+                success: true,
+                data: { messages: [], total_results: 0 },
+              });
+            },
+          ),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const testStore = await createStoreWithApp({
+        ...initialMessageState,
+        activeTab: 'thread-cap',
+        threadTabs: {
+          'thread-cap': {
+            threadId: 'thread-cap',
+            threadName: 'Cap-shift thread',
+            messages: [],
+            filteredMessages: [],
+            selectedMessages: [],
+            searchCriteria: null,
+            refineCriteria: null,
+            order: initialMessageState.order,
+            isLoading: false,
+            error: null,
+            pagination: { ...initialMessageState.pagination },
+          },
+        },
+      });
+
+      await testStore.dispatch(
+        searchThreadMessages({
+          threadId: 'thread-cap',
+          token: 'token',
+          searchCriteria: {
+            searchAfterDate: null,
+            searchBeforeDate: null,
+            searchMessageContent: 'foo',
+            selectedHasTypes: [],
+            userIds: [],
+            mentionIds: [],
+            channelIds: [],
+            isPinned: 0,
+            authorType: null,
+          } as any,
+        }),
+      );
+
+      // First call: clean criteria, no bounds.
+      expect(criteriaCalls[0].searchBeforeDate).toBeNull();
+      expect(criteriaCalls[0].searchAfterDate).toBeNull();
+
+      // Second call: cap-shifted. searchBeforeDate (= max_id) must be
+      // tightened to the oldest message's timestamp; searchAfterDate
+      // (= min_id) must NOT be touched.
+      expect(criteriaCalls[1].searchBeforeDate).toBeInstanceOf(Date);
+      expect(
+        (criteriaCalls[1].searchBeforeDate as Date).toISOString(),
+      ).toBe(oldestTs);
+      expect(criteriaCalls[1].searchAfterDate).toBeNull();
+    });
+  });
+
+  // ── #148: cap-shift uses searchBeforeDate (max_id), NOT searchAfterDate ──
+  describe('loadAllSearchResults cap-shift (#148)', () => {
+    it('tightens searchBeforeDate (max_id) when offset crosses 5000 cap, never searchAfterDate', async () => {
+      // Seed initial state with searchOffset=4975 so a single 25-result
+      // page pushes offset to 5000 — the natural cap-shift boundary.
+      // Then a short page triggers the "end of query" branch which
+      // checks offset>=MAX_PER_QUERY and cap-shifts.
+      const oldestTs = '2025-01-15T00:00:00.000Z';
+      const fullPage = Array.from({ length: 25 }, (_, i) => ({
+        id: `m${i}`,
+        timestamp: oldestTs,
+      }));
+      const shortPage = Array.from({ length: 5 }, (_, i) => ({
+        id: `s${i}`,
+        timestamp: oldestTs,
+      }));
+
+      const criteriaCalls: any[] = [];
+      const mockDiscordService = {
+        fetchSearchMessageData: vi
+          .fn()
+          .mockImplementation(
+            (
+              _token: string,
+              _offset: number,
+              _channelId: string | null,
+              _guildId: string | null,
+              criteria: any,
+            ) => {
+              criteriaCalls.push({ ...criteria });
+              if (criteriaCalls.length === 1) {
+                // offset=4975 → +25 → offset=5000 (boundary, but page is full
+                // so end-of-query check is false)
+                return Promise.resolve({
+                  success: true,
+                  data: { messages: fullPage.map((m) => [m]), total_results: 6000 },
+                });
+              }
+              if (criteriaCalls.length === 2) {
+                // offset=5000 → +5 → offset=5005, page<SEARCH_PAGE_SIZE
+                // → end-of-query → offset>=MAX_PER_QUERY → cap-shift
+                return Promise.resolve({
+                  success: true,
+                  data: { messages: shortPage.map((m) => [m]), total_results: 6000 },
+                });
+              }
+              if (criteriaCalls.length === 3) {
+                // Cap-shifted query — should run with searchBeforeDate
+                // set to oldestTs and offset=0.
+                return Promise.resolve({
+                  success: true,
+                  data: { messages: [], total_results: 0 },
+                });
+              }
+              return Promise.resolve({
+                success: true,
+                data: { messages: [], total_results: 0 },
+              });
+            },
+          ),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const testStore: any = createTestStore(
+        { message: messageReducer, app: appReducer },
+        {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          } as any,
+          message: {
+            ...initialMessageState,
+            messages: [],
+            searchCriteria: {
+              searchAfterDate: null,
+              searchBeforeDate: null,
+              searchMessageContent: 'foo',
+              selectedHasTypes: [],
+              userIds: [],
+              mentionIds: [],
+              channelIds: [],
+              isPinned: 0,
+              authorType: null,
+            } as any,
+            pagination: {
+              ...initialMessageState.pagination,
+              mode: 'search' as const,
+              searchOffset: 4975,
+              totalCount: 6000,
+            },
+          },
+        },
+      );
+
+      await testStore.dispatch(
+        loadAllSearchResults({ channelId: 'ch1', token: 'token' }),
+      );
+
+      // First two calls: criteria has neither bound set.
+      expect(criteriaCalls[0].searchBeforeDate).toBeNull();
+      expect(criteriaCalls[0].searchAfterDate).toBeNull();
+      expect(criteriaCalls[1].searchBeforeDate).toBeNull();
+      expect(criteriaCalls[1].searchAfterDate).toBeNull();
+
+      // Third call: cap-shifted. searchBeforeDate must be set to the
+      // oldest-seen timestamp; searchAfterDate must NOT be mutated.
+      expect(criteriaCalls[2].searchBeforeDate).toBeInstanceOf(Date);
+      expect(
+        (criteriaCalls[2].searchBeforeDate as Date).toISOString(),
+      ).toBe(oldestTs);
+      // Pre-#148 the bug set searchAfterDate (= min_id) here. Verify
+      // that's NOT what's happening anymore.
+      expect(criteriaCalls[2].searchAfterDate).toBeNull();
+    });
+
+    it('preserves user-supplied searchBeforeDate by narrowing it further (never widening)', async () => {
+      // User starts with searchBeforeDate set; cap-shift must replace it
+      // with the OLDER timestamp of the page's last message. Since
+      // descending search returns newest→oldest, the cap-shift always
+      // narrows to an older boundary inside the user's window.
+      const userBefore = new Date('2025-12-31T00:00:00.000Z');
+      const oldestTsInPage = '2025-06-15T00:00:00.000Z';
+      const fullPage = Array.from({ length: 25 }, (_, i) => ({
+        id: `m${i}`,
+        timestamp: oldestTsInPage,
+      }));
+      const shortPage = Array.from({ length: 5 }, (_, i) => ({
+        id: `s${i}`,
+        timestamp: oldestTsInPage,
+      }));
+
+      const criteriaCalls: any[] = [];
+      const mockDiscordService = {
+        fetchSearchMessageData: vi
+          .fn()
+          .mockImplementation(
+            (
+              _token: string,
+              _offset: number,
+              _channelId: string | null,
+              _guildId: string | null,
+              criteria: any,
+            ) => {
+              criteriaCalls.push({ ...criteria });
+              if (criteriaCalls.length === 1) {
+                return Promise.resolve({
+                  success: true,
+                  data: { messages: fullPage.map((m) => [m]), total_results: 6000 },
+                });
+              }
+              if (criteriaCalls.length === 2) {
+                return Promise.resolve({
+                  success: true,
+                  data: { messages: shortPage.map((m) => [m]), total_results: 6000 },
+                });
+              }
+              return Promise.resolve({
+                success: true,
+                data: { messages: [], total_results: 0 },
+              });
+            },
+          ),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const testStore: any = createTestStore(
+        { message: messageReducer, app: appReducer },
+        {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          } as any,
+          message: {
+            ...initialMessageState,
+            messages: [],
+            searchCriteria: {
+              searchAfterDate: null,
+              searchBeforeDate: userBefore,
+              searchMessageContent: 'foo',
+              selectedHasTypes: [],
+              userIds: [],
+              mentionIds: [],
+              channelIds: [],
+              isPinned: 0,
+              authorType: null,
+            } as any,
+            pagination: {
+              ...initialMessageState.pagination,
+              mode: 'search' as const,
+              searchOffset: 4975,
+              totalCount: 6000,
+            },
+          },
+        },
+      );
+
+      await testStore.dispatch(
+        loadAllSearchResults({ channelId: 'ch1', token: 'token' }),
+      );
+
+      // First two calls carry the user's bound unchanged.
+      expect((criteriaCalls[0].searchBeforeDate as Date).toISOString()).toBe(
+        userBefore.toISOString(),
+      );
+      expect((criteriaCalls[1].searchBeforeDate as Date).toISOString()).toBe(
+        userBefore.toISOString(),
+      );
+      // Cap-shift narrows to the older oldestTsInPage. NEVER widens past
+      // the user's original bound.
+      expect((criteriaCalls[2].searchBeforeDate as Date).toISOString()).toBe(
+        oldestTsInPage,
+      );
+      const newBefore = (criteriaCalls[2].searchBeforeDate as Date).getTime();
+      expect(newBefore).toBeLessThan(userBefore.getTime());
     });
   });
 });
