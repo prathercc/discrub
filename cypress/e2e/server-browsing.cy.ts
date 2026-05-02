@@ -167,10 +167,15 @@ describe('Server Browsing', () => {
       cy.contains('general').closest('[role="button"]').should('not.have.class', 'Mui-disabled');
     });
 
-    it('shows voice channels as disabled', () => {
+    // Backlog #160: voice + stage channels carry text chat under the
+    // same channel ID since Discord's 2021 Voice Channel Messages
+    // rollout. The fix landed in commit b0d2bc1 — voice channels are
+    // now first-class clickable rows gated by the same canAccessChannel
+    // predicate as text channels, not auto-disabled by type.
+    it('shows voice channels as enabled (#160 — voice channel chat is browsable)', () => {
       cy.selectServer('Cypress Test Server');
       cy.contains('Voice Lounge').should('be.visible');
-      cy.contains('Voice Lounge').closest('[role="button"]').should('have.class', 'Mui-disabled');
+      cy.contains('Voice Lounge').closest('[role="button"]').should('not.have.class', 'Mui-disabled');
     });
   });
 });

@@ -641,7 +641,12 @@ describe('Bulk Purge Operations', () => {
       confirmPurge();
       cy.get('[role="dialog"]').should('not.exist');
 
-      waitForPurgeComplete();
+      // Sequential 2-channel purge legitimately overshoots the default
+      // 30s window under CI/parallel-Vitest load (each channel runs the
+      // full search + thread-discovery + delete loop with delay
+      // randomization). 60s matches the explicit override used for the
+      // larger "mix of empty and non-empty channels" test below.
+      waitForPurgeComplete(60000);
 
       // Verify completion status log
       verifyStatusEntry(/Purge: Complete.*2 channel/);
