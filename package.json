@@ -45,7 +45,7 @@
     "copy-to-clipboard": "^3.3.3",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^3.2.0",
-    "discrub-core": "^1.0.0",
+    "discrub-core": "^1.0.1",
     "drip-fs": "^1.0.0",
     "file-saver": "^2.0.5",
     "filenamify": "^6.0.0",
