@@ -33,21 +33,33 @@ const mockFetchPrivateThreads = vi.fn();
 const mockFetchJoinedPrivateArchivedThreads = vi.fn();
 
 // Minimal reimplementation of the DiscordService.iterateSearchResults
-// generator, backed by mockFetchSearchMessageData. Matches the lib's
-// semantics: offset pagination, dedupe across context overlap, and
-// transparent continuation past the 5000-match cap via searchAfterDate.
+// generator, backed by mockFetchSearchMessageData. Mirrors the lib's
+// post-#148 semantics:
+// - terminates on 2 consecutive raw-empty pages (NOT short pages)
+// - resets offset to 0 when total_results changes between pages
+// - resets when an empty page lands at non-zero offset
+// - cap-shifts via searchBeforeDate (max_id) when offset >= 5000
+// - initial-empty fast path: yield once for total_results=0 + no
+//   messages, then terminate
 const mockIterateSearchResults = async function* (options: any): AsyncGenerator<any> {
-  const SEARCH_PAGE_SIZE = 25;
   const MAX_PER_QUERY = 5000;
+  const EMPTY_PAGE_TERMINATE_THRESHOLD = 2;
   let criteria = { ...options.criteria };
   let offset = 0;
   let pageIndex = 0;
   let aggregatedCount = 0;
   let crossedQueryBoundary = false;
+  let prevTotalResults: number | null = null;
+  let pendingReset = false;
+  let consecutiveEmptyPages = 0;
   const seen = new Set<string>();
 
   while (true) {
     if (options.shouldStop && (await options.shouldStop())) return;
+    if (pendingReset) {
+      offset = 0;
+      pendingReset = false;
+    }
     const response = await mockFetchSearchMessageData(
       options.token, offset, options.channelId, options.guildId, criteria,
     );
@@ -76,27 +88,45 @@ const mockIterateSearchResults = async function* (options: any): AsyncGenerator<
     };
     crossedQueryBoundary = false;
     pageIndex++;
-    const isLastPage = rawCount < SEARCH_PAGE_SIZE;
+
+    // Initial-empty fast path
+    if (totalResults === 0 && pageMessages.length === 0 && pageIndex === 1) return;
+
+    // Termination: 2 consecutive raw-empty pages
+    if (rawCount === 0) {
+      consecutiveEmptyPages++;
+      if (consecutiveEmptyPages >= EMPTY_PAGE_TERMINATE_THRESHOLD) return;
+    } else {
+      consecutiveEmptyPages = 0;
+    }
+
     const nextOffset = offset + rawCount;
     const atOrPastCap = nextOffset >= MAX_PER_QUERY;
-    if (isLastPage && !atOrPastCap) return;
     if (atOrPastCap) {
       if (flatMessages.length === 0) return;
       const last = flatMessages[flatMessages.length - 1];
       if (!last?.timestamp) return;
-      criteria = { ...criteria, searchAfterDate: new Date(last.timestamp) };
+      criteria = { ...criteria, searchBeforeDate: new Date(last.timestamp) };
       offset = 0;
       crossedQueryBoundary = true;
+      prevTotalResults = null;
+      consecutiveEmptyPages = 0;
     } else {
-      offset = nextOffset;
+      if (prevTotalResults !== null && totalResults !== prevTotalResults) {
+        pendingReset = true;
+      }
+      prevTotalResults = totalResults;
+      if (rawCount === 0 && offset > 0) pendingReset = true;
+      if (!pendingReset) offset = nextOffset;
     }
+
     if (options.onBetweenPages) {
       const action = await options.onBetweenPages();
       if (action === true) return;
       if (action === 'reset') {
-        // Caller signaled mutations shifted Discord's search — restart
-        // offset=0 of current query, keep the dedupe set.
+        // Legacy explicit-reset hook (still supported as safety hatch).
         offset = 0;
+        pendingReset = false;
       }
     }
   }
@@ -258,14 +288,18 @@ const reactionsConfig = (userIds: string[]): PurgeConfig => ({
   deleteAttachmentsOnly: false,
 });
 
-/** Helper to make fetchSearchMessageData return a page of messages, then empty */
+/**
+ * Helper to make fetchSearchMessageData return a page of messages, then
+ * empties forever. Empty pages return success=true so the iterator
+ * terminates via the 2-consecutive-empty-pages rule (post-#148).
+ */
 function setupSearchResults(pages: Message[][]) {
   let callCount = 0;
   mockFetchSearchMessageData.mockImplementation(() => {
     const page = pages[callCount] || [];
     callCount++;
     return Promise.resolve({
-      success: page.length > 0 || callCount <= pages.length,
+      success: true,
       data: page.length > 0 ? { messages: [page] } : { messages: [] },
     });
   });
@@ -273,7 +307,8 @@ function setupSearchResults(pages: Message[][]) {
 
 /**
  * Helper: setupSearchResultsNested for raw Message[][] (Discord's actual format).
- * Each call returns one "page" from the array.
+ * Each call returns one "page" from the array; subsequent calls return empty
+ * (success=true) so the iterator terminates via the 2-consecutive-empty rule.
  */
 function setupNestedSearchResults(pages: Message[][][]) {
   let callCount = 0;
@@ -409,24 +444,31 @@ describe('purgeSlice thunks', () => {
       const msg2 = mockMessage('m2');
       const msg3 = mockMessage('m3');
 
-      // ch1 returns 2 messages (< 25 so done), ch2 returns 1 message
-      let searchCall = 0;
-      mockFetchSearchMessageData.mockImplementation(() => {
-        searchCall++;
-        if (searchCall === 1) {
-          return Promise.resolve({
-            success: true,
-            data: { messages: [[msg1, msg2]] },
-          });
-        }
-        if (searchCall === 2) {
-          return Promise.resolve({
-            success: true,
-            data: { messages: [[msg3]] },
-          });
-        }
-        return Promise.resolve({ success: true, data: { messages: [] } });
-      });
+      // Per-channel mock: ch1 has m1+m2, ch2 has m3. Subsequent calls
+      // for the same channel return empty so the iterator terminates
+      // via the 2-consecutive-empty-pages rule (post-#148).
+      const perChannelServed: Record<string, boolean> = {};
+      mockFetchSearchMessageData.mockImplementation(
+        (_token: string, _offset: number, channelId: string) => {
+          if (perChannelServed[channelId]) {
+            return Promise.resolve({ success: true, data: { messages: [] } });
+          }
+          perChannelServed[channelId] = true;
+          if (channelId === 'ch1') {
+            return Promise.resolve({
+              success: true,
+              data: { messages: [[msg1, msg2]] },
+            });
+          }
+          if (channelId === 'ch2') {
+            return Promise.resolve({
+              success: true,
+              data: { messages: [[msg3]] },
+            });
+          }
+          return Promise.resolve({ success: true, data: { messages: [] } });
+        },
+      );
       mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
 
       const result = await store.dispatch(
@@ -1074,28 +1116,32 @@ describe('purgeSlice thunks', () => {
       expect(mockDeleteMessage).toHaveBeenCalledTimes(3);
     });
 
-    it('re-searches from offset 0 after deletions, advances offset on all-skipped', async () => {
-      // First search returns 25 search hits with deletable messages -> offset stays 0
-      // Each hit is its own inner array (Discord format)
-      const batch1Hits = Array.from({ length: 25 }, (_, i) => [mockMessage(`m${i}`)]);
-      const batch2Hits = [[mockMessage('m25')], [mockMessage('m26')]];
+    it('resets to offset=0 only when Discord total_results shifts (#148)', async () => {
+      // The lib iterator (post-#148) advances offset normally and only
+      // resets on a total_results change between pages — Classic's
+      // pattern. Without a shift, we walk forward.
+      //
+      // Two hits per page keep the test under the 30s timeout (default
+      // delete delay is ~2s per message).
+      const batch1 = [[mockMessage('m1')], [mockMessage('m2')]];
+      const batch2 = [[mockMessage('m3')], [mockMessage('m4')]];
 
       let callCount = 0;
-      mockFetchSearchMessageData.mockImplementation(() => {
+      mockFetchSearchMessageData.mockImplementation((_token: string, _offset: number) => {
         callCount++;
         if (callCount === 1) {
           return Promise.resolve({
             success: true,
-            data: { messages: batch1Hits },
+            data: { messages: batch1, total_results: 4 },
           });
         }
         if (callCount === 2) {
           return Promise.resolve({
             success: true,
-            data: { messages: batch2Hits },
+            data: { messages: batch2, total_results: 2 },
           });
         }
-        return Promise.resolve({ success: true, data: { messages: [] } });
+        return Promise.resolve({ success: true, data: { messages: [], total_results: 2 } });
       });
       mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
 
@@ -1107,9 +1153,10 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      // After deletions, both calls should use offset 0
+      // Call sequence: offset=0, offset=2 (advanced), offset=0 (reset on shift).
       expect(mockFetchSearchMessageData.mock.calls[0][1]).toBe(0);
-      expect(mockFetchSearchMessageData.mock.calls[1][1]).toBe(0);
+      expect(mockFetchSearchMessageData.mock.calls[1][1]).toBe(2);
+      expect(mockFetchSearchMessageData.mock.calls[2][1]).toBe(0);
     });
 
     it('handles failed search response', async () => {
@@ -1136,22 +1183,21 @@ describe('purgeSlice thunks', () => {
       const msg1 = mockMessage('m1', 0, [], userA);
       const msg2 = mockMessage('m2', 0, [], userB);
 
-      let searchCall = 0;
+      // Per-user mock: each user gets a single page of their own
+      // message, then empty pages forever (post-#148 termination).
+      const perUserServed: Record<string, boolean> = {};
       mockFetchSearchMessageData.mockImplementation(
         (_token: string, _offset: number, _channelId: string, _guildId: string, criteria: any) => {
-          searchCall++;
-          // First user gets msg1, second user gets msg2
-          if (criteria.userIds[0] === 'userA' && searchCall === 1) {
-            return Promise.resolve({
-              success: true,
-              data: { messages: [[msg1]] },
-            });
+          const userId = criteria.userIds[0];
+          if (perUserServed[userId]) {
+            return Promise.resolve({ success: true, data: { messages: [] } });
           }
-          if (criteria.userIds[0] === 'userB' && searchCall === 2) {
-            return Promise.resolve({
-              success: true,
-              data: { messages: [[msg2]] },
-            });
+          perUserServed[userId] = true;
+          if (userId === 'userA') {
+            return Promise.resolve({ success: true, data: { messages: [[msg1]] } });
+          }
+          if (userId === 'userB') {
+            return Promise.resolve({ success: true, data: { messages: [[msg2]] } });
           }
           return Promise.resolve({ success: true, data: { messages: [] } });
         },
@@ -3048,7 +3094,9 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(2);
+      // Two consecutive empty pages now form the terminator (post-#148),
+      // so the iterator makes one extra call after the data page.
+      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(3);
       expect(mockDeleteMessage).not.toHaveBeenCalled();
     });
 
@@ -3092,8 +3140,10 @@ describe('purgeSlice thunks', () => {
     });
 
     it('uses pre-flatten raw count for pagination boundary (not flattened count)', async () => {
-      // 10 raw message arrays → rawCount = 10 (< 25 → stops)
-      // Even though flattened count might be >= 25
+      // Pre-#148 the iterator terminated on rawCount<25. Post-#148 the
+      // termination uses 2 consecutive empty pages, so this test now
+      // only verifies that rawCount (= length of outer array, 10) is
+      // what advances the offset cursor — not the flattened count (50).
       const rawArrays: Message[][] = Array.from({ length: 10 }, (_, i) => [
         mockMessage(`m${i * 5}`),
         mockMessage(`m${i * 5 + 1}`),
@@ -3101,12 +3151,21 @@ describe('purgeSlice thunks', () => {
         mockMessage(`m${i * 5 + 3}`),
         mockMessage(`m${i * 5 + 4}`),
       ]);
-      // 10 arrays × 5 = 50 flattened messages, but rawCount = 10
 
-      mockFetchSearchMessageData.mockResolvedValueOnce({
-        success: true,
-        data: { messages: rawArrays },
-      });
+      let callCount = 0;
+      mockFetchSearchMessageData.mockImplementation(
+        (_token: string, offset: number) => {
+          callCount++;
+          if (callCount === 1) {
+            return Promise.resolve({ success: true, data: { messages: rawArrays } });
+          }
+          if (callCount === 2) {
+            // Offset advanced by rawCount=10 (NOT flattened 50).
+            expect(offset).toBe(10);
+          }
+          return Promise.resolve({ success: true, data: { messages: [] } });
+        },
+      );
       mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
 
       await store.dispatch(
@@ -3117,8 +3176,8 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      // Should only make 1 search call (rawCount 10 < 25 → stops)
-      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(1);
+      // Data page + 2 empties for the terminator.
+      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(3);
     });
 
     it('deduplicates message IDs after flattening', async () => {
@@ -3447,8 +3506,8 @@ describe('purgeSlice thunks', () => {
       );
 
       expect(mockDeleteMessage).toHaveBeenCalledTimes(125);
-      // 5 pages with data + 1 empty terminator = 6 search calls
-      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(6);
+      // 5 pages with data + 2 empty terminator pages (post-#148) = 7
+      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(7);
     });
 
     it('offset tracking with system messages across multiple pages', async () => {
@@ -3504,10 +3563,13 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
+      // Post-#148:
       // Page 1 (offset 0): 25 system → all skipped, offset advances to 25
       // Page 2 (offset 25): 25 system → all skipped, offset advances to 50
-      // Page 3 (offset 50): 15 normal → deletions occur, rawCount=15 < 25 → stops
-      expect(offsets).toEqual([0, 25, 50]);
+      // Page 3 (offset 50): 15 normal → deletions occur, offset advances to 65
+      // Page 4 (offset 65): empty → pendingReset (empty at non-zero offset)
+      // Page 5 (offset 0):  empty → consecutiveEmpty=2 → terminate
+      expect(offsets).toEqual([0, 25, 50, 65, 0]);
       expect(mockDeleteMessage).toHaveBeenCalledTimes(15);
     });
 

@@ -1043,13 +1043,16 @@ export const loadAllSearchResults = createAsyncThunk(
 
         // End of this query's results
         if (page.length < SEARCH_PAGE_SIZE || offset >= totalForCurrentQuery) {
-          // If we hit the 5000-match cap exactly, continue with a new
-          // searchAfterDate boundary. Otherwise we're genuinely done.
+          // If we hit the 5000-match cap exactly, continue past it by
+          // tightening searchBeforeDate (max_id) to the oldest message in
+          // this batch — matches Classic's pattern and the rewritten
+          // discrub-core iterator. Walks newest→oldest within the user's
+          // search window; never widens user-supplied bounds.
           if (offset >= MAX_PER_QUERY) {
             const last = page[page.length - 1];
             currentCriteria = {
               ...currentCriteria,
-              searchAfterDate: new Date(last.timestamp),
+              searchBeforeDate: new Date(last.timestamp),
             };
             offset = 0;
           } else {
@@ -1731,9 +1734,12 @@ export const searchThreadMessages = createAsyncThunk(
 
         if (batchMessages.length >= maxPerBatch && shouldContinue) {
           const lastMessage = batchMessages[batchMessages.length - 1];
+          // Tighten searchBeforeDate (max_id) to the oldest seen so the
+          // next batch walks further back in time within the user's
+          // search window. Matches the lib iterator's cap-shift pattern.
           currentCriteria = {
             ...currentCriteria,
-            searchAfterDate: new Date(lastMessage.timestamp),
+            searchBeforeDate: new Date(lastMessage.timestamp),
           };
 
           const delayCalc = calculateRandomDelay(searchDelay, delayModifier);

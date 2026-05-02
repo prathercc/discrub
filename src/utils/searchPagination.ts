@@ -13,12 +13,11 @@ export type ReduxSearchIteratorOptions = {
   criteria: SearchCriteria;
   getState: () => RootState;
   /**
-   * Optional caller-signaled "results shifted" probe, read between pages.
-   * When it returns true the iterator restarts at `offset=0` of the current
-   * query (retaining dedupe state). Use for mutating consumers like purge,
-   * where offset becomes stale the moment a matching message is deleted.
-   * The probe is only consulted on non-last pages — no extra empty fetch
-   * is incurred when a mutation happens on the very last page.
+   * Optional caller-signaled explicit reset hook (legacy safety hatch).
+   * The lib iterator now self-detects index reshuffles via `total_results`
+   * change, so most callers no longer need this. Returning `'reset'`
+   * forces a restart at offset=0 of the current query (retaining dedupe
+   * state).
    */
   shouldResetAfterPage?: () => boolean;
 };

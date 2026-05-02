@@ -510,26 +510,12 @@ async function purgeChannelMessages(
     let totalForThisUser = 0;
     let announcedTotal = false;
 
-    // Per-batch mutation flag read by the iterator's `shouldResetAfterPage`
-    // hook. When the most-recently-processed batch deleted/edited any
-    // messages Discord's search results shift, so the iterator restarts
-    // at `offset=0` of the current query (via the `'reset'` signal)
-    // instead of blindly advancing past stale offsets. The iterator skips
-    // the reset on the final page of a query, so there's no wasted empty
-    // fetch when a mutation happens on the last batch.
-    let batchHadDeletions = false;
-
     for await (const page of iterateSearchMessagesRedux({
       token,
       channelId,
       guildId,
       criteria: searchCriteria,
       getState,
-      shouldResetAfterPage: () => {
-        const flag = batchHadDeletions;
-        batchHadDeletions = false;
-        return flag;
-      },
     })) {
       await waitWhilePaused(getState);
       if (checkCancelled(getState)) throw new CancelledError(partialMessages());
@@ -670,7 +656,6 @@ async function purgeChannelMessages(
             const response = await discordService.deleteMessage(token, message.id, targetChannelId);
             if (response.success) {
               totalDeleted++;
-              batchHadDeletions = true;
             } else {
               totalFailed++;
               dispatch(addStatusEntry({
@@ -686,7 +671,6 @@ async function purgeChannelMessages(
             );
             if (response.success) {
               totalEditedAttachmentsOnly++;
-              batchHadDeletions = true;
             } else {
               // Don't count as "stripped". Log once per miss so the user
               // can audit; keep Discord's status for diagnostics.
@@ -711,7 +695,6 @@ async function purgeChannelMessages(
             );
             if (response.success) {
               totalSkipped++;
-              batchHadDeletions = true;
             } else {
               totalFailed++;
               dispatch(addStatusEntry({
@@ -735,7 +718,6 @@ async function purgeChannelMessages(
           const response = await discordService.deleteMessage(token, message.id, targetChannelId);
           if (response.success) {
             totalDeleted++;
-            batchHadDeletions = true;
           } else {
             totalFailed++;
             dispatch(addStatusEntry({
@@ -774,12 +756,10 @@ async function purgeChannelMessages(
       // matches came back (totalForThisUser stays 0).
       void totalForThisUser;
 
-      // When `batchHadDeletions` is true, `shouldResetAfterPage` returns
-      // `'reset'` on the next inter-page hook so the iterator restarts
-      // at `offset=0` of the current query instead of advancing to a
-      // stale offset that would skip messages shifted up by deletions.
-      // The iterator handles 5000-cap searchAfterDate continuation
-      // transparently, so no caller-side restart plumbing is needed.
+      // The lib iterator self-detects index reshuffles via total_results
+      // change and resets to offset=0 automatically. It also handles the
+      // 5000-cap searchBeforeDate continuation transparently, so no
+      // caller-side restart plumbing is needed.
     }
   }
 
