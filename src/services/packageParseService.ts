@@ -11,8 +11,22 @@ import {
   type ParsedPackage,
 } from '@/features/package/packageTypes';
 
+// Discord exports its activity / programs dirs in English regardless of UI
+// locale (verified across the en/fr/de samples in `package-fixtures.ts`).
+// If that ever changes for some locale, the fallback is harmless: an
+// unrecognized dir name simply won't match the channel-or-skipped predicates
+// below, so nothing is mis-parsed — at worst a no-op iteration.
 const SKIPPED_PREFIXES = ['activity/', 'activities_e/', 'activities_w/', 'programs/'];
-const CHANNEL_DIR_REGEX = /^messages\/c(\d+)\//;
+
+/**
+ * Build the dynamic channel-dir regex from the locale-resolved messages
+ * dir name. Discord's structural directories localize (`messages/` →
+ * `nachrichten/` etc.), so the regex can't be a static literal — see
+ * Backlog #157.
+ */
+function buildChannelDirRegex(messagesDir: string): RegExp {
+  return new RegExp(`^${escapeRegex(messagesDir)}\\/c(\\d+)\\/`);
+}
 
 /**
  * Paths the OS (usually macOS) injects when zipping that we want to
@@ -49,27 +63,137 @@ function resolveFile(zip: JSZip, index: CaseIndex, lowerPath: string) {
 }
 
 /**
- * Detects a single wrapper directory that some users end up with when they
- * re-zip their extracted package (e.g. `Discord Data Package - name/`).
- * Returns the (lowercase) prefix with trailing slash, or `''` if the package
- * is already at the ZIP root. The returned prefix is consumed only by
- * `index.get()` lookups, so case is irrelevant.
+ * Maps the three canonical structural-directory names Discord uses in the
+ * English locale to whatever the actual top-level dir is in *this* package.
+ * Built once per parse via `sniffStructure` and threaded through every
+ * lookup helper. See Backlog #157.
  */
-function detectRootPrefix(index: CaseIndex): string {
-  if (index.has('account/user.json')) return '';
+type StructuralAliases = {
+  /** Holds `user.json` and `avatar.png`. English: `account`. */
+  account: string;
+  /** Holds `index.json` + `c{id}/{channel.json,messages.csv}` subdirs. English: `messages`. */
+  messages: string;
+  /** Holds `{guildId}/guild.json` subdirs. English: `servers`. */
+  servers: string;
+};
 
-  const firstSegments = new Set<string>();
+/**
+ * Translate a canonical (English) structural path like `account/user.json`
+ * into the locale-specific path for this package and resolve it through the
+ * case-insensitive index. Callers should always pass the English form so
+ * call sites stay readable; this helper is the single point that knows
+ * about localization.
+ */
+function resolveStructural(
+  zip: JSZip,
+  index: CaseIndex,
+  prefix: string,
+  aliases: StructuralAliases,
+  canonicalLower: string,
+) {
+  const slash = canonicalLower.indexOf('/');
+  if (slash === -1) return null;
+  const head = canonicalLower.slice(0, slash);
+  const tail = canonicalLower.slice(slash + 1);
+  const actualHead =
+    head === 'account' ? aliases.account
+    : head === 'messages' ? aliases.messages
+    : head === 'servers' ? aliases.servers
+    : head;
+  return resolveFile(zip, index, `${prefix}${actualHead}/${tail}`);
+}
+
+type StructureSniff = {
+  prefix: string;
+  aliases: StructuralAliases;
+};
+
+/**
+ * Identify the package's top-level structural dirs by their *contents*,
+ * not their names — Discord ships exports using the user's UI locale, so
+ * `account/`/`messages/`/`servers/` may be `compte/`/`nachrichten/`/`servidores/`
+ * etc. Also detects the optional single wrapper directory some users end
+ * up with when they re-zip the extracted export (#146 covered the case
+ * dimension; this covers the locale dimension — Backlog #157).
+ *
+ * Returns `null` if the package has no recognizable Discord structure
+ * (callers throw a friendlier error from there).
+ */
+function sniffStructure(index: CaseIndex): StructureSniff | null {
+  // The account dir is the most reliable anchor — every Discord package
+  // has exactly one `*/user.json`, and its location pins both the
+  // wrapper prefix (depth 2) vs. root layout (depth 1) and the locale
+  // name of the account dir.
+  let accountDir: string | null = null;
+  let prefix = '';
+
   for (const lower of index.keys()) {
-    const idx = lower.indexOf('/');
-    if (idx === -1) continue;
-    firstSegments.add(lower.slice(0, idx));
-    if (firstSegments.size > 1) return '';
+    if (!lower.endsWith('/user.json')) continue;
+    const segs = lower.split('/');
+    if (segs.length === 2) {
+      // {accountDir}/user.json — no wrapper.
+      accountDir = segs[0];
+      prefix = '';
+      break;
+    }
+    if (segs.length === 3) {
+      // {wrapper}/{accountDir}/user.json — single wrapper.
+      prefix = `${segs[0]}/`;
+      accountDir = segs[1];
+      break;
+    }
+    // Deeper than depth 2 isn't a layout we recognize; skip and keep scanning
+    // in case a shallower match exists later in the iteration.
   }
-  if (firstSegments.size !== 1) return '';
 
-  const wrapper = [...firstSegments][0];
-  if (!index.has(`${wrapper}/account/user.json`)) return '';
-  return `${wrapper}/`;
+  if (!accountDir) return null;
+
+  // Sniff the messages dir at the same depth as account: look for
+  // `{prefix}{messagesDir}/index.json` OR `{prefix}{messagesDir}/c{id}/`
+  // children. `index.json` is the cleaner anchor; the channel-dir
+  // fallback matters for unusually-pruned packages where the user
+  // deleted index.json but left the channel dirs intact.
+  let messagesDir: string | null = null;
+  for (const lower of index.keys()) {
+    if (prefix && !lower.startsWith(prefix)) continue;
+    const rel = prefix ? lower.slice(prefix.length) : lower;
+    const slash = rel.indexOf('/');
+    if (slash === -1) continue;
+    const head = rel.slice(0, slash);
+    if (head === accountDir) continue;
+    const tail = rel.slice(slash + 1);
+    if (tail === 'index.json' || /^c\d+\//.test(tail)) {
+      messagesDir = head;
+      break;
+    }
+  }
+
+  // Sniff the servers dir similarly: look for `{prefix}{serversDir}/{digits}/guild.json`.
+  let serversDir: string | null = null;
+  for (const lower of index.keys()) {
+    if (prefix && !lower.startsWith(prefix)) continue;
+    const rel = prefix ? lower.slice(prefix.length) : lower;
+    const segs = rel.split('/');
+    if (segs.length !== 3) continue;
+    if (segs[0] === accountDir || segs[0] === messagesDir) continue;
+    if (!/^\d+$/.test(segs[1])) continue;
+    if (segs[2] !== 'guild.json') continue;
+    serversDir = segs[0];
+    break;
+  }
+
+  return {
+    prefix,
+    aliases: {
+      account: accountDir,
+      // Fall back to English names if the bucket isn't found — a package
+      // with no servers (DM-only export) legitimately has no servers dir,
+      // and a package with no messages would fail downstream anyway. The
+      // fallback keeps regex construction valid for those cases.
+      messages: messagesDir ?? 'messages',
+      servers: serversDir ?? 'servers',
+    },
+  };
 }
 
 type RawChannelJson = {
@@ -108,15 +232,19 @@ export class PackageParseError extends Error {
 export async function parsePackageZip(file: File | Blob): Promise<ParsedPackage> {
   const zip = await JSZip.loadAsync(file);
   const caseIndex = buildCaseIndex(zip);
-  const prefix = detectRootPrefix(caseIndex);
+  const sniff = sniffStructure(caseIndex);
+  if (!sniff) {
+    throw new PackageParseError('Package is missing account/user.json');
+  }
+  const { prefix, aliases } = sniff;
 
-  const user = await readUserJson(zip, caseIndex, prefix);
-  const guilds = await readGuilds(zip, caseIndex, prefix);
-  const channelNameIndex = await readChannelNameIndex(zip, caseIndex, prefix);
-  const channels = await readChannels(zip, caseIndex, guilds, channelNameIndex, prefix);
+  const user = await readUserJson(zip, caseIndex, prefix, aliases);
+  const guilds = await readGuilds(zip, caseIndex, prefix, aliases);
+  const channelNameIndex = await readChannelNameIndex(zip, caseIndex, prefix, aliases);
+  const channels = await readChannels(zip, caseIndex, guilds, channelNameIndex, prefix, aliases);
 
   const totalMessages = channels.reduce((sum, c) => sum + c.messageCount, 0);
-  const avatarBlobUrl = await readAvatarBlobUrl(zip, caseIndex, prefix);
+  const avatarBlobUrl = await readAvatarBlobUrl(zip, caseIndex, prefix, aliases);
 
   return {
     user,
@@ -138,8 +266,12 @@ export async function loadChannelMessages(
 ): Promise<PackageMessage[]> {
   const zip = await JSZip.loadAsync(file);
   const caseIndex = buildCaseIndex(zip);
-  const prefix = detectRootPrefix(caseIndex);
-  const entry = resolveFile(zip, caseIndex, `${prefix}messages/c${channelId}/messages.csv`);
+  const sniff = sniffStructure(caseIndex);
+  if (!sniff) {
+    throw new PackageParseError(`messages.csv missing for channel ${channelId}`);
+  }
+  const { prefix, aliases } = sniff;
+  const entry = resolveStructural(zip, caseIndex, prefix, aliases, `messages/c${channelId}/messages.csv`);
   if (!entry) {
     throw new PackageParseError(`messages.csv missing for channel ${channelId}`);
   }
@@ -189,8 +321,9 @@ async function readUserJson(
   zip: JSZip,
   index: CaseIndex,
   prefix: string,
+  aliases: StructuralAliases,
 ): Promise<PackageUser> {
-  const file = resolveFile(zip, index, `${prefix}account/user.json`);
+  const file = resolveStructural(zip, index, prefix, aliases, 'account/user.json');
   if (!file) {
     throw new PackageParseError('Package is missing account/user.json');
   }
@@ -211,10 +344,11 @@ async function readGuilds(
   zip: JSZip,
   index: CaseIndex,
   prefix: string,
+  aliases: StructuralAliases,
 ): Promise<PackageGuild[]> {
   const guilds: PackageGuild[] = [];
   const guildRegex = new RegExp(
-    `^${escapeRegex(prefix)}servers\\/\\d+\\/guild\\.json$`,
+    `^${escapeRegex(prefix)}${escapeRegex(aliases.servers)}\\/\\d+\\/guild\\.json$`,
   );
   const lowerPaths = Array.from(index.keys()).filter((p) => guildRegex.test(p));
   for (const lowerPath of lowerPaths) {
@@ -238,8 +372,9 @@ async function readChannelNameIndex(
   zip: JSZip,
   index: CaseIndex,
   prefix: string,
+  aliases: StructuralAliases,
 ): Promise<Record<string, string | null>> {
-  const entry = resolveFile(zip, index, `${prefix}messages/index.json`);
+  const entry = resolveStructural(zip, index, prefix, aliases, 'messages/index.json');
   if (!entry) return {};
   try {
     return JSON.parse(await entry.async('string')) as Record<string, string | null>;
@@ -254,24 +389,26 @@ async function readChannels(
   guilds: PackageGuild[],
   nameIndex: Record<string, string | null>,
   prefix: string,
+  aliases: StructuralAliases,
 ): Promise<PackageChannel[]> {
   const guildNames = new Map(guilds.map((g) => [g.id, g.name] as const));
   const channelDirs = new Set<string>();
+  const channelDirRegex = buildChannelDirRegex(aliases.messages);
 
   for (const lowerPath of index.keys()) {
     const relative = prefix && lowerPath.startsWith(prefix)
       ? lowerPath.slice(prefix.length)
       : lowerPath;
     if (SKIPPED_PREFIXES.some((p) => relative.startsWith(p))) continue;
-    const match = CHANNEL_DIR_REGEX.exec(relative);
+    const match = channelDirRegex.exec(relative);
     if (match) channelDirs.add(match[1]);
   }
 
   const channels: PackageChannel[] = [];
 
   for (const id of channelDirs) {
-    const channelJson = resolveFile(zip, index, `${prefix}messages/c${id}/channel.json`);
-    const csvEntry = resolveFile(zip, index, `${prefix}messages/c${id}/messages.csv`);
+    const channelJson = resolveStructural(zip, index, prefix, aliases, `messages/c${id}/channel.json`);
+    const csvEntry = resolveStructural(zip, index, prefix, aliases, `messages/c${id}/messages.csv`);
     if (!channelJson || !csvEntry) continue;
 
     let raw: RawChannelJson;
@@ -312,8 +449,9 @@ async function readAvatarBlobUrl(
   zip: JSZip,
   index: CaseIndex,
   prefix: string,
+  aliases: StructuralAliases,
 ): Promise<string | undefined> {
-  const entry = resolveFile(zip, index, `${prefix}account/avatar.png`);
+  const entry = resolveStructural(zip, index, prefix, aliases, 'account/avatar.png');
   if (!entry) return undefined;
   try {
     const blob = await entry.async('blob');

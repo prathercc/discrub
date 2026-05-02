@@ -20,6 +20,18 @@ export interface FixtureOptions {
    * must resolve them case-insensitively.
    */
   capitalizeTopDirs?: boolean;
+  /**
+   * Override the locale-specific names of the three structural top-level
+   * Discord directories. Discord ships exports using the user's UI locale,
+   * so non-English packages have e.g. `compte/` instead of `account/`. The
+   * parser must sniff structure by content, not by name (#157). Anything
+   * not provided keeps the English default.
+   */
+  localeOverride?: Partial<{
+    account: string;
+    messages: string;
+    servers: string;
+  }>;
 }
 
 const HEADER = 'ID,Timestamp,Contents,Attachments';
@@ -37,6 +49,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     includeMalformedCsv = false,
     wrapperDir = '',
     capitalizeTopDirs = false,
+    localeOverride,
   } = opts;
 
   const rootZip = new JSZip();
@@ -48,11 +61,14 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
 
   // Mirror Discord's variant where top-level directory names ship capitalized
   // (`Account/`, `Messages/`, `Servers/`). Inner segments stay lowercase.
-  const account = capitalizeTopDirs ? 'Account' : 'account';
-  const servers = capitalizeTopDirs ? 'Servers' : 'servers';
-  const messages = capitalizeTopDirs ? 'Messages' : 'messages';
-  const activity = capitalizeTopDirs ? 'Activity' : 'activity';
-  const activitiesE = capitalizeTopDirs ? 'Activities_E' : 'activities_e';
+  // Locale overrides land *after* capitalization so a French test can opt
+  // into `compte/` etc. independently of casing.
+  const cap = (s: string) => (capitalizeTopDirs ? s[0].toUpperCase() + s.slice(1) : s);
+  const account = cap(localeOverride?.account ?? 'account');
+  const servers = cap(localeOverride?.servers ?? 'servers');
+  const messages = cap(localeOverride?.messages ?? 'messages');
+  const activity = cap('activity');
+  const activitiesE = cap('activities_e');
 
   if (!omitUserJson) {
     zip.file(
