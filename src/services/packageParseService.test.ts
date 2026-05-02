@@ -227,6 +227,66 @@ describe('parsePackageZip', () => {
     });
   });
 
+  // ─── Backlog #158: ZIP64 archives are readable post-fflate-swap ──────
+  describe('ZIP64 archives (Backlog #158)', () => {
+    // A real ZIP64 archive built externally with Python's `zipfile`
+    // (allowZip64=True) and post-processed to inject a ZIP64 EOCD
+    // record + ZIP64 EOCD locator + sentinel-bearing regular EOCD.
+    // Contains a minimal Discord-shaped layout: account/user.json,
+    // servers/100/guild.json, messages/index.json, c200 channel.json
+    // and messages.csv. JSZip would have thrown "expected N records in
+    // central dir, got 0" on this archive (Stuk/jszip#922); fflate
+    // reads it natively. See `backlog_jszip_zip64_swap.md` for the
+    // full motivation and the fixture-generation script.
+    const ZIP64_FIXTURE_BASE64 =
+      'UEsDBBQAAAAAABG7olzsros7IgAAACIAAAARAAAAYWNjb3VudC91c2VyLmpzb257ImlkIjoiOTkiLCJ1c2VybmFtZSI6InppcDY0dXNlciJ9UEsDBBQAAAAAABG7olzIBMGgIQAAACEAAAAWAAAAc2VydmVycy8xMDAvZ3VpbGQuanNvbnsiaWQiOiIxMDAiLCJuYW1lIjoiWklQNjQgR3VpbGQifVBLAwQUAAAAAAARu6JczPhd3hEAAAARAAAAEwAAAG1lc3NhZ2VzL2luZGV4Lmpzb257IjIwMCI6ImdlbmVyYWwifVBLAwQUAAAAAAARu6JcFgJxT1AAAABQAAAAGgAAAG1lc3NhZ2VzL2MyMDAvY2hhbm5lbC5qc29ueyJpZCI6IjIwMCIsInR5cGUiOjAsIm5hbWUiOiJnZW5lcmFsIiwiZ3VpbGQiOnsiaWQiOiIxMDAiLCJuYW1lIjoiWklQNjQgR3VpbGQifX1QSwMEFAAAAAAAEbuiXLlKyZpIAAAASAAAABoAAABtZXNzYWdlcy9jMjAwL21lc3NhZ2VzLmNzdklELFRpbWVzdGFtcCxDb250ZW50cyxBdHRhY2htZW50cwoxLDIwMjYtMDEtMDEgMDA6MDA6MDAuMDAwMDAwKzAwOjAwLGhpLFBLAQIUAxQAAAAAABG7olzsros7IgAAACIAAAARAAAAAAAAAAAAAACAAQAAAABhY2NvdW50L3VzZXIuanNvblBLAQIUAxQAAAAAABG7olzIBMGgIQAAACEAAAAWAAAAAAAAAAAAAACAAVEAAABzZXJ2ZXJzLzEwMC9ndWlsZC5qc29uUEsBAhQDFAAAAAAAEbuiXMz4Xd4RAAAAEQAAABMAAAAAAAAAAAAAAIABpgAAAG1lc3NhZ2VzL2luZGV4Lmpzb25QSwECFAMUAAAAAAARu6JcFgJxT1AAAABQAAAAGgAAAAAAAAAAAAAAgAHoAAAAbWVzc2FnZXMvYzIwMC9jaGFubmVsLmpzb25QSwECFAMUAAAAAAARu6JcuUrJmkgAAABIAAAAGgAAAAAAAAAAAAAAgAFwAQAAbWVzc2FnZXMvYzIwMC9tZXNzYWdlcy5jc3ZQSwYGLAAAAAAAAAAtAC0AAAAAAAAAAAAFAAAAAAAAAAUAAAAAAAAAVAEAAAAAAADwAQAAAAAAAFBLBgcAAAAARAMAAAAAAAABAAAAUEsFBgAAAAD/////VAEAAPABAAAAAA==';
+
+    function makeBlobFromBase64(b64: string): Blob {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes as BlobPart]);
+    }
+
+    it('parses a ZIP64 archive (regression guard for the #158 swap)', async () => {
+      const blob = makeBlobFromBase64(ZIP64_FIXTURE_BASE64);
+      const parsed = await parsePackageZip(blob);
+
+      expect(parsed.user.id).toBe('99');
+      expect(parsed.user.username).toBe('zip64user');
+      expect(parsed.guilds).toEqual([{ id: '100', name: 'ZIP64 Guild' }]);
+      expect(parsed.channels.find((c) => c.id === '200')?.guildName).toBe('ZIP64 Guild');
+      expect(parsed.totalMessages).toBe(1);
+    });
+
+    it('lazily reads a channel CSV from a ZIP64 archive', async () => {
+      const blob = makeBlobFromBase64(ZIP64_FIXTURE_BASE64);
+      const rows = await loadChannelMessages(blob, '200');
+      expect(rows).toHaveLength(1);
+      expect(rows[0].content).toBe('hi');
+    });
+
+    it('the fixture actually contains ZIP64 markers (sanity check on the test, not the parser)', () => {
+      // Decode the base64 directly — skip the Blob roundtrip so the
+      // sanity check works in jsdom (which lacks `blob.arrayBuffer`).
+      const bin = atob(ZIP64_FIXTURE_BASE64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      // Search for ZIP64 EOCD signature 0x06064B50 (LE: 50 4B 06 06)
+      // and the ZIP64 EOCD Locator 0x07064B50 (LE: 50 4B 06 07).
+      let foundZ64Eocd = false;
+      let foundZ64Locator = false;
+      for (let i = 0; i < bytes.length - 4; i++) {
+        if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b) {
+          if (bytes[i + 2] === 0x06 && bytes[i + 3] === 0x06) foundZ64Eocd = true;
+          if (bytes[i + 2] === 0x06 && bytes[i + 3] === 0x07) foundZ64Locator = true;
+        }
+      }
+      expect(foundZ64Eocd).toBe(true);
+      expect(foundZ64Locator).toBe(true);
+    });
+  });
+
   it('throws on missing account/user.json', async () => {
     const blob = await buildFixturePackage({ omitUserJson: true });
     await expect(parsePackageZip(blob)).rejects.toBeInstanceOf(PackageParseError);

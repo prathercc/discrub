@@ -1,4 +1,15 @@
-import JSZip from 'jszip';
+import { zipSync, type Zippable } from 'fflate';
+
+// fflate's `zipSync` performs an `instanceof Uint8Array` leaf check using
+// the `Uint8Array` constructor it captured at module-evaluation time
+// (aliased to `u8` in its source). Under vitest+jsdom either fflate's
+// `strToU8` or `TextEncoder`'s output may produce a Uint8Array from a
+// different realm, which fails the `instanceof` check — fflate then
+// treats the bytes as a nested Zippable (one entry per byte index!) and
+// emits a malformed ZIP. Re-wrapping through the *global* `Uint8Array`
+// constructor — the same one fflate captured — sidesteps the realm
+// mismatch. Ugly but stable across vitest realm configurations.
+const strToU8 = (s: string): Uint8Array => new Uint8Array(new TextEncoder().encode(s));
 
 export interface FixtureOptions {
   userId?: string;
@@ -52,13 +63,6 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     localeOverride,
   } = opts;
 
-  const rootZip = new JSZip();
-  const zip = wrapperDir ? rootZip.folder(wrapperDir)! : rootZip;
-  if (wrapperDir) {
-    rootZip.file('__MACOSX/._' + wrapperDir, 'junk');
-    rootZip.file(`${wrapperDir}/.DS_Store`, 'junk');
-  }
-
   // Mirror Discord's variant where top-level directory names ship capitalized
   // (`Account/`, `Messages/`, `Servers/`). Inner segments stay lowercase.
   // Locale overrides land *after* capitalization so a French test can opt
@@ -70,8 +74,21 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   const activity = cap('activity');
   const activitiesE = cap('activities_e');
 
+  // fflate uses a flat path -> bytes (or nested Zippable) map. We thread the
+  // wrapper-dir prefix through directly rather than relying on a folder API.
+  const z: Zippable = {};
+  const root = wrapperDir ? `${wrapperDir}/` : '';
+  const put = (path: string, body: string | Uint8Array) => {
+    z[`${root}${path}`] = typeof body === 'string' ? strToU8(body) : body;
+  };
+
+  if (wrapperDir) {
+    z[`__MACOSX/._${wrapperDir}`] = strToU8('junk');
+    z[`${wrapperDir}/.DS_Store`] = strToU8('junk');
+  }
+
   if (!omitUserJson) {
-    zip.file(
+    put(
       `${account}/user.json`,
       malformedUserJson
         ? '{ not json'
@@ -85,12 +102,12 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     );
   }
 
-  zip.file(
+  put(
     `${servers}/100/guild.json`,
     JSON.stringify({ id: '100', name: 'Test Guild' }),
   );
 
-  zip.file(
+  put(
     `${messages}/index.json`,
     JSON.stringify({
       '200': 'general',
@@ -101,7 +118,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   );
 
   // Guild text channel
-  zip.file(
+  put(
     `${messages}/c200/channel.json`,
     JSON.stringify({
       id: '200',
@@ -110,7 +127,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
       guild: { id: '100', name: 'Test Guild' },
     }),
   );
-  zip.file(
+  put(
     `${messages}/c200/messages.csv`,
     [
       HEADER,
@@ -121,7 +138,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   );
 
   // DM
-  zip.file(
+  put(
     `${messages}/c300/channel.json`,
     JSON.stringify({
       id: '300',
@@ -129,24 +146,24 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
       recipients: [userId, '999'],
     }),
   );
-  zip.file(
+  put(
     `${messages}/c300/messages.csv`,
     [HEADER, '10,2022-08-01 00:00:00.000000+00:00,yo,'].join('\n'),
   );
 
   if (includeOrphanChannel) {
-    zip.file(
+    put(
       `${messages}/c400/channel.json`,
       JSON.stringify({ id: '400', type: 0 }),
     );
-    zip.file(
+    put(
       `${messages}/c400/messages.csv`,
       [HEADER, '20,2020-01-01 00:00:00.000000+00:00,orphan msg,'].join('\n'),
     );
   }
 
   if (includeGroupDm) {
-    zip.file(
+    put(
       `${messages}/c500/channel.json`,
       JSON.stringify({
         id: '500',
@@ -154,11 +171,11 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
         recipients: [userId, '888', '777'],
       }),
     );
-    zip.file(`${messages}/c500/messages.csv`, HEADER);
+    put(`${messages}/c500/messages.csv`, HEADER);
   }
 
   if (includeMalformedCsv) {
-    zip.file(
+    put(
       `${messages}/c600/channel.json`,
       JSON.stringify({
         id: '600',
@@ -167,7 +184,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
         guild: { id: '100', name: 'Test Guild' },
       }),
     );
-    zip.file(
+    put(
       `${messages}/c600/messages.csv`,
       `${HEADER}\n1,2022-07-28 22:30:52.800000+00:00,"unterminated,`,
     );
@@ -175,9 +192,10 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
 
   if (includeActivity) {
     // Large payload that should NEVER be read into memory by the parser.
-    zip.file(`${activity}/reporting.json`, 'x'.repeat(1024));
-    zip.file(`${activitiesE}/events.json`, 'y'.repeat(512));
+    put(`${activity}/reporting.json`, 'x'.repeat(1024));
+    put(`${activitiesE}/events.json`, 'y'.repeat(512));
   }
 
-  return rootZip.generateAsync({ type: 'blob' });
+  const bytes = zipSync(z);
+  return new Blob([bytes as BlobPart]);
 }

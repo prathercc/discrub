@@ -1,4 +1,4 @@
-import JSZip from 'jszip';
+import { unzipSync, strFromU8 } from 'fflate';
 import { countCsvRows, parseMessagesCsv } from '@/utils/csvParser';
 import {
   PACKAGE_CHANNEL_TYPE,
@@ -41,6 +41,45 @@ function isJunkPath(path: string): boolean {
 }
 
 /**
+ * Thin wrapper around fflate's `Unzipped` shape. We swapped from JSZip to
+ * fflate (#158) because JSZip can't read ZIP64 archives — Discord's larger
+ * packages use ZIP64 once they exceed 65,535 entries OR 4 GB total, and
+ * JSZip throws "expected N records in central dir, got 0" on those. fflate
+ * handles ZIP64 natively. The shape is a flat path → bytes map; directory
+ * entries (paths ending `/`) are dropped, only file entries appear.
+ */
+type PackageZip = {
+  /** Flat file map keyed by ZIP entry path. */
+  files: Record<string, Uint8Array>;
+};
+
+async function loadZip(file: File | Blob): Promise<PackageZip> {
+  const buffer = await readBlobAsArrayBuffer(file);
+  const files = unzipSync(new Uint8Array(buffer));
+  return { files };
+}
+
+/**
+ * Read a Blob's bytes into an ArrayBuffer. Real browsers have shipped
+ * `Blob.prototype.arrayBuffer` since 2019 (Chrome 76 / Safari 14 / FF 69)
+ * — that's the fast path. jsdom does not expose it, so we fall through
+ * to FileReader which jsdom supports correctly. Avoiding `Response(blob)`
+ * here is deliberate: jsdom's Response stringifies Blob inputs to
+ * `"[object Blob]"`, silently corrupting the bytes.
+ */
+function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === 'function') {
+    return blob.arrayBuffer();
+  }
+  return new Promise<ArrayBuffer>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+    reader.readAsArrayBuffer(blob);
+  });
+}
+
+/**
  * Map of lowercased ZIP entry paths to their actual cased path. Discord's
  * package directory structure has shipped with both lowercase and capitalized
  * top-level dirs (`Account/` vs `account/`); we normalize lookups by always
@@ -48,7 +87,7 @@ function isJunkPath(path: string): boolean {
  */
 type CaseIndex = Map<string, string>;
 
-function buildCaseIndex(zip: JSZip): CaseIndex {
+function buildCaseIndex(zip: PackageZip): CaseIndex {
   const index = new Map<string, string>();
   for (const path of Object.keys(zip.files)) {
     if (isJunkPath(path)) continue;
@@ -57,9 +96,16 @@ function buildCaseIndex(zip: JSZip): CaseIndex {
   return index;
 }
 
-function resolveFile(zip: JSZip, index: CaseIndex, lowerPath: string) {
+/**
+ * Returns the raw bytes for a ZIP entry, or null if the path isn't in the
+ * index. Callers convert to string (`strFromU8`) or Blob (`new Blob([bytes])`)
+ * as needed.
+ */
+function resolveFile(zip: PackageZip, index: CaseIndex, lowerPath: string): Uint8Array | null {
   const actual = index.get(lowerPath);
-  return actual ? zip.file(actual) : null;
+  if (!actual) return null;
+  const bytes = zip.files[actual];
+  return bytes ?? null;
 }
 
 /**
@@ -85,12 +131,12 @@ type StructuralAliases = {
  * about localization.
  */
 function resolveStructural(
-  zip: JSZip,
+  zip: PackageZip,
   index: CaseIndex,
   prefix: string,
   aliases: StructuralAliases,
   canonicalLower: string,
-) {
+): Uint8Array | null {
   const slash = canonicalLower.indexOf('/');
   if (slash === -1) return null;
   const head = canonicalLower.slice(0, slash);
@@ -230,7 +276,7 @@ export class PackageParseError extends Error {
  * content lazily when a channel is selected.
  */
 export async function parsePackageZip(file: File | Blob): Promise<ParsedPackage> {
-  const zip = await JSZip.loadAsync(file);
+  const zip = await loadZip(file);
   const caseIndex = buildCaseIndex(zip);
   const sniff = sniffStructure(caseIndex);
   if (!sniff) {
@@ -264,7 +310,7 @@ export async function loadChannelMessages(
   file: File | Blob,
   channelId: string,
 ): Promise<PackageMessage[]> {
-  const zip = await JSZip.loadAsync(file);
+  const zip = await loadZip(file);
   const caseIndex = buildCaseIndex(zip);
   const sniff = sniffStructure(caseIndex);
   if (!sniff) {
@@ -275,8 +321,7 @@ export async function loadChannelMessages(
   if (!entry) {
     throw new PackageParseError(`messages.csv missing for channel ${channelId}`);
   }
-  const csv = await entry.async('string');
-  return parseMessagesCsv(csv);
+  return parseMessagesCsv(strFromU8(entry));
 }
 
 /**
@@ -318,7 +363,7 @@ export function validatePackage(
 /* ────────── internal helpers ────────── */
 
 async function readUserJson(
-  zip: JSZip,
+  zip: PackageZip,
   index: CaseIndex,
   prefix: string,
   aliases: StructuralAliases,
@@ -327,7 +372,7 @@ async function readUserJson(
   if (!file) {
     throw new PackageParseError('Package is missing account/user.json');
   }
-  const raw = JSON.parse(await file.async('string')) as RawUserJson;
+  const raw = JSON.parse(strFromU8(file)) as RawUserJson;
   if (!raw.id || !raw.username) {
     throw new PackageParseError('account/user.json is malformed');
   }
@@ -341,7 +386,7 @@ async function readUserJson(
 }
 
 async function readGuilds(
-  zip: JSZip,
+  zip: PackageZip,
   index: CaseIndex,
   prefix: string,
   aliases: StructuralAliases,
@@ -355,7 +400,7 @@ async function readGuilds(
     const entry = resolveFile(zip, index, lowerPath);
     if (!entry) continue;
     try {
-      const raw = JSON.parse(await entry.async('string')) as RawGuildJson;
+      const raw = JSON.parse(strFromU8(entry)) as RawGuildJson;
       if (raw.id && raw.name) guilds.push({ id: raw.id, name: raw.name });
     } catch {
       /* skip malformed guild.json */
@@ -369,7 +414,7 @@ function escapeRegex(s: string): string {
 }
 
 async function readChannelNameIndex(
-  zip: JSZip,
+  zip: PackageZip,
   index: CaseIndex,
   prefix: string,
   aliases: StructuralAliases,
@@ -377,14 +422,14 @@ async function readChannelNameIndex(
   const entry = resolveStructural(zip, index, prefix, aliases, 'messages/index.json');
   if (!entry) return {};
   try {
-    return JSON.parse(await entry.async('string')) as Record<string, string | null>;
+    return JSON.parse(strFromU8(entry)) as Record<string, string | null>;
   } catch {
     return {};
   }
 }
 
 async function readChannels(
-  zip: JSZip,
+  zip: PackageZip,
   index: CaseIndex,
   guilds: PackageGuild[],
   nameIndex: Record<string, string | null>,
@@ -413,14 +458,13 @@ async function readChannels(
 
     let raw: RawChannelJson;
     try {
-      raw = JSON.parse(await channelJson.async('string')) as RawChannelJson;
+      raw = JSON.parse(strFromU8(channelJson)) as RawChannelJson;
     } catch {
       continue;
     }
 
     const type = raw.type as PackageChannelType;
-    const csv = await csvEntry.async('string');
-    const messageCount = countCsvRows(csv);
+    const messageCount = countCsvRows(strFromU8(csvEntry));
 
     const guildId = raw.guild?.id;
     const guildName = guildId
@@ -446,7 +490,7 @@ async function readChannels(
 }
 
 async function readAvatarBlobUrl(
-  zip: JSZip,
+  zip: PackageZip,
   index: CaseIndex,
   prefix: string,
   aliases: StructuralAliases,
@@ -454,9 +498,8 @@ async function readAvatarBlobUrl(
   const entry = resolveStructural(zip, index, prefix, aliases, 'account/avatar.png');
   if (!entry) return undefined;
   try {
-    const blob = await entry.async('blob');
     if (typeof URL === 'undefined' || !('createObjectURL' in URL)) return undefined;
-    return URL.createObjectURL(blob);
+    return URL.createObjectURL(new Blob([entry as BlobPart]));
   } catch {
     return undefined;
   }
