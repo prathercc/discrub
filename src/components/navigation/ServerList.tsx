@@ -7,14 +7,15 @@ import {
   ListItemText,
   Box,
   Typography,
-  IconButton,
   Tooltip,
+  Checkbox,
 } from '@mui/material';
 import {
   Folder as FolderIcon,
-  ContentCopy as CopyIcon,
   Verified as VerifiedIcon,
   Star as OwnerIcon,
+  CheckBox as SelectModeIcon,
+  CheckBoxOutlineBlank as SelectModeOffIcon,
 } from '@mui/icons-material';
 import type { Guild } from 'discrub-core/types/discord-types';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -22,10 +23,14 @@ import {
   selectGuilds,
   selectSelectedGuild,
   selectGuildLoading,
+  selectSelectedGuilds,
   fetchGuilds,
   fetchCurrentMember,
   fetchRoles,
   setSelectedGuild,
+  toggleGuildSelection,
+  selectAllGuilds,
+  deselectAllGuilds,
 } from '@features/guild/guildSlice';
 import { fetchChannels, setSelectedChannel } from '@features/channel/channelSlice';
 import { clearMessages } from '@features/message/messageSlice';
@@ -33,6 +38,8 @@ import { addStatusEntry, showToast } from '@features/status/statusSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import ListSkeleton from '@components/ui/ListSkeleton';
 import EmptyState from '@components/ui/EmptyState';
+import TourButton from '@components/welcome/TourButton';
+import MultiSelectControls from './MultiSelectControls';
 
 const PAGE_SIZE = 50;
 
@@ -47,9 +54,11 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
   const dispatch = useAppDispatch();
   const guilds = useAppSelector(selectGuilds);
   const selectedGuild = useAppSelector(selectSelectedGuild);
+  const selectedGuilds = useAppSelector(selectSelectedGuilds);
   const isLoading = useAppSelector(selectGuildLoading);
   const token = useAppSelector(selectAuthToken);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [multiSelectMode, setMultiSelectMode] = useState(false);
 
   // Filter guilds by name
   const filteredGuilds = useMemo(() => {
@@ -106,6 +115,11 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
   const handleGuildClick = async (guild: Guild) => {
     if (!token) return;
 
+    if (multiSelectMode) {
+      dispatch(toggleGuildSelection(guild));
+      return;
+    }
+
     // Clear previous server's state before loading new server
     dispatch(setSelectedChannel(null));
     dispatch(clearMessages());
@@ -117,14 +131,25 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
     await dispatch(fetchChannels({ guildId: guild.id, token }));
   };
 
-  const handleCopyNames = () => {
-    const names = filteredGuilds
+  const handleCopySelectedNames = () => {
+    const names = selectedGuilds
       .map((guild) => guild.name)
       .filter(Boolean)
       .join('\n');
+    if (!names) return;
     navigator.clipboard.writeText(names);
     dispatch(showToast({ level: 'success', message: 'Copied to clipboard' }));
   };
+
+  const handleToggleMultiSelect = () => {
+    if (multiSelectMode) {
+      dispatch(deselectAllGuilds());
+    }
+    setMultiSelectMode(!multiSelectMode);
+  };
+
+  const isGuildSelected = (guild: Guild) =>
+    selectedGuilds.some((g) => g.id === guild.id);
 
   if (isLoading) {
     return <ListSkeleton rows={6} avatar />;
@@ -152,25 +177,46 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
         >
           Servers
         </Typography>
-        <Tooltip title="Copy server names">
-          <IconButton
-            size="small"
-            onClick={handleCopyNames}
-            aria-label="Copy server names"
-          >
-            <CopyIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <TourButton
+          stepKey="multi-select-toggle"
+          size="small"
+          onClick={handleToggleMultiSelect}
+          variant={multiSelectMode ? 'contained' : 'outlined'}
+          color={multiSelectMode ? 'primary' : 'inherit'}
+          aria-label="Toggle multi-select"
+          data-tour="multi-select-toggle"
+          startIcon={multiSelectMode ? <SelectModeIcon fontSize="small" /> : <SelectModeOffIcon fontSize="small" />}
+          sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
+        >
+          Multi-select
+        </TourButton>
       </Box>
+
+      <MultiSelectControls
+        active={multiSelectMode}
+        selectedCount={selectedGuilds.length}
+        totalCount={filteredGuilds.length}
+        allSelected={filteredGuilds.length > 0 && selectedGuilds.length === filteredGuilds.length}
+        onToggleAll={() =>
+          dispatch(
+            filteredGuilds.length > 0 && selectedGuilds.length === filteredGuilds.length
+              ? deselectAllGuilds()
+              : selectAllGuilds(filteredGuilds),
+          )
+        }
+        onCopyNames={handleCopySelectedNames}
+        noun="servers"
+      />
+
       <List>
         {visible.map((guild) => (
           <ListItemButton
             key={guild.id}
-            selected={selectedGuild?.id === guild.id}
+            selected={multiSelectMode ? isGuildSelected(guild) : selectedGuild?.id === guild.id}
             onClick={() => handleGuildClick(guild)}
             sx={{
               transition: 'opacity 200ms ease',
-              ...(selectedGuild && selectedGuild.id !== guild.id && {
+              ...(!multiSelectMode && selectedGuild && selectedGuild.id !== guild.id && {
                 opacity: 0.4,
                 '&:hover': {
                   opacity: 0.6,
@@ -178,6 +224,15 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
               }),
             }}
           >
+            {multiSelectMode && (
+              <Checkbox
+                size="small"
+                checked={isGuildSelected(guild)}
+                tabIndex={-1}
+                disableRipple
+                sx={{ p: 0, mr: 1 }}
+              />
+            )}
             <ListItemAvatar>
               <Avatar
                 src={

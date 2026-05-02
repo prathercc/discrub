@@ -53,7 +53,7 @@ describe('ChannelList', () => {
     it('should show prompt to select a server', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
-          guild: { guilds: [], selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Select a server to view channels')).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe('ChannelList', () => {
     it('should show loading spinner when channels are loading', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: true, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -78,7 +78,7 @@ describe('ChannelList', () => {
     it('should show "No channels found" when no channels exist', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -91,7 +91,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel, voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -105,7 +105,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -118,7 +118,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList filterText="general" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -130,7 +130,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList filterText="nonexistent" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -141,7 +141,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList filterText="GENERAL" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -154,7 +154,7 @@ describe('ChannelList', () => {
       const { store } = renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -167,7 +167,7 @@ describe('ChannelList', () => {
       const { store } = renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           dm: { dms: [], selectedDm: createMockChannel({ id: 'dm-old', type: 1 }), selectedDms: [], isLoading: false, error: null },
         }),
@@ -180,7 +180,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: textChannel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -194,7 +194,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -209,7 +209,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -228,7 +228,7 @@ describe('ChannelList', () => {
       const { store } = renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -249,7 +249,7 @@ describe('ChannelList', () => {
       const { container } = renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -260,7 +260,7 @@ describe('ChannelList', () => {
       const { container } = renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -272,7 +272,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });
@@ -293,7 +293,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList filterText="" />, {
         preloadedState: createBaseState({
           auth: { token: 't', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
         }),
       });

@@ -102,7 +102,7 @@ describe('ServerView', () => {
     it('should show channel name in header', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -127,7 +127,7 @@ describe('ServerView', () => {
     it('should show "All loaded" chip when hasMore is false and messages exist', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -152,7 +152,7 @@ describe('ServerView', () => {
     it('should not show "All loaded" chip when hasMore is true', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -177,7 +177,7 @@ describe('ServerView', () => {
     it('should show message count', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -204,7 +204,7 @@ describe('ServerView', () => {
     it('should show Load All button when hasMore is true in paginated mode', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -229,7 +229,7 @@ describe('ServerView', () => {
     it('should not show Load All button when all messages are loaded', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -256,7 +256,7 @@ describe('ServerView', () => {
     it('should show Export button', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -281,7 +281,7 @@ describe('ServerView', () => {
     it('should disable Export when no messages', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages: [],
@@ -306,7 +306,7 @@ describe('ServerView', () => {
 
   describe('Operation Safety', () => {
     const operationRunningState = createAuthenticatedState({
-      guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+      guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
       channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
       message: {
         messages,
@@ -353,7 +353,7 @@ describe('ServerView', () => {
     it('should show loading spinner when loading', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages: [],
@@ -382,7 +382,7 @@ describe('ServerView', () => {
     it('should show error message when error exists', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages: [],
@@ -409,7 +409,7 @@ describe('ServerView', () => {
     it('should show empty state when no messages and not loading', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages: [],
@@ -453,7 +453,7 @@ describe('ServerView', () => {
     it('should show thread name in header when thread tab is active', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -481,7 +481,7 @@ describe('ServerView', () => {
     it('should show channel name when on main tab with threads open', () => {
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -548,7 +548,7 @@ describe('ServerView', () => {
       const user = userEvent.setup();
       const { store } = renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: baseMessageState,
         }),
@@ -575,7 +575,7 @@ describe('ServerView', () => {
       const user = userEvent.setup();
       renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: baseMessageState,
         }),
@@ -602,7 +602,7 @@ describe('ServerView', () => {
       const user = userEvent.setup();
       const { store } = renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: { ...baseMessageState, activeTab: 't1' },
         }),
@@ -658,7 +658,7 @@ describe('ServerView', () => {
       const mainMessages = messages;
       const { store } = renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages: mainMessages,
@@ -703,7 +703,7 @@ describe('ServerView', () => {
       const user = userEvent.setup();
       const { store } = renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -753,7 +753,7 @@ describe('ServerView', () => {
       ];
       const { store } = renderWithProviders(<ServerView />, {
         preloadedState: createAuthenticatedState({
-          guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
           channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
           message: {
             messages,
@@ -822,7 +822,7 @@ describe('ServerView', () => {
 
   describe('Dialog Close on Confirm', () => {
     const dialogBaseState = createAuthenticatedState({
-      guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+      guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
       channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
       message: {
         messages,
@@ -862,7 +862,7 @@ describe('ServerView', () => {
 
   describe('Thread Load', () => {
     const baseState = createAuthenticatedState({
-      guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+      guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
       channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
       message: {
         messages,
@@ -964,7 +964,7 @@ describe('ServerView', () => {
     ];
 
     const forumState = createAuthenticatedState({
-      guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+      guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
       channel: {
         channels: [forumChannel],
         selectedChannel: forumChannel,
@@ -1020,7 +1020,7 @@ describe('ServerView', () => {
 
     it('should disable Export button when no forum threads loaded', () => {
       const emptyForumState = createAuthenticatedState({
-        guild: { guilds: [guild], selectedGuild: guild, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+        guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         channel: {
           channels: [forumChannel],
           selectedChannel: forumChannel,

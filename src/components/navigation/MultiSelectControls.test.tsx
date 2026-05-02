@@ -86,4 +86,32 @@ describe('MultiSelectControls (Backlog #135)', () => {
     fireEvent.click(screen.getByTestId('multi-select-copy'));
     expect(onCopyNames).toHaveBeenCalledTimes(1);
   });
+
+  // Backlog #155: ServerList renders MultiSelectControls Copy-only for v1.
+  describe('optional Export/Purge handlers (Backlog #155)', () => {
+    const copyOnlyProps = {
+      active: true as const,
+      selectedCount: 2,
+      totalCount: 10,
+      allSelected: false,
+      onToggleAll: () => {},
+      onCopyNames: () => {},
+      noun: 'servers',
+    };
+
+    it('hides Export when onExport is omitted', () => {
+      render(<MultiSelectControls {...copyOnlyProps} />);
+      expect(screen.queryByTestId('multi-select-export')).toBeNull();
+    });
+
+    it('hides Purge when onPurge is omitted', () => {
+      render(<MultiSelectControls {...copyOnlyProps} />);
+      expect(screen.queryByTestId('multi-select-purge')).toBeNull();
+    });
+
+    it('still renders Copy (the only required action) when Export/Purge are omitted', () => {
+      render(<MultiSelectControls {...copyOnlyProps} />);
+      expect(screen.getByTestId('multi-select-copy')).toBeInTheDocument();
+    });
+  });
 });

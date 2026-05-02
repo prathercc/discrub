@@ -7,6 +7,8 @@ import type { Guild, Role } from 'discrub-core/types/discord-types';
 export interface GuildState {
   guilds: Guild[];
   selectedGuild: Guild | null;
+  /** Multi-select set in the server list (parallels channelSlice.selectedChannels). */
+  selectedGuilds: Guild[];
   roles: Role[];
   /** Current user's role IDs in the selected guild (for permission checks) */
   currentMemberRoles: string[];
@@ -19,6 +21,7 @@ export interface GuildState {
 export const initialGuildState: GuildState = {
   guilds: [],
   selectedGuild: null,
+  selectedGuilds: [],
   roles: [],
   currentMemberRoles: [],
   memberRolesCache: {},

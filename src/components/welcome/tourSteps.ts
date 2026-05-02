@@ -66,7 +66,7 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
   // ── Contextual (channel-view) ──────────────────────────────────────
   'multi-select-toggle': {
     title: 'Multi-Select Mode',
-    content: "Click to select multiple channels at once for bulk export or purge. While active you'll see a \"Select all\" button, and one click picks every channel you have access to.",
+    content: "Click to select more than one at a time. A \"Select all\" link picks the full visible list, and any bulk actions available for the list appear below the selection count.",
   },
   'author-avatar': {
     title: 'Author Actions',

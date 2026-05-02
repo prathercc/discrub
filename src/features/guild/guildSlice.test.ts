@@ -8,9 +8,13 @@ import guildReducer, {
   selectGuild,
   selectGuilds,
   selectSelectedGuild,
+  selectSelectedGuilds,
   selectRoles,
   selectGuildLoading,
   selectGuildError,
+  toggleGuildSelection,
+  selectAllGuilds,
+  deselectAllGuilds,
 } from './guildSlice';
 import { initialGuildState } from './guildTypes';
 import * as discordService from '@services/discordService';
@@ -493,6 +497,61 @@ describe('guildSlice', () => {
       store.dispatch(clearGuilds());
       // Error is preserved after clearGuilds
       expect(selectGuildError(store.getState())).toBe('Test error');
+    });
+  });
+
+  // Backlog #155: ServerList multi-select scaffold mirrors channelSlice/dmSlice.
+  describe('multi-select reducers (Backlog #155)', () => {
+    beforeEach(() => {
+      store = createTestStore({ guild: guildReducer }, { guild: {
+            ...initialGuildState,
+            guilds: mockGuilds,
+          } });
+    });
+
+    it('toggleGuildSelection adds the guild when not present', () => {
+      store.dispatch(toggleGuildSelection(mockGuilds[0]));
+      expect(store.getState().guild.selectedGuilds.map((g) => g.id)).toEqual(['guild-1']);
+    });
+
+    it('toggleGuildSelection removes the guild when already present', () => {
+      store.dispatch(toggleGuildSelection(mockGuilds[0]));
+      store.dispatch(toggleGuildSelection(mockGuilds[1]));
+      store.dispatch(toggleGuildSelection(mockGuilds[0]));
+      expect(store.getState().guild.selectedGuilds.map((g) => g.id)).toEqual(['guild-2']);
+    });
+
+    it('selectAllGuilds replaces the selection with the provided list', () => {
+      store.dispatch(toggleGuildSelection(mockGuilds[0]));
+      store.dispatch(selectAllGuilds(mockGuilds));
+      expect(store.getState().guild.selectedGuilds).toHaveLength(2);
+    });
+
+    it('deselectAllGuilds clears the selection', () => {
+      store.dispatch(selectAllGuilds(mockGuilds));
+      store.dispatch(deselectAllGuilds());
+      expect(store.getState().guild.selectedGuilds).toEqual([]);
+    });
+
+    it('clearGuilds also clears selectedGuilds', () => {
+      store.dispatch(selectAllGuilds(mockGuilds));
+      store.dispatch(clearGuilds());
+      expect(store.getState().guild.selectedGuilds).toEqual([]);
+    });
+
+    it('fetchGuilds.fulfilled invalidates a stale multi-select set', async () => {
+      store.dispatch(selectAllGuilds(mockGuilds));
+      const mockDiscordService = {
+        fetchGuilds: vi.fn().mockResolvedValue({ success: true, data: mockGuilds }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+      await store.dispatch(fetchGuilds('token'));
+      expect(store.getState().guild.selectedGuilds).toEqual([]);
+    });
+
+    it('selectSelectedGuilds returns the array', () => {
+      store.dispatch(selectAllGuilds(mockGuilds));
+      expect(selectSelectedGuilds(store.getState())).toEqual(mockGuilds);
     });
   });
 });

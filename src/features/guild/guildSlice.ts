@@ -107,8 +107,23 @@ const guildSlice = createSlice({
     clearGuilds: (state) => {
       state.guilds = [];
       state.selectedGuild = null;
+      state.selectedGuilds = [];
       state.roles = [];
       state.currentMemberRoles = [];
+    },
+    toggleGuildSelection: (state, action: PayloadAction<Guild>) => {
+      const index = state.selectedGuilds.findIndex((g) => g.id === action.payload.id);
+      if (index >= 0) {
+        state.selectedGuilds.splice(index, 1);
+      } else {
+        state.selectedGuilds.push(action.payload);
+      }
+    },
+    selectAllGuilds: (state, action: PayloadAction<Guild[]>) => {
+      state.selectedGuilds = [...action.payload];
+    },
+    deselectAllGuilds: (state) => {
+      state.selectedGuilds = [];
     },
   },
   extraReducers: (builder) => {
@@ -121,6 +136,9 @@ const guildSlice = createSlice({
       .addCase(fetchGuilds.fulfilled, (state, action) => {
         state.isLoading = false;
         state.guilds = action.payload;
+        // Refreshing the guild list invalidates any prior multi-select set —
+        // entries may no longer exist, and stale picks are surprising.
+        state.selectedGuilds = [];
         state.error = null;
       })
       .addCase(fetchGuilds.rejected, (state, action) => {
@@ -153,12 +171,19 @@ const guildSlice = createSlice({
   },
 });
 
-export const { setSelectedGuild, clearGuilds } = guildSlice.actions;
+export const {
+  setSelectedGuild,
+  clearGuilds,
+  toggleGuildSelection,
+  selectAllGuilds,
+  deselectAllGuilds,
+} = guildSlice.actions;
 
 // Selectors
 export const selectGuild = (state: RootState) => state.guild;
 export const selectGuilds = (state: RootState) => state.guild.guilds;
 export const selectSelectedGuild = (state: RootState) => state.guild.selectedGuild;
+export const selectSelectedGuilds = (state: RootState) => state.guild.selectedGuilds ?? [];
 export const selectRoles = (state: RootState) => state.guild.roles;
 export const selectGuildLoading = (state: RootState) => state.guild.isLoading;
 export const selectGuildError = (state: RootState) => state.guild.error;

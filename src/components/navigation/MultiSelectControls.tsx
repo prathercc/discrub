@@ -16,10 +16,10 @@ export interface MultiSelectControlsProps {
   allSelected: boolean;
   /** Toggle between Select all / Deselect all. */
   onToggleAll: () => void;
-  /** Open the bulk-export dialog. */
-  onExport: () => void;
-  /** Open the bulk-purge dialog. */
-  onPurge: () => void;
+  /** Open the bulk-export dialog. Omit to hide the Export button (e.g. ServerList v1). */
+  onExport?: () => void;
+  /** Open the bulk-purge dialog. Omit to hide the Purge button (e.g. ServerList v1). */
+  onPurge?: () => void;
   /** Copy the names of currently-selected items to the clipboard. */
   onCopyNames: () => void;
   /** Plural noun for aria labels — e.g. "channels", "conversations". */
@@ -84,30 +84,34 @@ const MultiSelectControls = ({
         <>
           <Divider sx={{ my: 0.25 }} />
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Button
-              size="small"
-              variant="contained"
-              color="primary"
-              startIcon={<DownloadIcon fontSize="small" />}
-              onClick={onExport}
-              aria-label={`Export selected ${noun}`}
-              data-testid="multi-select-export"
-              sx={{ textTransform: 'none' }}
-            >
-              Export
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              color="error"
-              startIcon={<PurgeIcon fontSize="small" />}
-              onClick={onPurge}
-              aria-label={`Purge selected ${noun}`}
-              data-testid="multi-select-purge"
-              sx={{ textTransform: 'none' }}
-            >
-              Purge
-            </Button>
+            {onExport && (
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                startIcon={<DownloadIcon fontSize="small" />}
+                onClick={onExport}
+                aria-label={`Export selected ${noun}`}
+                data-testid="multi-select-export"
+                sx={{ textTransform: 'none' }}
+              >
+                Export
+              </Button>
+            )}
+            {onPurge && (
+              <Button
+                size="small"
+                variant="contained"
+                color="error"
+                startIcon={<PurgeIcon fontSize="small" />}
+                onClick={onPurge}
+                aria-label={`Purge selected ${noun}`}
+                data-testid="multi-select-purge"
+                sx={{ textTransform: 'none' }}
+              >
+                Purge
+              </Button>
+            )}
             <Button
               size="small"
               variant="outlined"

@@ -59,7 +59,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [], selectedGuild: null, roles: [], isLoading: true, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: true, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.queryByText('Loading servers...')).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [], selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('No servers found')).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="nonexistent" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText(/No servers matching "nonexistent"/)).toBeInTheDocument();
@@ -95,7 +95,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Servers')).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       const avatarImg = screen.getAllByRole('img')[0];
@@ -130,7 +130,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="Alpha" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="beta" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Beta Server')).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -164,74 +164,134 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="   " />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
     });
   });
 
-  describe('Copy Names', () => {
-    it('should render copy button in header', () => {
+  describe('Multi-select & Copy', () => {
+    const baseGuildState = {
+      guilds,
+      selectedGuild: null,
+      selectedGuilds: [],
+      roles: [],
+      isLoading: false,
+      error: null,
+      currentMemberRoles: [],
+      memberRolesCache: {},
+    };
+
+    it('renders the Multi-select toggle in the header', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: baseGuildState,
         }),
       });
-      expect(screen.getByLabelText('Copy server names')).toBeInTheDocument();
+      expect(screen.getByLabelText('Toggle multi-select')).toBeInTheDocument();
     });
 
-    it('should copy server names to clipboard when copy button clicked', () => {
-      const writeText = vi.fn().mockResolvedValue(undefined);
-      Object.assign(navigator, { clipboard: { writeText } });
-
+    it('does not render the legacy header copy IconButton (replaced by multi-select Copy)', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: baseGuildState,
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy server names'));
-      expect(writeText).toHaveBeenCalledWith('Alpha Server\nBeta Server\nGamma Server');
+      expect(screen.queryByLabelText('Copy server names')).toBeNull();
     });
 
-    it('should dispatch toast after copying', () => {
+    it('toggles guild selection on row click while multi-select is active (does not switch servers)', () => {
+      const { store } = renderWithProviders(<ServerList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: baseGuildState,
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByText('Beta Server'));
+      const state = store.getState();
+      expect(state.guild.selectedGuilds.map((g) => g.id)).toEqual(['g2']);
+      expect(state.guild.selectedGuild).toBeNull();
+    });
+
+    it('shows the MultiSelectControls Copy button only after selecting at least one server', () => {
+      renderWithProviders(<ServerList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: baseGuildState,
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      expect(screen.queryByTestId('multi-select-copy')).toBeNull();
+      fireEvent.click(screen.getByText('Alpha Server'));
+      expect(screen.getByTestId('multi-select-copy')).toBeInTheDocument();
+    });
+
+    it('does not render Export or Purge buttons in server multi-select (v1 scope)', () => {
+      renderWithProviders(<ServerList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { ...baseGuildState, selectedGuilds: [guilds[0]] },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      expect(screen.queryByTestId('multi-select-export')).toBeNull();
+      expect(screen.queryByTestId('multi-select-purge')).toBeNull();
+    });
+
+    it('copies only currently-selected names and dispatches a toast', () => {
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.assign(navigator, { clipboard: { writeText } });
 
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { ...baseGuildState, selectedGuilds: [guilds[0], guilds[2]] },
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy server names'));
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-copy'));
+      expect(writeText).toHaveBeenCalledWith('Alpha Server\nGamma Server');
       expect(store.getState().status.toast.isVisible).toBe(true);
       expect(store.getState().status.toast.message).toBe('Copied to clipboard');
     });
 
-    it('should only copy filtered guilds when filter is active', () => {
-      const writeText = vi.fn().mockResolvedValue(undefined);
-      Object.assign(navigator, { clipboard: { writeText } });
-
-      renderWithProviders(<ServerList filterText="Alpha" />, {
+    it('Select all / Deselect all toggle picks up the filtered guild list', () => {
+      const { store } = renderWithProviders(<ServerList filterText="Alpha" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: baseGuildState,
         }),
       });
-      fireEvent.click(screen.getByLabelText('Copy server names'));
-      expect(writeText).toHaveBeenCalledWith('Alpha Server');
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-toggle-all'));
+      expect(store.getState().guild.selectedGuilds.map((g) => g.id)).toEqual(['g1']);
+    });
+
+    it('clears the selection when multi-select is toggled off', () => {
+      const { store } = renderWithProviders(<ServerList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: baseGuildState,
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByText('Alpha Server'));
+      expect(store.getState().guild.selectedGuilds).toHaveLength(1);
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      expect(store.getState().guild.selectedGuilds).toEqual([]);
     });
   });
 
   describe('Selection', () => {
-    it('should dispatch setSelectedGuild when a guild is clicked', () => {
+    it('should dispatch setSelectedGuild when a guild is clicked (single-select default mode)', () => {
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       fireEvent.click(screen.getByText('Beta Server'));
@@ -243,7 +303,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: guilds[1], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: guilds[1], selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
         }),
       });
       const betaButton = screen.getByText('Beta Server').closest('[role="button"]');
