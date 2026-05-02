@@ -14,6 +14,7 @@ import { waitWhilePaused, checkCancelled, cancellableDelay } from '@/utils/opera
 import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
 import { getEmojiKey } from '@/utils/emojiUtils';
 import { applyRefineCriteria, criteriaIsActive } from './messageFiltering';
+import { nextMilestone } from '@utils/searchPagination';
 
 /**
  * Emit a status-log entry when a just-loaded page produced zero matches
@@ -991,7 +992,7 @@ export const loadAllSearchResults = createAsyncThunk(
     let currentCriteria = { ...initialCriteria };
     let offset = initial.message.pagination.searchOffset;
     let totalForCurrentQuery = initial.message.pagination.totalCount ?? 0;
-    let nextMilestone = aggregated.length + 100 - (aggregated.length % 100);
+    let milestoneBoundary = nextMilestone(aggregated.length);
 
     try {
       while (!signal.aborted) {
@@ -1031,14 +1032,14 @@ export const loadAllSearchResults = createAsyncThunk(
           })
         );
 
-        if (aggregated.length >= nextMilestone) {
+        if (aggregated.length >= milestoneBoundary) {
           dispatch(
             addStatusEntry({
               level: 'info',
               message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
             })
           );
-          nextMilestone = aggregated.length + 100 - (aggregated.length % 100);
+          milestoneBoundary = nextMilestone(aggregated.length);
         }
 
         // End of this query's results
@@ -1122,7 +1123,10 @@ export const fetchAllMessages = createAsyncThunk(
       let lastMessageId = '';
       let batchCount = 0;
       let hasMore = true;
-      let nextMilestone = 500;
+      // 500-step cadence (not the shared adaptive helper) — direct-history
+      // walks of busy channels can fetch tens of thousands of messages, and
+      // a finer cadence would flood the status log.
+      let nextLogBoundary = 500;
 
       while (hasMore && !signal.aborted) {
         // Check pause/cancel
@@ -1153,9 +1157,9 @@ export const fetchAllMessages = createAsyncThunk(
           })
         );
 
-        if (allMessages.length >= nextMilestone) {
+        if (allMessages.length >= nextLogBoundary) {
           dispatch(addStatusEntry({ level: 'info', message: `Load All: ${allMessages.length} messages fetched` }));
-          nextMilestone = allMessages.length + 500 - (allMessages.length % 500);
+          nextLogBoundary = allMessages.length + 500 - (allMessages.length % 500);
         }
 
         // Check if we've reached the end
@@ -1535,7 +1539,10 @@ export const fetchAllThreadMessages = createAsyncThunk(
       let allMessages: Message[] = [];
       let lastMsgId = '';
       let hasMore = true;
-      let nextMilestone = 500;
+      // 500-step cadence (not the shared adaptive helper) — same rationale
+      // as the channel direct-history walk: avoid spamming the status log
+      // on multi-thousand-message threads.
+      let nextLogBoundary = 500;
 
       while (hasMore && !signal.aborted) {
         await waitWhilePaused(getState as () => RootState);
@@ -1565,9 +1572,9 @@ export const fetchAllThreadMessages = createAsyncThunk(
           },
         }));
 
-        if (allMessages.length >= nextMilestone) {
+        if (allMessages.length >= nextLogBoundary) {
           dispatch(addStatusEntry({ level: 'info', message: `Load All: ${allMessages.length} messages fetched` }));
-          nextMilestone = allMessages.length + 500 - (allMessages.length % 500);
+          nextLogBoundary = allMessages.length + 500 - (allMessages.length % 500);
         }
 
         if (messages.length < 100) {
@@ -1656,7 +1663,7 @@ export const searchThreadMessages = createAsyncThunk(
       let currentCriteria = { ...searchCriteria };
       let shouldContinue = true;
       let batchNumber = 0;
-      let nextMilestone = 100;
+      let milestoneBoundary = nextMilestone(0);
 
       while (shouldContinue && !signal.aborted) {
         let batchMessages: Message[] = [];
@@ -1714,9 +1721,9 @@ export const searchThreadMessages = createAsyncThunk(
             },
           }));
 
-          if (fetched >= nextMilestone) {
+          if (fetched >= milestoneBoundary) {
             dispatch(addStatusEntry({ level: 'info', message: `Search: fetched ${fetched} of ${total} results` }));
-            nextMilestone = fetched + 100 - (fetched % 100);
+            milestoneBoundary = nextMilestone(fetched);
           }
 
           if (messages.length < 25 || batchMessages.length >= searchResult.total_results) {

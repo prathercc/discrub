@@ -20,9 +20,7 @@ import {
 import { calculateRandomDelay } from '@utils/delayUtils';
 import { iterateSearchMessagesRedux } from '@utils/searchPagination';
 import { applyRefineCriteria, criteriaIsActive } from '@features/message/messageFiltering';
-
-/** Milestone interval — log progress every N messages processed */
-const MILESTONE_INTERVAL = 100;
+import { nextMilestone } from '@utils/searchPagination';
 
 /** Progress throttle — dispatch progress every N messages in messages mode */
 const PROGRESS_THROTTLE_MESSAGES = 10;
@@ -1455,7 +1453,7 @@ export const bulkPurgeChannels = createAsyncThunk<
 
         try {
           if (isClearReactionsMode) {
-            let lastMilestone = 0;
+            let milestoneBoundary = nextMilestone(0);
 
             const result = await purgeChannelClearAllReactions(
               channel.id,
@@ -1474,8 +1472,8 @@ export const bulkPurgeChannels = createAsyncThunk<
                   reactionsRemoved: reactionsCleared,
                   bulk: bulkContext,
                 }));
-                if (scanned - lastMilestone >= MILESTONE_INTERVAL) {
-                  lastMilestone = scanned;
+                if (scanned >= milestoneBoundary) {
+                  milestoneBoundary = nextMilestone(scanned);
                   dispatch(addStatusEntry({
                     level: 'info',
                     message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} — ${scanned} messages scanned, ${reactionsCleared} cleared`,
@@ -1539,7 +1537,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} — ${totalCleared} message${totalCleared !== 1 ? 's' : ''} cleared of reactions${failedSuffix}`,
             }));
           } else if (isReactionsMode) {
-            let lastMilestone = 0;
+            let milestoneBoundary = nextMilestone(0);
 
             const result = await purgeChannelReactions(
               channel.id,
@@ -1561,8 +1559,8 @@ export const bulkPurgeChannels = createAsyncThunk<
                   bulk: bulkContext,
                 }));
                 // Log milestones
-                if (scanned - lastMilestone >= MILESTONE_INTERVAL) {
-                  lastMilestone = scanned;
+                if (scanned >= milestoneBoundary) {
+                  milestoneBoundary = nextMilestone(scanned);
                   dispatch(addStatusEntry({
                     level: 'info',
                     message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} — ${scanned} messages scanned, ${reactionsRemoved} reactions removed`,
@@ -1628,7 +1626,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} — ${totalChannelReactions} reactions removed${removeFailedSuffix}`,
             }));
           } else {
-            let lastMilestone = 0;
+            let milestoneBoundary = nextMilestone(0);
 
             // Get thread IDs for this channel (messages mode — included in search criteria)
             const channelThreads = threadMap?.get(channel.id) ?? [];
@@ -1667,8 +1665,8 @@ export const bulkPurgeChannels = createAsyncThunk<
                   bulk: bulkContext,
                 }));
                 // Log milestones
-                if (processed - lastMilestone >= MILESTONE_INTERVAL) {
-                  lastMilestone = processed;
+                if (processed >= milestoneBoundary) {
+                  milestoneBoundary = nextMilestone(processed);
                   const detail = formatPurgeDetail(
                     deleted,
                     skipped,

@@ -47,16 +47,32 @@ const mockGetState: any = vi.fn(() => ({
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
 describe('nextMilestone', () => {
-  it('returns 100 when current is 0', () => {
-    expect(nextMilestone(0)).toBe(100);
+  it('returns 5 when current is 0 (small-op step)', () => {
+    expect(nextMilestone(0)).toBe(5);
   });
 
-  it('rounds up to the next 100', () => {
-    expect(nextMilestone(1)).toBe(100);
+  it('uses a 5-step ladder below 25', () => {
+    expect(nextMilestone(1)).toBe(5);
+    expect(nextMilestone(4)).toBe(5);
+    expect(nextMilestone(5)).toBe(10);
+    expect(nextMilestone(7)).toBe(10);
+    expect(nextMilestone(20)).toBe(25);
+    expect(nextMilestone(24)).toBe(25);
+  });
+
+  it('uses a 25-step ladder between 25 and 100', () => {
+    expect(nextMilestone(25)).toBe(50);
+    expect(nextMilestone(26)).toBe(50);
+    expect(nextMilestone(49)).toBe(50);
+    expect(nextMilestone(50)).toBe(75);
     expect(nextMilestone(99)).toBe(100);
+  });
+
+  it('uses a 100-step ladder at and above 100', () => {
     expect(nextMilestone(100)).toBe(200);
     expect(nextMilestone(101)).toBe(200);
     expect(nextMilestone(250)).toBe(300);
+    expect(nextMilestone(999)).toBe(1000);
   });
 });
 

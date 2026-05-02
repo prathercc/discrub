@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ButtonGroup, Button, Tooltip, Box, Typography, LinearProgress, Popover, useTheme } from '@mui/material';
+import { useState, useRef, useEffect } from 'react';
+import { ButtonGroup, Button, Tooltip, Box, Typography, LinearProgress, Popover, useTheme, keyframes } from '@mui/material';
 import {
   Pause as PauseIcon,
   PlayArrow as ResumeIcon,
@@ -18,6 +18,19 @@ interface PauseResumeControlsProps {
 }
 
 /**
+ * Brief flash animation applied to the progress label whenever the
+ * counter values change. Confirms to the user that the operation is
+ * making progress, even when the StatusPanel is collapsed and only
+ * the label is visible. Honors prefers-reduced-motion via the wrapping
+ * `@media` query.
+ */
+const labelPulse = keyframes`
+  0%   { color: var(--mui-palette-primary-main, #5865f2); }
+  60%  { color: var(--mui-palette-primary-main, #5865f2); }
+  100% { color: var(--mui-palette-text-secondary, #8b949e); }
+`;
+
+/**
  * Pause/Resume/Cancel controls for long-running operations.
  * Only visible when an operation is running.
  */
@@ -29,6 +42,18 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
   const isPaused = useAppSelector(selectDiscrubPaused);
   const [helpAnchor, setHelpAnchor] = useState<HTMLButtonElement | null>(null);
   const tourEntry = tourCatalog['pause-resume-controls'];
+
+  // Bump a key whenever the label text changes so the Typography below
+  // remounts and re-fires the pulse keyframe. Cheap visual cue that
+  // counters in the label have just ticked.
+  const lastLabelRef = useRef<string | undefined>(label);
+  const [pulseKey, setPulseKey] = useState(0);
+  useEffect(() => {
+    if (label && label !== lastLabelRef.current) {
+      lastLabelRef.current = label;
+      setPulseKey((k) => k + 1);
+    }
+  }, [label]);
 
   if (!isRunning) return null;
 
@@ -126,8 +151,17 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
 
       {label && (
         <Typography
+          key={pulseKey}
           variant="caption"
-          sx={{ color: 'text.secondary', whiteSpace: 'nowrap', ml: 0.5 }}
+          sx={{
+            color: 'text.secondary',
+            whiteSpace: 'nowrap',
+            ml: 0.5,
+            animation: `${labelPulse} 600ms ease-out`,
+            '@media (prefers-reduced-motion: reduce)': {
+              animation: 'none',
+            },
+          }}
         >
           {label}
         </Typography>

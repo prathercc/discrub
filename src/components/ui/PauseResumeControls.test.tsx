@@ -141,4 +141,16 @@ describe('PauseResumeControls', () => {
     });
     expect(screen.queryByRole('progressbar')).toBeNull();
   });
+
+  it('remounts the label element on label change so the pulse animation re-fires', () => {
+    const { rerender } = renderWithProviders(<PauseResumeControls label="Exporting (avatars)... 12 of 100" />, {
+      preloadedState: createBaseState({
+        export: { ...initialExportState, isExporting: true },
+      }),
+    });
+    const firstNode = screen.getByText('Exporting (avatars)... 12 of 100');
+    rerender(<PauseResumeControls label="Exporting (avatars)... 13 of 100" />);
+    const secondNode = screen.getByText('Exporting (avatars)... 13 of 100');
+    expect(secondNode).not.toBe(firstNode);
+  });
 });

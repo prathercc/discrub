@@ -66,9 +66,16 @@ export async function* iterateSearchMessagesRedux(
 }
 
 /**
- * Milestone helper — returns the next multiple-of-100 boundary above
- * `current`. Matches the cadence used by `loadAllSearchResults` so the
- * new bulk consumers feel consistent with single-channel search.
+ * Milestone helper — returns the next boundary above `current` for
+ * progress-log emission. Step size scales with `current` so small
+ * operations get periodic feedback (otherwise a 25-message purge
+ * would never log between "Searching..." and "Completed") while
+ * large operations keep the original 100-step cadence to avoid
+ * log spam.
+ *
+ * Step ladder: <25 → 5, <100 → 25, otherwise → 100.
  */
-export const nextMilestone = (current: number): number =>
-  current === 0 ? 100 : current + 100 - (current % 100);
+export const nextMilestone = (current: number): number => {
+  const step = current < 25 ? 5 : current < 100 ? 25 : 100;
+  return current === 0 ? step : current + step - (current % step);
+};
