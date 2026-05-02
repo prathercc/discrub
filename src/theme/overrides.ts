@@ -295,6 +295,43 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
       }),
     },
   },
+  MuiTooltip: {
+    defaultProps: {
+      arrow: true,
+      enterDelay: 300,
+      leaveDelay: 0,
+    },
+    styleOverrides: {
+      tooltip: ({ theme }) => ({
+        backgroundColor:
+          theme.palette.mode === 'dark'
+            ? 'rgba(40, 43, 48, 0.98)'
+            : 'rgba(255, 255, 255, 0.98)',
+        color: theme.palette.text.primary,
+        border: `1px solid ${theme.palette.divider}`,
+        backdropFilter: 'blur(8px)',
+        borderRadius: 6,
+        padding: '6px 10px',
+        fontSize: '0.75rem',
+        lineHeight: 1.45,
+        fontWeight: 400,
+        maxWidth: 320,
+        boxShadow:
+          theme.palette.mode === 'dark'
+            ? '0 6px 20px rgba(0, 0, 0, 0.4)'
+            : '0 6px 20px rgba(0, 0, 0, 0.12)',
+      }),
+      arrow: ({ theme }) => ({
+        color:
+          theme.palette.mode === 'dark'
+            ? 'rgba(40, 43, 48, 0.98)'
+            : 'rgba(255, 255, 255, 0.98)',
+        '&::before': {
+          border: `1px solid ${theme.palette.divider}`,
+        },
+      }),
+    },
+  },
   MuiSkeleton: {
     styleOverrides: {
       root: ({ theme }) => ({
