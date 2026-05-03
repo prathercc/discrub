@@ -42,7 +42,9 @@ Available as a **web app** (manual token entry) and a **Chrome/Firefox extension
 
 ### Browse Servers, Channels & DMs
 
-Navigate your Discord servers with full channel category support, permission-based visibility (locked channels shown with lock icons), and direct message browsing with display names.
+Navigate your Discord servers with full channel category support, permission-based visibility (locked channels shown with lock icons), and direct message browsing with display names. Voice and Stage channels are first-class clickable rows since Discord rolled out persistent text chat in voice channels: select one to read its embedded message history just like any text channel.
+
+Multi-select mode is available across the Server, Channel, and DM lists, with a styled Copy button for quickly grabbing names or IDs. Server multi-select lays groundwork for future cross-server bulk operations.
 
 ![Server & Channel Browsing](docs/screenshots/browsing/channel-list.png)
 ![DM Browsing](docs/screenshots/browsing/dm-list.png)
@@ -136,6 +138,10 @@ Delete messages and reactions across one or multiple channels with user targetin
 
 Features: multi-channel selection with one-click "Select all", filters integration (narrow by author, content, date, has-types) for both bulk export and bulk purge, retain-attachments option, thread-aware discovery (auto-unarchives during purge and re-archives when done), DM support (own messages only), pause/resume/cancel.
 
+Setting the FilterModal's Pinned dropdown to **False** now actually preserves pinned messages during a purge. Discord's search endpoint silently ignores `pinned=false`, so Discrub applies the filter client-side as a final safety check before each delete and reports the count of preserved pinned messages in the status log.
+
+While a purge runs, the status log's progress label pulses on each counter update with adaptive milestones (every 5 deletes early, then 25, then 100) so it's obvious the operation is making progress.
+
 ![Purge Dialog](docs/screenshots/purge/purge-dialog.png)
 
 ### Reactions
@@ -167,7 +173,9 @@ Full support for forum/media channels (Discord channel types 15 and 16):
 - Search threads by name
 - Load thread messages into the message table
 - Export forum threads individually or as part of bulk exports
-- Discovers archived threads (public and private)
+- Discovers active and archived threads (public and private), so freshly-active posts show up alongside the archive
+
+The **Load Thread** modal now auto-discovers active and archived threads in the current channel and renders a clickable list, so threads whose starter message has been deleted are still reachable without having to copy a thread ID by hand. The manual ID input remains as a fallback for power users.
 
 ![Forum Threads](docs/screenshots/forum/thread-list.png)
 
@@ -180,6 +188,8 @@ Message analytics with mention frequency, user engagement metrics, and CSV expor
 ### Data Package Import & Rehydration
 
 Import the ZIP from Discord's "Request All of My Data" export and browse, analyze, bulk-edit, bulk-delete, or re-export your full message history — including servers you've left. Processing happens entirely in your browser; the package file never leaves your device.
+
+The importer handles large packages (multi-gigabyte archives, tens of thousands of entries via ZIP64) and packages exported in any Discord locale (French, German, Spanish, Simplified Chinese, Cyrillic, etc.). Folder-name conventions vary by locale, so Discrub identifies the account, messages, and servers directories by their content rather than by name. Multi-attachment messages render every attachment, not just the first.
 
 ![Package empty state](docs/screenshots/package/package-empty-state.png)
 
@@ -211,7 +221,7 @@ Comprehensive settings across multiple tabs:
 
 ### Status Log
 
-Terminal-style operation log with color-coded entries ([INFO], [OK], [ERR], [WARN], [SESSION]), real-time progress tracking, downloadable log file, and smooth expand/collapse animation. Auto-scrolls to latest entries on open.
+Terminal-style operation log with color-coded entries ([INFO], [OK], [ERR], [WARN], [SESSION]), real-time progress tracking, downloadable log file, and smooth expand/collapse animation. Auto-scrolls to latest entries on open. The panel is **resizable**: drag the top edge to give long-running operations more vertical room. History persists across sessions and groups by session for easy review.
 
 ![Status Log](docs/screenshots/ui/status-log.png)
 
@@ -238,6 +248,7 @@ Switch between dark mode, light mode, and auto (system preference) from the top 
 - **Announcements** — in-app announcements rendered from GitHub-hosted markdown, with a version-aware re-trigger so users see fresh announcements once
 - **Role Colors & Icons** — author names colored by highest-position role, with role icons next to author names in the feed and user profiles
 - **Copy to Clipboard** — copy server, channel, or DM lists
+- **Reset Discrub Data** — escape hatch in Settings that wipes Discrub's local IndexedDB databases, useful for recovering from corrupted state without uninstalling the extension
 - **Error Logging** — persistent error log with download capability
 - **Tab Close Protection** — warns when closing tab during active operations
 
@@ -443,7 +454,7 @@ When any operation is running (export, purge, delete, etc.), pause and cancel bu
 
 ### Does Discrub support forum channels?
 
-Yes. Forum channels (and media channels) are fully supported. Discrub discovers archived threads (public and private), displays them in a thread list view, and exports each thread's messages individually.
+Yes. Forum channels (and media channels) are fully supported. Discrub discovers active and archived threads (public and private), displays them in a thread list view, and exports each thread's messages individually.
 
 ### What happens if I close the tab during an export?
 
@@ -486,9 +497,9 @@ Discrub displays author names in the color of their highest-position role that h
 - **Redux Toolkit** for state management
 - **Material UI (MUI)** for components
 - **discrub-core** for Discord API communication
-- **Vitest** for unit testing (2885+ tests)
-- **Cypress** for E2E testing (570+ tests across 33 specs)
-- **Storybook** for component development (34 stories)
+- **Vitest** for unit testing (3000+ tests)
+- **Cypress** for E2E testing (600+ tests across 34 specs)
+- **Storybook** for component development (35 stories)
 
 ---
 

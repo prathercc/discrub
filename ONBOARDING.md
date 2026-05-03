@@ -37,8 +37,10 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Tour Mode + Targeted Help** — A guided tour runs once for new users covering the major features. For day-to-day "what does this do?" moments, small `?` help icons sit next to the trickier affordances (multi-select, filters, focus, purge mode, pause/resume, operation delays, export presets, etc.) and open a one-paragraph explainer on click.
 - **Stale-Feed Reload Toast** — After a purge that targets the channel you're viewing, a one-click toast offers to reload the feed so you see Discord's post-purge state instead of the cached snapshot.
 - **Discord Layout HTML Exports** — Exported HTML wraps in a Discord-like shell with server sidebar, channel navigation, and theme toggle. Browse between channels within a single export file.
-- **Data Package Import & Rehydration** — Import Discord's "Request All of My Data" ZIP to browse, analyze, and re-export your entire message history — including servers you've left. Per-channel Tier 2 rehydration fetches live reactions, mentions, embeds, and fresh CDN URLs so old exports match the live app.
-- **Forum Channel Support** — Full support for Discord forum and media channels. Browse threads, load thread messages, and export them individually.
+- **Data Package Import & Rehydration** — Import Discord's "Request All of My Data" ZIP to browse, analyze, and re-export your entire message history, including servers you've left. The importer handles large packages (multi-gigabyte, ZIP64-encoded archives that previously failed to open) and packages exported in any Discord locale (French, German, Spanish, Simplified Chinese, Cyrillic, etc.). Multi-attachment messages render every attachment, not just the first. Per-channel Tier 2 rehydration fetches live reactions, mentions, embeds, and fresh CDN URLs so old exports match the live app.
+- **Forum Channel Support** — Full support for Discord forum and media channels. Browse active and archived threads, load thread messages, and export them individually.
+- **Voice and Stage Channel Chat** — The persistent text chat embedded in voice and stage channels (rolled out by Discord in 2021) is now browsable, exportable, and purgeable just like any text channel.
+- **Thread Discoverability** — The Load Thread modal auto-discovers active and archived threads in the current channel and renders a clickable list. Threads whose starter message has been deleted are still reachable, no thread ID hunting required.
 - **Bulk Reaction Removal** — Remove reactions across multiple messages at once with emoji picker and user targeting. Admins get one-click bulk removal.
 - **Analytics Modal** — View mention frequency, user engagement metrics, and export analytics to CSV.
 - **9 Export Presets** — Quick Text Backup, Full Archive, Data Analysis, Spreadsheet Export, Media Gallery, Lightweight Backup, Chronological Log, Images Only, Thread Archive. Plus custom preset creation.
@@ -47,7 +49,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Reply Indicators** — Messages that are replies show the referenced message author and a preview of what they replied to. Click the reply bar to jump to the original.
 - **Channel Categories** — Channels grouped by Discord categories with collapsible headers.
 - **Permission-Based Visibility** — Locked channels shown with lock icons, admin features gated by Manage Messages permission.
-- **Status Log** — Terminal-style real-time operation log with color-coded entries, downloadable as a `.log` file.
+- **Status Log** — Terminal-style real-time operation log with color-coded entries, downloadable as a `.log` file. The panel is resizable (drag the top edge), persists history across sessions, and groups entries by session for easy review.
 - **Skeleton Loading** — Smooth placeholder loading states instead of blank screens.
 - **Error Recovery** — Persistent error logging with crash recovery and downloadable error reports.
 
@@ -80,6 +82,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Bulk Filters | No | Filter bulk purge by author, date range, content, has-types, mentions |
 | Archived Thread Handling | Skip with warning | Auto-unarchive → operate → restore archive state |
 | Stale-Feed Reload Toast | No | One-click reload after a purge targets the visible channel |
+| Pinned Message Preservation | No | Setting the FilterModal Pinned dropdown to "False" actually preserves pinned messages, with the count reported in the status log |
+| Progress Visibility | Static counter | Status log progress label pulses on each update with adaptive milestones (5 / 25 / 100) so progress is always obvious |
 
 ### Search Improvements
 
@@ -109,8 +113,9 @@ Your token is stored in memory only and cleared when you close the tab. It never
 ### Navigation
 
 The layout is similar to Discrub Classic but enhanced:
-- Server list on the left (same)
+- Server list on the left (same), now with multi-select and a Copy button for bulk grabbing server names or IDs
 - Channel list with category grouping (new — Discrub Classic showed a flat list)
+- Voice and Stage channels appear as first-class clickable rows (their persistent text chat is browsable just like any text channel)
 - DMs accessible via tab switch (same)
 - Multi-select mode for bulk operations (toggle button instead of separate toolbar)
 
