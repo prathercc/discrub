@@ -7,6 +7,7 @@ import { loadCacheFromLocalStorage } from '@features/cache/cacheSlice';
 import { loadPresets } from '@features/presets/presetsSlice';
 import { loadRecentExports } from '@features/history/historySlice';
 import { loadStatusLog } from '@features/status/statusSlice';
+import { loadHotkeys } from '@features/hotkeys/hotkeysSlice';
 import { isOverlayMode } from '@/extension/messaging';
 import LandingPage from '@containers/LandingPage/LandingPage';
 import MainLayout from '@containers/MainLayout/MainLayout';
@@ -36,6 +37,7 @@ function App() {
       dispatch(loadPresets());
       dispatch(loadRecentExports());
       dispatch(loadStatusLog());
+      dispatch(loadHotkeys());
     });
   }, [dispatch]);
 

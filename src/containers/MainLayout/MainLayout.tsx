@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
@@ -32,6 +32,7 @@ import StatusPanel from '@components/ui/StatusPanel';
 import Toast from '@components/ui/Toast';
 import TourTooltip from '@components/welcome/TourTooltip';
 import { shellTourSteps } from '@components/welcome/tourSteps';
+import { HotkeyProvider, useHotkey } from '@features/hotkeys/HotkeyProvider';
 
 /**
  * MainLayout component - main application shell
@@ -120,41 +121,28 @@ const MainLayout = () => {
     dispatch(dismissAnnouncement());
   };
 
-  // Focus mode keyboard shortcut: plain `F` toggles, `Escape` exits.
-  // Gated on: (1) the active view is ServerView (package view has its
-  // own controls we don't want to hide), (2) focus is not inside an
-  // input/textarea/contentEditable (so typing "f" in the filter bar
-  // never trips the toggle). Listener lives on document so it catches
-  // the key regardless of where focus sits in the app chrome.
-  const handleFocusKey = useCallback(
-    (e: KeyboardEvent) => {
-      if (sidebarView !== 'server') return;
-      const target = e.target as HTMLElement | null;
-      const tag = target?.tagName;
-      if (
-        tag === 'INPUT' ||
-        tag === 'TEXTAREA' ||
-        tag === 'SELECT' ||
-        target?.isContentEditable
-      ) {
-        return;
-      }
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (e.key === 'f' || e.key === 'F') {
-        e.preventDefault();
-        dispatch(toggleFocusedView());
-      } else if (e.key === 'Escape' && focusedView) {
-        e.preventDefault();
-        dispatch(setFocusedView(false));
-      }
-    },
-    [dispatch, sidebarView, focusedView],
+  // Focus-mode hotkeys go through the shared HotkeyProvider (#144).
+  // The provider handles the input/textarea/contenteditable gate and
+  // the master toggle; we only supply the per-action availability flag
+  // and the callback. Same observable behavior as the previous
+  // bespoke listener.
+  useHotkey(
+    'toggleFocus',
+    () => dispatch(toggleFocusedView()),
+    sidebarView === 'server',
   );
-
-  useEffect(() => {
-    document.addEventListener('keydown', handleFocusKey);
-    return () => document.removeEventListener('keydown', handleFocusKey);
-  }, [handleFocusKey]);
+  useHotkey(
+    'closeModalOrExitFocus',
+    () => {
+      // Defer to MUI Dialog's own Esc-to-close when a dialog is open;
+      // we only fire the focus-exit branch when no modal is consuming
+      // the keystroke. The DOM query is a v1 pragmatic check; future
+      // cleanup could route through a Redux dialog-open registry.
+      if (document.querySelector('[role="dialog"]')) return;
+      dispatch(setFocusedView(false));
+    },
+    focusedView,
+  );
 
   // Leaving server view (e.g. switching to package view) should not
   // leave focus mode "stuck on" with hidden chrome that can't be
@@ -235,4 +223,16 @@ const MainLayout = () => {
   );
 };
 
-export default MainLayout;
+/**
+ * Public export wraps the inner content in `HotkeyProvider` so every
+ * descendant can call `useHotkey`. The provider must be inside the
+ * Redux <Provider> (mounted by main.tsx), which is why we don't lift
+ * it any higher.
+ */
+const MainLayoutWithHotkeys = () => (
+  <HotkeyProvider>
+    <MainLayout />
+  </HotkeyProvider>
+);
+
+export default MainLayoutWithHotkeys;
