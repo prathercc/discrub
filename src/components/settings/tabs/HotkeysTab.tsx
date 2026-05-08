@@ -243,6 +243,7 @@ const HotkeyRow = ({ action, binding, conflictingActionIds, disabled }: HotkeyRo
               clickable={!disabled}
               disabled={disabled}
               sx={{ minWidth: 90 }}
+              data-testid={`hotkey-chip-${action.id}`}
             />
           )}
           {capturing && (
