@@ -16,6 +16,11 @@ import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectSettings, updateAllSettings, defaultSettings } from '@features/app/appSlice';
+import {
+  selectHotkeys,
+  setAllHotkeys,
+} from '@features/hotkeys/hotkeysSlice';
+import type { HotkeysState } from '@features/hotkeys/types';
 import { getDiscordService } from '@services/discordService';
 import { validateSettings } from './settingsUtils';
 import { OperationDelaysTab } from './tabs/OperationDelaysTab';
@@ -54,7 +59,14 @@ const TabPanel = ({ children, value, index }: TabPanelProps) => {
 const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   const dispatch = useAppDispatch();
   const settings = useAppSelector(selectSettings);
+  const hotkeys = useAppSelector(selectHotkeys);
   const [formValues, setFormValues] = useState<AppSettings>(settings || defaultSettings);
+  // Hotkeys live in their own slice with immediate-apply thunks, but
+  // the dialog batches edits the same way it batches AppSettings:
+  // changes accumulate locally until "Save Settings" commits both at
+  // once. Single Save story across the whole modal (#144 follow-up
+  // to remove the per-row Save buttons).
+  const [formHotkeys, setFormHotkeys] = useState<HotkeysState>(hotkeys);
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
@@ -63,9 +75,10 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   useEffect(() => {
     if (open) {
       setFormValues(settings || defaultSettings);
+      setFormHotkeys(hotkeys);
       setErrors([]);
     }
-  }, [settings, open]);
+  }, [settings, hotkeys, open]);
 
   const handleChange = (key: DiscrubSetting, value: string) => {
     setFormValues((prev) => ({
@@ -91,6 +104,9 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
       // Save settings to Redux and localStorage
       await dispatch(updateAllSettings(formValues)).unwrap();
 
+      // Save hotkeys batch — same Save click, single commit point.
+      await dispatch(setAllHotkeys(formHotkeys)).unwrap();
+
       // Reinitialize Discord service with new settings
       getDiscordService(formValues);
 
@@ -109,8 +125,11 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   };
 
   const handleClose = () => {
-    // Reset form to current settings on cancel
+    // Reset form to current settings on cancel — including the hotkeys
+    // draft. Redux state is untouched (no dispatch happened during
+    // editing), so re-syncing from Redux on next open is automatic.
     setFormValues(settings || defaultSettings);
+    setFormHotkeys(hotkeys);
     setErrors([]);
     onClose();
   };
@@ -177,7 +196,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         </TabPanel>
 
         <TabPanel value={activeTab} index={5}>
-          <HotkeysTab />
+          <HotkeysTab formHotkeys={formHotkeys} onHotkeysChange={setFormHotkeys} />
         </TabPanel>
 
         <TabPanel value={activeTab} index={6}>

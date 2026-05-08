@@ -6,6 +6,7 @@ import hotkeysReducer, {
   resetHotkeyBinding,
   resetAllHotkeys,
   setHotkeysEnabled,
+  setAllHotkeys,
   selectHotkeyBinding,
   selectHotkeysEnabled,
   selectHotkeyBindings,
@@ -229,6 +230,41 @@ describe('setHotkeysEnabled', () => {
     await store.dispatch(setHotkeysEnabled(false));
     const persisted = await storage.settings.get('hotkeys');
     expect((persisted as any).enabled).toBe(false);
+  });
+});
+
+describe('setAllHotkeys', () => {
+  it('replaces both bindings and enabled with the supplied state', async () => {
+    const store = makeStore();
+    await store.dispatch(setAllHotkeys({
+      enabled: false,
+      bindings: { ...DEFAULT_HOTKEYS, toggleFocus: 'Q' },
+    }));
+    expect(selectHotkeysEnabled(store.getState() as any)).toBe(false);
+    expect(
+      selectHotkeyBinding('toggleFocus' as HotkeyActionId)(store.getState() as any),
+    ).toBe('Q');
+  });
+
+  it('persists the batch to storage', async () => {
+    const store = makeStore();
+    const next = {
+      enabled: true,
+      bindings: { ...DEFAULT_HOTKEYS, openExport: 'Z' },
+    };
+    await store.dispatch(setAllHotkeys(next));
+    const persisted = await storage.settings.get('hotkeys');
+    expect((persisted as any).bindings.openExport).toBe('Z');
+  });
+
+  it('applies optimistically on .pending', async () => {
+    const store = makeStore();
+    const p = store.dispatch(setAllHotkeys({
+      enabled: false,
+      bindings: { ...DEFAULT_HOTKEYS, toggleFocus: 'Q' },
+    }));
+    expect(selectHotkeysEnabled(store.getState() as any)).toBe(false);
+    await p;
   });
 });
 

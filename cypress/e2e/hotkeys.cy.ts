@@ -69,33 +69,39 @@ describe('Hotkeys (#144)', () => {
       cy.contains('App-wide').should('exist');
     });
 
-    it('master toggle disables hotkeys app-wide and the F binding stops firing', () => {
+    it('master toggle commits on Save Settings and disables F app-wide', () => {
       cy.get('input[aria-label="Enable hotkeys"]').click();
       cy.contains('Hotkeys are off').should('be.visible');
-      // Close settings, then verify F no longer toggles focus mode.
-      cy.contains('button', /Cancel/i).click();
-      cy.window().then((win) => {
-        const before = (win as any).__store__.getState().app.focusedView;
-        expect(before).to.equal(false);
+      // Commit the change via the dialog footer (single Save story —
+      // no per-row Save). Cancel would discard.
+      cy.contains('button', 'Save Settings').click();
+      cy.window().should((win) => {
+        expect((win as any).__store__.getState().hotkeys.enabled).to.equal(false);
       });
       cy.get('body').trigger('keydown', { key: 'f' });
       cy.window().then((win) => {
         const after = (win as any).__store__.getState().app.focusedView;
-        expect(after).to.equal(false); // unchanged — hotkey was inert
+        expect(after).to.equal(false); // F is inert after master toggle off
       });
     });
 
-    it('master toggle persists across a reload', () => {
+    it('Cancel discards hotkey edits without persisting', () => {
       cy.get('input[aria-label="Enable hotkeys"]').click();
-      // Wait for the optimistic update to settle in Redux *and* the
-      // IDB write to commit before reloading. The thunk applies state
-      // on .pending and persists asynchronously; reloading too fast
-      // can race past the IDB commit.
+      cy.contains('Hotkeys are off').should('be.visible');
+      cy.contains('button', /Cancel/i).click();
+      // Master toggle should still be on in Redux.
+      cy.window().should((win) => {
+        expect((win as any).__store__.getState().hotkeys.enabled).to.equal(true);
+      });
+    });
+
+    it('master toggle persists across a reload after Save Settings', () => {
+      cy.get('input[aria-label="Enable hotkeys"]').click();
+      cy.contains('button', 'Save Settings').click();
       cy.window().should((win) => {
         expect((win as any).__store__.getState().hotkeys.enabled).to.equal(false);
       });
-      cy.contains('button', /Cancel/i).click();
-      cy.wait(300);
+      cy.wait(300); // let the IDB write flush before reload
       cy.reload();
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
       cy.window({ timeout: 10000 }).should((win) => {
@@ -104,12 +110,20 @@ describe('Hotkeys (#144)', () => {
       });
     });
 
-    it('rebinding an action via capture mode persists on save', () => {
+    it('rebinding via capture mode auto-commits to the form, then Save Settings persists', () => {
       cy.get('[data-testid="hotkey-chip-toggleFocus"]').click();
       cy.contains('Press a key…').should('be.visible');
+      // Auto-commit on key release — capture mode exits, no Save
+      // button per row. Redux state is unchanged at this point; only
+      // the form has the new binding.
       cy.get('body').trigger('keydown', { key: 'x' });
-      cy.contains('button', 'Save').click();
-      cy.window({ timeout: 5000 }).should((win) => {
+      cy.contains('Press a key…').should('not.exist');
+      cy.window().then((win) => {
+        const bindings = (win as any).__store__.getState().hotkeys.bindings;
+        expect(bindings.toggleFocus).to.equal('F'); // not persisted yet
+      });
+      cy.contains('button', 'Save Settings').click();
+      cy.window().should((win) => {
         const bindings = (win as any).__store__.getState().hotkeys.bindings;
         expect(bindings.toggleFocus).to.equal('X');
       });

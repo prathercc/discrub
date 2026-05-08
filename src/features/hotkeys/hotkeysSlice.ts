@@ -110,6 +110,26 @@ export const resetAllHotkeys = createAsyncThunk(
   },
 );
 
+/**
+ * Replace the entire hotkey state at once. Used by SettingsModal's
+ * "Save Settings" so a batch of rebinds + master-toggle changes
+ * commits as a single dispatch. The slice was originally built around
+ * immediate-apply (`setHotkeyBinding` etc.); this thunk overlays a
+ * batched-apply mode without changing those internal callers.
+ */
+export const setAllHotkeys = createAsyncThunk(
+  'hotkeys/setAll',
+  async (next: HotkeysState, { rejectWithValue }) => {
+    try {
+      await persist(next);
+      return next;
+    } catch (err) {
+      console.error('Failed to persist hotkeys batch:', err);
+      return rejectWithValue('Failed to persist hotkeys');
+    }
+  },
+);
+
 /** Master enable/disable. Doesn't touch the bindings map. */
 export const setHotkeysEnabled = createAsyncThunk(
   'hotkeys/setEnabled',
@@ -168,6 +188,14 @@ const hotkeysSlice = createSlice({
       })
       .addCase(setHotkeysEnabled.fulfilled, (state, action: PayloadAction<HotkeysState>) => {
         state.enabled = action.payload.enabled;
+      })
+      .addCase(setAllHotkeys.pending, (state, action) => {
+        state.enabled = action.meta.arg.enabled;
+        state.bindings = { ...action.meta.arg.bindings };
+      })
+      .addCase(setAllHotkeys.fulfilled, (state, action: PayloadAction<HotkeysState>) => {
+        state.enabled = action.payload.enabled;
+        state.bindings = { ...action.payload.bindings };
       });
   },
 });

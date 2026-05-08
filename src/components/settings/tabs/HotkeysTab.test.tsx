@@ -1,34 +1,47 @@
-import { describe, it, expect, beforeEach } from 'vitest';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
-import { renderWithProviders } from '@/test/test-utils';
-import { createBaseState } from '@/test/state-factories';
+import { describe, it, expect, vi } from 'vitest';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { HotkeysTab } from './HotkeysTab';
-import { storage } from '@/extension/storage';
 import { DEFAULT_HOTKEYS } from '@features/hotkeys/defaults';
+import type { HotkeysState } from '@features/hotkeys/types';
 
-beforeEach(async () => {
-  await storage.settings.clear();
-});
+function renderTab(initial?: Partial<HotkeysState>) {
+  const onChange = vi.fn();
+  let current: HotkeysState = {
+    enabled: true,
+    bindings: { ...DEFAULT_HOTKEYS },
+    ...initial,
+  };
+  const Wrapper = () => (
+    <HotkeysTab
+      formHotkeys={current}
+      onHotkeysChange={(next) => {
+        current = next;
+        onChange(next);
+      }}
+    />
+  );
+  const { rerender } = render(<Wrapper />);
+  return {
+    onChange,
+    rerender: () => rerender(<Wrapper />),
+    getCurrent: () => current,
+  };
+}
 
 describe('HotkeysTab', () => {
   it('renders every action grouped by scope with its current binding', () => {
-    renderWithProviders(<HotkeysTab />);
-    // Spot-check: the focus-mode action shows its label and the
-    // default binding "F" in a chip.
+    renderTab();
     expect(screen.getByText('Toggle focus mode')).toBeInTheDocument();
     expect(screen.getAllByText('F').length).toBeGreaterThan(0);
   });
 
   it('master toggle disables every row', () => {
-    const state = createBaseState({
-      hotkeys: { enabled: false, bindings: { ...DEFAULT_HOTKEYS } as any },
-    });
-    renderWithProviders(<HotkeysTab />, { preloadedState: state });
+    renderTab({ enabled: false });
     expect(screen.getByText(/Hotkeys are off/)).toBeInTheDocument();
   });
 
   it('search input filters the visible rows', () => {
-    renderWithProviders(<HotkeysTab />);
+    renderTab();
     const search = screen.getByPlaceholderText('Find a hotkey…');
     fireEvent.change(search, { target: { value: 'export' } });
     expect(screen.getByText('Open Export')).toBeInTheDocument();
@@ -36,43 +49,62 @@ describe('HotkeysTab', () => {
   });
 
   it('shows a no-results message when the search has no matches', () => {
-    renderWithProviders(<HotkeysTab />);
+    renderTab();
     const search = screen.getByPlaceholderText('Find a hotkey…');
     fireEvent.change(search, { target: { value: 'xyzzy-no-such-action' } });
     expect(screen.getByText(/No shortcuts match/)).toBeInTheDocument();
   });
 
   it('clicking the binding chip enters capture mode', async () => {
-    renderWithProviders(<HotkeysTab />);
-    // Find a row's binding chip and click it. The defaults map has
-    // toggleFocus → "F", so a chip with that label exists.
-    const chips = screen.getAllByText('F');
-    fireEvent.click(chips[0]);
+    renderTab();
+    fireEvent.click(screen.getByTestId('hotkey-chip-toggleFocus'));
     expect(await screen.findByText('Press a key…')).toBeInTheDocument();
   });
 
-  it('persisting a rebind shows the new binding in the chip', async () => {
-    renderWithProviders(<HotkeysTab />);
-    const chips = screen.getAllByText('F');
-    fireEvent.click(chips[0]);
-    // Press X while in capture mode — the document-level capture
-    // listener picks it up and sets the pending binding.
+  it('capture-mode auto-commits on key release (no per-row Save button)', async () => {
+    const { onChange } = renderTab();
+    fireEvent.click(screen.getByTestId('hotkey-chip-toggleFocus'));
+    expect(await screen.findByText('Press a key…')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'x' });
-    const saveBtn = await screen.findByRole('button', { name: 'Save' });
-    fireEvent.click(saveBtn);
-    await waitFor(() => {
-      expect(screen.getAllByText('X').length).toBeGreaterThan(0);
-    });
+    // No Save button in the new design — the keystroke immediately
+    // calls onHotkeysChange with the new binding.
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].bindings.toggleFocus).toBe('X');
+    // Capture mode exits automatically after commit.
+    expect(screen.queryByText('Press a key…')).not.toBeInTheDocument();
   });
 
-  it('Escape during capture cancels the rebind', async () => {
-    renderWithProviders(<HotkeysTab />);
-    const chips = screen.getAllByText('F');
-    fireEvent.click(chips[0]);
+  it('Escape during capture cancels the rebind without calling onChange', async () => {
+    const { onChange } = renderTab();
+    fireEvent.click(screen.getByTestId('hotkey-chip-toggleFocus'));
     expect(await screen.findByText('Press a key…')).toBeInTheDocument();
     fireEvent.keyDown(document, { key: 'Escape' });
-    await waitFor(() => {
-      expect(screen.queryByText('Press a key…')).not.toBeInTheDocument();
+    expect(screen.queryByText('Press a key…')).not.toBeInTheDocument();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('reset-row reverts a single binding to its default through onChange', () => {
+    const { onChange } = renderTab({
+      bindings: { ...DEFAULT_HOTKEYS, toggleFocus: 'Q' },
     });
+    fireEvent.click(screen.getByLabelText('Reset Toggle focus mode to default'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].bindings.toggleFocus).toBe(DEFAULT_HOTKEYS.toggleFocus);
+  });
+
+  it('reset-all returns every binding to defaults through onChange', () => {
+    const { onChange } = renderTab({
+      bindings: { ...DEFAULT_HOTKEYS, toggleFocus: 'Q', openExport: 'Z' },
+    });
+    fireEvent.click(screen.getByText('Reset all hotkeys'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].bindings).toEqual(DEFAULT_HOTKEYS);
+  });
+
+  it('master toggle calls onChange with the new enabled value', () => {
+    const { onChange } = renderTab();
+    fireEvent.click(screen.getByLabelText('Enable hotkeys'));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange.mock.calls[0][0].enabled).toBe(false);
   });
 });

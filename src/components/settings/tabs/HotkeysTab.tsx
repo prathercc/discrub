@@ -16,41 +16,40 @@ import {
   Edit as EditIcon,
   WarningAmberOutlined as ConflictIcon,
 } from '@mui/icons-material';
-import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import {
-  selectHotkeysEnabled,
-  selectHotkeyBindings,
-  setHotkeysEnabled,
-  setHotkeyBinding,
-  resetHotkeyBinding,
-  resetAllHotkeys,
-} from '@features/hotkeys/hotkeysSlice';
 import { eventToBinding, formatBindingForDisplay } from '@features/hotkeys/keyMatcher';
-import { findHotkeyConflicts, findConflictingActions } from '@features/hotkeys/conflicts';
-import { getHotkeyMeta } from '@features/hotkeys/defaults';
+import { findHotkeyConflicts } from '@features/hotkeys/conflicts';
+import { DEFAULT_HOTKEYS, getHotkeyMeta } from '@features/hotkeys/defaults';
 import { buildScopeGroups, getScopeBlurb } from '@features/hotkeys/scopeGroups';
-import type { HotkeyActionId, HotkeyMeta } from '@features/hotkeys/types';
+import type { HotkeyActionId, HotkeyMeta, HotkeysState } from '@features/hotkeys/types';
+
+interface HotkeysTabProps {
+  /**
+   * Working-copy of the hotkey state. Lives in SettingsModal alongside
+   * the AppSettings form so the dialog's "Save Settings" button is the
+   * single commit point for every change in the modal — no per-row
+   * Save buttons (the previous version had two competing Saves which
+   * confused users).
+   */
+  formHotkeys: HotkeysState;
+  /** Receives the new full state on any edit (rebind / reset / toggle). */
+  onHotkeysChange: (next: HotkeysState) => void;
+}
 
 /**
  * Settings tab for the #144 hotkey customization system.
  *
- * Self-contained: hotkey state lives in its own slice and persists
- * immediately on every dispatch, so this tab doesn't participate in
- * SettingsModal's batched formValues/save flow. The modal's "Save"
- * button has no effect here; rebinds and the master toggle take
- * effect as soon as the user releases the key.
+ * Reads from / writes to a local form state passed by SettingsModal.
+ * Capture-mode rebind auto-commits to the form on key release; the
+ * dialog's footer button is the only place where edits actually
+ * persist to Redux + IDB. Esc cancels capture without changing form
+ * state.
  */
-export const HotkeysTab = () => {
-  const dispatch = useAppDispatch();
-  const enabled = useAppSelector(selectHotkeysEnabled);
-  const bindings = useAppSelector(selectHotkeyBindings);
+export const HotkeysTab = ({ formHotkeys, onHotkeysChange }: HotkeysTabProps) => {
+  const { enabled, bindings } = formHotkeys;
   const [search, setSearch] = useState('');
 
   const conflicts = useMemo(() => findHotkeyConflicts(bindings), [bindings]);
 
-  // Filter the registry by the search box; group AFTER filtering so a
-  // narrowed search still respects scope ordering and skips empty
-  // groups.
   const filteredGroups = useMemo(() => {
     const q = search.trim().toLowerCase();
     const allGroups = buildScopeGroups();
@@ -68,6 +67,19 @@ export const HotkeysTab = () => {
       .filter((g) => g.actions.length > 0);
   }, [search, bindings]);
 
+  const setBinding = (actionId: HotkeyActionId, key: string) => {
+    onHotkeysChange({ ...formHotkeys, bindings: { ...bindings, [actionId]: key } });
+  };
+  const resetBinding = (actionId: HotkeyActionId) => {
+    setBinding(actionId, DEFAULT_HOTKEYS[actionId]);
+  };
+  const resetAll = () => {
+    onHotkeysChange({ ...formHotkeys, bindings: { ...DEFAULT_HOTKEYS } });
+  };
+  const setEnabled = (next: boolean) => {
+    onHotkeysChange({ ...formHotkeys, enabled: next });
+  };
+
   return (
     <Stack spacing={2.5}>
       <Box>
@@ -83,7 +95,7 @@ export const HotkeysTab = () => {
           </Box>
           <Switch
             checked={enabled}
-            onChange={(e) => dispatch(setHotkeysEnabled(e.target.checked))}
+            onChange={(e) => setEnabled(e.target.checked)}
             inputProps={{ 'aria-label': 'Enable hotkeys' }}
           />
         </Stack>
@@ -129,6 +141,8 @@ export const HotkeysTab = () => {
                   conflicts.get(bindings[action.id])?.filter((id) => id !== action.id) ?? []
                 }
                 disabled={!enabled}
+                onRebind={(k) => setBinding(action.id, k)}
+                onReset={() => resetBinding(action.id)}
               />
             ))}
           </Stack>
@@ -140,7 +154,7 @@ export const HotkeysTab = () => {
           variant="outlined"
           size="small"
           startIcon={<ResetIcon />}
-          onClick={() => dispatch(resetAllHotkeys())}
+          onClick={resetAll}
         >
           Reset all hotkeys
         </Button>
@@ -154,60 +168,46 @@ interface HotkeyRowProps {
   binding: string;
   conflictingActionIds: HotkeyActionId[];
   disabled: boolean;
+  onRebind: (newBinding: string) => void;
+  onReset: () => void;
 }
 
 /**
- * Single row in the Hotkeys tab. Renders the action label + scope
- * blurb on the left and the rebind chip + reset on the right. Enters
- * "capture mode" on chip click; pressing a key (or chord) shows the
- * proposed binding and offers Save / Cancel. Esc cancels capture mode
- * locally — the document-level handler is bypassed via stopPropagation.
+ * Single row in the Hotkeys tab. Capture mode now auto-commits the
+ * captured key to the form on press — no per-row Save button. Esc
+ * cancels capture without committing.
  */
-const HotkeyRow = ({ action, binding, conflictingActionIds, disabled }: HotkeyRowProps) => {
-  const dispatch = useAppDispatch();
-  const allBindings = useAppSelector(selectHotkeyBindings);
+const HotkeyRow = ({
+  action,
+  binding,
+  conflictingActionIds,
+  disabled,
+  onRebind,
+  onReset,
+}: HotkeyRowProps) => {
   const theme = useTheme();
   const [capturing, setCapturing] = useState(false);
-  const [pending, setPending] = useState<string | null>(null);
 
-  // While capturing, override the global keydown so chord captures
-  // (e.g. mod+,) don't trigger their bound actions. Capture phase
-  // listener runs before the bubbled HotkeyProvider listener.
   useEffect(() => {
     if (!capturing) return undefined;
     const onKeyDown = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopPropagation();
       if (e.key === 'Escape') {
+        // Esc during capture cancels without changing the binding.
+        // The smart-stack Esc would otherwise close the SettingsModal
+        // entirely, which would be surprising mid-rebind.
         setCapturing(false);
-        setPending(null);
         return;
       }
       const captured = eventToBinding(e);
-      if (captured) setPending(captured);
+      if (!captured) return; // pure modifier press, keep listening
+      onRebind(captured);
+      setCapturing(false);
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [capturing]);
-
-  const save = () => {
-    if (pending) {
-      dispatch(setHotkeyBinding({ actionId: action.id, key: pending }));
-    }
-    setCapturing(false);
-    setPending(null);
-  };
-
-  const cancel = () => {
-    setCapturing(false);
-    setPending(null);
-  };
-
-  // When capturing, show the proposed binding's conflict info so the
-  // user sees the override warning *before* committing the rebind.
-  const pendingConflicts = pending
-    ? findConflictingActions(allBindings, action.id, pending)
-    : [];
+  }, [capturing, onRebind]);
 
   return (
     <Box
@@ -247,34 +247,24 @@ const HotkeyRow = ({ action, binding, conflictingActionIds, disabled }: HotkeyRo
             />
           )}
           {capturing && (
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <Chip
-                label={pending ? formatBindingForDisplay(pending) : 'Press a key…'}
-                size="small"
-                color={pending ? 'primary' : 'default'}
-                variant={pending ? 'filled' : 'outlined'}
-                sx={{
-                  minWidth: 110,
-                  animation: pending ? 'none' : 'pulse 1s ease-in-out infinite',
-                  '@keyframes pulse': {
-                    '0%, 100%': { opacity: 1 },
-                    '50%': { opacity: 0.5 },
-                  },
-                }}
-              />
-              {pending && (
-                <Button size="small" onClick={save}>
-                  Save
-                </Button>
-              )}
-              <Button size="small" onClick={cancel} color="inherit">
-                Cancel
-              </Button>
-            </Stack>
+            <Chip
+              label="Press a key…"
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{
+                minWidth: 110,
+                animation: 'pulse 1s ease-in-out infinite',
+                '@keyframes pulse': {
+                  '0%, 100%': { opacity: 1 },
+                  '50%': { opacity: 0.5 },
+                },
+              }}
+            />
           )}
           <IconButton
             size="small"
-            onClick={() => dispatch(resetHotkeyBinding(action.id))}
+            onClick={onReset}
             disabled={disabled || binding === action.defaultKey}
             aria-label={`Reset ${action.label} to default`}
             title={`Reset ${action.label} to default`}
@@ -293,17 +283,6 @@ const HotkeyRow = ({ action, binding, conflictingActionIds, disabled }: HotkeyRo
           Also bound to:{' '}
           {conflictingActionIds.map((id) => getHotkeyMeta(id).label).join(', ')}.
           One of them won't fire.
-        </Alert>
-      )}
-
-      {capturing && pendingConflicts.length > 0 && (
-        <Alert
-          severity="warning"
-          icon={<ConflictIcon fontSize="small" />}
-          sx={{ mt: 1, py: 0 }}
-        >
-          Saving will override:{' '}
-          {pendingConflicts.map((id) => getHotkeyMeta(id).label).join(', ')}.
         </Alert>
       )}
     </Box>
