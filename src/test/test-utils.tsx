@@ -20,6 +20,7 @@ import announcementReducer from '@features/announcement/announcementSlice';
 import presetsReducer from '@features/presets/presetsSlice';
 import historyReducer from '@features/history/historySlice';
 import packageReducer from '@features/package/packageSlice';
+import hotkeysReducer from '@features/hotkeys/hotkeysSlice';
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
   preloadedState?: Partial<RootState>;
@@ -47,6 +48,7 @@ export function renderWithProviders(
         presets: presetsReducer,
         history: historyReducer,
         package: packageReducer,
+        hotkeys: hotkeysReducer,
       } as any,
       preloadedState,
     }),
