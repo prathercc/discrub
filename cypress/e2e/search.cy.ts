@@ -322,6 +322,19 @@ describe('Search & Filters', () => {
     });
 
     it('lazily fetches subsequent search pages — only page 1 on apply, more on Load All', () => {
+      // Pass 1 reaction enrichment (#163) would otherwise add ~1s per
+      // search-loaded message before the thunk commits to state. With
+      // 25 fixture results that exceeds Cypress's default assertion
+      // timeout. Reactions are not what this test is verifying — the
+      // dedicated coverage lives in cypress/e2e/search-reactions.cy.ts.
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        store.dispatch({
+          type: 'app/updateSetting/fulfilled',
+          payload: { ...store.getState().app.settings, reactionsEnabled: 'false' },
+        });
+      });
+
       // Build a fixture with exactly 25 results (triggers pagination)
       const page1Messages = Array.from({ length: 25 }, (_, i) => [{
         id: `800000000000000${String(i).padStart(3, '0')}`,
@@ -1256,8 +1269,10 @@ cy.get('input[placeholder^="MM/DD/YYYY"]').should('exist');
       cy.contains('The project docs have been updated').should('be.visible');
       cy.contains('Check out this cool project').should('not.exist');
 
-      // Step 3: Clear the server search chip — refine should persist
-      cy.get('.MuiChip-filled').contains('content: project').parent().find('[data-testid="CancelIcon"]').click();
+      // Step 3: Clear the server search chip — refine should persist.
+      // `force: true` because chip cancel icons are tooltip-wrapped post-#142
+      // and the tooltip can intermittently cover the click target.
+      cy.get('.MuiChip-filled').contains('content: project').parent().find('[data-testid="CancelIcon"]').click({ force: true });
 
       // Refine chip should still be visible
       cy.get('.MuiChip-outlined').contains('content: docs').should('be.visible');
