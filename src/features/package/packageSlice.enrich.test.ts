@@ -794,9 +794,11 @@ describe('packageSlice — enrichPackageChannel', () => {
     const state = store.getState().package;
     expect(Object.keys(state.enrichedMessages['200']).sort())
       .toEqual(['1', '2', '3']);
-    // User-facing warning in status log.
+    // User-facing warning in status log. Phrase stays stable across
+    // copy polish (#161): the warning explains that Discord caps a
+    // single search at 5,000 results, so we anchor on the number.
     const hasCapWarning = (store.getState() as any).status?.entries
-      ?.some((e: { message: string }) => e.message.includes('5000-result cap'));
+      ?.some((e: { message: string }) => e.message.includes('5,000 messages'));
     expect(hasCapWarning).toBe(true);
   });
 
@@ -927,9 +929,11 @@ describe('packageSlice — enrichPackageChannel', () => {
     expect(state.enrichmentError['200']).toContain('404');
     // No false-positive "deleted" entries pollute the cache.
     expect(state.enrichmentMisses['200']?.deleted ?? []).toEqual([]);
-    // Prominent error message in the status log.
+    // Prominent error message in the status log. Anchor on the
+    // user-facing phrase from #161; "inaccessible" used to appear
+    // verbatim but was rephrased to "no longer accessible".
     const hasAbortMessage = (store.getState() as any).status?.entries
-      ?.some((e: { message: string }) => e.message.includes('inaccessible'));
+      ?.some((e: { message: string }) => e.message.includes('no longer accessible'));
     expect(hasAbortMessage).toBe(true);
   });
 

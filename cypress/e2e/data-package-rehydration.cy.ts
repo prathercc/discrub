@@ -93,8 +93,9 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.wait('@enrichCall');
 
     cy.contains('enriched', { timeout: 10000 }).should('exist');
-    // Status log mentions completion counts.
-    cy.contains(/Package rehydration complete/i, { timeout: 10000 })
+    // Status log mentions completion. Copy was polished in #161 from
+    // "Package rehydration complete" to "Rich data loaded for ...".
+    cy.contains(/Rich data loaded for/i, { timeout: 10000 })
       .should('exist');
     // Banner flips to the done state with a Refresh button.
     cy.contains('button', /Refresh/i).should('be.visible');
@@ -137,8 +138,11 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.wait('@enrichCall');
     cy.wait('@enrichCall');
 
-    // Status log summarizes both outcomes.
-    cy.contains(/3 enriched, 1 deleted/i, { timeout: 10000 }).should('exist');
+    // Status log summarizes both outcomes. Pre-#161 the copy was
+    // "3 enriched, 1 deleted"; polish renamed to "3 messages, 1 unavailable"
+    // to match the per-row chip and avoid confusing the noun "deleted"
+    // (which has a different meaning in the package-delete context).
+    cy.contains(/3 messages, 1 unavailable/i, { timeout: 10000 }).should('exist');
     cy.contains('unavailable', { timeout: 10000 }).should('exist');
   });
 
@@ -179,8 +183,10 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.wait('@enrichCall');
     cy.wait('@enrichCall');
 
-    cy.contains(/3 enriched.*1 forbidden/i, { timeout: 10000 }).should('exist');
-    cy.contains('forbidden', { timeout: 10000 }).should('exist');
+    // Pre-#161 the chip + log used HTTP "forbidden"; polish renamed
+    // both to "no access" so users don't see protocol jargon.
+    cy.contains(/3 messages.*1 no access/i, { timeout: 10000 }).should('exist');
+    cy.contains('no access', { timeout: 10000 }).should('exist');
   });
 
   it('retries after a 429 rate-limit response', () => {
@@ -329,8 +335,9 @@ describe('Data package rehydration (Tier 2)', () => {
 
     // Dialog closes; the post-export toolbar Export button re-enables.
     cy.contains('button', /^Export$/, { timeout: 15000 }).should('not.be.disabled');
-    // Status log reflects the full flow.
-    cy.contains(/Package rehydration complete/i).should('exist');
+    // Status log reflects the full flow. Rehydration completion copy
+    // changed in #161; export completion copy is unchanged.
+    cy.contains(/Rich data loaded for/i).should('exist');
     cy.contains(/Package export: completed/i, { timeout: 10000 }).should('exist');
   });
 

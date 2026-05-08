@@ -21,6 +21,10 @@ import {
   setDiscrubCancelled,
 } from '@features/app/appSlice';
 import { storage } from '@/extension/storage';
+import {
+  formatDeleteSummary,
+  formatRehydrateLogSummary,
+} from '@features/package/packageStatusCopy';
 import { IsPinnedType, QueryStringParam } from 'discrub-core/discord-enum';
 import type {
   Message,
@@ -431,10 +435,10 @@ export const deletePackageMessages = createAsyncThunk<
   if (ids.length === 0) {
     if (rawIds.length > 0) {
       return rejectWithValue(
-        'All selected messages are already gone from Discord',
+        'All selected messages were already gone on Discord.',
       );
     }
-    return rejectWithValue('No messages selected');
+    return rejectWithValue('No messages selected.');
   }
 
   const deleteDelay = selectDeleteDelay(state);
@@ -452,7 +456,7 @@ export const deletePackageMessages = createAsyncThunk<
 
   dispatch(addStatusEntry({
     level: 'info',
-    message: `Deleting ${ids.length} message${ids.length === 1 ? '' : 's'} from package channel`,
+    message: `Deleting ${ids.length} message${ids.length === 1 ? '' : 's'} from this channel.`,
   }));
 
   try {
@@ -464,10 +468,29 @@ export const deletePackageMessages = createAsyncThunk<
 
       const messageId = ids[i];
       try {
-        await discordService.deleteMessage(token, messageId, channelId);
-        result.deleted += 1;
-        result.confirmedGoneIds.push(messageId);
+        // discrub-core's `discordService.deleteMessage` does NOT throw
+        // on HTTP errors; its `withRetry` wrapper catches and returns a
+        // `{ success, status }` object. We inspect that. The catch is
+        // kept for genuinely-thrown exceptions (CancelledError surfacing
+        // through the await chain, programming errors, etc.).
+        const apiResult = await discordService.deleteMessage(token, messageId, channelId);
+        if (apiResult.success) {
+          result.deleted += 1;
+          result.confirmedGoneIds.push(messageId);
+        } else if (apiResult.status === 404) {
+          result.alreadyGone += 1;
+          result.confirmedGoneIds.push(messageId);
+        } else if (apiResult.status === 403) {
+          result.forbidden += 1;
+        } else {
+          result.failed += 1;
+          dispatch(addStatusEntry({
+            level: 'error',
+            message: `Couldn't delete message ${messageId} (HTTP ${apiResult.status ?? 'unknown'}).`,
+          }));
+        }
       } catch (err) {
+        if (err instanceof CancelledError) throw err;
         const status = extractHttpStatus(err);
         if (status === 404) {
           result.alreadyGone += 1;
@@ -478,7 +501,7 @@ export const deletePackageMessages = createAsyncThunk<
           result.failed += 1;
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Failed to delete ${messageId}: ${err instanceof Error ? err.message : 'unknown error'}`,
+            message: `Couldn't delete message ${messageId}: ${err instanceof Error ? err.message : 'unknown error'}.`,
           }));
         }
       }
@@ -504,10 +527,7 @@ export const deletePackageMessages = createAsyncThunk<
   dispatch(setDeleteProgress({ current: ids.length, total: ids.length }));
   dispatch(addStatusEntry({
     level: result.failed > 0 ? 'warning' : 'success',
-    message:
-      `Package delete: Complete — ${result.deleted} deleted, ` +
-      `${result.alreadyGone} already gone, ${result.forbidden} forbidden, ` +
-      `${result.failed} failed${result.cancelled ? ' (cancelled)' : ''}`,
+    message: formatDeleteSummary(result),
   }));
 
   // Persist the updated deleted-message cache so the history survives
@@ -999,7 +1019,7 @@ export const enrichPackageChannel = createAsyncThunk<
     dispatch(
       addStatusEntry({
         level: 'info',
-        message: `Package rehydration: starting "${channelLabel}" (${messages.length} messages)`,
+        message: `Loading rich data for "${channelLabel}" (${messages.length.toLocaleString()} ${messages.length === 1 ? 'message' : 'messages'}).`,
       }),
     );
 
@@ -1101,17 +1121,16 @@ export const enrichPackageChannel = createAsyncThunk<
         for (const [id, msg] of preflight.foundById) {
           windowCache.set(id, msg);
         }
-        // Always log a preflight summary so users can verify the
-        // optimization is actually running (and diagnose why if not).
+        // Always log a channel-scan summary so users can verify the
+        // optimization ran. The bulk-search step lets us skip per-message
+        // API calls when Discord returned the message in a search page.
         if (preflight.status === 'ok' || preflight.status === 'cap-exceeded') {
           dispatch(
             addStatusEntry({
               level: 'info',
               message:
-                `Preflight search: ${preflight.foundById.size} ` +
-                `${preflight.foundById.size === 1 ? 'message' : 'messages'} ` +
-                `found in ${preflight.pages} ` +
-                `${preflight.pages === 1 ? 'call' : 'calls'}`,
+                `Channel scan found ${preflight.foundById.size.toLocaleString()} ` +
+                `${preflight.foundById.size === 1 ? 'message' : 'messages'}.`,
             }),
           );
         }
@@ -1120,8 +1139,8 @@ export const enrichPackageChannel = createAsyncThunk<
             addStatusEntry({
               level: 'info',
               message:
-                'Preflight search unavailable (no permission) — ' +
-                'verifying messages individually',
+                "Channel scan unavailable (no permission). " +
+                'Checking messages one-by-one.',
             }),
           );
         } else if (preflight.status === 'cap-exceeded') {
@@ -1129,8 +1148,8 @@ export const enrichPackageChannel = createAsyncThunk<
             addStatusEntry({
               level: 'warning',
               message:
-                'Preflight search hit the 5000-result cap — ' +
-                'remaining messages will be verified individually',
+                'Channel scan returned 5,000 messages, the most Discord allows in a single search. ' +
+                'Checking the rest one-by-one.',
             }),
           );
         } else if (preflight.status === 'not-found') {
@@ -1143,10 +1162,9 @@ export const enrichPackageChannel = createAsyncThunk<
             addStatusEntry({
               level: 'error',
               message:
-                `Channel no longer accessible on Discord ` +
-                `(HTTP ${preflight.httpStatus ?? 404}). You may have ` +
-                `left or been removed from this server, or the server ` +
-                `was deleted. Package data is still viewable below.`,
+                "This channel is no longer accessible on Discord. You may have " +
+                'left or been removed from this server, or the server was ' +
+                'deleted. Package data is still viewable below.',
             }),
           );
         } else if (preflight.status === 'error') {
@@ -1154,9 +1172,7 @@ export const enrichPackageChannel = createAsyncThunk<
             addStatusEntry({
               level: 'warning',
               message:
-                `Preflight search failed ` +
-                `(HTTP ${preflight.httpStatus ?? 'unknown'}) — ` +
-                `verifying messages individually`,
+                'Channel scan failed. Checking messages one-by-one.',
             }),
           );
         }
@@ -1169,8 +1185,7 @@ export const enrichPackageChannel = createAsyncThunk<
           addStatusEntry({
             level: 'info',
             message:
-              'Preflight search unavailable — ' +
-              'verifying messages individually',
+              'Channel scan unavailable. Checking messages one-by-one.',
           }),
         );
       }
@@ -1343,9 +1358,8 @@ export const enrichPackageChannel = createAsyncThunk<
         addStatusEntry({
           level: 'error',
           message:
-            `Package rehydration aborted for "${channelLabel}" — ` +
-            `channel is inaccessible on Discord ` +
-            `(HTTP ${channelInaccessibleStatus ?? 404}).`,
+            `Couldn't load rich data for "${channelLabel}": ` +
+            `the channel is no longer accessible on Discord.`,
         }),
       );
     } else if (cancelled && !shouldPersist) {
@@ -1356,19 +1370,21 @@ export const enrichPackageChannel = createAsyncThunk<
         addStatusEntry({
           level: 'info',
           message:
-            `Package rehydration cancelled for "${channelLabel}" — ` +
-            `kept previous rich data (${keptCount} messages).`,
+            `Refresh cancelled for "${channelLabel}". ` +
+            `Kept the previous rich data (${keptCount.toLocaleString()} ${keptCount === 1 ? 'message' : 'messages'}).`,
         }),
       );
     } else {
       dispatch(
         addStatusEntry({
           level: misses.forbidden.length > 0 ? 'warning' : 'success',
-          message:
-            `Package rehydration complete for "${channelLabel}" — ` +
-            `${enrichedCount} enriched, ${misses.deleted.length} deleted, ` +
-            `${misses.forbidden.length} forbidden` +
-            (cancelled ? ' (cancelled)' : ''),
+          message: formatRehydrateLogSummary({
+            channelLabel,
+            enriched: enrichedCount,
+            unavailable: misses.deleted.length,
+            noAccess: misses.forbidden.length,
+            cancelled,
+          }),
         }),
       );
     }

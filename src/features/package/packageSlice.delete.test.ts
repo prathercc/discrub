@@ -129,8 +129,15 @@ describe('packageSlice — deletePackageMessages', () => {
     return store;
   }
 
+  // discrub-core's `deleteMessage` does not throw on HTTP errors; its
+  // `withRetry` wrapper catches and returns `{ success, status }`. The
+  // tests below stub that contract directly. Pre-#161 stubs threw on
+  // 404/403 (and the slice categorized via a catch block), but that
+  // never reflected production — every error fell through to the
+  // try-block's `result.deleted += 1` and the polished banner exposed
+  // the false positive. The slice and these stubs now match reality.
   it('counts successful deletes', async () => {
-    mockDeleteMessage.mockResolvedValue(undefined);
+    mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
     const store = await primedStore();
 
     const action = await store.dispatch(deletePackageMessages({ channelId: '200' }));
@@ -145,8 +152,8 @@ describe('packageSlice — deletePackageMessages', () => {
 
   it('tolerates 404 as alreadyGone', async () => {
     mockDeleteMessage.mockImplementation(async (_t, id) => {
-      if (id === '2') throw { status: 404, message: 'Not Found' };
-      return undefined;
+      if (id === '2') return { success: false, status: 404 };
+      return { success: true, status: 204 };
     });
     const store = await primedStore();
 
@@ -159,15 +166,39 @@ describe('packageSlice — deletePackageMessages', () => {
   });
 
   it('categorizes 403 as forbidden', async () => {
-    mockDeleteMessage.mockImplementation(async () => {
-      throw { status: 403, message: 'Forbidden' };
-    });
+    mockDeleteMessage.mockResolvedValue({ success: false, status: 403 });
     const store = await primedStore();
 
     await store.dispatch(deletePackageMessages({ channelId: '200' }));
 
     const result = store.getState().package.deleteResult;
     expect(result?.forbidden).toBe(3);
+    expect(result?.deleted).toBe(0);
+  });
+
+  it('falls through to "failed" for unexpected HTTP statuses (e.g. 500)', async () => {
+    mockDeleteMessage.mockResolvedValue({ success: false, status: 500 });
+    const store = await primedStore();
+
+    await store.dispatch(deletePackageMessages({ channelId: '200' }));
+
+    const result = store.getState().package.deleteResult;
+    expect(result?.failed).toBe(3);
+    expect(result?.deleted).toBe(0);
+  });
+
+  it('still routes a thrown exception through the catch fallback', async () => {
+    // Defensive: if the lib's contract ever changes back to throwing,
+    // we still categorize correctly rather than miscount as deleted.
+    mockDeleteMessage.mockImplementation(async () => {
+      throw { status: 404, message: 'Not Found' };
+    });
+    const store = await primedStore();
+
+    await store.dispatch(deletePackageMessages({ channelId: '200' }));
+
+    const result = store.getState().package.deleteResult;
+    expect(result?.alreadyGone).toBe(3);
     expect(result?.deleted).toBe(0);
   });
 
@@ -205,7 +236,7 @@ describe('packageSlice — deletePackageMessages', () => {
   });
 
   it('skips messages already in the deleted-message cache', async () => {
-    mockDeleteMessage.mockResolvedValue(undefined);
+    mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
     const { hydratePackageDeletedCache } = await import('./packageSlice');
     const store = await primedStore();
     store.dispatch({
@@ -236,7 +267,7 @@ describe('packageSlice — deletePackageMessages', () => {
   });
 
   it('keeps confirmed-gone messages visible in loadedChannels after delete', async () => {
-    mockDeleteMessage.mockResolvedValue(undefined);
+    mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
     const store = await primedStore();
 
     const before = store.getState().package.loadedChannels['200'];

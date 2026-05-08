@@ -62,6 +62,10 @@ import {
   toggleMessageSelection,
   type EnrichmentStatus,
 } from '@features/package/packageSlice';
+import {
+  formatDeleteSummary,
+  formatRehydrateInlineSummary,
+} from '@features/package/packageStatusCopy';
 import { selectSearchDelay } from '@features/app/appSlice';
 import { setDiscrubCancelled } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
@@ -454,9 +458,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           sx={{ mb: 1 }}
           onClose={() => dispatch(dismissDeleteResult())}
         >
-          Deleted {deleteResult.deleted}, already gone {deleteResult.alreadyGone},
-          forbidden {deleteResult.forbidden}, failed {deleteResult.failed}
-          {deleteResult.cancelled ? ' — cancelled' : ''}.
+          {formatDeleteSummary(deleteResult)}
         </Alert>
       )}
 
@@ -956,7 +958,7 @@ const MessageKindChip = memo(function MessageKindChip({
   }
   if (gone === 'forbidden') {
     return (
-      <Tooltip title="You no longer have access to this channel — rehydration was forbidden." arrow>
+      <Tooltip title="You no longer have access to this channel, so rich data couldn't be loaded for this message." arrow>
         <Typography
           variant="caption"
           sx={{
@@ -967,7 +969,7 @@ const MessageKindChip = memo(function MessageKindChip({
             gap: 0.25,
           }}
         >
-          <WarningIcon sx={{ fontSize: 12 }} /> forbidden
+          <WarningIcon sx={{ fontSize: 12 }} /> no access
         </Typography>
       </Tooltip>
     );
@@ -1225,9 +1227,13 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
       >
         <EnrichedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
         <Typography variant="caption" sx={{ flexGrow: 1 }}>
-          Rich data loaded {formatDaysAgo(lastFetched)} — {enrichedCount} enriched
-          {missDeletedCount > 0 && `, ${missDeletedCount} deleted`}
-          {missForbiddenCount > 0 && `, ${missForbiddenCount} forbidden`}
+          Rich data loaded {formatDaysAgo(lastFetched)}.{' '}
+          {formatRehydrateInlineSummary({
+            enriched: enrichedCount,
+            unavailable: missDeletedCount,
+            noAccess: missForbiddenCount,
+          })}
+          .
         </Typography>
         <Tooltip
           title={disabledReason ?? ''}

@@ -403,7 +403,7 @@ describe('<PackageMessageTable />', () => {
     expect(screen.getByText('unavailable')).toBeInTheDocument();
   });
 
-  it('rows show the "forbidden" chip for forbidden misses', () => {
+  it('rows show the "no access" chip for forbidden misses (Backlog #161)', () => {
     const base = stateWith({
       loadedChannels: {
         '200': [
@@ -416,7 +416,9 @@ describe('<PackageMessageTable />', () => {
     base.package.enrichedMessages = { '200': {} };
     base.package.enrichmentLastFetched = { '200': Date.now() };
     renderWithProviders(<PackageMessageTable channel={channel} />, { preloadedState: base });
-    expect(screen.getByText('forbidden')).toBeInTheDocument();
+    // Pre-#161 the chip read literally "forbidden" — HTTP jargon
+    // leaking into the row UI. Polish renamed it to "no access".
+    expect(screen.getByText('no access')).toBeInTheDocument();
   });
 
   it('shows the reply quote banner for type-19 enriched messages', () => {
