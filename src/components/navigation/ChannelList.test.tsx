@@ -65,7 +65,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: true, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: true, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.queryByText('Loading channels...')).not.toBeInTheDocument();
@@ -79,7 +79,7 @@ describe('ChannelList', () => {
       renderWithProviders(<ChannelList />, {
         preloadedState: createBaseState({
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText('No channels found')).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel, voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel, voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText('general')).toBeInTheDocument();
@@ -106,7 +106,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText('Channels')).toBeInTheDocument();
@@ -119,7 +119,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText('general')).toBeInTheDocument();
@@ -131,7 +131,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText(/No channels matching "nonexistent"/)).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText('general')).toBeInTheDocument();
@@ -155,7 +155,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       fireEvent.click(screen.getByText('general'));
@@ -168,7 +168,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
           dm: { dms: [], selectedDm: createMockChannel({ id: 'dm-old', type: 1 }), selectedDms: [], isLoading: false, error: null },
         }),
       });
@@ -181,7 +181,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: textChannel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: textChannel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       const generalButton = screen.getByText('general').closest('[role="button"]');
@@ -195,7 +195,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       // Multi-select inactive + no selection → MultiSelectControls renders nothing
@@ -210,7 +210,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       // Enter multi-select mode so the toolbar renders
@@ -229,7 +229,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, announcementChannel], selectedChannel: null, selectedChannels: [textChannel], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       fireEvent.click(screen.getByLabelText('Toggle multi-select'));
@@ -250,7 +250,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(container.querySelector('[data-testid="LockIcon"]')).toBeInTheDocument();
@@ -261,7 +261,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(container.querySelector('[data-testid="LockIcon"]')).not.toBeInTheDocument();
@@ -273,7 +273,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [restrictedGuild], selectedGuild: restrictedGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       const button = screen.getByText('general').closest('div[role="button"]');
@@ -294,7 +294,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 't', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [channel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [channel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       const button = screen.getByLabelText('Toggle multi-select');
@@ -318,7 +318,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [accessibleGuild], selectedGuild: accessibleGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [voiceChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       const row = screen.getByText('voice-chat').closest('[role="button"]');
@@ -330,7 +330,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [accessibleGuild], selectedGuild: accessibleGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [stageChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [stageChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       const row = screen.getByText('live-chat').closest('[role="button"]');
@@ -342,7 +342,7 @@ describe('ChannelList', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds: [accessibleGuild], selectedGuild: accessibleGuild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [textChannel, voiceChannel, stageChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [textChannel, voiceChannel, stageChannel], selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       fireEvent.click(screen.getByLabelText('Toggle multi-select'));

@@ -20,10 +20,11 @@ const selectChannelState = (state: RootState) => state.channel;
 const selectGuildState = (state: RootState) => state.guild;
 const selectDmState = (state: RootState) => state.dm;
 const selectPackageState = (state: RootState) => state.package;
+const selectDevState = (state: RootState) => state.dev;
 
 export const selectOperationSummary = createSelector(
-  [selectExportState, selectMessageState, selectAppState, selectPurgeState, selectChannelState, selectGuildState, selectDmState, selectPackageState],
-  (exportState, messageState, appState, purgeState, channelState, guildState, dmState, packageState): OperationSummary => {
+  [selectExportState, selectMessageState, selectAppState, selectPurgeState, selectChannelState, selectGuildState, selectDmState, selectPackageState, selectDevState],
+  (exportState, messageState, appState, purgeState, channelState, guildState, dmState, packageState, devState): OperationSummary => {
     const isPaused = appState.discrubPaused;
 
     // ── HEAVY OPERATIONS (pause/cancel/disable) ──────────────────
@@ -143,6 +144,26 @@ export const selectOperationSummary = createSelector(
         isRunning: true, isPaused, tier: 'heavy',
         label: isPaused ? 'Paused — Rehydrating' : 'Rehydrating...',
       };
+    }
+
+    // Seeding (heavy — bulk POSTs across multiple channels, dev tool, #153)
+    if (devState.isSeeding) {
+      const progress = devState.seedProgress;
+      if (progress) {
+        const { channelIndex, totalChannels, currentChannelName, current, total } = progress;
+        const channelLabel = totalChannels > 1
+          ? `Channel ${channelIndex + 1}/${totalChannels}: #${currentChannelName}`
+          : `#${currentChannelName}`;
+        const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+        return {
+          isRunning: true, isPaused, tier: 'heavy',
+          label: isPaused
+            ? `Paused — Seeding ${channelLabel}`
+            : `Seeding ${channelLabel} — ${current}/${total}`,
+          progress: pct,
+        };
+      }
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Seeding' : 'Seeding...' };
     }
 
     // ── LIGHT OPERATIONS (spinner + status log only) ─────────────

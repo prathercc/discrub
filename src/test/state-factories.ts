@@ -19,6 +19,7 @@ import { createMockUser, createMockGuild, createMockChannel, createMockMessages 
 const initialPresetsState = { presets: {}, isLoaded: false };
 const initialHistoryState = { exports: [], isLoaded: false };
 const initialHotkeysState = { enabled: true, bindings: { ...DEFAULT_HOTKEYS } };
+const initialDevState = { isSeeding: false, seedProgress: null, seedError: null };
 
 /**
  * Create a base RootState with all slices at their initial values.
@@ -42,6 +43,7 @@ export function createBaseState(overrides?: Partial<RootState>): RootState {
     history: { ...initialHistoryState },
     package: { ...initialPackageState },
     hotkeys: { ...initialHotkeysState },
+    dev: { ...initialDevState },
     ...overrides,
   } as RootState;
 }

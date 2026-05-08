@@ -187,7 +187,7 @@ describe('DMList', () => {
       const { store } = renderWithProviders(<DMList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          channel: { channels: [], selectedChannel: createMockChannel(), selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [], selectedChannel: createMockChannel(), selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
           dm: { dms: [dmWithRecipient], selectedDm: null, selectedDms: [], isLoading: false, error: null },
         }),
       });

@@ -8,6 +8,13 @@ import ServerList from './ServerList';
 import DMList from './DMList';
 import ChannelList from './ChannelList';
 import PackageChannelList from '@/components/package/PackageChannelList';
+import DevToolsFlask from '@/components/ui/DevToolsFlask';
+import SeedMessagesDialog from '@/components/modals/SeedMessagesDialog';
+import { useDevToolsEnabled } from '@/utils/useDevToolsEnabled';
+import { selectCurrentUser } from '@features/user/userSlice';
+import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
+import ScienceIcon from '@mui/icons-material/Science';
+import Chip from '@mui/material/Chip';
 
 interface SidebarProps {
   open?: boolean;
@@ -25,6 +32,19 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
   const dispatch = useAppDispatch();
   const selectedGuild = useAppSelector(selectSelectedGuild);
   const sidebarView = useAppSelector(selectSidebarView);
+  // Dev-tools gate (#153). Pill button below the channel header
+  // appears only when devTools is on, the user owns the guild, and
+  // no heavy operation is already running (would conflict with the
+  // shared pause/cancel infra).
+  const devToolsEnabled = useDevToolsEnabled();
+  const currentUser = useAppSelector(selectCurrentUser);
+  const isHeavyRunning = useAppSelector(selectIsHeavyOperationRunning);
+  const isOwner =
+    !!devToolsEnabled &&
+    !!currentUser?.id &&
+    !!selectedGuild?.owner_id &&
+    selectedGuild.owner_id === currentUser.id;
+  const [seedDialogOpen, setSeedDialogOpen] = useState(false);
 
   useEffect(() => {
     // Clear search text when navigating between server and channel views
@@ -87,6 +107,19 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
       >
         {selectedGuild?.name}
       </Typography>
+      {isOwner && (
+        <Chip
+          icon={<ScienceIcon sx={{ fontSize: 14 }} />}
+          label="Seed"
+          size="small"
+          variant="outlined"
+          color="primary"
+          onClick={() => setSeedDialogOpen(true)}
+          disabled={isHeavyRunning}
+          data-testid="seed-pill"
+          sx={{ ml: 1, height: 24, fontSize: '0.7rem' }}
+        />
+      )}
     </Box>
   );
 
@@ -214,6 +247,30 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
         {tab === 1 && <DMList filterText={filterText} />}
         {tab === 2 && <PackageChannelList filterText={filterText} />}
       </Box>
+
+      {/*
+        Easter-egg dev-tools toggle (#153). Looks like a UI accent at
+        low opacity; double-click flips the localStorage flag that
+        gates the seed-messages affordance. Single click does
+        nothing — keeps the gesture intentional.
+      */}
+      <Box
+        sx={{
+          px: 2,
+          py: 1,
+          borderTop: 1,
+          borderColor: 'divider',
+          display: 'flex',
+          justifyContent: 'flex-end',
+        }}
+      >
+        <DevToolsFlask />
+      </Box>
+
+      <SeedMessagesDialog
+        open={seedDialogOpen}
+        onClose={() => setSeedDialogOpen(false)}
+      />
     </Box>
   );
 

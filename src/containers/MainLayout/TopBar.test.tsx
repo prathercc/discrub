@@ -76,7 +76,7 @@ describe('TopBar', () => {
         preloadedState: createBaseState({
           user: { currentUser, isLoading: false, error: null },
           guild: { guilds: [], selectedGuild: { id: 'g1', name: 'Test Server' } as any, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels: [], selectedChannel: { id: 'c1', name: 'general' } as any, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels: [], selectedChannel: { id: 'c1', name: 'general' } as any, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       fireEvent.click(screen.getByAltText('Discrub Home'));

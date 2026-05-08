@@ -114,7 +114,7 @@ describe('Sidebar', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByPlaceholderText('Search channels...')).toBeInTheDocument();
@@ -127,7 +127,7 @@ describe('Sidebar', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getByText('general')).toBeInTheDocument();
@@ -139,7 +139,7 @@ describe('Sidebar', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       expect(screen.getAllByText('Test Guild').length).toBeGreaterThanOrEqual(1);
@@ -152,7 +152,7 @@ describe('Sidebar', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       // ArrowBackIcon is inside an IconButton
@@ -165,7 +165,7 @@ describe('Sidebar', () => {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
-          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0 },
+          channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
       });
       const backButton = screen.getByTestId('ArrowBackIcon').closest('button')!;

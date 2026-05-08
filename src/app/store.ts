@@ -16,6 +16,7 @@ import presetsReducer from '@features/presets/presetsSlice';
 import historyReducer from '@features/history/historySlice';
 import packageReducer from '@features/package/packageSlice';
 import hotkeysReducer from '@features/hotkeys/hotkeysSlice';
+import devReducer from '@features/dev/devSlice';
 
 /**
  * Redux store configuration
@@ -39,6 +40,7 @@ export const store = configureStore({
     history: historyReducer,
     package: packageReducer,
     hotkeys: hotkeysReducer,
+    dev: devReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
