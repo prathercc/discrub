@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Box } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
@@ -23,6 +23,7 @@ import ServerView from '@containers/ServerView/ServerView';
 import PackageView from '@components/package/PackageView';
 import DonationDrawer, { DRAWER_WIDTH } from '@components/donations/DonationDrawer';
 import AnnouncementModal from '@components/modals/AnnouncementModal';
+import HotkeysReferenceModal from '@components/modals/HotkeysReferenceModal';
 import { useBeforeUnloadWarning } from '@/hooks/useBeforeUnloadWarning';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
 import { useOperationStatusBroadcast } from '@/hooks/useOperationStatusBroadcast';
@@ -144,6 +145,12 @@ const MainLayout = () => {
     focusedView,
   );
 
+  // `?` opens the keyboard-shortcuts reference. Local state since the
+  // modal lives at the same level as the trigger and doesn't need to
+  // be reachable from elsewhere.
+  const [hotkeysRefOpen, setHotkeysRefOpen] = useState(false);
+  useHotkey('openReference', () => setHotkeysRefOpen(true), true);
+
   // Leaving server view (e.g. switching to package view) should not
   // leave focus mode "stuck on" with hidden chrome that can't be
   // exited via the feed toolbar.
@@ -216,6 +223,11 @@ const MainLayout = () => {
         markdown={announcementMarkdown}
         isLoading={isLoadingMarkdown}
         error={markdownError}
+      />
+
+      <HotkeysReferenceModal
+        open={hotkeysRefOpen}
+        onClose={() => setHotkeysRefOpen(false)}
       />
 
       <Toast />

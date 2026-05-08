@@ -23,6 +23,7 @@ import { ExportPreferencesTab } from './tabs/ExportPreferencesTab';
 import { UserDataTab } from './tabs/UserDataTab';
 import { DisplayTab } from './tabs/DisplayTab';
 import { PurgeTab } from './tabs/PurgeTab';
+import { HotkeysTab } from './tabs/HotkeysTab';
 import ResetDiscrubButton from './ResetDiscrubButton';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
@@ -151,6 +152,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
           <Tab label="User Data" />
           <Tab label="Display" />
           <Tab label="Purge Behavior" />
+          <Tab label="Hotkeys" />
           <Tab label="Reset Discrub" />
         </Tabs>
 
@@ -175,6 +177,10 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         </TabPanel>
 
         <TabPanel value={activeTab} index={5}>
+          <HotkeysTab />
+        </TabPanel>
+
+        <TabPanel value={activeTab} index={6}>
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               Reset
