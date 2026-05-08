@@ -71,6 +71,21 @@ vi.mock('@services/discordService', () => ({
   })),
 }));
 
+// Skip the real per-page delay (1s default) so unfiltered-branch walk
+// tests don't wait seconds per page. Existing tests didn't need this
+// because they don't reach the delay path.
+vi.mock('@/utils/delayUtils', () => ({
+  calculateRandomDelay: vi.fn(() => ({ delayMs: 0, delaySec: 0, baseDelay: 0, modifier: 0, randomComponent: 0 })),
+}));
+vi.mock('@/utils/operationLoopUtils', async () => {
+  const actual = await vi.importActual<any>('@/utils/operationLoopUtils');
+  return {
+    ...actual,
+    cancellableDelay: vi.fn().mockResolvedValue(false),
+    waitWhilePaused: vi.fn().mockResolvedValue(undefined),
+  };
+});
+
 describe('exportSlice', () => {
   let store: TestStore;
 
@@ -879,6 +894,106 @@ describe('exportSlice', () => {
       expect(firstCallMessages.length).toBeGreaterThan(0);
       expect(firstCallMessages[0].id).toBe('sm-1');
       expect(firstCallMessages[0].reactions).toBeUndefined();
+    });
+  });
+
+  describe('Bulk export unfiltered branch status log milestones (#167)', () => {
+    // The unfiltered branch of fetchAllChannelMessages walks the channel
+    // history endpoint with no inherent feedback. #167 adds a "Loading
+    // messages from X…" entry on entry, per-500-message milestones during
+    // the walk, and a "Loaded N messages from X" success entry on exit.
+    // Mirrors the search-criteria branch's pattern.
+
+    it('emits start, milestone, and success entries during an unfiltered bulk-export channel walk', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { getDiscordService } = await import('@services/discordService');
+
+      // Build a fake fetchMessageData that streams ~600 messages across
+      // pages of 100, so we cross the first 500-msg milestone before
+      // hitting the < 100 short-page terminator.
+      let cursor = 0;
+      const TOTAL = 600;
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchMessageData: vi.fn().mockImplementation(async () => {
+          const remaining = TOTAL - cursor;
+          if (remaining <= 0) return { success: true, data: [] };
+          const pageSize = Math.min(100, remaining);
+          const data = Array.from({ length: pageSize }, (_, i) => ({
+            id: `${cursor + i + 1}`,
+            channel_id: 'ch-unfiltered',
+            timestamp: '2026-01-01T00:00:00.000Z',
+            author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+            content: 'msg',
+            mentions: [],
+            attachments: [],
+            embeds: [],
+            pinned: false,
+            type: 0,
+            mention_everyone: false,
+            edited_timestamp: null,
+            tts: false,
+            reactions: [],
+          }));
+          cursor += pageSize;
+          return { success: true, data };
+        }),
+        fetchSearchMessageData: vi.fn(),
+        iterateSearchResults: async function* () {},
+      } as any);
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-unfiltered', name: 'unfiltered-channel' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          // No searchCriteria → unfiltered branch.
+        })
+      );
+
+      const entries = testStore.getState().status.entries.map((e: any) => e.message);
+
+      // Start entry referencing the channel label.
+      expect(entries.some((m: string) => m.includes('Loading messages from #unfiltered-channel'))).toBe(true);
+      // 500-message milestone (boundary crossed at 500 of 600).
+      expect(entries.some((m: string) => m.includes('Loaded 500 messages from #unfiltered-channel'))).toBe(true);
+      // Final success entry with full count.
+      expect(entries.some((m: string) =>
+        m.includes('Loaded 600 messages from #unfiltered-channel') &&
+        // The success-level entry is the final one; looser match here.
+        true
+      )).toBe(true);
     });
   });
 });

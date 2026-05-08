@@ -527,9 +527,22 @@ async function fetchAllChannelMessages(
   }
 
   // Unfiltered path — list endpoint.
+  const label = logContext?.channelLabel ?? channelId;
+  const silent = logContext?.silent === true;
   let allMessages: Message[] = [];
   let lastMessageId = '';
   let hasMore = true;
+  // 500-step cadence (#167) — busy channels can pull tens of thousands of
+  // messages, so a finer cadence would flood the status log. Matches the
+  // pattern in `messageSlice.ts` `fetchAllMessages`.
+  let nextLogBoundary = 500;
+
+  if (!silent) {
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `Loading messages from ${label}…`,
+    }));
+  }
 
   while (hasMore) {
     await waitWhilePaused(getState);
@@ -544,6 +557,14 @@ async function fetchAllChannelMessages(
     const messages = response.data as Message[];
     allMessages = [...allMessages, ...messages];
 
+    if (!silent && allMessages.length >= nextLogBoundary) {
+      dispatch(addStatusEntry({
+        level: 'info',
+        message: `Loaded ${allMessages.length.toLocaleString()} messages from ${label}`,
+      }));
+      nextLogBoundary = allMessages.length + 500 - (allMessages.length % 500);
+    }
+
     if (messages.length < 100) {
       hasMore = false;
     } else {
@@ -552,6 +573,13 @@ async function fetchAllChannelMessages(
       const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
       if (wasCancelled) break;
     }
+  }
+
+  if (!silent) {
+    dispatch(addStatusEntry({
+      level: 'success',
+      message: `Loaded ${allMessages.length.toLocaleString()} message${allMessages.length === 1 ? '' : 's'} from ${label}`,
+    }));
   }
 
   return allMessages;
