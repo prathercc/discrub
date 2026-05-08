@@ -145,11 +145,12 @@ const MainLayout = () => {
     focusedView,
   );
 
-  // `?` opens the keyboard-shortcuts reference. Local state since the
-  // modal lives at the same level as the trigger and doesn't need to
-  // be reachable from elsewhere.
+  // `?` toggles the keyboard-shortcuts reference modal. Pressing
+  // `?` again while it's open closes it (matching the F-toggle
+  // pattern across the rest of the hotkey set). Esc also closes via
+  // MUI Dialog's built-in handler.
   const [hotkeysRefOpen, setHotkeysRefOpen] = useState(false);
-  useHotkey('openReference', () => setHotkeysRefOpen(true), true);
+  useHotkey('openReference', () => setHotkeysRefOpen((open) => !open), true);
 
   // Leaving server view (e.g. switching to package view) should not
   // leave focus mode "stuck on" with hidden chrome that can't be

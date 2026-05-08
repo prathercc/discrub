@@ -186,21 +186,35 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const [partialResultsWarnings, setPartialResultsWarnings] = useState<Record<string, boolean>>({});
 
   // Wire #144 hotkeys for the channel toolbar. Each `enabled` flag
-  // mirrors the same condition the corresponding button uses for
+  // mirrors the condition the corresponding button uses for
   // `disabled`, so the hotkey is unavailable in exactly the cases
-  // the user can't click the button. No extra "is this allowed?"
-  // logic is duplicated between the two surfaces.
+  // the user can't click the button. The dialog-opening hotkeys
+  // toggle: pressing the same key while the dialog is open closes
+  // it, matching F's existing toggle behavior. Esc continues to
+  // close any modal via MUI Dialog's built-in handler.
   const isChannelLoaded = !!selectedChannel || !!selectedDm;
   useHotkey(
     'openFilters',
-    () => { filterModalKeyRef.current++; setFilterModalOpen(true); },
-    isChannelLoaded && !isForumChannel && !filterModalOpen,
+    () => {
+      if (filterModalOpen) {
+        setFilterModalOpen(false);
+      } else {
+        // Bump the remount key only on open; closing leaves the
+        // existing modal instance to unmount cleanly.
+        filterModalKeyRef.current++;
+        setFilterModalOpen(true);
+      }
+    },
+    isChannelLoaded && !isForumChannel,
   );
   useHotkey(
     'openExport',
     () => {
-      if (isForumChannel) setForumExportDialogOpen(true);
-      else setExportDialogOpen(true);
+      if (isForumChannel) {
+        setForumExportDialogOpen((open) => !open);
+      } else {
+        setExportDialogOpen((open) => !open);
+      }
     },
     isChannelLoaded &&
       !isOperationRunning &&
@@ -208,12 +222,12 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   );
   useHotkey(
     'openAnalytics',
-    () => setAnalyticsOpen(true),
+    () => setAnalyticsOpen((open) => !open),
     isChannelLoaded && !isForumChannel && messages.length > 0,
   );
   useHotkey(
     'loadAll',
-    () => setLoadAllDialogOpen(true),
+    () => setLoadAllDialogOpen((open) => !open),
     isChannelLoaded &&
       !isForumChannel &&
       pagination.hasMore &&
@@ -224,7 +238,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   );
   useHotkey(
     'loadThread',
-    () => setThreadLoadOpen(true),
+    () => setThreadLoadOpen((open) => !open),
     isChannelLoaded,
   );
   const showPartialResultsWarning = partialResultsWarnings[activeTab ?? 'main'] ?? false;

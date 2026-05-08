@@ -43,11 +43,50 @@ describe('Hotkeys (#144)', () => {
       cy.get('[data-testid="filter-modal-search-from"]').should('exist');
       // Find an input inside the modal, focus it, type "/" — the
       // literal slash should land in the input rather than triggering
-      // the hotkey again (which would be a no-op since the modal is
-      // already open, but the test pins the input-gating contract).
+      // the hotkey toggle behavior. Pins the input-gating contract.
       cy.get('[role="dialog"] input[type="text"]').first().as('searchInput');
       cy.get('@searchInput').focus().type('/');
       cy.get('@searchInput').should('have.value', '/');
+    });
+
+    // ─── Toggle behavior (#144 follow-up) ────────────────────────
+    // Pressing the same hotkey while its dialog is open closes the
+    // dialog. Mirrors how F has always toggled focus mode and gives
+    // users a single muscle-memory rule across every dialog hotkey.
+    it('/ toggles Filters: pressing again closes the dialog', () => {
+      cy.get('body').trigger('keydown', { key: '/' });
+      cy.get('[data-testid="filter-modal-search-from"]').should('exist');
+      // Click somewhere outside an input first so the next keystroke
+      // reaches the document-level listener instead of the modal's
+      // input field.
+      cy.contains('Filters').click({ force: true });
+      cy.focused().blur();
+      cy.get('body').trigger('keydown', { key: '/' });
+      cy.get('[data-testid="filter-modal-search-from"]').should('not.exist');
+    });
+
+    it('? toggles the reference modal: pressing again closes it', () => {
+      cy.get('body').trigger('keydown', { key: '?' });
+      cy.contains('Keyboard Shortcuts').should('be.visible');
+      cy.get('body').trigger('keydown', { key: '?' });
+      cy.contains('Keyboard Shortcuts').should('not.exist');
+    });
+
+    it('mod+, toggles Settings: pressing again closes the dialog', () => {
+      cy.get('body').trigger('keydown', { key: ',', ctrlKey: true });
+      cy.contains('button', 'Save Settings').should('be.visible');
+      cy.get('body').trigger('keydown', { key: ',', ctrlKey: true });
+      cy.contains('button', 'Save Settings').should('not.exist');
+    });
+
+    it('E toggles Export: pressing again closes the dialog', () => {
+      cy.get('body').trigger('keydown', { key: 'e' });
+      // ExportDialog renders a "Format" section — anchor on that
+      // since the dialog title varies by channel context.
+      cy.contains(/Export/i).should('be.visible');
+      cy.get('[role="dialog"]', { timeout: 5000 }).should('exist');
+      cy.get('body').trigger('keydown', { key: 'e' });
+      cy.get('[role="dialog"]').should('not.exist');
     });
   });
 

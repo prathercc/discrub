@@ -102,12 +102,12 @@ const TopBar = () => {
     }
   };
 
-  // Wire #144 hotkeys for the topbar. Settings is always available;
-  // Minimize is only meaningful in extension/overlay builds when not
-  // already minimized (the keystroke would be lost from Discord's
-  // surface anyway when minimized — restore is deferred to v2).
+  // Wire #144 hotkeys for the topbar. Settings toggles open/close —
+  // pressing mod+, again while Settings is open closes the dialog,
+  // matching how F toggles focus mode. Minimize is one-shot (no
+  // restore-from-minimized hotkey in v1, see backlog).
   const isMinimized = useAppSelector(selectIsMinimized);
-  useHotkey('openSettings', () => setSettingsOpen(true), true);
+  useHotkey('openSettings', () => setSettingsOpen((open) => !open), true);
   useHotkey('minimize', handleMinimize, isOverlayMode() && !isMinimized);
 
   const handleCloseConfirm = async () => {
