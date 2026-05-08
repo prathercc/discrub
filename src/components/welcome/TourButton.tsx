@@ -11,6 +11,8 @@ import {
 } from '@mui/material';
 import { HelpOutline as HelpIcon } from '@mui/icons-material';
 import { tourCatalog } from './tourSteps';
+import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
+import type { HotkeyActionId } from '@features/hotkeys/types';
 
 interface TourButtonProps extends Omit<ButtonProps, 'children'> {
   stepKey: string;
@@ -23,6 +25,15 @@ interface TourButtonProps extends Omit<ButtonProps, 'children'> {
    * element (Button, or Tooltip-wrapped Button).
    */
   leadingButton?: ReactNode;
+  /**
+   * Optional hotkey action ID. When provided alongside `hotkeyLabel`,
+   * the primary button is wrapped in `<HotkeyTooltip>` so users discover
+   * the binding from a hover tooltip without us needing to plumb a
+   * MUI Tooltip around the Fragment that TourButton renders.
+   */
+  hotkeyActionId?: HotkeyActionId;
+  /** Plain label that appears in the tooltip; ignored if `hotkeyActionId` is unset. */
+  hotkeyLabel?: string;
 }
 
 const TourButton = ({
@@ -32,6 +43,8 @@ const TourButton = ({
   children,
   variant = 'outlined',
   size = 'small',
+  hotkeyActionId,
+  hotkeyLabel,
   ...buttonProps
 }: TourButtonProps) => {
   const theme = useTheme();
@@ -41,11 +54,24 @@ const TourButton = ({
 
   const open = Boolean(anchorEl);
 
-  const primaryButton = (
+  const baseButton = (
     <Button variant={variant} size={size} {...buttonProps}>
       {children}
     </Button>
   );
+
+  // Wrap the primary button in HotkeyTooltip when both hotkey props
+  // are provided; the wrapper picks up the live binding from Redux
+  // and formats it per platform. Done before the badge wrapper so the
+  // tooltip anchors on the actual button, not the badge.
+  const primaryButton =
+    hotkeyActionId && hotkeyLabel ? (
+      <HotkeyTooltip actionId={hotkeyActionId} label={hotkeyLabel} arrow>
+        {baseButton}
+      </HotkeyTooltip>
+    ) : (
+      baseButton
+    );
 
   const wrappedPrimary =
     badgeContent !== undefined && badgeContent > 0 ? (

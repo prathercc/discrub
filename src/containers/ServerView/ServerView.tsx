@@ -19,6 +19,8 @@ import TourButton from '@components/welcome/TourButton';
 import TourFootnote from '@components/welcome/TourFootnote';
 import { contextualTourSteps } from '@components/welcome/tourSteps';
 import { useTour } from '@/hooks/useTour';
+import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
+import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 import { selectSelectedChannel, selectChannels, fetchChannelById } from '@features/channel/channelSlice';
 import { selectSelectedDm } from '@features/dm/dmSlice';
 import { selectSelectedGuild, selectRoles, selectCurrentMemberRoles } from '@features/guild/guildSlice';
@@ -182,6 +184,49 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const [threadLoadOpen, setThreadLoadOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [partialResultsWarnings, setPartialResultsWarnings] = useState<Record<string, boolean>>({});
+
+  // Wire #144 hotkeys for the channel toolbar. Each `enabled` flag
+  // mirrors the same condition the corresponding button uses for
+  // `disabled`, so the hotkey is unavailable in exactly the cases
+  // the user can't click the button. No extra "is this allowed?"
+  // logic is duplicated between the two surfaces.
+  const isChannelLoaded = !!selectedChannel || !!selectedDm;
+  useHotkey(
+    'openFilters',
+    () => { filterModalKeyRef.current++; setFilterModalOpen(true); },
+    isChannelLoaded && !isForumChannel && !filterModalOpen,
+  );
+  useHotkey(
+    'openExport',
+    () => {
+      if (isForumChannel) setForumExportDialogOpen(true);
+      else setExportDialogOpen(true);
+    },
+    isChannelLoaded &&
+      !isOperationRunning &&
+      (isForumChannel ? forumThreads.length > 0 : messages.length > 0),
+  );
+  useHotkey(
+    'openAnalytics',
+    () => setAnalyticsOpen(true),
+    isChannelLoaded && !isForumChannel && messages.length > 0,
+  );
+  useHotkey(
+    'loadAll',
+    () => setLoadAllDialogOpen(true),
+    isChannelLoaded &&
+      !isForumChannel &&
+      pagination.hasMore &&
+      (pagination.mode === 'paginated' || pagination.mode === 'search') &&
+      !isLoading &&
+      !pagination.isLoadingAll &&
+      !isOperationRunning,
+  );
+  useHotkey(
+    'loadThread',
+    () => setThreadLoadOpen(true),
+    isChannelLoaded,
+  );
   const showPartialResultsWarning = partialResultsWarnings[activeTab ?? 'main'] ?? false;
   const setShowPartialResultsWarning = (show: boolean) => {
     setPartialResultsWarnings((prev) => ({ ...prev, [activeTab ?? 'main']: show }));
@@ -780,15 +825,17 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
             {!isForumChannel && pagination.hasMore &&
               (pagination.mode === 'paginated' || pagination.mode === 'search') && (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<LoadAllIcon />}
-                onClick={() => setLoadAllDialogOpen(true)}
-                disabled={isLoading || pagination.isLoadingAll || isOperationRunning}
-              >
-                Load All
-              </Button>
+              <HotkeyTooltip actionId="loadAll" label="Load all messages" arrow>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<LoadAllIcon />}
+                  onClick={() => setLoadAllDialogOpen(true)}
+                  disabled={isLoading || pagination.isLoadingAll || isOperationRunning}
+                >
+                  Load All
+                </Button>
+              </HotkeyTooltip>
             )}
             {!isForumChannel && (
               <TourButton
@@ -800,29 +847,35 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                 onClick={() => { filterModalKeyRef.current++; setFilterModalOpen(true); }}
                 data-tour="search-filters"
                 data-testid="search-filters-button"
+                hotkeyActionId="openFilters"
+                hotkeyLabel="Search and refine"
               >
                 Filters
               </TourButton>
             )}
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<ThreadIcon />}
-              onClick={() => setThreadLoadOpen(true)}
-            >
-              Load Thread
-            </Button>
-            {!isForumChannel && (
+            <HotkeyTooltip actionId="loadThread" label="Load a thread" arrow>
               <Button
                 variant="outlined"
                 size="small"
-                startIcon={<AnalyticsIcon />}
-                onClick={() => setAnalyticsOpen(true)}
-                disabled={messages.length === 0}
-                data-tour="analytics-button"
+                startIcon={<ThreadIcon />}
+                onClick={() => setThreadLoadOpen(true)}
               >
-                Analytics
+                Load Thread
               </Button>
+            </HotkeyTooltip>
+            {!isForumChannel && (
+              <HotkeyTooltip actionId="openAnalytics" label="Channel analytics" arrow>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<AnalyticsIcon />}
+                  onClick={() => setAnalyticsOpen(true)}
+                  disabled={messages.length === 0}
+                  data-tour="analytics-button"
+                >
+                  Analytics
+                </Button>
+              </HotkeyTooltip>
             )}
             {!isForumChannel && (
               <TourButton
@@ -833,33 +886,38 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                 onClick={() => dispatch(toggleFocusedView())}
                 data-testid="focus-mode-toggle"
                 data-tour="focus-button"
-                title={focusedView ? 'Exit focus mode (F or Esc)' : 'Enter focus mode (F)'}
+                hotkeyActionId="toggleFocus"
+                hotkeyLabel={focusedView ? 'Exit focus mode' : 'Enter focus mode'}
               >
                 {focusedView ? 'Exit Focus' : 'Focus'}
               </TourButton>
             )}
             {isForumChannel ? (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<ExportIcon />}
-                onClick={() => setForumExportDialogOpen(true)}
-                disabled={forumThreads.length === 0 || isOperationRunning}
-                data-tour="export-button"
-              >
-                Export
-              </Button>
+              <HotkeyTooltip actionId="openExport" label="Export forum threads" arrow>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ExportIcon />}
+                  onClick={() => setForumExportDialogOpen(true)}
+                  disabled={forumThreads.length === 0 || isOperationRunning}
+                  data-tour="export-button"
+                >
+                  Export
+                </Button>
+              </HotkeyTooltip>
             ) : (
-              <Button
-                variant="outlined"
-                size="small"
-                startIcon={<ExportIcon />}
-                onClick={() => setExportDialogOpen(true)}
-                data-tour="export-button"
-                disabled={messages.length === 0 || isOperationRunning}
-              >
-                Export
-              </Button>
+              <HotkeyTooltip actionId="openExport" label="Export messages" arrow>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  startIcon={<ExportIcon />}
+                  onClick={() => setExportDialogOpen(true)}
+                  data-tour="export-button"
+                  disabled={messages.length === 0 || isOperationRunning}
+                >
+                  Export
+                </Button>
+              </HotkeyTooltip>
             )}
           </Box>
         </Box>

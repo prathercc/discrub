@@ -35,6 +35,9 @@ import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messag
 import SettingsModal from '@components/settings/SettingsModal';
 import UserProfileModal from '@components/modals/UserProfileModal';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
+import { useHotkey } from '@features/hotkeys/HotkeyProvider';
+import { selectIsMinimized } from '@features/app/appSlice';
 
 /**
  * TopBar component - shows user info and logout button
@@ -98,6 +101,14 @@ const TopBar = () => {
       dispatch(setMinimized(false));
     }
   };
+
+  // Wire #144 hotkeys for the topbar. Settings is always available;
+  // Minimize is only meaningful in extension/overlay builds when not
+  // already minimized (the keystroke would be lost from Discord's
+  // surface anyway when minimized — restore is deferred to v2).
+  const isMinimized = useAppSelector(selectIsMinimized);
+  useHotkey('openSettings', () => setSettingsOpen(true), true);
+  useHotkey('minimize', handleMinimize, isOverlayMode() && !isMinimized);
 
   const handleCloseConfirm = async () => {
     setCloseDialogOpen(false);
@@ -210,7 +221,7 @@ const TopBar = () => {
               </Typography>
             </Box>
 
-            <Tooltip title="Settings" enterDelay={0} arrow>
+            <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={() => setSettingsOpen(true)}
@@ -218,7 +229,7 @@ const TopBar = () => {
               >
                 <SettingsIcon />
               </IconButton>
-            </Tooltip>
+            </HotkeyTooltip>
 
             <Tooltip title={themeLabel} enterDelay={0} arrow>
               <IconButton
@@ -320,7 +331,7 @@ const TopBar = () => {
             </Tooltip>
 
             {isOverlayMode() && (
-              <Tooltip title="Minimize to Discord" enterDelay={0} arrow>
+              <HotkeyTooltip actionId="minimize" label="Minimize to Discord" enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
                   onClick={handleMinimize}
@@ -328,7 +339,7 @@ const TopBar = () => {
                 >
                   <MinimizeIcon />
                 </IconButton>
-              </Tooltip>
+              </HotkeyTooltip>
             )}
 
             {isOverlayMode() && (

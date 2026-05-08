@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { ButtonGroup, Button, Tooltip, Box, Typography, LinearProgress, Popover, useTheme, keyframes } from '@mui/material';
+import { ButtonGroup, Button, Box, Typography, LinearProgress, Popover, useTheme, keyframes } from '@mui/material';
 import {
   Pause as PauseIcon,
   PlayArrow as ResumeIcon,
@@ -11,6 +11,8 @@ import { tourCatalog } from '@components/welcome/tourSteps';
 import { selectDiscrubPaused, setDiscrubPaused, setDiscrubCancelled } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import { addStatusEntry } from '@features/status/statusSlice';
+import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
+import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 
 interface PauseResumeControlsProps {
   label?: string;
@@ -55,19 +57,32 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
     }
   }, [label]);
 
+  // Hotkey wiring (#144). Both gate on `isRunning` so they only fire
+  // when an operation is actually in flight; outside that window the
+  // bindings (Space, mod+.) fall through and behave normally — Space
+  // still scrolls the page, etc.
+  const togglePause = () => {
+    dispatch(setDiscrubPaused(!isPaused));
+    dispatch(addStatusEntry({ level: isPaused ? 'success' : 'warning', message: isPaused ? 'Operation Resumed' : 'Operation Paused' }));
+  };
+  const cancelOp = () => {
+    dispatch(setDiscrubCancelled(true));
+    dispatch(setDiscrubPaused(false));
+    dispatch(addStatusEntry({ level: 'warning', message: 'Operation Cancelled' }));
+  };
+  useHotkey('pauseResume', togglePause, isRunning);
+  useHotkey('cancelOp', cancelOp, isRunning);
+
   if (!isRunning) return null;
 
   const handlePauseResume = (e: React.MouseEvent) => {
     e.stopPropagation();
-    dispatch(setDiscrubPaused(!isPaused));
-    dispatch(addStatusEntry({ level: isPaused ? 'success' : 'warning', message: isPaused ? 'Operation Resumed' : 'Operation Paused' }));
+    togglePause();
   };
 
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
-    dispatch(setDiscrubCancelled(true));
-    dispatch(setDiscrubPaused(false));
-    dispatch(addStatusEntry({ level: 'warning', message: 'Operation Cancelled' }));
+    cancelOp();
   };
 
   return (
@@ -77,7 +92,12 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
       onMouseDown={(e) => e.stopPropagation()}
     >
       <ButtonGroup variant="text" size="small" color="inherit">
-        <Tooltip title={isPaused ? 'Resume' : 'Pause'} enterDelay={0} arrow>
+        <HotkeyTooltip
+          actionId="pauseResume"
+          label={isPaused ? 'Resume' : 'Pause'}
+          enterDelay={0}
+          arrow
+        >
           <Button
             onClick={handlePauseResume}
             aria-label={isPaused ? 'Resume' : 'Pause'}
@@ -85,9 +105,9 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
           >
             {isPaused ? <ResumeIcon /> : <PauseIcon />}
           </Button>
-        </Tooltip>
+        </HotkeyTooltip>
 
-        <Tooltip title="Cancel" enterDelay={0} arrow>
+        <HotkeyTooltip actionId="cancelOp" label="Cancel" enterDelay={0} arrow>
           <Button
             onClick={handleCancel}
             aria-label="Cancel"
@@ -95,7 +115,7 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
           >
             <CancelIcon />
           </Button>
-        </Tooltip>
+        </HotkeyTooltip>
 
         {tourEntry && (
           <Button
