@@ -31,6 +31,7 @@ import { PurgeTab } from './tabs/PurgeTab';
 import { HotkeysTab } from './tabs/HotkeysTab';
 import ResetDiscrubButton from './ResetDiscrubButton';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { hasUnsavedSettingsChanges } from './dirtyDetection';
 
 interface SettingsModalProps {
   open: boolean;
@@ -70,6 +71,11 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   const [activeTab, setActiveTab] = useState(0);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  // Discard-confirmation dialog state (#164). Shown only when the
+  // user attempts to close while there are unsaved edits — otherwise
+  // close skips the prompt entirely so the typical "open, peek, close"
+  // flow stays one click.
+  const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
 
   // Sync form values with Redux state when settings change or modal opens
   useEffect(() => {
@@ -124,14 +130,33 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
     setErrors([]);
   };
 
-  const handleClose = () => {
-    // Reset form to current settings on cancel — including the hotkeys
-    // draft. Redux state is untouched (no dispatch happened during
-    // editing), so re-syncing from Redux on next open is automatic.
+  // Actually discard edits + close. Routed through whenever close is
+  // approved (no unsaved edits, or user clicked Discard in the prompt).
+  const performClose = () => {
     setFormValues(settings || defaultSettings);
     setFormHotkeys(hotkeys);
     setErrors([]);
+    setDiscardPromptOpen(false);
     onClose();
+  };
+
+  // Public close-request entry point. Wired to Cancel, the X icon,
+  // backdrop click, and Esc — every close path except a successful
+  // Save Settings (which calls onClose() directly after the dispatch
+  // succeeds, bypassing the dirty check because the changes were
+  // saved, not discarded).
+  const handleClose = () => {
+    const dirty = hasUnsavedSettingsChanges({
+      formValues,
+      settings: settings || defaultSettings,
+      formHotkeys,
+      hotkeys,
+    });
+    if (dirty) {
+      setDiscardPromptOpen(true);
+      return;
+    }
+    performClose();
   };
 
   return (
@@ -225,6 +250,29 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
           {saving ? 'Saving...' : 'Save Settings'}
         </Button>
       </DialogActions>
+
+      <Dialog
+        open={discardPromptOpen}
+        onClose={() => setDiscardPromptOpen(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Discard unsaved changes?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            You've made changes that haven't been saved. Closing now will
+            discard them.
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDiscardPromptOpen(false)} variant="outlined">
+            Keep editing
+          </Button>
+          <Button onClick={performClose} variant="contained" color="error">
+            Discard
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Dialog>
   );
 };

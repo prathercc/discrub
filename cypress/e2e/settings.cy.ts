@@ -35,6 +35,73 @@ describe('Settings', () => {
     });
   });
 
+  // ─── Unsaved-changes prompt (#164) ───────────────────────────────
+  // Cancel/X/backdrop/Esc all route through handleClose; when there
+  // are unsaved edits, a confirmation appears before discarding.
+  // Save Settings bypasses the prompt because the changes are
+  // committing, not being thrown away.
+  describe('unsaved-changes prompt', () => {
+    function openWithEdit() {
+      cy.get('[aria-label="Settings"]').click();
+      cy.get('[role="dialog"]', { timeout: 5000 }).should('be.visible');
+      // Toggle the Hotkeys master switch to dirty the form. Using the
+      // hotkeys form rather than an AppSettings field keeps the test
+      // self-contained — no dependency on the exact controls in any
+      // particular tab.
+      cy.contains('button', 'Hotkeys').click();
+      cy.get('input[aria-label="Enable hotkeys"]').click();
+    }
+
+    it('Cancel with unsaved changes shows the prompt', () => {
+      openWithEdit();
+      cy.contains('button', /^Cancel$/).click();
+      cy.contains('Discard unsaved changes?').should('be.visible');
+      cy.contains('button', 'Keep editing').should('be.visible');
+      cy.contains('button', 'Discard').should('be.visible');
+    });
+
+    it('Keep editing returns to the dialog with edits intact', () => {
+      openWithEdit();
+      cy.contains('button', /^Cancel$/).click();
+      cy.contains('button', 'Keep editing').click();
+      cy.contains('Discard unsaved changes?').should('not.exist');
+      // Settings dialog still open + the toggle is still off in the
+      // form (the edit wasn't reverted).
+      cy.contains('button', 'Save Settings').should('be.visible');
+      cy.get('input[aria-label="Enable hotkeys"]').should('not.be.checked');
+    });
+
+    it('Discard closes the dialog and reverts the form on next open', () => {
+      openWithEdit();
+      cy.contains('button', /^Cancel$/).click();
+      cy.contains('button', 'Discard').click();
+      cy.contains('button', 'Save Settings').should('not.exist');
+      // Reopen — the form should be re-synced from Redux, so the
+      // toggle is back to its default ON state.
+      cy.get('[aria-label="Settings"]').click();
+      cy.contains('button', 'Hotkeys').click();
+      cy.get('input[aria-label="Enable hotkeys"]').should('be.checked');
+    });
+
+    it('Cancel with no edits closes immediately, no prompt', () => {
+      cy.get('[aria-label="Settings"]').click();
+      cy.contains('button', /^Cancel$/).click();
+      cy.contains('Discard unsaved changes?').should('not.exist');
+      cy.contains('button', 'Save Settings').should('not.exist');
+    });
+
+    it('Save Settings bypasses the prompt and persists', () => {
+      openWithEdit();
+      cy.contains('button', 'Save Settings').click();
+      cy.contains('Discard unsaved changes?').should('not.exist');
+      cy.contains('button', 'Save Settings').should('not.exist');
+      // The change actually persisted in Redux.
+      cy.window().should((win) => {
+        expect((win as any).__store__.getState().hotkeys.enabled).to.equal(false);
+      });
+    });
+  });
+
   describe('Export Preferences Tab', () => {
     beforeEach(() => {
       cy.get('[aria-label="Settings"]').click();
