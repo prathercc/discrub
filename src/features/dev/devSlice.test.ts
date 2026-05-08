@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { configureStore } from '@reduxjs/toolkit';
+import {
+  configureStore,
+  type ThunkDispatch,
+  type UnknownAction,
+} from '@reduxjs/toolkit';
 import devReducer, {
   seedChannelMessages,
   selectIsSeeding,
@@ -9,6 +13,7 @@ import authReducer from '@features/auth/authSlice';
 import userReducer from '@features/user/userSlice';
 import appReducer from '@features/app/appSlice';
 import statusReducer from '@features/status/statusSlice';
+import type { RootState } from '@/app/store';
 
 const mockPostMessage = vi.fn();
 const mockAddReaction = vi.fn();
@@ -47,7 +52,11 @@ function makeStore() {
       app: appReducer,
       status: statusReducer,
     },
-  });
+    middleware: (getDefault) => getDefault({ serializableCheck: false }),
+  }) as unknown as {
+    dispatch: ThunkDispatch<RootState, unknown, UnknownAction>;
+    getState: () => RootState;
+  };
   store.dispatch({ type: 'auth/setToken', payload: 'tok' });
   store.dispatch({
     type: 'user/setCurrentUser',
@@ -78,7 +87,11 @@ describe('seedChannelMessages', () => {
   it('rejects when no token is set', async () => {
     const store = configureStore({
       reducer: { dev: devReducer, auth: authReducer, user: userReducer, app: appReducer, status: statusReducer },
-    });
+      middleware: (getDefault) => getDefault({ serializableCheck: false }),
+    }) as unknown as {
+      dispatch: ThunkDispatch<RootState, unknown, UnknownAction>;
+      getState: () => RootState;
+    };
     const action = await store.dispatch(
       seedChannelMessages({
         channels: [{ id: 'c1', name: 'general' }],

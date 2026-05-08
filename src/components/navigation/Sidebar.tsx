@@ -39,11 +39,19 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
   const devToolsEnabled = useDevToolsEnabled();
   const currentUser = useAppSelector(selectCurrentUser);
   const isHeavyRunning = useAppSelector(selectIsHeavyOperationRunning);
+  // Discord's /users/@me/guilds endpoint returns `owner: boolean` for
+  // each guild (true iff the current user owns it) but NOT `owner_id`
+  // — that field only comes from /guilds/{id}, which Discrub doesn't
+  // fetch for the sidebar list. The boolean is the right check; the
+  // owner_id fallback handles the rare case where a fuller guild
+  // object got cached (e.g., via a member-role lookup).
   const isOwner =
     !!devToolsEnabled &&
-    !!currentUser?.id &&
-    !!selectedGuild?.owner_id &&
-    selectedGuild.owner_id === currentUser.id;
+    !!selectedGuild &&
+    (selectedGuild.owner === true ||
+      (!!selectedGuild.owner_id &&
+        !!currentUser?.id &&
+        selectedGuild.owner_id === currentUser.id));
   const [seedDialogOpen, setSeedDialogOpen] = useState(false);
 
   useEffect(() => {
