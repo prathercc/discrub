@@ -689,6 +689,71 @@ describe('channelSlice', () => {
       expect((result.payload as Channel[]).map((c) => c.id)).toEqual(['100']);
     });
 
+    // Backlog #165: in-session cache. Auto-discover from the modal
+    // passes force=false; manual Refresh passes force=true.
+    describe('in-session cache (Backlog #165)', () => {
+      function setupSpy(threads: Channel[]) {
+        const spy = vi.fn().mockResolvedValue({
+          success: true,
+          data: { threads },
+        });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchActiveGuildThreads: spy,
+          fetchPublicThreads: vi.fn().mockResolvedValue({ success: true, data: { threads: [] } }),
+          fetchPrivateThreads: vi.fn().mockResolvedValue({ success: true, data: { threads: [] } }),
+          fetchJoinedPrivateArchivedThreads: vi.fn(),
+        } as any);
+        return spy;
+      }
+
+      it('populates discoveredThreadsByChannel on a fulfilled fetch', async () => {
+        setupSpy([thread('100', 'parent')]);
+        await store.dispatch(
+          fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+        );
+        expect(store.getState().channel.discoveredThreadsByChannel.parent).toBeDefined();
+        expect(store.getState().channel.discoveredThreadsByChannel.parent.map((c) => c.id))
+          .toEqual(['100']);
+      });
+
+      it('serves cached results without re-hitting the API on a non-forced re-fetch', async () => {
+        const spy = setupSpy([thread('100', 'parent')]);
+        await store.dispatch(
+          fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+        );
+        expect(spy).toHaveBeenCalledOnce();
+        // Second dispatch with force=false (default) should short-circuit.
+        await store.dispatch(
+          fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+        );
+        expect(spy).toHaveBeenCalledOnce(); // still 1 — cache hit
+      });
+
+      it('force=true bypasses the cache and re-fetches', async () => {
+        const spy = setupSpy([thread('100', 'parent')]);
+        await store.dispatch(
+          fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+        );
+        expect(spy).toHaveBeenCalledOnce();
+        await store.dispatch(
+          fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't', force: true }),
+        );
+        expect(spy).toHaveBeenCalledTimes(2);
+      });
+
+      it('cache is per-channel — fetching a different channel does not hit the cache', async () => {
+        const spy = setupSpy([thread('100', 'parent')]);
+        const otherChannel = { id: 'other-parent', name: 'random', type: 0 } as Channel;
+        await store.dispatch(
+          fetchChannelThreads({ channel: textChannel, guildId: 'g1', token: 't' }),
+        );
+        await store.dispatch(
+          fetchChannelThreads({ channel: otherChannel, guildId: 'g1', token: 't' }),
+        );
+        expect(spy).toHaveBeenCalledTimes(2);
+      });
+    });
+
     it('sorts archived threads by archive_timestamp newest-first; active threads by id snowflake', async () => {
       // Real Discord snowflakes are 64-bit integers whose high bits are
       // a millisecond timestamp since the Discord epoch (Jan 2015). Use

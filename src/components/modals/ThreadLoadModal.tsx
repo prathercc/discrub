@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -14,11 +14,17 @@ import {
   Chip,
   Divider,
   CircularProgress,
+  IconButton,
+  Tooltip,
 } from '@mui/material';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import type { Channel } from 'discrub-core/types/discord-types';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { fetchChannelThreads } from '@features/channel/channelSlice';
+import {
+  fetchChannelThreads,
+  selectDiscoveredThreadsForChannel,
+} from '@features/channel/channelSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 
 interface ThreadLoadModalProps {
@@ -45,39 +51,52 @@ const ThreadLoadModal = ({
 }: ThreadLoadModalProps) => {
   const dispatch = useAppDispatch();
   const token = useAppSelector(selectAuthToken);
+  const cached = useAppSelector(selectDiscoveredThreadsForChannel(channel?.id));
   const [threadId, setThreadId] = useState('');
-  const [discovered, setDiscovered] = useState<Channel[]>([]);
+  const [discovered, setDiscovered] = useState<Channel[]>(cached ?? []);
   const [discovering, setDiscovering] = useState(false);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
 
-  // Auto-discover threads on every modal open. We don't cache across
-  // closes because the user may have purged threads in between (state
-  // would be stale). The fetch is cheap — at most 3 calls in parallel.
+  // Discovery loader (#165). Cache hits in the slice short-circuit
+  // the network calls and resolve instantly with the existing list.
+  // The Refresh button passes force=true to re-run the fetch.
+  const runDiscovery = useCallback(
+    (force: boolean) => {
+      if (!channel || !guildId || !token) return;
+      let cancelled = false;
+      setDiscovering(true);
+      setDiscoverError(null);
+
+      dispatch(fetchChannelThreads({ channel, guildId, token, force }))
+        .unwrap()
+        .then((threads) => {
+          if (!cancelled) setDiscovered(threads);
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setDiscoverError(err instanceof Error ? err.message : String(err));
+          }
+        })
+        .finally(() => {
+          if (!cancelled) setDiscovering(false);
+        });
+
+      return () => {
+        cancelled = true;
+      };
+    },
+    [channel, guildId, token, dispatch],
+  );
+
+  // Auto-discover on modal open. Cache-hit path is essentially free
+  // (one selector read + a no-op thunk that returns the cached list);
+  // cold path makes up to 3 parallel API calls. Either way the user
+  // sees the list as soon as it's available, plus a Refresh icon for
+  // when they think the cache is stale.
   useEffect(() => {
-    if (!open || !channel || !guildId || !token) return;
-    let cancelled = false;
-    setDiscovering(true);
-    setDiscoverError(null);
-    setDiscovered([]);
-
-    dispatch(fetchChannelThreads({ channel, guildId, token }))
-      .unwrap()
-      .then((threads) => {
-        if (!cancelled) setDiscovered(threads);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setDiscoverError(err instanceof Error ? err.message : String(err));
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setDiscovering(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open, channel, guildId, token, dispatch]);
+    if (!open) return;
+    return runDiscovery(false);
+  }, [open, runDiscovery]);
 
   const handleLoad = () => {
     const trimmed = threadId.trim();
@@ -115,9 +134,24 @@ const ThreadLoadModal = ({
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           {showDiscoveryList && (
             <Box>
-              <Typography variant="subtitle2" gutterBottom>
-                Threads in this channel
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                <Typography variant="subtitle2">
+                  Threads in this channel
+                </Typography>
+                <Tooltip title="Refresh thread list" arrow>
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={() => runDiscovery(true)}
+                      disabled={discovering}
+                      aria-label="Refresh thread list"
+                      data-testid="refresh-threads"
+                    >
+                      <RefreshIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
               {discovering && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                   <CircularProgress size={16} />

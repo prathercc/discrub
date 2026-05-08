@@ -18,6 +18,15 @@ export interface ChannelState {
   hasMoreForumThreads: boolean;
   forumThreadsTotalResults: number;
   forumThreadsNextOffset: number;
+  /**
+   * In-session cache of discovered threads keyed by parent channel ID
+   * (#165). Populated by `fetchChannelThreads.fulfilled`. Held in
+   * memory only — a page reload wipes it, which is the desired
+   * behavior since the user may have purged or archived threads
+   * across sessions. Manual refresh in ThreadLoadModal forces a
+   * re-fetch.
+   */
+  discoveredThreadsByChannel: Record<string, Channel[]>;
 }
 
 export const initialChannelState: ChannelState = {
@@ -32,4 +41,5 @@ export const initialChannelState: ChannelState = {
   hasMoreForumThreads: false,
   forumThreadsTotalResults: 0,
   forumThreadsNextOffset: 0,
+  discoveredThreadsByChannel: {},
 };

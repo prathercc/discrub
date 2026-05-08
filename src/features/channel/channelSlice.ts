@@ -91,13 +91,24 @@ export const fetchChannelThreads = createAsyncThunk(
       channel,
       guildId,
       token,
-    }: { channel: Channel; guildId: string; token: string },
+      force = false,
+    }: { channel: Channel; guildId: string; token: string; force?: boolean },
+    { getState },
   ) => {
     if (
       channel.type === ChannelType.GUILD_VOICE ||
       channel.type === ChannelType.GUILD_STAGE_VOICE
     ) {
       return [] as Channel[];
+    }
+
+    // In-session cache (#165). Auto-discover from ThreadLoadModal
+    // passes force=false; the manual Refresh icon passes force=true.
+    // Cache miss falls through to the live fetch below.
+    if (!force) {
+      const cached = (getState() as RootState).channel
+        .discoveredThreadsByChannel[channel.id];
+      if (cached) return cached;
     }
 
     const discordService = getDiscordService();
@@ -368,6 +379,15 @@ const channelSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
+      // In-session thread-discovery cache (#165). Populates on every
+      // fulfilled fetch — including cache hits, where the payload is
+      // identical to what's already there (idempotent). The cache is
+      // intentionally not cleared on .pending so a stale list keeps
+      // rendering while a Refresh re-fetch is in flight.
+      .addCase(fetchChannelThreads.fulfilled, (state, action) => {
+        const channelId = action.meta.arg.channel.id;
+        state.discoveredThreadsByChannel[channelId] = action.payload;
+      })
       // Forum threads
       .addCase(fetchForumThreads.pending, (state) => {
         state.isLoadingForumThreads = true;
@@ -440,6 +460,14 @@ export const selectChannelLoading = (state: RootState) => state.channel.isLoadin
 export const selectChannelError = (state: RootState) => state.channel.error;
 export const selectSelectedChannels = (state: RootState) => state.channel.selectedChannels;
 export const selectForumThreads = (state: RootState) => state.channel.forumThreads ?? [];
+/**
+ * Per-channel cached discovered threads (#165). Returns undefined for
+ * channels that haven't been queried yet — callers distinguish "no
+ * cache" (undefined) from "cache says empty list" ([]).
+ */
+export const selectDiscoveredThreadsForChannel = (channelId: string | null | undefined) =>
+  (state: RootState): Channel[] | undefined =>
+    channelId ? state.channel.discoveredThreadsByChannel[channelId] : undefined;
 export const selectForumFirstMessages = (state: RootState) => state.channel.forumFirstMessages ?? [];
 export const selectIsLoadingForumThreads = (state: RootState) => state.channel.isLoadingForumThreads ?? false;
 export const selectHasMoreForumThreads = (state: RootState) => state.channel.hasMoreForumThreads ?? false;
