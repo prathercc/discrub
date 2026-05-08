@@ -6,6 +6,7 @@ import type { ExportFormat, MediaConfig, ExportConfig, ExportProgress, MediaDown
 import { getExportService, generateExportReadme } from '@services/exportService';
 import { StreamingZipService } from '@services/streamingZipService';
 import { getDiscordService } from '@services/discordService';
+import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
 import type { ExportReactionMap, SearchCriteria } from 'discrub-core/types/discrub-types';
 import type { RootState } from '@/app/store';
 import type { ThunkDispatch, UnknownAction } from '@reduxjs/toolkit';
@@ -79,7 +80,6 @@ async function fetchReactionData(
   try {
     const { DiscordServiceAdapter, ReactionEnrichmentService } = await import('discrub-core/messages');
     const apiClient = new DiscordServiceAdapter(settings);
-    void createShouldContinue(getState); // TODO: wire shouldStop into reaction enrichment
 
     const reactionService = new ReactionEnrichmentService({
       apiClient,
@@ -502,7 +502,28 @@ async function fetchAllChannelMessages(
       }));
     }
 
-    return allMessages;
+    // Pass 1 reaction enrichment (#163): the search-criteria branch
+    // pulls from Discord's search endpoint, which omits reactions. Without
+    // this, every search-criteria-driven export silently drops reactions
+    // for the entire matched set. The unfiltered path below uses the
+    // /messages list endpoint which includes reactions inline, so no
+    // Pass 1 needed there.
+    const settings = selectSettings(getState());
+    return await reactionEnrichmentService.enrichMessages(
+      allMessages,
+      token,
+      settings,
+      {
+        shouldStop: async () => {
+          await waitWhilePaused(getState);
+          return checkCancelled(getState);
+        },
+        onWillEnrich: (count) => dispatch(addStatusEntry({
+          level: 'info',
+          message: `Bulk export: fetching reaction data for ${count} message${count === 1 ? '' : 's'} in ${logContext?.channelLabel ?? channelId}…`,
+        })),
+      },
+    );
   }
 
   // Unfiltered path — list endpoint.

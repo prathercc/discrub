@@ -9,6 +9,7 @@ import type { RootState } from '@/app/store';
 import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { userEnrichmentService } from '@services/userEnrichmentService';
+import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
 import { mergeCachedUserMap, addFailedUserId, saveCacheToLocalStorage } from '@features/cache/cacheSlice';
 import { waitWhilePaused, checkCancelled, cancellableDelay } from '@/utils/operationLoopUtils';
 import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
@@ -835,7 +836,7 @@ export const searchMessages = createAsyncThunk(
       token: string;
       searchCriteria: SearchCriteria;
     },
-    { rejectWithValue, dispatch }
+    { rejectWithValue, dispatch, getState }
   ) => {
     try {
       dispatch(showOperationTip('Search Operation Queued'));
@@ -856,10 +857,31 @@ export const searchMessages = createAsyncThunk(
         );
       }
 
-      const messages = response.data.messages
+      const rawMessages = response.data.messages
         ? response.data.messages.flatMap((group) => group)
         : [];
-      const totalResults = response.data.total_results ?? messages.length;
+      const totalResults = response.data.total_results ?? rawMessages.length;
+
+      // Pass 1 reaction enrichment (#163): Discord's search endpoint omits
+      // `reactions`. Without this, reaction badges, the Remove Reactions
+      // button, and downstream exports all silently lose reaction data
+      // for search-loaded sets.
+      const settings = selectSettings(getState() as RootState);
+      const messages = await reactionEnrichmentService.enrichMessages(
+        rawMessages,
+        token,
+        settings,
+        {
+          shouldStop: async () => {
+            await waitWhilePaused(getState as () => RootState);
+            return checkCancelled(getState as () => RootState);
+          },
+          onWillEnrich: (count) => dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+          })),
+        },
+      );
 
       dispatch(
         addStatusEntry({
@@ -932,10 +954,29 @@ export const fetchNextSearchPage = createAsyncThunk(
         return rejectWithValue('Failed to fetch next search page');
       }
 
-      const messages = response.data.messages
+      const rawMessages = response.data.messages
         ? response.data.messages.flatMap((group) => group)
         : [];
       const totalResults = response.data.total_results ?? pagination.totalCount ?? 0;
+
+      // Pass 1 reaction enrichment (#163) — see searchMessages thunk.
+      const settings = selectSettings(getState() as RootState);
+      const messages = await reactionEnrichmentService.enrichMessages(
+        rawMessages,
+        token,
+        settings,
+        {
+          shouldStop: async () => {
+            await waitWhilePaused(getState as () => RootState);
+            return checkCancelled(getState as () => RootState);
+          },
+          onWillEnrich: (count) => dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+          })),
+        },
+      );
+
       const newOffset = pagination.searchOffset + messages.length;
 
       maybeEmitPhantomLoadStatus(dispatch, refineCriteria, messages);
@@ -1013,13 +1054,33 @@ export const loadAllSearchResults = createAsyncThunk(
           return rejectWithValue('Failed while loading all search results');
         }
 
-        const page = response.data.messages
+        const rawPage = response.data.messages
           ? response.data.messages.flatMap((group) => group)
           : [];
-        const pageTotal = response.data.total_results ?? page.length;
+        const pageTotal = response.data.total_results ?? rawPage.length;
         totalForCurrentQuery = pageTotal;
 
-        if (page.length === 0) break;
+        if (rawPage.length === 0) break;
+
+        // Pass 1 reaction enrichment (#163) — per-page so cancellation
+        // partway through a multi-page load preserves enriched messages
+        // for pages that finished before the cancel.
+        const settings = selectSettings(getState() as RootState);
+        const page = await reactionEnrichmentService.enrichMessages(
+          rawPage,
+          token,
+          settings,
+          {
+            shouldStop: async () => {
+              await waitWhilePaused(getState as () => RootState);
+              return checkCancelled(getState as () => RootState);
+            },
+            onWillEnrich: (count) => dispatch(addStatusEntry({
+              level: 'info',
+              message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+            })),
+          },
+        );
 
         aggregated.push(...page);
         offset += page.length;
@@ -1697,14 +1758,32 @@ export const searchThreadMessages = createAsyncThunk(
           }
 
           const searchResult = response.data;
-          const messages = searchResult.messages
+          const rawMessages = searchResult.messages
             ? searchResult.messages.flatMap((group) => group)
             : [];
 
-          if (messages.length === 0) {
+          if (rawMessages.length === 0) {
             shouldContinue = false;
             break;
           }
+
+          // Pass 1 reaction enrichment (#163) — see searchMessages thunk.
+          const settings = selectSettings(getState() as RootState);
+          const messages = await reactionEnrichmentService.enrichMessages(
+            rawMessages,
+            token,
+            settings,
+            {
+              shouldStop: async () => {
+                await waitWhilePaused(getState as () => RootState);
+                return checkCancelled(getState as () => RootState);
+              },
+              onWillEnrich: (count) => dispatch(addStatusEntry({
+                level: 'info',
+                message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+              })),
+            },
+          );
 
           batchMessages = [...batchMessages, ...messages];
           const fetched = allMessages.length + batchMessages.length;

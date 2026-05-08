@@ -114,6 +114,12 @@ vi.mock('discrub-core/discord-enum', () => ({
   IsPinnedType: { UNSET: 0, YES: 1, NO: 2 },
 }));
 
+vi.mock('@services/reactionEnrichmentService', () => ({
+  reactionEnrichmentService: {
+    enrichMessages: vi.fn().mockImplementation(async (messages) => messages),
+  },
+}));
+
 describe('messageSlice', () => {
   let store: TestStore;
 
@@ -4543,6 +4549,340 @@ describe('messageSlice', () => {
       );
       const newBefore = (criteriaCalls[2].searchBeforeDate as Date).getTime();
       expect(newBefore).toBeLessThan(userBefore.getTime());
+    });
+  });
+
+  describe('Pass 1 reaction enrichment contract (#163)', () => {
+    // Search-loaded messages arrive from Discord with `reactions` undefined.
+    // The four search thunks must run Pass 1 enrichment before storing
+    // messages in state, otherwise the live UI shows no reaction badges,
+    // the Remove Reactions button stays disabled, and exports of any format
+    // drop reactions for search-loaded sets.
+
+    const buildStoreWithReactions = async (reactionsEnabled: boolean, messageState = initialMessageState) => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const { DiscrubSetting } = await import('discrub-core/discrub-enum');
+
+      return configureStore({
+        reducer: { message: messageReducer, app: appReducer },
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: {
+              ...defaultSettings,
+              [DiscrubSetting.REACTIONS_ENABLED]: reactionsEnabled ? 'true' : 'false',
+            },
+          },
+          message: messageState,
+        },
+      });
+    };
+
+    /**
+     * Build messages as Discord's search endpoint actually returns them:
+     * `reactions` field absent. Pass 1 must populate it.
+     */
+    const searchShapedMessages = (count: number): Message[] =>
+      Array.from({ length: count }, (_, i) => createMockMessage({
+        id: `search-${i + 1}`,
+        reactions: undefined as any,
+      }));
+
+    /**
+     * Mock helper response — every input message gets a single thumbs-up
+     * reaction. Pinned post-fix: stored messages have non-undefined
+     * reactions for any thunk that ran Pass 1.
+     */
+    const mockEnrichedReturn = (msgs: Message[]) =>
+      msgs.map((m) => ({
+        ...m,
+        reactions: [{ emoji: { id: null, name: '👍' }, count: 1 }],
+      }));
+
+    let reactionEnrichmentService: any;
+
+    beforeEach(async () => {
+      reactionEnrichmentService = (await import('@services/reactionEnrichmentService')).reactionEnrichmentService;
+      const { DiscrubSetting } = await import('discrub-core/discrub-enum');
+      vi.mocked(reactionEnrichmentService.enrichMessages).mockReset();
+      // The real helper short-circuits when REACTIONS_ENABLED !== 'true'.
+      // Mirror that here so the contract tests can assert user-visible
+      // behavior (unenriched messages in state) regardless of whether
+      // the consumer chose to gate at call site or rely on the helper.
+      vi.mocked(reactionEnrichmentService.enrichMessages).mockImplementation(
+        async (msgs: Message[], _token: string, settings: any) => {
+          if (settings?.[DiscrubSetting.REACTIONS_ENABLED] !== 'true') return msgs;
+          return mockEnrichedReturn(msgs);
+        }
+      );
+    });
+
+    describe('searchMessages thunk', () => {
+      it('runs Pass 1 enrichment when REACTIONS_ENABLED is true', async () => {
+        const testStore = await buildStoreWithReactions(true);
+        const apiMessages = searchShapedMessages(3);
+
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockResolvedValue({
+            success: true,
+            data: { messages: [apiMessages], total_results: 3 },
+          }),
+        } as any);
+
+        await testStore.dispatch(
+          searchMessages({
+            channelId: 'ch-1',
+            token: 'token',
+            searchCriteria: { content: 'x' } as any,
+          })
+        );
+
+        expect(reactionEnrichmentService.enrichMessages).toHaveBeenCalledOnce();
+        const [calledMessages] = vi.mocked(reactionEnrichmentService.enrichMessages).mock.calls[0];
+        expect(calledMessages).toHaveLength(3);
+        expect(calledMessages.every((m: Message) => m.reactions === undefined)).toBe(true);
+
+        const state = testStore.getState().message;
+        expect(state.messages).toHaveLength(3);
+        expect(state.messages.every((m) =>
+          Array.isArray(m.reactions) && m.reactions!.length > 0
+        )).toBe(true);
+      });
+
+      it('does not enrich when REACTIONS_ENABLED is false (helper short-circuits internally)', async () => {
+        const testStore = await buildStoreWithReactions(false);
+        const apiMessages = searchShapedMessages(3);
+
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockResolvedValue({
+            success: true,
+            data: { messages: [apiMessages], total_results: 3 },
+          }),
+        } as any);
+
+        await testStore.dispatch(
+          searchMessages({
+            channelId: 'ch-1',
+            token: 'token',
+            searchCriteria: { content: 'x' } as any,
+          })
+        );
+
+        const state = testStore.getState().message;
+        expect(state.messages).toHaveLength(3);
+        expect(state.messages.every((m) => m.reactions === undefined)).toBe(true);
+      });
+    });
+
+    describe('fetchNextSearchPage thunk', () => {
+      const seedSearchActive = (): typeof initialMessageState => ({
+        ...initialMessageState,
+        searchCriteria: { content: 'x' } as any,
+        pagination: {
+          ...initialMessageState.pagination,
+          mode: 'search' as const,
+          searchOffset: 25,
+          totalCount: 100,
+          hasMore: true,
+        },
+      });
+
+      it('runs Pass 1 enrichment on the next page when REACTIONS_ENABLED is true', async () => {
+        const testStore = await buildStoreWithReactions(true, seedSearchActive());
+        const nextPage = searchShapedMessages(25);
+
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockResolvedValue({
+            success: true,
+            data: { messages: [nextPage], total_results: 100 },
+          }),
+        } as any);
+
+        const { fetchNextSearchPage } = await import('./messageSlice');
+        await testStore.dispatch(
+          fetchNextSearchPage({ channelId: 'ch-1', token: 'token' })
+        );
+
+        expect(reactionEnrichmentService.enrichMessages).toHaveBeenCalledOnce();
+        const state = testStore.getState().message;
+        expect(state.messages).toHaveLength(25);
+        expect(state.messages.every((m) =>
+          Array.isArray(m.reactions) && m.reactions!.length > 0
+        )).toBe(true);
+      });
+
+      it('does not enrich when REACTIONS_ENABLED is false (helper short-circuits internally)', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive());
+
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockResolvedValue({
+            success: true,
+            data: { messages: [searchShapedMessages(25)], total_results: 100 },
+          }),
+        } as any);
+
+        const { fetchNextSearchPage } = await import('./messageSlice');
+        await testStore.dispatch(
+          fetchNextSearchPage({ channelId: 'ch-1', token: 'token' })
+        );
+
+        const state = testStore.getState().message;
+        expect(state.messages).toHaveLength(25);
+        expect(state.messages.every((m) => m.reactions === undefined)).toBe(true);
+      });
+    });
+
+    describe('loadAllSearchResults thunk', () => {
+      const seedSearchActive = (): typeof initialMessageState => ({
+        ...initialMessageState,
+        searchCriteria: { content: 'x' } as any,
+        pagination: {
+          ...initialMessageState.pagination,
+          mode: 'search' as const,
+          searchOffset: 0,
+          totalCount: 25,
+          hasMore: true,
+        },
+      });
+
+      it('runs Pass 1 enrichment on the aggregated load when REACTIONS_ENABLED is true', async () => {
+        const testStore = await buildStoreWithReactions(true, seedSearchActive());
+        const page = searchShapedMessages(25);
+
+        // Two pages then end-of-results.
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) {
+              return { success: true, data: { messages: [page], total_results: 25 } };
+            }
+            return { success: true, data: { messages: [[]], total_results: 25 } };
+          }),
+        } as any);
+
+        await testStore.dispatch(
+          loadAllSearchResults({ channelId: 'ch-1', token: 'token' })
+        );
+
+        expect(reactionEnrichmentService.enrichMessages).toHaveBeenCalled();
+        const state = testStore.getState().message;
+        expect(state.messages).toHaveLength(25);
+        expect(state.messages.every((m) =>
+          Array.isArray(m.reactions) && m.reactions!.length > 0
+        )).toBe(true);
+      });
+
+      it('does not enrich when REACTIONS_ENABLED is false (helper short-circuits internally)', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive());
+
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) {
+              return { success: true, data: { messages: [searchShapedMessages(25)], total_results: 25 } };
+            }
+            return { success: true, data: { messages: [[]], total_results: 25 } };
+          }),
+        } as any);
+
+        await testStore.dispatch(
+          loadAllSearchResults({ channelId: 'ch-1', token: 'token' })
+        );
+
+        const state = testStore.getState().message;
+        expect(state.messages).toHaveLength(25);
+        expect(state.messages.every((m) => m.reactions === undefined)).toBe(true);
+      });
+    });
+
+    describe('searchThreadMessages thunk', () => {
+      const seedThreadActive = (): typeof initialMessageState => ({
+        ...initialMessageState,
+        activeTab: 'thread-1',
+        threadTabs: {
+          'thread-1': {
+            threadId: 'thread-1',
+            threadName: 'Thread',
+            messages: [],
+            filteredMessages: [],
+            selectedMessages: [],
+            searchCriteria: null,
+            refineCriteria: null,
+            order: initialMessageState.order,
+            isLoading: false,
+            error: null,
+            pagination: { ...initialMessageState.pagination },
+          },
+        },
+      });
+
+      it('runs Pass 1 enrichment per batch when REACTIONS_ENABLED is true', async () => {
+        const testStore = await buildStoreWithReactions(true, seedThreadActive());
+        const batch = searchShapedMessages(5);
+
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) {
+              return { success: true, data: { messages: [batch], total_results: 5 } };
+            }
+            return { success: true, data: { messages: [[]], total_results: 5 } };
+          }),
+        } as any);
+
+        await testStore.dispatch(
+          searchThreadMessages({
+            threadId: 'thread-1',
+            token: 'token',
+            searchCriteria: { content: 'x' } as any,
+          })
+        );
+
+        expect(reactionEnrichmentService.enrichMessages).toHaveBeenCalled();
+        const tab = testStore.getState().message.threadTabs['thread-1'];
+        expect(tab.messages).toHaveLength(5);
+        expect(tab.messages.every((m) =>
+          Array.isArray(m.reactions) && m.reactions!.length > 0
+        )).toBe(true);
+      });
+
+      it('does not enrich when REACTIONS_ENABLED is false (helper short-circuits internally)', async () => {
+        const testStore = await buildStoreWithReactions(false, seedThreadActive());
+        const batch = searchShapedMessages(5);
+
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) {
+              return { success: true, data: { messages: [batch], total_results: 5 } };
+            }
+            return { success: true, data: { messages: [[]], total_results: 5 } };
+          }),
+        } as any);
+
+        await testStore.dispatch(
+          searchThreadMessages({
+            threadId: 'thread-1',
+            token: 'token',
+            searchCriteria: { content: 'x' } as any,
+          })
+        );
+
+        const tab = testStore.getState().message.threadTabs['thread-1'];
+        expect(tab.messages).toHaveLength(5);
+        expect(tab.messages.every((m) => m.reactions === undefined)).toBe(true);
+      });
     });
   });
 });

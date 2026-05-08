@@ -32,6 +32,43 @@ vi.mock('@services/exportService', () => ({
     exportToZip: vi.fn(),
     exportMediaOnly: vi.fn(),
   })),
+  generateExportReadme: vi.fn(() => 'README'),
+}));
+
+vi.mock('@services/reactionEnrichmentService', () => ({
+  reactionEnrichmentService: {
+    enrichMessages: vi.fn().mockImplementation(async (msgs) => msgs),
+  },
+}));
+
+// Bulk-export-with-searchCriteria reaches into the search iterator,
+// constructs a StreamingZipService, and pulls from discordService.
+// These mocks let the bulk thunk run synthetically without touching
+// the network or the filesystem; existing tests don't call any of
+// these surfaces, so the mocks are harmless to other suites in this
+// file.
+vi.mock('@/utils/searchPagination', async () => {
+  const actual = await vi.importActual<any>('@/utils/searchPagination');
+  return {
+    ...actual,
+    iterateSearchMessagesRedux: vi.fn(),
+  };
+});
+
+vi.mock('@services/streamingZipService', () => ({
+  StreamingZipService: class {
+    async addFile() {}
+    async finalize() {}
+    dispose() {}
+  },
+}));
+
+vi.mock('@services/discordService', () => ({
+  getDiscordService: vi.fn(() => ({
+    fetchMessageData: vi.fn(),
+    fetchSearchMessageData: vi.fn(),
+    iterateSearchResults: async function* () {},
+  })),
 }));
 
 describe('exportSlice', () => {
@@ -745,6 +782,103 @@ describe('exportSlice', () => {
       expect(result.get('1')).toBe('info_1');
       expect(result.get('2')).toBe('info_2');
       expect(result.get('3')).toBe('info_3');
+    });
+  });
+
+  describe('Pass 1 reaction enrichment contract for bulk export with searchCriteria (#163)', () => {
+    // Bulk-export-with-searchCriteria flows through fetchAllChannelMessages →
+    // iterateSearchMessagesRedux → Discord search endpoint, which omits
+    // reactions. Pass 1 must run on the aggregated messages before the
+    // export pipeline fans them out to per-channel zips, otherwise both
+    // bulkExportChannels and bulkExportDMs silently drop reactions for
+    // search-loaded sets — same shape as the live-feed bug at the four
+    // search thunks.
+
+    it('runs reactionEnrichmentService.enrichMessages on iterator output when searchCriteria is active', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { reactionEnrichmentService } = await import('@services/reactionEnrichmentService');
+      const { iterateSearchMessagesRedux } = await import('@/utils/searchPagination');
+
+      vi.mocked(iterateSearchMessagesRedux).mockImplementation(async function* () {
+        yield {
+          messages: [
+            {
+              id: 'sm-1',
+              channel_id: 'ch-1',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+              content: 'hi',
+              mentions: [],
+              attachments: [],
+              embeds: [],
+              pinned: false,
+              type: 0,
+              mention_everyone: false,
+              edited_timestamp: null,
+              tts: false,
+              reactions: undefined,
+            } as any,
+          ],
+          totalResults: 1,
+          pageIndex: 0,
+          aggregatedCount: 1,
+          crossedQueryBoundary: false,
+        };
+      });
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      vi.mocked(reactionEnrichmentService.enrichMessages).mockClear();
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-1', name: 'general' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          searchCriteria: { searchMessageContent: 'x' } as any,
+        })
+      );
+
+      // The exact call count depends on whether the export's per-format
+      // pass also enriches; what matters is that AT LEAST ONE call lands
+      // with the iterator's messages, proving search-criteria bulk
+      // exports flow through Pass 1 enrichment.
+      const calls = vi.mocked(reactionEnrichmentService.enrichMessages).mock.calls;
+      expect(calls.length).toBeGreaterThanOrEqual(1);
+      const firstCallMessages = calls[0][0];
+      expect(firstCallMessages.length).toBeGreaterThan(0);
+      expect(firstCallMessages[0].id).toBe('sm-1');
+      expect(firstCallMessages[0].reactions).toBeUndefined();
     });
   });
 });
