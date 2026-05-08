@@ -3,13 +3,13 @@ import {
   List,
   ListItemButton,
   ListItemAvatar,
-  Avatar,
   ListItemText,
   Box,
   Typography,
   Tooltip,
   Checkbox,
 } from '@mui/material';
+import GuildAvatar from '@/components/ui/GuildAvatar';
 import {
   Folder as FolderIcon,
   Verified as VerifiedIcon,
@@ -234,16 +234,7 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
               />
             )}
             <ListItemAvatar>
-              <Avatar
-                src={
-                  guild.icon
-                    ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}.png`
-                    : undefined
-                }
-                sx={{ width: 40, height: 40 }}
-              >
-                {guild.name?.[0]?.toUpperCase()}
-              </Avatar>
+              <GuildAvatar guild={guild} size={40} />
             </ListItemAvatar>
             <ListItemText
               primary={

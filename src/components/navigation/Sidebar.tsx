@@ -9,6 +9,7 @@ import DMList from './DMList';
 import ChannelList from './ChannelList';
 import PackageChannelList from '@/components/package/PackageChannelList';
 import DevToolsFlask from '@/components/ui/DevToolsFlask';
+import GuildAvatar from '@/components/ui/GuildAvatar';
 import SeedMessagesDialog from '@/components/modals/SeedMessagesDialog';
 import { useDevToolsEnabled } from '@/utils/useDevToolsEnabled';
 import { selectCurrentUser } from '@features/user/userSlice';
@@ -101,6 +102,12 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
       >
         <ArrowBackIcon fontSize="small" />
       </IconButton>
+      {/*
+        Server icon follows the user into the channel-list view (#166).
+        Anchored next to the back arrow so the visual context the user
+        clicked moments ago stays visible while they navigate channels.
+      */}
+      <GuildAvatar guild={selectedGuild} size={24} sx={{ mr: 1 }} />
       <Typography
         variant="subtitle1"
         sx={{

@@ -20,6 +20,7 @@ import TourFootnote from '@components/welcome/TourFootnote';
 import { contextualTourSteps } from '@components/welcome/tourSteps';
 import { useTour } from '@/hooks/useTour';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
+import DmAvatar from '@components/ui/DmAvatar';
 import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 import { selectSelectedChannel, selectChannels, fetchChannelById } from '@features/channel/channelSlice';
 import { selectSelectedDm } from '@features/dm/dmSlice';
@@ -758,7 +759,14 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       />
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
-          <Box sx={{ minWidth: 0, flexShrink: 1 }}>
+          <Box sx={{ minWidth: 0, flexShrink: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            {/*
+              Recipient avatar follows DM clicks into the channel-toolbar
+              header (#166). Server channels skip this since the server
+              icon already lives in the sidebar header — no value duplicating
+              it across both surfaces.
+            */}
+            {isDm && <DmAvatar dm={selectedDm} size={28} />}
             <Typography variant="h6" noWrap>
               {activeContextName}
             </Typography>

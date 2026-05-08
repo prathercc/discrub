@@ -3,13 +3,13 @@ import {
   List,
   ListItemButton,
   ListItemAvatar,
-  Avatar,
   ListItemText,
   Box,
   Typography,
   Checkbox,
   Divider,
 } from '@mui/material';
+import DmAvatar from '@/components/ui/DmAvatar';
 import {
   Message as MessageIcon,
   CheckBox as SelectModeIcon,
@@ -86,16 +86,6 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     } catch {
       return null;
     }
-  };
-
-  const getDmAvatar = (dm: Channel) => {
-    if (dm.recipients && dm.recipients.length > 0) {
-      const recipient = dm.recipients[0];
-      if (recipient.avatar) {
-        return `https://cdn.discordapp.com/avatars/${recipient.id}/${recipient.avatar}.png`;
-      }
-    }
-    return undefined;
   };
 
   const filteredDMs = useMemo(() => {
@@ -251,9 +241,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
               />
             )}
             <ListItemAvatar>
-              <Avatar src={getDmAvatar(dm)} sx={{ width: 40, height: 40 }}>
-                {getDmName(dm)?.[0]?.toUpperCase()}
-              </Avatar>
+              <DmAvatar dm={dm} size={40} />
             </ListItemAvatar>
             <ListItemText
               primary={getDmDisplayName(dm) || getDmName(dm)}
