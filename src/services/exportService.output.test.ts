@@ -458,6 +458,70 @@ describe('HTML Export', () => {
       expect(html).toContain('Jun');
       expect(html).toContain('2026');
     });
+
+    // Backlog #162 — "Exported:" footer + "(edited)" tooltip both used to
+    // hardcode 24-hour `HH:mm`. They now read exportConfig.timeFormat so
+    // 12-hour users see AM/PM and 24-hour users see no AM/PM, matching
+    // the rest of the export.
+    it('"Exported:" header timestamp uses exportConfig.timeFormat (12h shows AM/PM)', async () => {
+      const config: ExportConfig = {
+        ...DEFAULT_EXPORT_CONFIG,
+        timeFormat: 'h:mm aa',
+      };
+      const html = await exportAndGetFile('html', { exportConfig: config });
+      // Find the line containing "Exported:" and assert it carries an
+      // AM/PM marker. Anchoring to the line keeps us from accidentally
+      // matching AM/PM elsewhere in the document.
+      const line = html.split('\n').find((l) => l.includes('Exported:'))!;
+      expect(line).toMatch(/Exported:.*\b(AM|PM)\b/);
+    });
+
+    it('"Exported:" header timestamp drops AM/PM under 24-hour config', async () => {
+      const config: ExportConfig = {
+        ...DEFAULT_EXPORT_CONFIG,
+        timeFormat: 'HH:mm',
+      };
+      const html = await exportAndGetFile('html', { exportConfig: config });
+      const line = html.split('\n').find((l) => l.includes('Exported:'))!;
+      expect(line).not.toMatch(/Exported:.*\b(AM|PM)\b/);
+      // 24-hour clock pattern: two digits, colon, two digits.
+      expect(line).toMatch(/Exported: [A-Z][a-z]{2} \d{2}, \d{4} \d{2}:\d{2}/);
+    });
+
+    it('edited-indicator tooltip uses exportConfig.timeFormat (12h shows AM/PM)', async () => {
+      // msg-2 in the fixture set carries edited_timestamp.
+      const editedMessages = EXPORT_MESSAGES.map((m, idx) =>
+        idx === 1
+          ? { ...m, edited_timestamp: '2026-06-15T15:30:00.000Z' }
+          : m,
+      );
+      const service = getExportService();
+      const html = service.generateHTMLPage(
+        editedMessages as any, 'test', 1, 1, null, 'test', undefined,
+        { ...DEFAULT_EXPORT_CONFIG, timeFormat: 'h:mm aa' },
+      );
+      // Locate the edited-indicator span and check its title attribute.
+      const m = html.match(/<span class="edited-indicator" title="([^"]+)"/);
+      expect(m).not.toBeNull();
+      expect(m![1]).toMatch(/\b(AM|PM)\b/);
+    });
+
+    it('edited-indicator tooltip drops AM/PM under 24-hour config', () => {
+      const editedMessages = EXPORT_MESSAGES.map((m, idx) =>
+        idx === 1
+          ? { ...m, edited_timestamp: '2026-06-15T15:30:00.000Z' }
+          : m,
+      );
+      const service = getExportService();
+      const html = service.generateHTMLPage(
+        editedMessages as any, 'test', 1, 1, null, 'test', undefined,
+        { ...DEFAULT_EXPORT_CONFIG, timeFormat: 'HH:mm' },
+      );
+      const m = html.match(/<span class="edited-indicator" title="([^"]+)"/);
+      expect(m).not.toBeNull();
+      expect(m![1]).not.toMatch(/\b(AM|PM)\b/);
+      expect(m![1]).toMatch(/Edited: [A-Z][a-z]{2} \d{2}, \d{4} \d{2}:\d{2}/);
+    });
   });
 
   describe('Attachment Rendering', () => {

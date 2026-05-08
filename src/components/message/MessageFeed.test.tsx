@@ -343,4 +343,96 @@ describe('<MessageFeed />', () => {
       screen.getByRole('button', { name: /sort newest first/i }),
     ).toBeInTheDocument();
   });
+
+  // Backlog #162 — TIME_FORMAT setting must drive the in-app timestamp
+  // strings in both the chunk header and the per-row gutter clock.
+  // Two messages from the same author within the 7-min chunking window so
+  // we get both surfaces in one render.
+  describe('TIME_FORMAT setting (Backlog #162)', () => {
+    const buildMessages = () => {
+      const alice = createMockUser({ id: 'alice', username: 'alice', global_name: 'Alice' });
+      return [
+        createMockMessage({
+          id: 'm1',
+          author: alice,
+          content: 'first',
+          // 18:42 UTC. Render in any timezone still gives a stable hour
+          // suffix per locale; we assert via the AM/PM marker which is
+          // present iff the format string includes `aa`.
+          timestamp: '2026-04-19T18:42:00.000Z',
+        }),
+        createMockMessage({
+          id: 'm2',
+          author: alice,
+          content: 'second',
+          timestamp: '2026-04-19T18:43:00.000Z',
+        }),
+      ];
+    };
+
+    const stateWithTimeFormat = (timeFormat: string) => {
+      const messages = buildMessages();
+      const base = createAuthenticatedState({
+        message: {
+          ...createAuthenticatedState().message,
+          messages,
+          filteredMessages: messages,
+        },
+      });
+      return {
+        ...base,
+        app: {
+          ...base.app,
+          settings: {
+            ...base.app.settings,
+            timeFormat,
+          },
+        },
+      } as typeof base;
+    };
+
+    it('chunk header timestamp uses 12-hour format by default (h:mm aa)', () => {
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithTimeFormat('h:mm aa'),
+      });
+      const chunk = screen.getByTestId('message-chunk');
+      // The header timestamp lives near the top of the chunk; we just
+      // need to confirm AM/PM shows up somewhere in the chunk's text.
+      expect(chunk.textContent).toMatch(/\b(AM|PM)\b/);
+    });
+
+    it('chunk header timestamp drops AM/PM under 24-hour format (HH:mm)', () => {
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithTimeFormat('HH:mm'),
+      });
+      const chunk = screen.getByTestId('message-chunk');
+      expect(chunk.textContent).not.toMatch(/\b(AM|PM)\b/);
+    });
+
+    it('per-row gutter timestamp uses AM/PM under 12-hour format', () => {
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithTimeFormat('h:mm aa'),
+      });
+      const rows = screen.getAllByTestId('message-feed-row');
+      expect(rows).toHaveLength(2);
+      // Second row carries the gutter timestamp (first row uses the
+      // chunk header instead). Querying by class avoids depending on
+      // the exact wall-clock value, which would be timezone-fragile.
+      const gutter = rows[1].querySelector('.feed-row-gutter-time');
+      expect(gutter).not.toBeNull();
+      expect(gutter?.textContent).toMatch(/\b(AM|PM)\b/);
+    });
+
+    it('per-row gutter timestamp drops AM/PM under 24-hour format', () => {
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithTimeFormat('HH:mm'),
+      });
+      const rows = screen.getAllByTestId('message-feed-row');
+      const gutter = rows[1].querySelector('.feed-row-gutter-time');
+      expect(gutter).not.toBeNull();
+      expect(gutter?.textContent).not.toMatch(/\b(AM|PM)\b/);
+      // 24-hour clock string is HH:mm — two digits, colon, two digits.
+      expect(gutter?.textContent).toMatch(/^\d{2}:\d{2}$/);
+    });
+  });
 });

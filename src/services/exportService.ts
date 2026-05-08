@@ -793,7 +793,7 @@ class ExportService {
 
         // Edited indicator
         const editedHtml = msg.edited_timestamp
-          ? ` <span class="edited-indicator" title="Edited: ${format(new Date(msg.edited_timestamp), 'MMM dd, yyyy HH:mm')}">(edited)</span>`
+          ? ` <span class="edited-indicator" title="Edited: ${format(new Date(msg.edited_timestamp), `MMM dd, yyyy ${exportConfig?.timeFormat || 'HH:mm'}`)}">(edited)</span>`
           : '';
 
         // Resolve attachment paths with rich card-based design
@@ -3118,7 +3118,7 @@ class ExportService {
     <h1>#${channelName}</h1>
     <div class="meta">
       ${messages.length} messages${pageInfo}
-      <span style="float: right;">Exported: ${format(new Date(), 'MMM dd, yyyy HH:mm')}</span>
+      <span style="float: right;">Exported: ${format(new Date(), `MMM dd, yyyy ${exportConfig?.timeFormat || 'HH:mm'}`)}</span>
     </div>
     <div class="search-bar">
       <input class="search-input" id="search-input" type="text" placeholder="Search messages..." aria-label="Search messages" />

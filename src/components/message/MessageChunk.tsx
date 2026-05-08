@@ -90,9 +90,10 @@ const MessageChunk = memo(function MessageChunk({
 
   let headerTimestamp = '';
   try {
+    const timeFmt = settings?.timeFormat || 'h:mm aa';
     headerTimestamp = format(
       new Date(chunk.firstTimestamp),
-      'MMM d, yyyy h:mm a',
+      `MMM d, yyyy ${timeFmt}`,
     );
   } catch {
     headerTimestamp = chunk.firstTimestamp;
@@ -208,6 +209,7 @@ const MessageChunk = memo(function MessageChunk({
             cachedUserMap={cachedUserMap}
             guildId={guildId}
             guildRoles={guildRoles}
+            settings={settings}
             onToggleSelect={onToggleSelect}
             onMentionClick={onMentionClick}
             onOpenAttachments={onOpenAttachments}

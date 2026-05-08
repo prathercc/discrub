@@ -58,6 +58,7 @@ interface MessageFeedRowProps {
   cachedUserMap: ExportUserMap;
   guildId: string | null;
   guildRoles: any;
+  settings: any;
   onToggleSelect: (message: Message) => void;
   onMentionClick: (user: User) => void;
   onOpenAttachments: (message: Message) => void;
@@ -74,6 +75,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
   cachedUserMap,
   guildId,
   guildRoles,
+  settings,
   onToggleSelect,
   onMentionClick,
   onOpenAttachments,
@@ -215,7 +217,10 @@ const MessageFeedRow = memo(function MessageFeedRow({
 
   let shortTimestamp = '';
   try {
-    shortTimestamp = format(new Date(message.timestamp), 'h:mm a');
+    shortTimestamp = format(
+      new Date(message.timestamp),
+      settings?.timeFormat || 'h:mm aa',
+    );
   } catch {
     /* ignore bad timestamps */
   }
