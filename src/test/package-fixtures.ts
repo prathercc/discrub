@@ -43,9 +43,62 @@ export interface FixtureOptions {
     messages: string;
     servers: string;
   }>;
+  /**
+   * Channel-directory naming convention. `'c'` (default) ships dirs as
+   * `c{snowflake}/` — the legacy form Discord used through the 2025-06-14
+   * format change. `'none'` drops the prefix to `{snowflake}/`, matching
+   * current packages (#163). Existing tests default to `'c'` so they
+   * continue exercising the legacy path as a regression guard.
+   */
+  channelDirPrefix?: 'c' | 'none';
+  /**
+   * Per-channel messages-file format. `'csv'` (default) emits the legacy
+   * `messages.csv`; `'json'` emits `messages.json` (Discord's current
+   * format, post-2024-01-03). The parser must support both (#163), so
+   * tests parameterize across this axis. Default is `'csv'` to keep
+   * existing tests on the legacy path.
+   */
+  messagesFormat?: 'csv' | 'json';
 }
 
 const HEADER = 'ID,Timestamp,Contents,Attachments';
+
+/** Single message row used by both CSV and JSON serializers below. */
+type FixtureMessage = {
+  id: string;
+  timestamp: string;
+  /** Pre-CSV-quoted form. JSON serializer un-quotes via a helper. */
+  contentsCsv: string;
+  /** Plain string for JSON. CSV variant lives in `contentsCsv`. */
+  contentsJson: string;
+  attachments: string;
+};
+
+/**
+ * Serializes a list of messages into the chosen format. For CSV we emit
+ * the literal column layout Discord uses; for JSON we emit the post-2024
+ * shape with PascalCase keys (`ID`, `Timestamp`, `Contents`, `Attachments`).
+ *
+ * Matters for #163 regression coverage: the parser must consume both
+ * shapes interchangeably, and these test rows pin the exact wire format
+ * we expect from Discord on either side of the format change.
+ */
+function serializeMessages(format: 'csv' | 'json', rows: FixtureMessage[]): string {
+  if (format === 'json') {
+    return JSON.stringify(
+      rows.map((r) => ({
+        ID: r.id,
+        Timestamp: r.timestamp,
+        Contents: r.contentsJson,
+        Attachments: r.attachments,
+      })),
+    );
+  }
+  return [
+    HEADER,
+    ...rows.map((r) => `${r.id},${r.timestamp},${r.contentsCsv},${r.attachments}`),
+  ].join('\n');
+}
 
 /** Builds an in-memory Blob that mimics a minimal Discord data package. */
 export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Blob> {
@@ -61,7 +114,11 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     wrapperDir = '',
     capitalizeTopDirs = false,
     localeOverride,
+    channelDirPrefix = 'c',
+    messagesFormat = 'csv',
   } = opts;
+  const dirP = channelDirPrefix === 'c' ? 'c' : '';
+  const msgExt = messagesFormat;
 
   // Mirror Discord's variant where top-level directory names ship capitalized
   // (`Account/`, `Messages/`, `Servers/`). Inner segments stay lowercase.
@@ -119,7 +176,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
 
   // Guild text channel
   put(
-    `${messages}/c200/channel.json`,
+    `${messages}/${dirP}200/channel.json`,
     JSON.stringify({
       id: '200',
       type: 0,
@@ -128,18 +185,35 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     }),
   );
   put(
-    `${messages}/c200/messages.csv`,
-    [
-      HEADER,
-      '1,2022-07-28 22:30:52.800000+00:00,hello,',
-      '2,2022-07-28 22:31:00.000000+00:00,"with, comma",',
-      '3,2022-07-28 22:32:00.000000+00:00,"multi\nline",',
-    ].join('\n'),
+    `${messages}/${dirP}200/messages.${msgExt}`,
+    serializeMessages(messagesFormat, [
+      {
+        id: '1',
+        timestamp: '2022-07-28 22:30:52.800000+00:00',
+        contentsCsv: 'hello',
+        contentsJson: 'hello',
+        attachments: '',
+      },
+      {
+        id: '2',
+        timestamp: '2022-07-28 22:31:00.000000+00:00',
+        contentsCsv: '"with, comma"',
+        contentsJson: 'with, comma',
+        attachments: '',
+      },
+      {
+        id: '3',
+        timestamp: '2022-07-28 22:32:00.000000+00:00',
+        contentsCsv: '"multi\nline"',
+        contentsJson: 'multi\nline',
+        attachments: '',
+      },
+    ]),
   );
 
   // DM
   put(
-    `${messages}/c300/channel.json`,
+    `${messages}/${dirP}300/channel.json`,
     JSON.stringify({
       id: '300',
       type: 1,
@@ -147,34 +221,56 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     }),
   );
   put(
-    `${messages}/c300/messages.csv`,
-    [HEADER, '10,2022-08-01 00:00:00.000000+00:00,yo,'].join('\n'),
+    `${messages}/${dirP}300/messages.${msgExt}`,
+    serializeMessages(messagesFormat, [
+      {
+        id: '10',
+        timestamp: '2022-08-01 00:00:00.000000+00:00',
+        contentsCsv: 'yo',
+        contentsJson: 'yo',
+        attachments: '',
+      },
+    ]),
   );
 
   if (includeOrphanChannel) {
     put(
-      `${messages}/c400/channel.json`,
+      `${messages}/${dirP}400/channel.json`,
       JSON.stringify({ id: '400', type: 0 }),
     );
     put(
-      `${messages}/c400/messages.csv`,
-      [HEADER, '20,2020-01-01 00:00:00.000000+00:00,orphan msg,'].join('\n'),
+      `${messages}/${dirP}400/messages.${msgExt}`,
+      serializeMessages(messagesFormat, [
+        {
+          id: '20',
+          timestamp: '2020-01-01 00:00:00.000000+00:00',
+          contentsCsv: 'orphan msg',
+          contentsJson: 'orphan msg',
+          attachments: '',
+        },
+      ]),
     );
   }
 
   if (includeGroupDm) {
     put(
-      `${messages}/c500/channel.json`,
+      `${messages}/${dirP}500/channel.json`,
       JSON.stringify({
         id: '500',
         type: 3,
         recipients: [userId, '888', '777'],
       }),
     );
-    put(`${messages}/c500/messages.csv`, HEADER);
+    put(
+      `${messages}/${dirP}500/messages.${msgExt}`,
+      serializeMessages(messagesFormat, []),
+    );
   }
 
   if (includeMalformedCsv) {
+    // Stays CSV-shaped even when messagesFormat is 'json' — this fixture
+    // is specifically about exercising the CSV parser's malformed-input
+    // path, so it intentionally writes a `.csv` file regardless.
     put(
       `${messages}/c600/channel.json`,
       JSON.stringify({

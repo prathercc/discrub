@@ -1,5 +1,6 @@
 import { unzipSync, strFromU8 } from 'fflate';
 import { countCsvRows, parseMessagesCsv } from '@/utils/csvParser';
+import { countJsonMessages, parseMessagesJson } from '@/utils/jsonParser';
 import {
   PACKAGE_CHANNEL_TYPE,
   type PackageChannel,
@@ -23,9 +24,14 @@ const SKIPPED_PREFIXES = ['activity/', 'activities_e/', 'activities_w/', 'progra
  * dir name. Discord's structural directories localize (`messages/` →
  * `nachrichten/` etc.), so the regex can't be a static literal — see
  * Backlog #157.
+ *
+ * The `c?` allows both legacy `c{snowflake}/` and current `{snowflake}/`
+ * channel directories. Discord made the `c` prefix optional in their
+ * 2025-06-14 export-format change (#163); older packages still ship with
+ * the prefix and must keep parsing.
  */
 function buildChannelDirRegex(messagesDir: string): RegExp {
-  return new RegExp(`^${escapeRegex(messagesDir)}\\/c(\\d+)\\/`);
+  return new RegExp(`^${escapeRegex(messagesDir)}\\/c?(\\d+)\\/`);
 }
 
 /**
@@ -208,7 +214,15 @@ function sniffStructure(index: CaseIndex): StructureSniff | null {
     const head = rel.slice(0, slash);
     if (head === accountDir) continue;
     const tail = rel.slice(slash + 1);
-    if (tail === 'index.json' || /^c\d+\//.test(tail)) {
+    // Anchor on the file *inside* the channel dir (channel.json or
+     // messages.{csv,json}), not just on the dir-name shape. The bare
+     // `^c?\d+\/` form is ambiguous with the servers dir's `{snowflake}/`
+     // children (`servers/100/guild.json` would otherwise match), so we
+     // require the discriminating filename to be present.
+    if (
+      tail === 'index.json' ||
+      /^c?\d+\/(channel\.json|messages\.(csv|json))$/.test(tail)
+    ) {
       messagesDir = head;
       break;
     }
@@ -303,8 +317,13 @@ export async function parsePackageZip(file: File | Blob): Promise<ParsedPackage>
 }
 
 /**
- * Reads and parses a single channel's messages.csv on demand.
+ * Reads and parses a single channel's messages file on demand.
  * Callers (the packageSlice) cache parsed results keyed by channel ID.
+ *
+ * Routes through the same `resolveChannelFiles` helper as the initial
+ * scan so the prefix + format precedence is identical: legacy `c{id}/`
+ * directory before bare `{id}/`, and current `messages.json` before
+ * legacy `messages.csv` (#163).
  */
 export async function loadChannelMessages(
   file: File | Blob,
@@ -314,14 +333,17 @@ export async function loadChannelMessages(
   const caseIndex = buildCaseIndex(zip);
   const sniff = sniffStructure(caseIndex);
   if (!sniff) {
-    throw new PackageParseError(`messages.csv missing for channel ${channelId}`);
+    throw new PackageParseError(`messages file missing for channel ${channelId}`);
   }
   const { prefix, aliases } = sniff;
-  const entry = resolveStructural(zip, caseIndex, prefix, aliases, `messages/c${channelId}/messages.csv`);
-  if (!entry) {
-    throw new PackageParseError(`messages.csv missing for channel ${channelId}`);
+  const files = resolveChannelFiles(zip, caseIndex, prefix, aliases, channelId);
+  if (!files) {
+    throw new PackageParseError(`messages file missing for channel ${channelId}`);
   }
-  return parseMessagesCsv(strFromU8(entry));
+  const text = strFromU8(files.messagesEntry);
+  return files.messagesFormat === 'json'
+    ? parseMessagesJson(text)
+    : parseMessagesCsv(text);
 }
 
 /**
@@ -428,6 +450,71 @@ async function readChannelNameIndex(
   }
 }
 
+/**
+ * Per-channel file bundle, after we've sorted out which directory-prefix
+ * variant (legacy `c{id}` vs. current bare `{id}`) and which messages-file
+ * format (legacy `.csv` vs. current `.json`) this particular channel uses.
+ * Both axes vary independently across Discord's format-change history (#163);
+ * a single package may even mix shapes if it was re-exported across versions.
+ */
+type ChannelFiles = {
+  channelJson: Uint8Array;
+  messagesEntry: Uint8Array;
+  messagesFormat: 'json' | 'csv';
+};
+
+/**
+ * Resolve the `channel.json` + messages-file pair for a single channel ID,
+ * trying every documented Discord format variant. Returns null only if the
+ * channel dir is missing entirely or has neither a `messages.json` nor a
+ * `messages.csv` companion to its `channel.json`.
+ *
+ * Precedence:
+ *   1. Directory prefix: `c{id}/` (legacy) → bare `{id}/` (current). Trying
+ *      legacy first keeps the fast path unchanged for the bulk of packages
+ *      our test corpus and existing users have.
+ *   2. Messages format: `.json` (current, post-2024-01-03) → `.csv` (legacy).
+ *      Preferring JSON when both exist handles re-exports cleanly — the
+ *      JSON file represents the user's most-recent export, the CSV is
+ *      stale leftover.
+ */
+function resolveChannelFiles(
+  zip: PackageZip,
+  index: CaseIndex,
+  prefix: string,
+  aliases: StructuralAliases,
+  channelId: string,
+): ChannelFiles | null {
+  const dirPrefixes = ['c', ''];
+  const formats: Array<'json' | 'csv'> = ['json', 'csv'];
+
+  for (const dp of dirPrefixes) {
+    const channelJson = resolveStructural(
+      zip,
+      index,
+      prefix,
+      aliases,
+      `messages/${dp}${channelId}/channel.json`,
+    );
+    if (!channelJson) continue;
+
+    for (const format of formats) {
+      const messagesEntry = resolveStructural(
+        zip,
+        index,
+        prefix,
+        aliases,
+        `messages/${dp}${channelId}/messages.${format}`,
+      );
+      if (messagesEntry) {
+        return { channelJson, messagesEntry, messagesFormat: format };
+      }
+    }
+  }
+
+  return null;
+}
+
 async function readChannels(
   zip: PackageZip,
   index: CaseIndex,
@@ -452,19 +539,22 @@ async function readChannels(
   const channels: PackageChannel[] = [];
 
   for (const id of channelDirs) {
-    const channelJson = resolveStructural(zip, index, prefix, aliases, `messages/c${id}/channel.json`);
-    const csvEntry = resolveStructural(zip, index, prefix, aliases, `messages/c${id}/messages.csv`);
-    if (!channelJson || !csvEntry) continue;
+    const files = resolveChannelFiles(zip, index, prefix, aliases, id);
+    if (!files) continue;
 
     let raw: RawChannelJson;
     try {
-      raw = JSON.parse(strFromU8(channelJson)) as RawChannelJson;
+      raw = JSON.parse(strFromU8(files.channelJson)) as RawChannelJson;
     } catch {
       continue;
     }
 
     const type = raw.type as PackageChannelType;
-    const messageCount = countCsvRows(strFromU8(csvEntry));
+    const messagesText = strFromU8(files.messagesEntry);
+    const messageCount =
+      files.messagesFormat === 'json'
+        ? countJsonMessages(messagesText)
+        : countCsvRows(messagesText);
 
     const guildId = raw.guild?.id;
     const guildName = guildId

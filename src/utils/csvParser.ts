@@ -37,8 +37,12 @@ export function parseMessagesCsv(csv: string): PackageMessage[] {
  * URL-encoded), so a naive whitespace split is safe. Empty / missing
  * cell → `[]`. Filter empty fragments to defend against trailing
  * whitespace or double spaces in malformed exports.
+ *
+ * Exported so the JSON message parser (#163) can reuse the same
+ * splitting rule — Discord's `Attachments` field carries the same
+ * whitespace-separated URL format in both CSV cells and JSON values.
  */
-function parseAttachmentCell(cell: string | undefined): string[] {
+export function parseAttachmentCell(cell: string | undefined): string[] {
   if (!cell) return [];
   return cell.split(/\s+/).filter((u) => u.length > 0);
 }

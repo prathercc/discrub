@@ -287,6 +287,146 @@ describe('parsePackageZip', () => {
     });
   });
 
+  // jsdom's Blob lacks `.arrayBuffer()`, so route reads through the
+  // FileReader path that the production parser also uses. Local helper
+  // here keeps the test file self-contained.
+  function readBlobBytes(blob: Blob): Promise<Uint8Array> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(new Uint8Array(reader.result as ArrayBuffer));
+      reader.onerror = () => reject(reader.error ?? new Error('FileReader failed'));
+      reader.readAsArrayBuffer(blob);
+    });
+  }
+
+  // ─── Backlog #163: Discord 2025-06-14 format change ─────────────────
+  // Two independent format axes drift across this change. The fixture
+  // builder defaults still emit the legacy shape (`c{id}/messages.csv`)
+  // so every test above this block doubles as a regression guard for
+  // the old path; this block pins all four combinations explicitly,
+  // plus the lazy-load path through both formats and the precedence
+  // rule when both files exist for one channel.
+  describe('post-2025-06-14 format variants (Backlog #163)', () => {
+    it('parses a current-format package (bare-snowflake dirs + messages.json) — Coolsurf6 case', async () => {
+      const blob = await buildFixturePackage({
+        channelDirPrefix: 'none',
+        messagesFormat: 'json',
+      });
+      const parsed = await parsePackageZip(blob);
+
+      expect(parsed.channels).toHaveLength(2);
+      expect(parsed.totalMessages).toBe(4);
+      expect(parsed.channels.find((c) => c.id === '200')?.messageCount).toBe(3);
+      expect(parsed.channels.find((c) => c.id === '300')?.messageCount).toBe(1);
+    });
+
+    it('parses a transitional package (bare-snowflake dirs + messages.csv)', async () => {
+      const blob = await buildFixturePackage({
+        channelDirPrefix: 'none',
+        messagesFormat: 'csv',
+      });
+      const parsed = await parsePackageZip(blob);
+
+      expect(parsed.channels).toHaveLength(2);
+      expect(parsed.totalMessages).toBe(4);
+    });
+
+    it('parses a re-exported package (legacy c-prefix dirs + new messages.json)', async () => {
+      const blob = await buildFixturePackage({
+        channelDirPrefix: 'c',
+        messagesFormat: 'json',
+      });
+      const parsed = await parsePackageZip(blob);
+
+      expect(parsed.channels).toHaveLength(2);
+      expect(parsed.totalMessages).toBe(4);
+    });
+
+    it('lazy-loads messages.json for a bare-snowflake channel', async () => {
+      const blob = await buildFixturePackage({
+        channelDirPrefix: 'none',
+        messagesFormat: 'json',
+      });
+      const rows = await loadChannelMessages(blob, '200');
+
+      expect(rows).toHaveLength(3);
+      expect(rows.map((r) => r.content)).toEqual([
+        'hello',
+        'with, comma',
+        'multi\nline',
+      ]);
+    });
+
+    it('lazy-loads messages.json for a c-prefix channel', async () => {
+      const blob = await buildFixturePackage({
+        channelDirPrefix: 'c',
+        messagesFormat: 'json',
+      });
+      const rows = await loadChannelMessages(blob, '200');
+      expect(rows).toHaveLength(3);
+    });
+
+    it('prefers messages.json when both .json and .csv exist for the same channel', async () => {
+      // Construct a fixture by combining the JSON-format build with a
+      // sentinel .csv file at the same channel path. The parser must
+      // pick JSON (current format) when both are present so re-exports
+      // don't accidentally serve stale CSV data.
+      const baseBlob = await buildFixturePackage({
+        channelDirPrefix: 'c',
+        messagesFormat: 'json',
+      });
+      const buf = await readBlobBytes(baseBlob);
+      const { unzipSync, zipSync } = await import('fflate');
+      const files = unzipSync(new Uint8Array(buf));
+      // Inject a deliberately-different CSV alongside the JSON file
+      // so we can detect via row count which the parser used.
+      files['messages/c200/messages.csv'] = new TextEncoder().encode(
+        'ID,Timestamp,Contents,Attachments\n9999,2024-01-01 00:00:00+00:00,SHOULD_NOT_APPEAR,',
+      );
+      const merged = zipSync(files);
+      const blob = new Blob([merged as BlobPart]);
+
+      const rows = await loadChannelMessages(blob, '200');
+      // JSON file has 3 rows; CSV decoy has 1. Picking JSON proves precedence.
+      expect(rows).toHaveLength(3);
+      expect(rows.map((r) => r.id)).toEqual(['1', '2', '3']);
+    });
+
+    it('handles a hybrid package where some channels are c-prefixed and others bare', async () => {
+      // Compose a hybrid by splicing one channel from a 'none'-prefix
+      // build into a 'c'-prefix base. Mirrors what a re-export across
+      // Discord's format change might produce.
+      const cBlob = await buildFixturePackage({
+        channelDirPrefix: 'c',
+        messagesFormat: 'csv',
+      });
+      const noneBlob = await buildFixturePackage({
+        channelDirPrefix: 'none',
+        messagesFormat: 'json',
+      });
+      const { unzipSync, zipSync } = await import('fflate');
+      const cFiles = unzipSync(await readBlobBytes(cBlob));
+      const noneFiles = unzipSync(await readBlobBytes(noneBlob));
+
+      // Drop c300/* and replace with bare 300/* from the none build.
+      delete cFiles['messages/c300/channel.json'];
+      delete cFiles['messages/c300/messages.csv'];
+      cFiles['messages/300/channel.json'] = noneFiles['messages/300/channel.json'];
+      cFiles['messages/300/messages.json'] = noneFiles['messages/300/messages.json'];
+
+      const merged = zipSync(cFiles);
+      const blob = new Blob([merged as BlobPart]);
+      const parsed = await parsePackageZip(blob);
+
+      expect(parsed.channels).toHaveLength(2);
+      expect(parsed.channels.map((c) => c.id).sort()).toEqual(['200', '300']);
+      // Channel 200 still resolves through the c-prefix CSV path,
+      // channel 300 through the bare-snowflake JSON path. The hybrid
+      // is transparent at the parser boundary.
+      expect(parsed.totalMessages).toBe(4);
+    });
+  });
+
   it('throws on missing account/user.json', async () => {
     const blob = await buildFixturePackage({ omitUserJson: true });
     await expect(parsePackageZip(blob)).rejects.toBeInstanceOf(PackageParseError);
