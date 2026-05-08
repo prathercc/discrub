@@ -10,13 +10,20 @@ interface DmAvatarProps extends Omit<AvatarProps, 'src' | 'children'> {
 }
 
 /**
- * Recipient avatar for a DM or group DM (#166). Single-recipient DMs
- * render one Avatar with the recipient's icon (or initial fallback).
- * Group DMs render a stacked AvatarGroup that surfaces up to
- * `maxGroup` recipients with the standard "+N" overflow.
+ * Recipient avatar for a DM or group DM (#166, #167).
  *
- * Mirrors the URL-construction in DMList so the channel-list and the
- * channel-toolbar header pull from the same source of truth.
+ * Resolution order:
+ *   1. Group DM with a custom `channel.icon` set — render that icon
+ *      via Discord's channel-icons CDN. This matches Discord's own
+ *      client which surfaces the owner-uploaded icon as the primary
+ *      identity for the group.
+ *   2. Single-recipient DM — one Avatar with the recipient's icon
+ *      (or initial fallback).
+ *   3. Group DM without a custom icon — stacked AvatarGroup with
+ *      "+N" overflow when recipient count exceeds `maxGroup`.
+ *
+ * Mirrors the URL construction in DMList so the channel-list and
+ * the channel-toolbar header pull from the same source of truth.
  */
 export const DmAvatar = ({
   dm,
@@ -26,9 +33,25 @@ export const DmAvatar = ({
   ...rest
 }: DmAvatarProps) => {
   const recipients = dm?.recipients ?? [];
+  const isGroup = recipients.length > 1;
 
   const avatarUrl = (id: string, hash: string | null | undefined) =>
     hash ? `https://cdn.discordapp.com/avatars/${id}/${hash}.png` : undefined;
+
+  // Group DM with an owner-uploaded custom icon (#167). The CDN
+  // path for these is /channel-icons/, distinct from /avatars/
+  // for users and /icons/ for guilds.
+  if (isGroup && dm?.icon && dm.id) {
+    return (
+      <Avatar
+        src={`https://cdn.discordapp.com/channel-icons/${dm.id}/${dm.icon}.png`}
+        sx={{ width: size, height: size, ...(sx as object) }}
+        {...rest}
+      >
+        {recipients[0]?.username?.[0]?.toUpperCase() ?? '#'}
+      </Avatar>
+    );
+  }
 
   if (recipients.length <= 1) {
     const r = recipients[0];
@@ -43,9 +66,9 @@ export const DmAvatar = ({
     );
   }
 
-  // Group DMs — show the first `maxGroup` recipients stacked. MUI
+  // Group DMs without a custom icon — stacked recipients. MUI's
   // AvatarGroup auto-renders a "+N" surrogate when the array is
-  // longer than `max`, which is exactly the affordance we want.
+  // longer than `max`.
   return (
     <Box sx={{ display: 'inline-flex', ...(sx as object) }}>
       <AvatarGroup

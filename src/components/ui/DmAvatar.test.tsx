@@ -68,4 +68,41 @@ describe('DmAvatar', () => {
     render(<DmAvatar dm={null} />);
     expect(screen.getByText('#')).toBeInTheDocument();
   });
+
+  // Backlog #167: prefer the group-DM custom icon when the channel
+  // owner has uploaded one — that's how Discord's own client renders
+  // the group's identity, and it matches user expectations better
+  // than the recipient stack.
+  it('uses the channel-icons CDN URL for a group DM with a custom icon', () => {
+    const dm = {
+      id: 'group-1',
+      type: 3,
+      icon: 'iconhash123',
+      recipients: [
+        recipient('1', 'a', null),
+        recipient('2', 'b', null),
+        recipient('3', 'c', null),
+      ],
+    } as unknown as Channel;
+    render(<DmAvatar dm={dm} />);
+    const img = screen.getByRole('img');
+    expect(img).toHaveAttribute(
+      'src',
+      'https://cdn.discordapp.com/channel-icons/group-1/iconhash123.png',
+    );
+  });
+
+  it('falls back to the recipient stack when group DM has no custom icon', () => {
+    const dm = {
+      id: 'group-noicon',
+      type: 3,
+      icon: null,
+      recipients: [
+        recipient('1', 'a', 'h1'),
+        recipient('2', 'b', 'h2'),
+      ],
+    } as unknown as Channel;
+    render(<DmAvatar dm={dm} />);
+    expect(screen.getAllByRole('img').length).toBe(2);
+  });
 });
