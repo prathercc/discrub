@@ -10,12 +10,8 @@ import {
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { selectDeleteDelay, selectDelayModifier, setDiscrubCancelled } from '@features/app/appSlice';
 import { addStatusEntry } from '@features/status/statusSlice';
-import {
-  postMessage,
-  addSelfReaction,
-  editMessageContent,
-  pinMessage,
-} from '@/services/seedService';
+import { getDiscordService } from '@/services/discordService';
+import type { MessageCreate } from 'discrub-core/types/discord-types';
 import {
   generateMessageContent,
   randomReactionEmoji,
@@ -57,6 +53,7 @@ export const seedChannelMessages = createAsyncThunk<
     const deleteDelay = selectDeleteDelay(state);
     const delayModifier = selectDelayModifier(state);
 
+    const discordService = getDiscordService();
     let posted = 0;
     let errored = 0;
     let cancelled = false;
@@ -111,7 +108,7 @@ export const seedChannelMessages = createAsyncThunk<
             random,
           );
 
-          const body: Parameters<typeof postMessage>[2] = { content };
+          const body: MessageCreate = { content };
           if (replyTarget) {
             body.message_reference = {
               message_id: replyTarget,
@@ -120,14 +117,14 @@ export const seedChannelMessages = createAsyncThunk<
             };
           }
 
-          const result = await postMessage(token, ch.id, body);
-          if (!result.ok || !result.data) {
+          const result = await discordService.postMessage(token, ch.id, body);
+          if (!result.success || !result.data) {
             errored++;
             dispatch(addStatusEntry({
               level: 'error',
               message:
                 `Couldn't post message ${i + 1} in "#${ch.name}" ` +
-                `(HTTP ${result.status || 'network'}${result.error ? `: ${result.error}` : ''}).`,
+                `(HTTP ${result.status || 'network'}).`,
             }));
           } else {
             posted++;
@@ -135,10 +132,12 @@ export const seedChannelMessages = createAsyncThunk<
 
             // Side effects: reaction / edit / pin. Each adds an extra
             // API call with the same delay before it. Distribute so
-            // not every message gets every effect.
+            // not every message gets every effect. editMessage applies
+            // its own withDelay("delete") inside discrub-core so we
+            // skip our external delay before that one specifically.
             if (options.includeReactions && random() < 0.3) {
               await postMessageDelay(deleteDelay, delayModifier, getState);
-              await addSelfReaction(
+              await discordService.addReaction(
                 token,
                 ch.id,
                 result.data.id,
@@ -146,17 +145,16 @@ export const seedChannelMessages = createAsyncThunk<
               );
             }
             if (options.includeEdits && random() < 0.15) {
-              await postMessageDelay(deleteDelay, delayModifier, getState);
-              await editMessageContent(
+              await discordService.editMessage(
                 token,
-                ch.id,
                 result.data.id,
-                `${content} (edited)`,
+                { content: `${content} (edited)` },
+                ch.id,
               );
             }
             if (options.includePins && random() < 0.05) {
               await postMessageDelay(deleteDelay, delayModifier, getState);
-              await pinMessage(token, ch.id, result.data.id);
+              await discordService.pinMessage(token, ch.id, result.data.id);
               // Pin failures are normal (50/channel cap, missing
               // perms) — silent so the run keeps moving.
             }

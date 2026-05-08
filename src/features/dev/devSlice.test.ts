@@ -20,11 +20,13 @@ const mockAddReaction = vi.fn();
 const mockEdit = vi.fn();
 const mockPin = vi.fn();
 
-vi.mock('@/services/seedService', () => ({
-  postMessage: (...args: unknown[]) => mockPostMessage(...args),
-  addSelfReaction: (...args: unknown[]) => mockAddReaction(...args),
-  editMessageContent: (...args: unknown[]) => mockEdit(...args),
-  pinMessage: (...args: unknown[]) => mockPin(...args),
+vi.mock('@/services/discordService', () => ({
+  getDiscordService: () => ({
+    postMessage: (...args: unknown[]) => mockPostMessage(...args),
+    addReaction: (...args: unknown[]) => mockAddReaction(...args),
+    editMessage: (...args: unknown[]) => mockEdit(...args),
+    pinMessage: (...args: unknown[]) => mockPin(...args),
+  }),
 }));
 
 vi.mock('@/utils/operationLoopUtils', () => ({
@@ -117,7 +119,7 @@ describe('seedChannelMessages', () => {
 
   it('posts the requested count to one channel', async () => {
     mockPostMessage.mockImplementation(async () => ({
-      ok: true, status: 200, data: { id: `m${mockPostMessage.mock.calls.length}` },
+      success: true, status: 200, data: { id: `m${mockPostMessage.mock.calls.length}` },
     }));
     const store = makeStore();
     await store.dispatch(
@@ -131,7 +133,7 @@ describe('seedChannelMessages', () => {
   });
 
   it('caps countPerChannel at 100', async () => {
-    mockPostMessage.mockImplementation(async () => ({ ok: true, status: 200, data: { id: 'x' } }));
+    mockPostMessage.mockImplementation(async () => ({ success: true, status: 200, data: { id: 'x' } }));
     const store = makeStore();
     await store.dispatch(
       seedChannelMessages({
@@ -144,7 +146,7 @@ describe('seedChannelMessages', () => {
   });
 
   it('iterates channels sequentially × countPerChannel', async () => {
-    mockPostMessage.mockImplementation(async () => ({ ok: true, status: 200, data: { id: 'x' } }));
+    mockPostMessage.mockImplementation(async () => ({ success: true, status: 200, data: { id: 'x' } }));
     const store = makeStore();
     await store.dispatch(
       seedChannelMessages({
@@ -161,7 +163,7 @@ describe('seedChannelMessages', () => {
   });
 
   it('isSeeding flips true during run, false after', async () => {
-    mockPostMessage.mockImplementation(async () => ({ ok: true, status: 200, data: { id: 'x' } }));
+    mockPostMessage.mockImplementation(async () => ({ success: true, status: 200, data: { id: 'x' } }));
     const store = makeStore();
     const promise = store.dispatch(
       seedChannelMessages({
@@ -180,7 +182,7 @@ describe('seedChannelMessages', () => {
     // 0.05 < 0.15 (mention), 0.05 < 0.30 (reaction), 0.05 < 0.20 (reply
     // — needs a prior post though), 0.05 < 0.15 (edit), 0.04 < 0.05 (pin).
     const rng = () => 0.04;
-    mockPostMessage.mockImplementation(async () => ({ ok: true, status: 200, data: { id: 'x' } }));
+    mockPostMessage.mockImplementation(async () => ({ success: true, status: 200, data: { id: 'x' } }));
     const store = makeStore();
     await store.dispatch(
       seedChannelMessages({
@@ -203,7 +205,7 @@ describe('seedChannelMessages', () => {
   });
 
   it('counts errors when postMessage returns ok: false', async () => {
-    mockPostMessage.mockImplementation(async () => ({ ok: false, status: 403, error: 'no perms' }));
+    mockPostMessage.mockImplementation(async () => ({ success: false, status: 403, error: 'no perms' }));
     const store = makeStore();
     const action = await store.dispatch(
       seedChannelMessages({
