@@ -298,7 +298,12 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
   MuiTooltip: {
     defaultProps: {
       arrow: true,
-      enterDelay: 300,
+      // 0ms enter matches the pre-#142 snappy feel that the call
+      // sites (TopBar, PauseResumeControls, etc.) explicitly opt
+      // into via `enterDelay={0}`. Keeping it as the default lets
+      // every Tooltip pick up the polished style without each call
+      // site having to re-pass the prop.
+      enterDelay: 0,
       leaveDelay: 0,
     },
     styleOverrides: {

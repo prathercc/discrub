@@ -229,12 +229,10 @@ export const darkTheme = createTheme({
       },
     },
     MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
-    MuiTooltip: {
-      defaultProps: { enterDelay: 0 },
-      styleOverrides: {
-        tooltip: { backgroundColor: 'rgba(0, 0, 0, 0.9)', backdropFilter: 'blur(10px)', fontSize: '0.8125rem' },
-      },
-    },
+    // MuiTooltip styling lives in `componentOverrides` (overrides.ts).
+    // An earlier inline override here was clobbering the polished
+    // glass/blur style by virtue of object-key precedence after the
+    // spread, leaving every Tooltip with the basic black backdrop.
   },
 });
 applyShapeExtensions(darkTheme);
@@ -344,12 +342,10 @@ export const lightTheme = createTheme({
       },
     },
     MuiPaper: { styleOverrides: { root: { backgroundImage: 'none' } } },
-    MuiTooltip: {
-      defaultProps: { enterDelay: 0 },
-      styleOverrides: {
-        tooltip: { backgroundColor: 'rgba(0, 0, 0, 0.85)', backdropFilter: 'blur(10px)', fontSize: '0.8125rem', color: '#fff' },
-      },
-    },
+    // MuiTooltip styling lives in `componentOverrides` — same reason
+    // as the darkTheme block above. The previous light-mode inline
+    // override forced a dark backdrop with white text, which conflicts
+    // with the polished mode-aware paper style.
   },
 });
 applyShapeExtensions(lightTheme);
