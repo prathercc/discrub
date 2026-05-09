@@ -397,6 +397,15 @@ function sniffStructure(index: CaseIndex): StructureSniff | null {
 
   if (!accountDir) return null;
 
+  // Sniff messagesDir by REQUIRING a channel-file pattern child
+  // (`{snowflake}/(channel.json|messages.{csv,json})`). The previous
+  // `tail === 'index.json'` short-circuit was ambiguous: Discord's
+  // current package format ships both `servers/index.json` and
+  // `messages/index.json`, so whichever the iterator encountered
+  // first won, and packages with `servers/index.json` ended up
+  // setting messagesDir='servers' — every channel resolution then
+  // failed silently. Channel-file pattern is sufficient and
+  // unambiguous.
   let messagesDir: string | null = null;
   for (const lower of index.keys()) {
     if (prefix && !lower.startsWith(prefix)) continue;
@@ -406,10 +415,7 @@ function sniffStructure(index: CaseIndex): StructureSniff | null {
     const head = rel.slice(0, slash);
     if (head === accountDir) continue;
     const tail = rel.slice(slash + 1);
-    if (
-      tail === 'index.json' ||
-      /^c?\d+\/(channel\.json|messages\.(csv|json))$/.test(tail)
-    ) {
+    if (/^c?\d+\/(channel\.json|messages\.(csv|json))$/.test(tail)) {
       messagesDir = head;
       break;
     }

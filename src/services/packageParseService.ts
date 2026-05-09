@@ -200,11 +200,17 @@ function sniffStructure(index: CaseIndex): StructureSniff | null {
 
   if (!accountDir) return null;
 
-  // Sniff the messages dir at the same depth as account: look for
-  // `{prefix}{messagesDir}/index.json` OR `{prefix}{messagesDir}/c{id}/`
-  // children. `index.json` is the cleaner anchor; the channel-dir
-  // fallback matters for unusually-pruned packages where the user
-  // deleted index.json but left the channel dirs intact.
+  // Sniff the messages dir by REQUIRING a channel-file pattern child
+  // (`{snowflake}/(channel.json|messages.{csv,json})`). Discord's
+  // current package format ships both `servers/index.json` and
+  // `messages/index.json`, so the previous `tail === 'index.json'`
+  // short-circuit was ambiguous: whichever the iterator encountered
+  // first won, and packages with `servers/index.json` ended up
+  // setting messagesDir='servers' — every channel resolution then
+  // failed silently. Anchor on the file *inside* the channel dir;
+  // the bare `^c?\d+\/` form is ambiguous with the servers dir's
+  // `{snowflake}/` children (servers/100/guild.json would otherwise
+  // match), so we require the discriminating filename to be present.
   let messagesDir: string | null = null;
   for (const lower of index.keys()) {
     if (prefix && !lower.startsWith(prefix)) continue;
@@ -214,15 +220,7 @@ function sniffStructure(index: CaseIndex): StructureSniff | null {
     const head = rel.slice(0, slash);
     if (head === accountDir) continue;
     const tail = rel.slice(slash + 1);
-    // Anchor on the file *inside* the channel dir (channel.json or
-     // messages.{csv,json}), not just on the dir-name shape. The bare
-     // `^c?\d+\/` form is ambiguous with the servers dir's `{snowflake}/`
-     // children (`servers/100/guild.json` would otherwise match), so we
-     // require the discriminating filename to be present.
-    if (
-      tail === 'index.json' ||
-      /^c?\d+\/(channel\.json|messages\.(csv|json))$/.test(tail)
-    ) {
+    if (/^c?\d+\/(channel\.json|messages\.(csv|json))$/.test(tail)) {
       messagesDir = head;
       break;
     }

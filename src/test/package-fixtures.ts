@@ -181,6 +181,16 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     JSON.stringify({ id: '100', name: 'Test Guild' }),
   );
 
+  // Discord's current package format ships `servers/index.json` alongside
+  // `messages/index.json`. Both being present can confuse a sniffer that
+  // relies on `tail === 'index.json'` alone — the structural sniff has to
+  // disambiguate by content. Added to the default fixture so every test
+  // exercises the realistic shape (#162 dogfood regression).
+  put(
+    `${servers}/index.json`,
+    JSON.stringify({ '100': 'Test Guild' }),
+  );
+
   put(
     `${messages}/index.json`,
     JSON.stringify({

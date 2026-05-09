@@ -259,6 +259,22 @@ describe('streamPackageToStorage', () => {
       expect(orphan?.guildId).toBeUndefined();
     });
 
+    it('regression: disambiguates messages/ from servers/ when both have index.json', async () => {
+      // The default fixture now ships both `servers/index.json` and
+      // `messages/index.json` (matches Discord's current export format).
+      // The sniff must pick the dir with channel-file children, not the
+      // first dir whose name happens to have an index.json. Pre-fix this
+      // returned 0 channels on the user's real-world dogfood package.
+      const blob = await buildFixturePackage();
+      const parsed = await streamPackageToStorage(blob);
+      expect(parsed.channels.length).toBe(2);
+      expect(parsed.totalMessages).toBe(4);
+      // pkg:msgs:{userId}:{channelId} keys must exist for every channel.
+      const ch200 = await storage.package.get('pkg:msgs:253286221395001345:200');
+      expect(Array.isArray(ch200)).toBe(true);
+      expect((ch200 as any[]).length).toBe(3);
+    });
+
     it('skips activity directories at decompress-time (their bytes never enter memory)', async () => {
       const blob = await buildFixturePackage({ includeActivity: true });
       const parsed = await streamPackageToStorage(blob);
