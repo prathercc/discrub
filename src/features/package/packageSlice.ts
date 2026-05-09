@@ -15,8 +15,15 @@ import {
   CancelledError,
   cancellableDelay,
   checkCancelled,
+  createShouldContinue,
   waitWhilePaused,
 } from '@/utils/operationLoopUtils';
+import {
+  logMediaProgress,
+  setExportProgress,
+  type ExportDispatch,
+} from '@features/export/exportSlice';
+import type { MediaDownloadProgress } from '@features/export/exportTypes';
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { addStatusEntry } from '@features/status/statusSlice';
 import {
@@ -693,14 +700,28 @@ export const exportPackageChannel = createAsyncThunk<
 
     const exportService = getExportService();
 
+    // Mirror the live export's progress + cancel wiring (#162). Without
+    // these, package exports were silent for the entire media-download
+    // phase (a 784-message DM with attachments produced 2 status-log
+    // lines for 2:45 of work) and Pause/Cancel were no-ops.
+    const shouldContinue = createShouldContinue(getState);
+    const scope = ` for "${channelName}"`;
+    const onProgress = (progress: number | MediaDownloadProgress) => {
+      if (typeof progress === 'object') {
+        dispatch(setExportProgress(progress));
+        logMediaProgress(progress, dispatch as ExportDispatch, scope);
+      }
+    };
+
     try {
       if (format === 'media') {
         await exportService.exportMediaOnly(
           discordMessages,
           channelName,
           mediaConfig,
-          undefined, // onProgress
+          onProgress,
           exportConfig,
+          shouldContinue,
         );
       } else {
         await exportService.exportToZip(
@@ -712,9 +733,10 @@ export const exportPackageChannel = createAsyncThunk<
           null,  // guild
           {},    // cachedUserMap — package userMap is minimal
           channel.guildId ?? null,
-          undefined, // onProgress
+          onProgress,
           mediaConfig,
           exportConfig,
+          shouldContinue,
         );
       }
 
@@ -724,6 +746,13 @@ export const exportPackageChannel = createAsyncThunk<
       }));
       return { channelId };
     } catch (err) {
+      if (err instanceof CancelledError) {
+        dispatch(addStatusEntry({
+          level: 'warning',
+          message: `Package export: cancelled${scope}`,
+        }));
+        return rejectWithValue('Cancelled');
+      }
       const msg = err instanceof Error ? err.message : 'Unknown export failure';
       dispatch(addStatusEntry({ level: 'error', message: `Package export failed: ${msg}` }));
       return rejectWithValue(msg);

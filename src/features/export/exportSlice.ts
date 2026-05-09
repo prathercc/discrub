@@ -11,7 +11,7 @@ import type { ExportReactionMap, SearchCriteria, SearchIterationPage } from 'dis
 import type { RootState } from '@/app/store';
 import type { ThunkDispatch, UnknownAction } from '@reduxjs/toolkit';
 
-type ExportDispatch = ThunkDispatch<RootState, unknown, UnknownAction>;
+export type ExportDispatch = ThunkDispatch<RootState, unknown, UnknownAction>;
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
@@ -133,7 +133,7 @@ async function fetchReactionData(
  * `scope` is appended to each message (e.g. ` in #general`) so users
  * can disambiguate which channel is progressing when multiple run.
  */
-function logMediaProgress(
+export function logMediaProgress(
   progress: MediaDownloadProgress,
   dispatch: ExportDispatch,
   scope: string = '',

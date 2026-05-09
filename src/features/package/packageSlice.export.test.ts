@@ -237,6 +237,43 @@ describe('packageSlice — exportPackageChannel', () => {
     expect(mockExportToZip).toHaveBeenCalledTimes(1);
   });
 
+  it('passes a non-undefined onProgress and shouldContinue (#162 progress + cancel wiring)', async () => {
+    // exportToZip's signature, in order:
+    //   messages, channelName, format, messagesPerPage, includeMedia,
+    //   guild, cachedUserMap, guildId, onProgress, mediaConfig,
+    //   exportConfig, shouldContinue
+    // Pre-fix the slice passed undefined for onProgress and never built
+    // a shouldContinue, leaving the status log near-empty for the
+    // duration of media downloads and Pause/Cancel as silent no-ops.
+    const store = await primedStore();
+    await store.dispatch(loadPackageChannelMessages('200'));
+    await store.dispatch(exportPackageChannel(exportArgs('200')));
+
+    const args = mockExportToZip.mock.calls[0];
+    const onProgress = args[8];
+    const shouldContinue = args[11];
+    expect(typeof onProgress).toBe('function');
+    expect(typeof shouldContinue).toBe('function');
+  });
+
+  it('routes media-progress events through to the status log (logMediaProgress wiring)', async () => {
+    // Trigger the onProgress callback the slice supplies, then assert
+    // the status log gained the corresponding "Downloaded X/N
+    // attachments" entry.
+    const store = await primedStore();
+    await store.dispatch(loadPackageChannelMessages('200'));
+    await store.dispatch(exportPackageChannel(exportArgs('200')));
+
+    const onProgress = mockExportToZip.mock.calls[0][8];
+    onProgress({ stage: 'attachments', current: 1, total: 50 });
+    onProgress({ stage: 'attachments', current: 10, total: 50 });
+
+    const messages = (store.getState().status as { entries: Array<{ message: string }> }).entries
+      .map((e) => e.message);
+    expect(messages.some((m) => m.includes('Downloaded 1/50 attachments'))).toBe(true);
+    expect(messages.some((m) => m.includes('Downloaded 10/50 attachments'))).toBe(true);
+  });
+
   it('format="media" without rehydration proceeds (uc=dp URLs work without it)', async () => {
     // Pre-fix: the slice rejected media-only exports when no enrichment
     // existed, believing every URL would 403. Post-2025-06-14 packages
