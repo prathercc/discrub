@@ -149,14 +149,24 @@ describe('packageSlice — loadAllPackageTimestamps', () => {
     expect(result.type).toBe('package/loadAllTimestamps/rejected');
   });
 
-  it('tolerates missing source file by emptying timestamps', async () => {
+  it('tolerates missing per-channel data by emptying timestamps (catch-and-continue)', async () => {
+    // Pre-#162: a missing File handle rejected the whole thunk.
+    // Post-#162: per-channel reads come from IDB and a cache miss on a
+    // single channel is logged-and-skipped, not fatal. Clear every
+    // `pkg:msgs:*` key for the user; the loader still fulfills with an
+    // empty timestamp list rather than rejecting.
     const store = makeStore('253286221395001345');
     const blob = await buildFixturePackage();
     await store.dispatch(importPackage(blob));
-    __testHelpers__.storeSourceFile(null);
+
+    const { storage } = await import('@/extension/storage');
+    const allKeys = await storage.package.keys();
+    const msgsKeys = allKeys.filter((k) => k.startsWith('pkg:msgs:253286221395001345:'));
+    await Promise.all(msgsKeys.map((k) => storage.package.remove(k)));
 
     const result = await store.dispatch(loadAllPackageTimestamps());
-    expect(result.type).toBe('package/loadAllTimestamps/rejected');
+    expect(result.type).toBe('package/loadAllTimestamps/fulfilled');
+    expect(store.getState().package.timelineTimestamps).toEqual([]);
   });
 });
 

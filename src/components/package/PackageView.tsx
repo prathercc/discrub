@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Alert, Avatar, Box, Button, Chip, IconButton, Stack, Typography } from '@mui/material';
 import {
   Archive as ArchiveIcon,
@@ -9,12 +9,14 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   clearPackageDeletedCache,
   resetPackage,
+  resumeStoredPackage,
   selectPackageChannel,
   selectPackageValidation,
   selectParsedPackage,
   selectSelectedPackageChannelId,
   selectTotalDeletedMessageCount,
 } from '@features/package/packageSlice';
+import { selectCurrentUser } from '@features/user/userSlice';
 import { selectGuilds } from '@features/guild/guildSlice';
 import { getPackageChannelLabel } from '@features/package/packageDisplayUtils';
 import ImportDialog from './ImportDialog';
@@ -40,7 +42,17 @@ const PackageView = () => {
   const selectedChannelId = useAppSelector(selectSelectedPackageChannelId);
   const liveGuilds = useAppSelector(selectGuilds);
   const totalDeleted = useAppSelector(selectTotalDeletedMessageCount);
+  const currentUserId = useAppSelector(selectCurrentUser)?.id ?? null;
   const [dialogOpen, setDialogOpen] = useState(false);
+
+  // Resume a previously-streamed package automatically (#162). The
+  // thunk no-ops when nothing matches the authenticated user, so this
+  // is safe to fire on every mount and on auth changes.
+  useEffect(() => {
+    if (parsed) return;
+    if (!currentUserId) return;
+    void dispatch(resumeStoredPackage());
+  }, [dispatch, parsed, currentUserId]);
 
   const leftGuilds = useMemo(() => {
     if (!parsed || !liveGuilds) return [];

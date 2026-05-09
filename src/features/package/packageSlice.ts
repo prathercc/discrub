@@ -1,9 +1,14 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import {
-  loadChannelMessages,
-  parsePackageZip,
   validatePackage,
 } from '@/services/packageParseService';
+import {
+  streamPackageToStorage,
+  loadChannelMessagesFromStorage,
+  resumePackageFromStorage,
+  clearPackageContents,
+  hasStoredPackage,
+} from '@/services/packageStreamService';
 import { getDiscordService } from '@/services/discordService';
 import { getExportService } from '@/services/exportService';
 import {
@@ -217,18 +222,10 @@ async function writeDeletedCache(
 }
 
 /**
- * File reference kept outside Redux state — File/Blob objects are not
- * serializable and Redux's `serializableCheck` would complain. The slice
- * holds an ID pointing here; the actual File is retrieved when we need
- * to lazily load a channel's CSV.
+ * No more module-level File reference (#162). Once `streamPackageToStorage`
+ * has run, every read goes through IndexedDB. The original File handle
+ * is dropped on the floor by `importPackage` and not retained anywhere.
  */
-let sourceFile: File | Blob | null = null;
-function storeSourceFile(file: File | Blob | null) {
-  sourceFile = file;
-}
-function getSourceFile(): File | Blob | null {
-  return sourceFile;
-}
 
 /**
  * Cache-only hydrate: if an enrichment cache already exists in IDB for
@@ -278,9 +275,10 @@ export const hydratePackageDeletedCache = createAsyncThunk<
 
 /**
  * Full package reset — wipes in-memory state AND purges the per-user
- * IDB entries for enrichment. Use this instead of the raw `clearPackage`
- * reducer when a user clicks "Clear package" / switches packages, so
- * the Discrub-package database doesn't accumulate orphaned records.
+ * IDB entries (streamed package + enrichment cache). Use this instead
+ * of the raw `clearPackage` reducer when a user clicks "Clear package"
+ * or switches packages, so Discrub-package doesn't accumulate orphaned
+ * records.
  */
 export const resetPackage = createAsyncThunk<
   void,
@@ -290,7 +288,10 @@ export const resetPackage = createAsyncThunk<
   const userId = getState().package.parsed?.user.id;
   if (userId) {
     try {
-      await enrichmentCache.clearAll(userId);
+      await Promise.all([
+        clearPackageContents(userId),
+        enrichmentCache.clearAll(userId),
+      ]);
     } catch {
       /* storage is best-effort — UI proceeds either way */
     }
@@ -316,16 +317,22 @@ export const importPackage = createAsyncThunk<
   { state: RootState; rejectValue: string }
 >('package/import', async (file, { getState, dispatch, rejectWithValue }) => {
   try {
-    const parsed = await parsePackageZip(file);
+    // Stream once into IndexedDB (#162). After this returns, every
+    // subsequent channel/avatar read is an O(1) IDB lookup; the
+    // original File handle is no longer needed.
+    const parsed = await streamPackageToStorage(file);
     const state = getState();
     const authedUserId = state.user?.currentUser?.id ?? null;
     const validation = validatePackage(parsed, authedUserId);
 
     if (!validation.ok) {
+      // Clean up the partially-imported package — we don't want orphan
+      // pkg:* keys for a user we won't grant capabilities to.
+      try {
+        await clearPackageContents(parsed.user.id);
+      } catch { /* best-effort */ }
       return rejectWithValue(validation.errors.join(' ') || 'Invalid package');
     }
-
-    storeSourceFile(file);
 
     // Hydrate the persisted deleted-message cache for this user so
     // already-purged messages stay hidden across sessions.
@@ -337,6 +344,37 @@ export const importPackage = createAsyncThunk<
   }
 });
 
+/**
+ * Resume a previously-streamed package from IndexedDB without touching
+ * a File handle. Returns null payload if no stored package matches the
+ * current user, otherwise hydrates `state.package.parsed` so the UI
+ * shows the package without a re-upload.
+ */
+export const resumeStoredPackage = createAsyncThunk<
+  { parsed: ParsedPackage; validation: PackageValidationResult } | null,
+  void,
+  { state: RootState; rejectValue: string }
+>('package/resume', async (_, { getState, dispatch, rejectWithValue }) => {
+  try {
+    const authedUserId = getState().user?.currentUser?.id ?? null;
+    if (!authedUserId) return null;
+    const parsed = await resumePackageFromStorage(authedUserId);
+    if (!parsed) return null;
+    const validation = validatePackage(parsed, authedUserId);
+    if (!validation.ok) return null;
+
+    void dispatch(hydratePackageDeletedCache({ userId: parsed.user.id }));
+    return { parsed, validation };
+  } catch (err) {
+    return rejectWithValue(err instanceof Error ? err.message : 'Failed to resume package');
+  }
+});
+
+/** True iff IDB holds a stored package for the authenticated user. */
+export async function hasResumablePackage(userId: string): Promise<boolean> {
+  return hasStoredPackage(userId);
+}
+
 /** Lazily load (or return cached) parsed messages for one channel. */
 export const loadPackageChannelMessages = createAsyncThunk<
   { channelId: string; messages: PackageMessage[] },
@@ -346,11 +384,11 @@ export const loadPackageChannelMessages = createAsyncThunk<
   const cached = getState().package.loadedChannels[channelId];
   if (cached) return { channelId, messages: cached };
 
-  const file = getSourceFile();
-  if (!file) return rejectWithValue('Package source is no longer available');
+  const userId = getState().package.parsed?.user.id;
+  if (!userId) return rejectWithValue('No package loaded');
 
   try {
-    const messages = await loadChannelMessages(file, channelId);
+    const messages = await loadChannelMessagesFromStorage(userId, channelId);
     return { channelId, messages };
   } catch (err) {
     return rejectWithValue(err instanceof Error ? err.message : 'Failed to load channel');
@@ -373,8 +411,7 @@ export const loadAllPackageTimestamps = createAsyncThunk<
 >('package/loadAllTimestamps', async (_, { getState, dispatch, rejectWithValue }) => {
   const parsed = getState().package.parsed;
   if (!parsed) return rejectWithValue('No package loaded');
-  const file = getSourceFile();
-  if (!file) return rejectWithValue('Package source is no longer available');
+  const userId = parsed.user.id;
 
   const timestamps: string[] = [];
   const total = parsed.channels.length;
@@ -385,7 +422,7 @@ export const loadAllPackageTimestamps = createAsyncThunk<
 
     try {
       const cached = getState().package.loadedChannels[channel.id];
-      const messages = cached ?? (await loadChannelMessages(file, channel.id));
+      const messages = cached ?? (await loadChannelMessagesFromStorage(userId, channel.id));
       for (const m of messages) timestamps.push(m.timestamp);
     } catch {
       // Skip unreadable channels rather than aborting the whole load.
@@ -613,10 +650,8 @@ export const exportPackageChannel = createAsyncThunk<
     // export even when we then prefer enriched objects).
     let packageMessages = state.package.loadedChannels[channelId];
     if (!packageMessages) {
-      const file = getSourceFile();
-      if (!file) return rejectWithValue('Package source is no longer available');
       try {
-        packageMessages = await loadChannelMessages(file, channelId);
+        packageMessages = await loadChannelMessagesFromStorage(parsed.user.id, channelId);
       } catch (err) {
         return rejectWithValue(err instanceof Error ? err.message : 'Failed to read channel');
       }
@@ -1590,7 +1625,6 @@ const packageSlice = createSlice({
           /* ignore */
         }
       }
-      storeSourceFile(null);
       Object.assign(state, initialPackageState);
     },
   },
@@ -1617,6 +1651,17 @@ const packageSlice = createSlice({
         state.error = action.payload ?? 'Unknown error';
         state.parsed = null;
         state.validation = null;
+      })
+      .addCase(resumeStoredPackage.fulfilled, (state, action) => {
+        if (!action.payload) return; // nothing to resume
+        state.status = 'ready';
+        state.parsed = action.payload.parsed;
+        state.validation = action.payload.validation;
+        state.error = null;
+        state.selectedChannelId = null;
+        state.loadedChannels = {};
+        state.loadedOrder = [];
+        state.deletedMessageIds = {};
       })
       .addCase(loadPackageChannelMessages.pending, (state, action) => {
         state.loadingChannelId = action.meta.arg;
@@ -1837,4 +1882,14 @@ export const selectChannelEnrichmentLastFetched =
     state.package.enrichmentLastFetched[channelId] ?? null;
 
 /** Test-only helper. */
-export const __testHelpers__ = { storeSourceFile, getSourceFile };
+/**
+ * Test helpers retained as no-ops for backwards compatibility with
+ * existing packageSlice.test.ts. The post-#162 architecture has no
+ * module-level File reference; tests that previously called
+ * `storeSourceFile(null)` to simulate "lost source" should instead
+ * clear `pkg:msgs:*` keys via `storage.package.remove(...)`.
+ */
+export const __testHelpers__ = {
+  storeSourceFile: (_file: File | Blob | null) => { /* no-op since #162 */ },
+  getSourceFile: (): File | Blob | null => null,
+};
