@@ -14,10 +14,28 @@ import type { PackageMessage } from '@/features/package/packageTypes';
  * Tolerates malformed input (returns `[]` rather than throwing) so a single
  * corrupt channel can't take down the whole package import.
  */
+/**
+ * Wrap unquoted numeric `ID` values in quotes before JSON.parse so
+ * 64-bit Discord snowflakes survive as strings. JS Number tops out at
+ * 2^53; raw `JSON.parse` rounds the last 3-5 digits of a snowflake,
+ * which then breaks every downstream identity check (the AROUND-loop
+ * during rehydration calls Discord with the rounded ID, neighbors
+ * come back, target is missing, message is marked deleted).
+ *
+ * The leading `[{,]` anchor only matches a top-level object key — it
+ * won't fire inside a string literal because escaped `\"ID\":` has a
+ * preceding backslash, and an inner `,"ID":` matched in source has a
+ * preceding `\"` rather than a bare `"`. Already-quoted IDs are
+ * untouched (the `\d+` lookahead requires digits, not a quote).
+ */
+function quoteNumericIds(text: string): string {
+  return text.replace(/([{,]\s*)"ID":\s*(\d+)/g, '$1"ID":"$2"');
+}
+
 export function parseMessagesJson(text: string): PackageMessage[] {
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    parsed = JSON.parse(quoteNumericIds(text));
   } catch {
     return [];
   }

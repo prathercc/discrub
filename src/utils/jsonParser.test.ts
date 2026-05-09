@@ -22,13 +22,51 @@ describe('parseMessagesJson', () => {
   });
 
   it('coerces numeric ID to string', () => {
-    // Discord serializes snowflakes as strings, but defensive against any
-    // re-export tooling that re-emits them as numbers.
+    // Discord's messages.json emits snowflakes as numeric literals
+    // (not quoted strings). Small IDs survive round-tripping fine.
     const json = JSON.stringify([
       { ID: 123, Timestamp: '2022-07-28 22:30:52+00:00', Contents: 'x', Attachments: '' },
     ]);
     const rows = parseMessagesJson(json);
     expect(rows[0].id).toBe('123');
+  });
+
+  it('preserves 64-bit snowflake IDs without precision loss', () => {
+    // Discord's messages.json stores IDs as numeric literals. Numbers
+    // larger than 2^53 lose precision through JS Number — a real
+    // 19-digit snowflake "1341524071724220421" is rounded to
+    // "1341524071724220400" by raw JSON.parse, breaking the AROUND
+    // rehydration loop because Discord's API never matches the
+    // rounded ID against any real message. (Repro from a user HAR
+    // showing every package message marked unavailable.)
+    const realSnowflake = '1341524071724220421';
+    // Construct the raw text Discord ships — unquoted numeric ID:
+    const json =
+      `[{"ID":${realSnowflake},"Timestamp":"2025-02-19T10:32:23+00:00",` +
+      `"Contents":"hi","Attachments":""}]`;
+    const rows = parseMessagesJson(json);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe(realSnowflake);
+  });
+
+  it('does not corrupt IDs that already arrive as quoted strings', () => {
+    // Forward-compat with any future export that switches to string IDs.
+    const realSnowflake = '1341524071724220421';
+    const json =
+      `[{"ID":"${realSnowflake}","Timestamp":"t","Contents":"","Attachments":""}]`;
+    expect(parseMessagesJson(json)[0].id).toBe(realSnowflake);
+  });
+
+  it('does not match "ID" embedded inside a Contents string', () => {
+    // The numeric-ID rescue regex must only fire on top-level keys.
+    // A user message like `,"ID": 999` should remain unmodified.
+    const realSnowflake = '1341524071724220421';
+    const json =
+      `[{"ID":${realSnowflake},"Timestamp":"t",` +
+      `"Contents":"prefix ,\\"ID\\":999 suffix","Attachments":""}]`;
+    const rows = parseMessagesJson(json);
+    expect(rows[0].id).toBe(realSnowflake);
+    expect(rows[0].content).toBe('prefix ,"ID":999 suffix');
   });
 
   it('treats missing Contents as empty string', () => {
