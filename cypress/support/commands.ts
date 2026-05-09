@@ -227,3 +227,37 @@ Cypress.Commands.add('readIdbStore', (store: string) => {
     });
   });
 });
+
+/**
+ * Same shape as `readIdbStore` but returns the keys instead of the values.
+ * Useful for asserting on the namespace structure (`pkg:meta:*`,
+ * `pkg:msgs:*`, etc.) without caring about the stored payloads.
+ */
+Cypress.Commands.add('readIdbStoreKeys', (store: string) => {
+  return cy.window({ log: false }).then((win) => {
+    return new Cypress.Promise<string[]>((resolve) => {
+      const req = win.indexedDB.open(`Discrub-${store}`);
+      req.onsuccess = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('keyval')) {
+          db.close();
+          resolve([]);
+          return;
+        }
+        const tx = db.transaction('keyval', 'readonly');
+        const objStore = tx.objectStore('keyval');
+        const all = objStore.getAllKeys();
+        all.onsuccess = () => {
+          db.close();
+          resolve((all.result || []).filter((k): k is string => typeof k === 'string'));
+        };
+        all.onerror = () => {
+          db.close();
+          resolve([]);
+        };
+      };
+      req.onerror = () => resolve([]);
+      req.onblocked = () => resolve([]);
+    });
+  });
+});

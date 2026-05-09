@@ -39,6 +39,13 @@ declare namespace Cypress {
     readIdbStore<T = unknown>(store: string): Chainable<T[]>;
 
     /**
+     * Read every key from one of the per-purpose `Discrub-<store>`
+     * IndexedDB databases. Useful for asserting on namespace structure
+     * (`pkg:meta:*`, `pkg:msgs:*`, etc.) without inspecting payloads.
+     */
+    readIdbStoreKeys(store: string): Chainable<string[]>;
+
+    /**
      * Upload a data-package ZIP fixture into the ImportDialog.
      * Default fixture: cypress/fixtures/test-package.zip
      */
