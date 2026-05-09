@@ -281,6 +281,73 @@ describe('operationSelectors', () => {
     });
   });
 
+  describe('Package export tier (#162)', () => {
+    // Package thunks set `state.package.exportStatus = 'running'` rather
+    // than `state.export.isExporting`, so the operation selector needs
+    // its own branch — without it, package exports never qualify as a
+    // heavy operation and the Pause/Cancel controls in StatusPanel
+    // never render. Live export progress data is still propagated via
+    // `setExportProgress`, so the label can reuse it.
+
+    it('flags a running package export as heavy (no progress yet)', () => {
+      const state = createBaseState({
+        package: {
+          ...createBaseState().package,
+          exportStatus: 'running',
+        },
+      });
+      const summary = selectOperationSummary(state);
+      expect(summary.isRunning).toBe(true);
+      expect(summary.tier).toBe('heavy');
+      expect(summary.label).toBe('Package export...');
+    });
+
+    it('renders stage + percentage when exportProgress is populated', () => {
+      const progress: MediaDownloadProgress = {
+        stage: 'attachments',
+        current: 50,
+        total: 200,
+      };
+      const state = createBaseState({
+        package: {
+          ...createBaseState().package,
+          exportStatus: 'running',
+        },
+        export: {
+          ...createBaseState().export,
+          exportProgress: progress,
+        },
+      });
+      const summary = selectOperationSummary(state);
+      expect(summary.tier).toBe('heavy');
+      expect(summary.label).toBe('Package export (attachments)... 25%');
+      expect(summary.progress).toBe(25);
+    });
+
+    it('shows the paused label when discrubPaused is set', () => {
+      const state = createBaseState({
+        app: { ...createBaseState().app, discrubPaused: true },
+        package: {
+          ...createBaseState().package,
+          exportStatus: 'running',
+        },
+      });
+      const summary = selectOperationSummary(state);
+      expect(summary.isPaused).toBe(true);
+      expect(summary.label).toBe('Paused — Package export');
+    });
+
+    it('selectIsHeavyOperationRunning is true while a package export runs', () => {
+      const state = createBaseState({
+        package: {
+          ...createBaseState().package,
+          exportStatus: 'running',
+        },
+      });
+      expect(selectIsHeavyOperationRunning(state)).toBe(true);
+    });
+  });
+
   describe('Thread tab operation detection', () => {
     const createThreadTab = (overrides: Record<string, unknown> = {}) => ({
       threadId: 'thread-100',

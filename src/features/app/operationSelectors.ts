@@ -125,6 +125,39 @@ export const selectOperationSummary = createSelector(
       return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Loading all messages' : 'Loading all messages...' };
     }
 
+    // Package export (heavy — bulk media download + zip build, can
+    // take minutes on attachment-heavy channels, supports pause/cancel
+    // via the same shouldContinue plumbing the live export uses).
+    // Package thunks set `state.package.exportStatus` rather than
+    // `state.export.isExporting`, so we branch on the package flag and
+    // read the export-progress data the package thunk's onProgress
+    // routes through `setExportProgress`.
+    if (packageState.exportStatus === 'running') {
+      const progress = exportState.exportProgress;
+      if (progress && progress.total > 0) {
+        const pct = Math.round((progress.current / progress.total) * 100);
+        return {
+          isRunning: true, isPaused, tier: 'heavy',
+          label: isPaused
+            ? `Paused — Package export (${progress.stage})`
+            : `Package export (${progress.stage})... ${pct}%`,
+          progress: pct,
+        };
+      }
+      if (progress) {
+        return {
+          isRunning: true, isPaused, tier: 'heavy',
+          label: isPaused
+            ? `Paused — Package export (${progress.stage})`
+            : `Package export (${progress.stage})...`,
+        };
+      }
+      return {
+        isRunning: true, isPaused, tier: 'heavy',
+        label: isPaused ? 'Paused — Package export' : 'Package export...',
+      };
+    }
+
     // Package rehydration (heavy — per-message Discord API loop, can
     // take several minutes on large channels, supports pause/cancel)
     const activeEnrichId = packageState.activeEnrichmentChannelId;
