@@ -181,6 +181,14 @@ const PackageView = () => {
         </Alert>
       )}
 
+      {parsed.isLegacyFormat && (
+        <Alert severity="info" sx={{ mb: 1 }}>
+          This package predates Discord's 2025 export format change. Some
+          attachment links may have already expired. Rehydrate before
+          export to refresh URLs and bundle media locally.
+        </Alert>
+      )}
+
       <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap', gap: 1 }}>
         <Chip label={pluralize(totalMessages, 'message')} />
         <Chip label={channelsChipLabel} />

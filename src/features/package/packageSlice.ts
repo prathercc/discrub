@@ -598,12 +598,14 @@ function extractHttpStatus(err: unknown): number | null {
  * Export one package channel to a ZIP.
  *
  * When enriched live messages exist (Tier 2), we prefer them over the
- * CSV-adapted shapes so exports match the live app's message rendering.
- * When `includeMedia` is true AND enriched messages are available,
- * media downloads use the fresh CDN URLs from the enrichment pass.
- * Source-only channels can still be exported with `includeMedia: false`
- * — attachments appear as broken-image placeholders with the original
- * (expired) URL preserved for manual retrieval attempts.
+ * package-adapted shapes so exports match the live app's message
+ * rendering (reactions, edits, replies). For media downloads, package
+ * attachment URLs (post-2025-06-14, with the `uc=dp` discriminator) are
+ * permanently-signed by Discord and work without rehydration —
+ * `includeMedia` flows directly through to mediaDownloadService and
+ * downloads them locally. Pre-2025 packages have ephemeral URLs that
+ * may 403; users are warned via the legacy-format banner at import time
+ * and can opt into rehydration before export to refresh URLs.
  *
  * Parameters mirror `exportMessages` so the same ExportDialog can drive
  * both live and package exports with `exportContext: 'package'`.
@@ -669,17 +671,15 @@ export const exportPackageChannel = createAsyncThunk<
 
     const enrichedMap = state.package.enrichedMessages[channelId];
 
-    // Media-only exports on a source-only package would silently
-    // produce an empty ZIP — every attachment URL is expired and
-    // 403s during download. Reject upfront with a clear message.
-    if (format === 'media' && !enrichedMap) {
-      return rejectWithValue(
-        'Media-only export requires rehydration first — the package\'s attachment URLs have expired. Enable "Rehydrate before export" or load rich data from the channel banner before exporting.',
-      );
-    }
+    // Discord's post-2025-06-14 package format ships permanently-signed
+    // CDN URLs (the `uc=dp` discriminator), so a media-only export
+    // against the package URLs is now a valid path even without
+    // rehydration. Pre-2025 packages have ephemeral URLs that may 403
+    // — users get the legacy-format banner at import time + a per-URL
+    // download warning during export, but we don't gate the operation.
     const discordMessages: Message[] = packageMessages.map((pm) => {
       const live = enrichedMap?.[pm.id];
-      // Enriched message wins; fall back to CSV-adapted shape.
+      // Enriched message wins; fall back to package-adapted shape.
       return live ?? (toDiscordMessage(pm, channelId, parsed.user) as Message);
     });
 
@@ -692,17 +692,13 @@ export const exportPackageChannel = createAsyncThunk<
     }));
 
     const exportService = getExportService();
-    // Media is only safe when we have fresh (enriched) URLs. Source
-    // package URLs are expired — fetching them would 403.
-    const safeIncludeMedia = includeMedia && !!enrichedMap;
-    const safeMediaConfig = safeIncludeMedia ? mediaConfig : undefined;
 
     try {
       if (format === 'media') {
         await exportService.exportMediaOnly(
           discordMessages,
           channelName,
-          safeMediaConfig,
+          mediaConfig,
           undefined, // onProgress
           exportConfig,
         );
@@ -712,12 +708,12 @@ export const exportPackageChannel = createAsyncThunk<
           channelName,
           format,
           messagesPerPage,
-          safeIncludeMedia,
+          includeMedia,
           null,  // guild
           {},    // cachedUserMap — package userMap is minimal
           channel.guildId ?? null,
           undefined, // onProgress
-          safeMediaConfig,
+          mediaConfig,
           exportConfig,
         );
       }

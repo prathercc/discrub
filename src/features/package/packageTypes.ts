@@ -72,6 +72,15 @@ export interface ParsedPackage {
   totalMessages: number;
   packageSizeBytes: number;
   avatarBlobUrl?: string;
+  /**
+   * True when the package predates Discord's 2025-06-14 export format
+   * change. Detected by the presence of any `messages.csv` channel file
+   * (current packages ship `messages.json`). Pre-2025 packages have
+   * ephemeral attachment URLs that may have already expired; the UI
+   * surfaces a soft warn so users can rehydrate before export to
+   * refresh URLs and bundle media locally. Doesn't block any feature.
+   */
+  isLegacyFormat?: boolean;
 }
 
 /** Result of validating a parsed package against the current auth context. */

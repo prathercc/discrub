@@ -251,6 +251,23 @@ describe('streamPackageToStorage', () => {
       expect(ch200!.length).toBe(3);
     });
 
+    it('flags isLegacyFormat=false for messages.json packages', async () => {
+      // Current Discord format. Attachments here ship with the uc=dp
+      // discriminator and don't need rehydration to render.
+      const blob = await buildFixturePackage({ messagesFormat: 'json' });
+      const parsed = await streamPackageToStorage(blob);
+      expect(parsed.isLegacyFormat).toBe(false);
+    });
+
+    it('flags isLegacyFormat=true for messages.csv packages', async () => {
+      // Pre-2025 Discord format. Attachment URLs may have already
+      // expired; UI shows a soft warn so users can rehydrate before
+      // export.
+      const blob = await buildFixturePackage({ messagesFormat: 'csv' });
+      const parsed = await streamPackageToStorage(blob);
+      expect(parsed.isLegacyFormat).toBe(true);
+    });
+
     it('flags orphan channels (type 0 without guild)', async () => {
       const blob = await buildFixturePackage({ includeOrphanChannel: true });
       const parsed = await streamPackageToStorage(blob);

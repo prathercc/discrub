@@ -163,16 +163,20 @@ describe('packageSlice — exportPackageChannel', () => {
     ]);
   });
 
-  it('only allows media download when enrichment is present (fresh CDN URLs)', async () => {
+  it('honors includeMedia=true even without rehydration (post-2025 packages have permanent URLs)', async () => {
+    // Pre-fix: the slice clamped includeMedia to false when no enrichment
+    // was present, on the (formerly true) assumption that package URLs
+    // were ephemeral. Discord's post-2025-06-14 format ships
+    // permanently-signed URLs with the `uc=dp` discriminator, so the
+    // clamp is no longer needed and would prevent a valid media bundle.
     const store = await primedStore();
     await store.dispatch(loadPackageChannelMessages('200'));
 
-    // No enrichment: safeIncludeMedia should be false even if requested.
     await store.dispatch(
       exportPackageChannel(exportArgs("200", { includeMedia: true })),
     );
     const [, , , , includeMedia] = mockExportToZip.mock.calls[0];
-    expect(includeMedia).toBe(false);
+    expect(includeMedia).toBe(true);
   });
 
   it('honors includeMedia once the channel is enriched', async () => {
@@ -233,18 +237,28 @@ describe('packageSlice — exportPackageChannel', () => {
     expect(mockExportToZip).toHaveBeenCalledTimes(1);
   });
 
-  it('Fix B: rejects format="media" when the package has not been rehydrated', async () => {
+  it('format="media" without rehydration proceeds (uc=dp URLs work without it)', async () => {
+    // Pre-fix: the slice rejected media-only exports when no enrichment
+    // existed, believing every URL would 403. Post-2025-06-14 packages
+    // ship permanently-signed URLs that work without rehydration; the
+    // export now proceeds and downloads from package URLs directly.
+    const mockExportMediaOnly = vi.fn().mockResolvedValue(undefined);
+    const { getExportService } = await import('@/services/exportService');
+    (getExportService as unknown as { mockImplementation: (fn: () => unknown) => void })
+      .mockImplementation(() => ({
+        exportToZip: mockExportToZip,
+        exportMediaOnly: mockExportMediaOnly,
+      }));
+
     const store = await primedStore();
     await store.dispatch(loadPackageChannelMessages('200'));
-    // No enrichment — CDN URLs are expired, media export would be empty.
     const action = await store.dispatch(
       exportPackageChannel(
         exportArgs('200', { format: 'media', includeMedia: true }),
       ),
     );
-    expect(action.type).toBe('package/exportChannel/rejected');
-    expect(String(action.payload)).toMatch(/Rehydrat/i);
-    expect(mockExportToZip).not.toHaveBeenCalled();
+    expect(action.type).toBe('package/exportChannel/fulfilled');
+    expect(mockExportMediaOnly).toHaveBeenCalledTimes(1);
   });
 
   it('routes format="media" to exportMediaOnly instead of exportToZip', async () => {

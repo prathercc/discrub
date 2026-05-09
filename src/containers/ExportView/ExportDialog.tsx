@@ -241,7 +241,14 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
               the channel hasn't been rehydrated yet. Once rehydrated,
               the dialog functions exactly like the live export (no
               extra checkboxes or banners) — the live Message objects
-              are already in Redux and flow straight through. */}
+              are already in Redux and flow straight through.
+
+              Post-2025-06-14 Discord packages ship permanently-signed
+              attachment URLs (`uc=dp` discriminator) that work without
+              rehydration, so this checkbox no longer gates media
+              download. It now exists purely to fetch reactions, edits,
+              and replies from the live API — data the package itself
+              doesn't include. */}
           {isPackageContext && !alreadyRehydrated && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               <FormControlLabel
@@ -252,13 +259,13 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
                     onChange={(e) => setRehydrateFirst(e.target.checked)}
                   />
                 }
-                label="Rehydrate before export (fetches live reactions + fresh CDN URLs)"
+                label="Rehydrate before export (fetches reactions, edits, and replies from Discord)"
               />
-              {!rehydrateFirst && exportState.includeMedia && (
+              {parsedPackage?.isLegacyFormat && exportState.includeMedia && (
                 <Alert severity="warning" icon={false} sx={{ py: 0.5, fontSize: '0.8rem' }}>
-                  Package attachment URLs are expired. Enable "Rehydrate
-                  before export" or uncheck "Download files" to avoid 403
-                  errors during media download.
+                  This is a pre-2025 Discord package. Some attachment links
+                  may have expired and fail during media download. Rehydrate
+                  to refresh URLs, or uncheck "Download files" to skip media.
                 </Alert>
               )}
             </Box>

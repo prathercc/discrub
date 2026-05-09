@@ -156,6 +156,11 @@ export async function streamPackageToStorage(
   // channel's messages keyed for instant retrieval.
   const channels: PackageChannel[] = [];
   const channelDirs = collectChannelDirs(caseIndex, prefix, aliases.messages);
+  // Track whether we encounter any legacy-format channel. Discord's
+  // pre-2025-06-14 packages ship messages.csv; current packages ship
+  // messages.json. Surfaced on ParsedPackage so the export dialog can
+  // warn about potentially-expired attachment URLs.
+  let hasLegacyFormat = false;
 
   let processed = 0;
   const total = channelDirs.size + 2; // channels + avatar + meta
@@ -166,11 +171,14 @@ export async function streamPackageToStorage(
       throw new PackageStreamCancelledError();
     }
 
-    const channel = await persistChannel(
+    const result = await persistChannel(
       filesByPath, caseIndex, prefix, aliases,
       id, channelNameIndex, guilds, user.id,
     );
-    if (channel) channels.push(channel);
+    if (result) {
+      channels.push(result.channel);
+      if (result.format === 'csv') hasLegacyFormat = true;
+    }
 
     processed++;
     onProgress?.({
@@ -206,6 +214,7 @@ export async function streamPackageToStorage(
     channels,
     totalMessages,
     packageSizeBytes: totalCompressed,
+    isLegacyFormat: hasLegacyFormat,
     // avatarBlobUrl is intentionally NOT persisted — blob URLs are
     // realm-scoped. Resume rebuilds the URL from the stored Blob.
   };
@@ -611,7 +620,7 @@ async function persistChannel(
   nameIndex: Record<string, string | null>,
   guilds: PackageGuild[],
   userId: string,
-): Promise<PackageChannel | null> {
+): Promise<{ channel: PackageChannel; format: 'json' | 'csv' } | null> {
   const resolved = resolveChannelFiles(files, index, prefix, aliases, id);
   if (!resolved) return null;
 
@@ -641,14 +650,17 @@ async function persistChannel(
   const isOrphan = type === PACKAGE_CHANNEL_TYPE.GUILD_TEXT && !guildId;
 
   return {
-    id: raw.id,
-    type,
-    name: raw.name ?? nameIndex[raw.id] ?? null,
-    guildId,
-    guildName,
-    recipients: raw.recipients,
-    messageCount,
-    isOrphan,
+    channel: {
+      id: raw.id,
+      type,
+      name: raw.name ?? nameIndex[raw.id] ?? null,
+      guildId,
+      guildName,
+      recipients: raw.recipients,
+      messageCount,
+      isOrphan,
+    },
+    format: resolved.messagesFormat,
   };
 }
 
