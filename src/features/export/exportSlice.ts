@@ -7,7 +7,7 @@ import { getExportService, generateExportReadme } from '@services/exportService'
 import { StreamingZipService } from '@services/streamingZipService';
 import { getDiscordService } from '@services/discordService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
-import type { ExportReactionMap, SearchCriteria } from 'discrub-core/types/discrub-types';
+import type { ExportReactionMap, SearchCriteria, SearchIterationPage } from 'discrub-core/types/discrub-types';
 import type { RootState } from '@/app/store';
 import type { ThunkDispatch, UnknownAction } from '@reduxjs/toolkit';
 
@@ -445,6 +445,12 @@ async function fetchAllChannelMessages(
       }));
     }
 
+    // Track the last page so we can surface the iterator's `incomplete`
+    // flag after the loop (#169). Bulk export is a read-only consumer:
+    // it must walk until `total_results` is exhausted, not stop on
+    // dedup-empty pages like purge does.
+    let lastPage: SearchIterationPage | undefined;
+
     try {
       for await (const page of iterateSearchMessagesRedux({
         token,
@@ -452,8 +458,10 @@ async function fetchAllChannelMessages(
         guildId,
         criteria: searchCriteria as SearchCriteria,
         getState,
+        terminateOnDedupEmpty: false,
       })) {
         if (checkCancelled(getState)) break;
+        lastPage = page;
 
         if (!announcedTotal && !silent) {
           announcedTotal = true;
@@ -493,6 +501,19 @@ async function fetchAllChannelMessages(
         }));
       }
       throw err;
+    }
+
+    // #169: surface the iterator's safety-valve trip. When `incomplete`
+    // is set, Discord's search index ran out of new matches before
+    // `total_results` was exhausted (typically eventual-consistency lag
+    // or an undocumented offset cap). Without this entry the user sees
+    // a clean success log even though the export is missing data.
+    if (lastPage?.incomplete && !silent) {
+      const missing = Math.max(0, lastPage.totalResults - lastPage.aggregatedCount);
+      dispatch(addStatusEntry({
+        level: 'warning',
+        message: `Discord stopped returning results at ${lastPage.aggregatedCount.toLocaleString()} of ${lastPage.totalResults.toLocaleString()} matches in ${label}. Export may be missing ${missing.toLocaleString()} message${missing === 1 ? '' : 's'} (known Discord search-index limitation).`,
+      }));
     }
 
     if (!silent) {

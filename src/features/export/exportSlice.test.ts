@@ -996,4 +996,186 @@ describe('exportSlice', () => {
       )).toBe(true);
     });
   });
+
+  describe('Bulk export search iterator incomplete-flag warning (#169)', () => {
+    // The lib iterator can yield a synthetic final page with `incomplete:
+    // true` when Discord's search index stops returning new matches before
+    // `total_results` is reached (search-index churn / hidden offset cap).
+    // Without a consumer-side dispatch, the user only sees a clean
+    // "Loaded N matching messages" entry and silently gets a partial
+    // export. Confirm the consumer surfaces a warning with explicit
+    // numbers when the flag is set.
+
+    it('dispatches a warning entry when the iterator emits a page with incomplete: true', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { iterateSearchMessagesRedux } = await import('@/utils/searchPagination');
+
+      vi.mocked(iterateSearchMessagesRedux).mockImplementation(async function* () {
+        // Real page with messages.
+        yield {
+          messages: [
+            {
+              id: 'sm-1',
+              channel_id: 'ch-incomplete',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+              content: 'hi',
+              mentions: [],
+              attachments: [],
+              embeds: [],
+              pinned: false,
+              type: 0,
+              mention_everyone: false,
+              edited_timestamp: null,
+              tts: false,
+              reactions: [],
+            } as any,
+          ],
+          totalResults: 2311,
+          pageIndex: 0,
+          aggregatedCount: 500,
+          crossedQueryBoundary: false,
+        };
+        // Synthetic final page from the lib's safety valve.
+        yield {
+          messages: [],
+          totalResults: 2311,
+          pageIndex: 1,
+          aggregatedCount: 500,
+          crossedQueryBoundary: false,
+          incomplete: true,
+        };
+      });
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-incomplete', name: 'busy-channel' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          searchCriteria: { searchMessageContent: 'x' } as any,
+        })
+      );
+
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const warning = entries.find(
+        (e) => e.level === 'warning' && e.message.includes('Discord stopped returning results'),
+      );
+      expect(warning).toBeDefined();
+      expect(warning!.message).toContain('500');
+      expect(warning!.message).toContain('2,311');
+      expect(warning!.message).toContain('1,811');
+      expect(warning!.message).toContain('busy-channel');
+    });
+
+    it('does NOT dispatch a warning when the iterator finishes cleanly (no incomplete flag)', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { iterateSearchMessagesRedux } = await import('@/utils/searchPagination');
+
+      vi.mocked(iterateSearchMessagesRedux).mockImplementation(async function* () {
+        yield {
+          messages: [
+            {
+              id: 'sm-1',
+              channel_id: 'ch-clean',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+              content: 'hi',
+              mentions: [],
+              attachments: [],
+              embeds: [],
+              pinned: false,
+              type: 0,
+              mention_everyone: false,
+              edited_timestamp: null,
+              tts: false,
+              reactions: [],
+            } as any,
+          ],
+          totalResults: 1,
+          pageIndex: 0,
+          aggregatedCount: 1,
+          crossedQueryBoundary: false,
+        };
+      });
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-clean', name: 'clean-channel' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          searchCriteria: { searchMessageContent: 'x' } as any,
+        })
+      );
+
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const warning = entries.find(
+        (e) => e.level === 'warning' && e.message.includes('Discord stopped returning results'),
+      );
+      expect(warning).toBeUndefined();
+    });
+  });
 });

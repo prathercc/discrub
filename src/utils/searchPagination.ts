@@ -20,6 +20,15 @@ export type ReduxSearchIteratorOptions = {
    * state).
    */
   shouldResetAfterPage?: () => boolean;
+  /**
+   * Forwarded to the lib iterator. Default `true` matches the
+   * mutating-consumer semantics (purge): two consecutive dedup-empty
+   * pages terminate. **Pass `false` for read-only consumers** (bulk
+   * export) so dedup-empty pages don't wrongly stop the walk before
+   * `total_results` is exhausted — see #169 for the data-loss bug
+   * this prevents.
+   */
+  terminateOnDedupEmpty?: boolean;
 };
 
 /**
@@ -34,7 +43,7 @@ export type ReduxSearchIteratorOptions = {
 export async function* iterateSearchMessagesRedux(
   options: ReduxSearchIteratorOptions,
 ): AsyncGenerator<SearchIterationPage, void, void> {
-  const { token, channelId, guildId, criteria, getState, shouldResetAfterPage } = options;
+  const { token, channelId, guildId, criteria, getState, shouldResetAfterPage, terminateOnDedupEmpty } = options;
   const service = getDiscordService();
 
   const inner = service.iterateSearchResults({
@@ -42,6 +51,7 @@ export async function* iterateSearchMessagesRedux(
     channelId,
     guildId,
     criteria,
+    terminateOnDedupEmpty,
     shouldStop: () => checkCancelled(getState),
     onBetweenPages: async () => {
       await waitWhilePaused(getState);
