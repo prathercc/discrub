@@ -1178,4 +1178,194 @@ describe('exportSlice', () => {
       expect(warning).toBeUndefined();
     });
   });
+
+  describe('Bulk export reaction discovery heartbeat (#170)', () => {
+    // Pass 1 reaction enrichment runs an AROUND-window loop in the lib.
+    // For large exports, this loop can take minutes with no status feedback
+    // between "fetching reaction data for N messages" and "Fetching
+    // reaction details" (per-emoji Pass 2). The lib emits onStatus per
+    // AROUND-batch (dedup-aware via trackMap), and the consumer counts
+    // invocations to surface a milestone on the first call and every 10th
+    // call, mirroring the cadence of other long-running phases.
+
+    it('emits milestone "Reaction discovery" entries during Pass 1 enrichment', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { reactionEnrichmentService } = await import('@services/reactionEnrichmentService');
+      const { iterateSearchMessagesRedux } = await import('@/utils/searchPagination');
+
+      vi.mocked(iterateSearchMessagesRedux).mockImplementation(async function* () {
+        yield {
+          messages: [
+            {
+              id: 'sm-1',
+              channel_id: 'ch-heartbeat',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+              content: 'hi',
+              mentions: [],
+              attachments: [],
+              embeds: [],
+              pinned: false,
+              type: 0,
+              mention_everyone: false,
+              edited_timestamp: null,
+              tts: false,
+              reactions: undefined,
+            } as any,
+          ],
+          totalResults: 1,
+          pageIndex: 0,
+          aggregatedCount: 1,
+          crossedQueryBoundary: false,
+        };
+      });
+
+      // Override enrichMessages to fire onStatus 25 times before returning.
+      // Expected milestones land on the 1st, 10th, and 20th calls.
+      vi.mocked(reactionEnrichmentService.enrichMessages).mockImplementationOnce(
+        async (msgs: any, _token: any, _settings: any, callbacks: any) => {
+          for (let i = 0; i < 25; i++) {
+            callbacks?.onStatus?.(`Searching reactions (${i + 1}/${msgs.length})`);
+          }
+          return msgs;
+        },
+      );
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-heartbeat', name: 'heartbeat-channel' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          searchCriteria: { searchMessageContent: 'x' } as any,
+        }),
+      );
+
+      const entries = testStore.getState().status.entries.map((e: any) => e.message);
+      const heartbeats = entries.filter((m: string) => m.startsWith('Reaction discovery:'));
+
+      expect(heartbeats).toHaveLength(3);
+      expect(heartbeats[0]).toBe('Reaction discovery: 1 batch scanned in #heartbeat-channel');
+      expect(heartbeats[1]).toBe('Reaction discovery: 10 batches scanned in #heartbeat-channel');
+      expect(heartbeats[2]).toBe('Reaction discovery: 20 batches scanned in #heartbeat-channel');
+    });
+
+    it('does NOT emit any heartbeat entries when the lib makes zero AROUND calls', async () => {
+      // If every message already had reactions populated (or REACTIONS_ENABLED
+      // is off and the wrapper short-circuits), onStatus never fires and the
+      // counter stays at 0. The "Bulk export: fetching reaction data…" entry
+      // can still appear via onWillEnrich, but no "Reaction discovery: N
+      // batches scanned" lines.
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { reactionEnrichmentService } = await import('@services/reactionEnrichmentService');
+      const { iterateSearchMessagesRedux } = await import('@/utils/searchPagination');
+
+      vi.mocked(iterateSearchMessagesRedux).mockImplementation(async function* () {
+        yield {
+          messages: [
+            {
+              id: 'sm-1',
+              channel_id: 'ch-quiet',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+              content: 'hi',
+              mentions: [],
+              attachments: [],
+              embeds: [],
+              pinned: false,
+              type: 0,
+              mention_everyone: false,
+              edited_timestamp: null,
+              tts: false,
+              reactions: undefined,
+            } as any,
+          ],
+          totalResults: 1,
+          pageIndex: 0,
+          aggregatedCount: 1,
+          crossedQueryBoundary: false,
+        };
+      });
+
+      vi.mocked(reactionEnrichmentService.enrichMessages).mockImplementationOnce(
+        async (msgs: any) => msgs,
+      );
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-quiet', name: 'quiet-channel' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          searchCriteria: { searchMessageContent: 'x' } as any,
+        }),
+      );
+
+      const entries = testStore.getState().status.entries.map((e: any) => e.message);
+      const heartbeats = entries.filter((m: string) => m.startsWith('Reaction discovery:'));
+      expect(heartbeats).toHaveLength(0);
+    });
+  });
 });

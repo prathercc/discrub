@@ -530,6 +530,13 @@ async function fetchAllChannelMessages(
     // /messages list endpoint which includes reactions inline, so no
     // Pass 1 needed there.
     const settings = selectSettings(getState());
+    // Heartbeat counter (#170): the lib's `resolveMessageReactions` fires
+    // `onStatus` once per AROUND-batch API call (dedup-aware via trackMap),
+    // so we count invocations and surface a milestone every 10. Without
+    // this, large exports go silent for minutes between "fetching reaction
+    // data for N messages" and "Fetching reaction details" while the lib
+    // runs the AROUND loop.
+    let batchesScanned = 0;
     return await reactionEnrichmentService.enrichMessages(
       allMessages,
       token,
@@ -543,6 +550,15 @@ async function fetchAllChannelMessages(
           level: 'info',
           message: `Bulk export: fetching reaction data for ${count} message${count === 1 ? '' : 's'} in ${logContext?.channelLabel ?? channelId}…`,
         })),
+        onStatus: () => {
+          batchesScanned++;
+          if (batchesScanned === 1 || batchesScanned % 10 === 0) {
+            dispatch(addStatusEntry({
+              level: 'info',
+              message: `Reaction discovery: ${batchesScanned} batch${batchesScanned === 1 ? '' : 'es'} scanned in ${logContext?.channelLabel ?? channelId}`,
+            }));
+          }
+        },
       },
     );
   }
@@ -695,11 +711,16 @@ export const bulkExportChannels = createAsyncThunk<
     const delayModifier = selectDelayModifier(initialState);
     const cachedUserMap = selectCachedUserMap(initialState);
 
-    // Get guild roles for role colors in HTML exports
+    // Get guild roles for role colors in HTML exports + the selected guild
+    // for role-icon downloads (#171). Without selectedGuild,
+    // mediaDownloadService.downloadRoleIcons short-circuits and the export
+    // links role icons remotely instead of bundling them locally.
     let guildRoles: any[] = [];
+    let selectedGuild: any = null;
     try {
-      const { selectRoles } = await import('@features/guild/guildSlice');
+      const { selectRoles, selectSelectedGuild } = await import('@features/guild/guildSlice');
       guildRoles = selectRoles(getState()) || [];
+      selectedGuild = selectSelectedGuild(getState()) || null;
     } catch { /* guild slice may not be available in tests */ }
 
     const zipService = new StreamingZipService('bulk-export');
@@ -794,7 +815,7 @@ export const bulkExportChannels = createAsyncThunk<
 
             await exportService.exportToZip(
               allMessages, folderName, format, messagesPerPage, includeMedia,
-              null, cachedUserMap, guildId || null, onProgress, mediaConfig, exportConfig, shouldContinue, zipService,
+              selectedGuild, cachedUserMap, guildId || null, onProgress, mediaConfig, exportConfig, shouldContinue, zipService,
               separateThreads, threads, reactionMap, guildRoles,
             );
           }
