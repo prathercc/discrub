@@ -751,8 +751,20 @@ class ExportService {
         const authorIcon = cachedUserMap && msg.author?.id
           ? getUserRoleIcon(msg.author.id, guildId || null, cachedUserMap, (formattingContext?.guildRoles || []) as any)
           : null;
+        // Resolve local role-icon path if downloaded (#171). Match the
+        // canonical key shape mediaDownloadService writes to roleMap;
+        // strip the entityName/ prefix so the value is relative to the
+        // page (prefixRelativeMediaPaths reattaches "../" for nested
+        // thread files).
+        const authorRoleCdn = authorIcon?.type === 'image'
+          ? `https://cdn.discordapp.com/role-icons/${authorIcon.roleId}/${authorIcon.hash}.webp?size=20`
+          : null;
+        const authorRoleLocal = authorRoleCdn ? mediaMaps?.roleMap?.[authorRoleCdn] : undefined;
+        const authorRoleSrc = authorRoleLocal
+          ? authorRoleLocal.replace(`${sanitizedName}/`, '')
+          : authorRoleCdn;
         const authorIconHtml = authorIcon?.type === 'image'
-          ? ` <img src="https://cdn.discordapp.com/role-icons/${authorIcon.roleId}/${authorIcon.hash}.webp?size=20" style="width:16px;height:16px;vertical-align:middle;margin-left:2px">`
+          ? ` <img src="${authorRoleSrc}" style="width:16px;height:16px;vertical-align:middle;margin-left:2px">`
           : authorIcon?.type === 'emoji'
             ? ` <span style="font-size:14px;vertical-align:middle;margin-left:2px">${authorIcon.emoji}</span>`
             : '';
@@ -3144,7 +3156,7 @@ class ExportService {
     <div class="export-footer-meta">${(exportConfig as any)?.exportFormat || 'html'} &middot; ${messages.length} messages${totalPages > 1 ? ` &middot; Page ${pageNumber} of ${totalPages}` : ''}${(exportConfig?.previewMedia !== false) ? ' &middot; Media included' : ''}</div>
   </footer>
   <button class="jump-top" id="jump-top" title="Scroll to top" aria-label="Scroll to top">\u2191</button>
-  <script type="application/json" id="export-data">${JSON.stringify(buildExportPageData(messages, pageNumber, totalPages, sanitizedName || channelName, formattingContext, reactionMap, mediaMaps?.avatarMap, cachedUserMap, guildId, formattingContext?.guildRoles as any, mediaMaps?.emojiMap))}</script>
+  <script type="application/json" id="export-data">${JSON.stringify(buildExportPageData(messages, pageNumber, totalPages, sanitizedName || channelName, formattingContext, reactionMap, mediaMaps?.avatarMap, cachedUserMap, guildId, formattingContext?.guildRoles as any, mediaMaps?.emojiMap, mediaMaps?.roleMap))}</script>
   <script>${generateEmbeddedJs()}</script>
 </body>
 </html>
@@ -3164,9 +3176,9 @@ class ExportService {
    */
   private prefixRelativeMediaPaths(html: string, prefix: string): string {
     // Match src="..." and href="..." attributes containing relative media paths
-    // Media directories: avatars/, media/, emojis/
+    // Media directories: avatars/, media/, emojis/, roles/
     return html.replace(
-      /((?:src|href)=")(?=(?:avatars|media|emojis)\/)/g,
+      /((?:src|href)=")(?=(?:avatars|media|emojis|roles)\/)/g,
       `$1${prefix}`
     );
   }

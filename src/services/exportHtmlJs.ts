@@ -29,7 +29,7 @@ export interface ExportUserData {
   banner?: string | null;
   messageCount: number;
   roleColor?: string;
-  roles?: Array<{ name: string; color: string | null; icon: string | null; roleId: string; unicodeEmoji: string | null }>;
+  roles?: Array<{ name: string; color: string | null; icon: string | null; iconLocalUrl?: string; roleId: string; unicodeEmoji: string | null }>;
 }
 
 export interface ReactionUserInfo {
@@ -73,6 +73,7 @@ export function buildExportPageData(
   guildId?: string | null,
   guildRoles?: { id: string; color: number; position: number }[],
   emojiMap?: Record<string, string>,
+  roleMap?: Record<string, string>,
 ): ExportPageData {
   // Count messages per user
   const userMessageCounts: Record<string, number> = {};
@@ -144,13 +145,29 @@ export function buildExportPageData(
         return guildRoles
           .filter((r: any) => roleIdSet.has(r.id) && r.name !== '@everyone')
           .sort((a: any, b: any) => b.position - a.position)
-          .map((r: any) => ({
-            name: r.name,
-            color: r.color !== 0 ? '#' + r.color.toString(16).padStart(6, '0') : null,
-            icon: r.icon || null,
-            roleId: r.id,
-            unicodeEmoji: r.unicode_emoji || null,
-          }));
+          .map((r: any) => {
+            // Resolve local role-icon path if downloaded (#171). roleMap
+            // keys are the full canonical CDN URL the live JS template
+            // also constructs, so the lookup is direct. Strip the
+            // entityName/ prefix the same way avatarUrl does so the
+            // value is relative to the page (and is patched again by
+            // prefixRelativeMediaPaths for nested thread files).
+            const roleCdn = r.icon
+              ? `https://cdn.discordapp.com/role-icons/${r.id}/${r.icon}.webp?size=20`
+              : null;
+            const local = roleCdn ? roleMap?.[roleCdn] : undefined;
+            const iconLocalUrl = local
+              ? local.replace(`${sanitizedName}/`, '')
+              : undefined;
+            return {
+              name: r.name,
+              color: r.color !== 0 ? '#' + r.color.toString(16).padStart(6, '0') : null,
+              icon: r.icon || null,
+              iconLocalUrl,
+              roleId: r.id,
+              unicodeEmoji: r.unicode_emoji || null,
+            };
+          });
       })(),
     };
   }
@@ -447,8 +464,13 @@ export function generateEmbeddedJs(): string {
         ? '<div class="user-popup-section"><div class="user-popup-section-title">ROLES</div><div class="user-popup-badges">'
           + user.roles.map(function(r) {
               var style = r.color ? 'background:' + r.color + '22;color:' + r.color + ';border-color:' + r.color + '66' : '';
-              var iconHtml = r.icon
-                ? '<img src="https://cdn.discordapp.com/role-icons/' + r.roleId + '/' + r.icon + '.webp?size=20" style="width:12px;height:12px;vertical-align:middle;margin-right:4px">'
+              var iconSrc = r.iconLocalUrl
+                ? r.iconLocalUrl
+                : r.icon
+                  ? 'https://cdn.discordapp.com/role-icons/' + r.roleId + '/' + r.icon + '.webp?size=20'
+                  : null;
+              var iconHtml = iconSrc
+                ? '<img src="' + iconSrc + '" style="width:12px;height:12px;vertical-align:middle;margin-right:4px">'
                 : r.unicodeEmoji
                   ? '<span style="font-size:12px;margin-right:4px;vertical-align:middle">' + r.unicodeEmoji + '</span>'
                   : r.color

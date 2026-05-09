@@ -472,3 +472,108 @@ describe('Role color data in export', () => {
     expect(alice.roleColor).toBeUndefined();
   });
 });
+
+describe('Role-icon localization in export data (#171)', () => {
+  // Pass roleMap into buildExportPageData and assert each user's roles
+  // entries carry the locally-resolved iconLocalUrl when the icon was
+  // downloaded; otherwise iconLocalUrl is undefined and the embedded JS
+  // template falls through to the remote CDN URL.
+  const GUILD_ID = 'guild-icon-test';
+  const ROLE_ADMIN = { id: 'role-admin', name: 'Admin', color: 0xe91e63, position: 10, icon: 'admin_icon_hash' };
+  const ROLE_MOD = { id: 'role-mod', name: 'Mod', color: 0x2ecc71, position: 5, icon: 'mod_icon_hash' };
+  const ROLE_NOICON = { id: 'role-noicon', name: 'Member', color: 0, position: 1 };
+  const GUILD_ROLES = [ROLE_ADMIN, ROLE_MOD, ROLE_NOICON];
+  const USER_MAP = {
+    [AUTHOR_ALICE.id]: {
+      userName: 'alice',
+      displayName: 'Alice',
+      avatar: null,
+      guilds: {
+        [GUILD_ID]: {
+          roles: ['role-admin', 'role-mod', 'role-noicon'],
+          nick: null,
+          joinedAt: null,
+          timestamp: Date.now(),
+        },
+      },
+      timestamp: Date.now(),
+    },
+  };
+
+  it('populates iconLocalUrl on roles whose icon is in the roleMap', () => {
+    const roleMap = {
+      'https://cdn.discordapp.com/role-icons/role-admin/admin_icon_hash.webp?size=20':
+        'sanitized-channel/roles/Admin_role-admin.webp',
+      'https://cdn.discordapp.com/role-icons/role-mod/mod_icon_hash.webp?size=20':
+        'sanitized-channel/roles/Mod_role-mod.webp',
+    };
+    const data = buildExportPageData(
+      EXPORT_MESSAGES, 1, 1, 'sanitized-channel', MOCK_CONTEXT,
+      undefined, undefined, USER_MAP, GUILD_ID, GUILD_ROLES, undefined, roleMap,
+    );
+    const alice = data.users[AUTHOR_ALICE.id];
+    expect(alice.roles).toBeDefined();
+    const admin = alice.roles!.find((r) => r.name === 'Admin');
+    const mod = alice.roles!.find((r) => r.name === 'Mod');
+    expect(admin?.iconLocalUrl).toBe('roles/Admin_role-admin.webp');
+    expect(mod?.iconLocalUrl).toBe('roles/Mod_role-mod.webp');
+  });
+
+  it('leaves iconLocalUrl undefined when the role icon is not in the roleMap', () => {
+    // Empty roleMap simulates a guild whose icons failed to download or
+    // weren't downloaded (legacy export path that passes guild=null).
+    const data = buildExportPageData(
+      EXPORT_MESSAGES, 1, 1, 'sanitized-channel', MOCK_CONTEXT,
+      undefined, undefined, USER_MAP, GUILD_ID, GUILD_ROLES, undefined, {},
+    );
+    const alice = data.users[AUTHOR_ALICE.id];
+    const admin = alice.roles!.find((r) => r.name === 'Admin');
+    expect(admin?.iconLocalUrl).toBeUndefined();
+    // The hash itself is still present so the template can build a remote
+    // URL fallback. This is the live-mode parity path.
+    expect(admin?.icon).toBe('admin_icon_hash');
+  });
+
+  it('omits iconLocalUrl entirely for roles without an icon', () => {
+    const roleMap = {
+      'https://cdn.discordapp.com/role-icons/role-admin/admin_icon_hash.webp?size=20':
+        'sanitized-channel/roles/Admin_role-admin.webp',
+    };
+    const data = buildExportPageData(
+      EXPORT_MESSAGES, 1, 1, 'sanitized-channel', MOCK_CONTEXT,
+      undefined, undefined, USER_MAP, GUILD_ID, GUILD_ROLES, undefined, roleMap,
+    );
+    const alice = data.users[AUTHOR_ALICE.id];
+    const member = alice.roles!.find((r) => r.name === 'Member');
+    expect(member?.icon).toBeNull();
+    expect(member?.iconLocalUrl).toBeUndefined();
+  });
+
+  it('strips the entityName prefix so values are page-relative (matches avatarUrl behavior)', () => {
+    // Same pattern as avatarUrl on line 119 — drop the "{sanitizedName}/"
+    // prefix so the value is relative to the page; prefixRelativeMediaPaths
+    // reattaches "../" for nested thread files.
+    const roleMap = {
+      'https://cdn.discordapp.com/role-icons/role-admin/admin_icon_hash.webp?size=20':
+        'specific-channel-folder/roles/Admin_role-admin.webp',
+    };
+    const data = buildExportPageData(
+      EXPORT_MESSAGES, 1, 1, 'specific-channel-folder', MOCK_CONTEXT,
+      undefined, undefined, USER_MAP, GUILD_ID, GUILD_ROLES, undefined, roleMap,
+    );
+    const alice = data.users[AUTHOR_ALICE.id];
+    const admin = alice.roles!.find((r) => r.name === 'Admin');
+    expect(admin?.iconLocalUrl).toBe('roles/Admin_role-admin.webp');
+    expect(admin?.iconLocalUrl).not.toContain('specific-channel-folder/');
+  });
+});
+
+describe('Embedded JS role-icon rendering (#171)', () => {
+  it('user-popup role badges prefer iconLocalUrl over remote CDN URL', () => {
+    const js = generateEmbeddedJs();
+    expect(js).toContain('r.iconLocalUrl');
+    // The CDN fallback must remain so live-loaded data (or roles whose
+    // icons weren't downloaded) still render.
+    expect(js).toContain('cdn.discordapp.com/role-icons/');
+  });
+});

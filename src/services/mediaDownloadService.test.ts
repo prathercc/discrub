@@ -1006,10 +1006,10 @@ describe('mediaDownloadService', () => {
       );
 
       expect(mockDiscordService.downloadFile).toHaveBeenCalledWith(
-        'https://media.discordapp.net/role-icons/role-1/icon123.png'
+        'https://cdn.discordapp.com/role-icons/role-1/icon123.webp?size=20'
       );
       expect(mockDiscordService.downloadFile).toHaveBeenCalledWith(
-        'https://media.discordapp.net/role-icons/role-2/icon456.png'
+        'https://cdn.discordapp.com/role-icons/role-2/icon456.webp?size=20'
       );
     });
 

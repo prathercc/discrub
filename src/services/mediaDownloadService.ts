@@ -402,7 +402,12 @@ export class MediaDownloadService {
 
     for (const role of roles) {
       if (shouldContinue) await shouldContinue();
-      const cdnUrl = `https://media.discordapp.net/role-icons/${role.id}/${role.icon}.png`;
+      // Canonical key shape (#171): match what the HTML emitters render
+      // live so the templates can do a direct roleMap[cdnUrl] lookup
+      // without normalization. Discord's CDN serves both .webp?size=20
+      // and the .png variants; we read whichever Discord returns and
+      // store under the canonical key.
+      const cdnUrl = `https://cdn.discordapp.com/role-icons/${role.id}/${role.icon}.webp?size=20`;
 
       if (!this.maps.roleMap[cdnUrl]) {
         const blob = await this.downloadWithTimeout(cdnUrl);
