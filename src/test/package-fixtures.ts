@@ -59,6 +59,12 @@ export interface FixtureOptions {
    * existing tests on the legacy path.
    */
   messagesFormat?: 'csv' | 'json';
+  /**
+   * Whether to include `account/avatar.png` in the fixture. Default
+   * false to keep legacy tests that don't care about avatars. Tests
+   * exercising the avatar-blob-url flow opt in.
+   */
+  includeAvatar?: boolean;
 }
 
 const HEADER = 'ID,Timestamp,Contents,Attachments';
@@ -116,6 +122,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     localeOverride,
     channelDirPrefix = 'c',
     messagesFormat = 'csv',
+    includeAvatar = false,
   } = opts;
   const dirP = channelDirPrefix === 'c' ? 'c' : '';
   const msgExt = messagesFormat;
@@ -156,6 +163,16 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
             avatar_hash: 'abc',
             email: 'test@example.com',
           }),
+    );
+  }
+
+  if (includeAvatar) {
+    // 8 bytes of "PNG-ish" magic + filler so the parser sees a non-empty
+    // file. We don't care about pixel correctness; the export pipeline
+    // wraps these bytes in a Blob and minted URL.
+    put(
+      `${account}/avatar.png`,
+      new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
     );
   }
 
