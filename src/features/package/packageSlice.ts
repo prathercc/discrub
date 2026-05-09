@@ -806,6 +806,14 @@ async function runSearchPreflight(args: {
   onPageComplete?: (args: {
     foundSoFar: number;
     packageHitsOnThisPage: Message[];
+    /**
+     * Cumulative count of search results whose IDs match the package.
+     * `foundSoFar` includes user messages outside the package (other
+     * channels overlapping the date range, deleted messages re-indexed,
+     * etc.), so it overstates the cache-hit budget for the AROUND loop.
+     * Use `packageHitsSoFar` for any per-package progress display.
+     */
+    packageHitsSoFar: number;
   }) => void;
 }): Promise<{
   foundById: Map<string, Message>;
@@ -819,6 +827,7 @@ async function runSearchPreflight(args: {
   httpStatus?: number;
   pages: number;
   totalFound: number;
+  packageHitsTotal: number;
 }> {
   const {
     token,
@@ -835,8 +844,15 @@ async function runSearchPreflight(args: {
   // Lookup for "is this message in the package?" — drives which
   // preflight results are worth dispatching as enrichment deltas.
   const packageIdSet = new Set(messages.map((m) => m.id));
+  let packageHitsTotal = 0;
   if (messages.length === 0) {
-    return { foundById, status: 'skipped', pages: 0, totalFound: 0 };
+    return {
+      foundById,
+      status: 'skipped',
+      pages: 0,
+      totalFound: 0,
+      packageHitsTotal: 0,
+    };
   }
 
   // Derive date bounds from the package's timestamps. ISO-8601 sorts
@@ -859,7 +875,13 @@ async function runSearchPreflight(args: {
   ) {
     // Bad timestamps in the package — skip preflight rather than
     // sending nonsense bounds to Discord.
-    return { foundById, status: 'skipped', pages: 0, totalFound: 0 };
+    return {
+      foundById,
+      status: 'skipped',
+      pages: 0,
+      totalFound: 0,
+      packageHitsTotal: 0,
+    };
   }
 
   const criteria: SearchCriteria = {
@@ -927,12 +949,14 @@ async function runSearchPreflight(args: {
         foundById.set(m.id, m);
         if (packageIdSet.has(m.id)) {
           packageHitsOnThisPage.push(m);
+          packageHitsTotal += 1;
         }
       }
     }
     onPageComplete?.({
       foundSoFar: foundById.size,
       packageHitsOnThisPage,
+      packageHitsSoFar: packageHitsTotal,
     });
 
     if (rawCount < SEARCH_PREFLIGHT_PAGE_SIZE) break;
@@ -947,7 +971,14 @@ async function runSearchPreflight(args: {
     if (wasCancelled) throw new CancelledError();
   }
 
-  return { foundById, status, httpStatus, pages, totalFound: foundById.size };
+  return {
+    foundById,
+    status,
+    httpStatus,
+    pages,
+    totalFound: foundById.size,
+    packageHitsTotal,
+  };
 }
 
 /**
@@ -1149,10 +1180,15 @@ export const enrichPackageChannel = createAsyncThunk<
           delayModifier,
           getState,
           dispatch,
-          onPageComplete: ({ foundSoFar, packageHitsOnThisPage }) => {
+          onPageComplete: ({ packageHitsSoFar, packageHitsOnThisPage }) => {
             // Advance the progress bar as pages come in so the UI
-            // doesn't sit at 0/N for the whole preflight.
-            progressCurrent = Math.min(foundSoFar, messages.length);
+            // doesn't sit at 0/N for the whole preflight. Use the
+            // package-overlap count (not foundById.size) so the bar
+            // reflects real cache-hit budget; foundById can include
+            // messages outside the package, which would clamp progress
+            // to messages.length and freeze the bar through the entire
+            // AROUND loop.
+            progressCurrent = Math.min(packageHitsSoFar, messages.length);
             dispatch(
               setEnrichmentProgress({
                 channelId,
@@ -1189,8 +1225,9 @@ export const enrichPackageChannel = createAsyncThunk<
             addStatusEntry({
               level: 'info',
               message:
-                `Channel scan found ${preflight.foundById.size.toLocaleString()} ` +
-                `${preflight.foundById.size === 1 ? 'message' : 'messages'}.`,
+                `Channel scan matched ${preflight.packageHitsTotal.toLocaleString()} ` +
+                `of ${messages.length.toLocaleString()} package ` +
+                `${messages.length === 1 ? 'message' : 'messages'}.`,
             }),
           );
         }

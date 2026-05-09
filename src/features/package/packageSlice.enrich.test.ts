@@ -850,6 +850,99 @@ describe('packageSlice — enrichPackageChannel', () => {
     expect(anyNonZero).toBe(true);
   });
 
+  it('preflight progress reflects package-overlap, not total search results', async () => {
+    // Reproduces the "stuck at 58/60" bug: search returns far more
+    // user messages in the date range than there are in the package.
+    // Bar must track the *package* matches (≤ messages.length), not
+    // the raw search-result count, otherwise it pegs at messages.length
+    // before the AROUND loop has had a chance to walk through.
+    //
+    // Package has 3 messages ('1','2','3'). Preflight returns one
+    // package match ('1') alongside many non-package user messages.
+    // The progress bar must NOT jump past 1 during preflight.
+    mockFetchSearchMessageData.mockResolvedValueOnce({
+      success: true,
+      status: 200,
+      data: {
+        messages: [
+          liveMessage('1'),
+          ...Array.from({ length: 22 }, (_, i) =>
+            liveMessage(`other-channel-${i}`),
+          ),
+        ],
+        threads: [],
+        total_results: 23,
+      },
+    });
+    mockFetchMessageData.mockImplementation(
+      (_t: string, id: string) =>
+        Promise.resolve({ success: true, status: 200, data: [liveMessage(id)] }),
+    );
+
+    const progressSnapshots: Array<{ current: number; total: number }> = [];
+    const store = await primedStore();
+    const unsubscribe = store.subscribe(() => {
+      const p = store.getState().package.enrichmentProgress['200'];
+      if (p) progressSnapshots.push({ ...p });
+    });
+    await store.dispatch(enrichPackageChannel({ channelId: '200' }));
+    unsubscribe();
+
+    // Every recorded snapshot must satisfy current <= total. Pre-fix,
+    // the bar climbed to min(23, 3) = 3 instantly during preflight.
+    // Post-fix, it advances at most 1 step per package-matching hit.
+    for (const snap of progressSnapshots) {
+      expect(snap.current).toBeLessThanOrEqual(snap.total);
+    }
+    // The first non-zero progress snapshot (from preflight) must be 1,
+    // not 3 — proving we used packageHitsSoFar, not foundById.size.
+    const firstNonZero = progressSnapshots.find((p) => p.current > 0);
+    expect(firstNonZero).toBeDefined();
+    expect(firstNonZero!.current).toBe(1);
+    // Final progress lands at total once AROUND fills the gaps.
+    expect(progressSnapshots[progressSnapshots.length - 1]).toEqual({
+      current: 3,
+      total: 3,
+    });
+  });
+
+  it('preflight status log reports package-overlap count, not raw search hits', async () => {
+    // "Channel scan matched X of N package messages" — X is the
+    // number of *package* IDs returned by search, not the total
+    // number of user messages in the date range.
+    mockFetchSearchMessageData.mockResolvedValueOnce({
+      success: true,
+      status: 200,
+      data: {
+        messages: [
+          liveMessage('1'),
+          liveMessage('2'),
+          ...Array.from({ length: 10 }, (_, i) =>
+            liveMessage(`other-channel-${i}`),
+          ),
+        ],
+        threads: [],
+        total_results: 12,
+      },
+    });
+    mockFetchMessageData.mockImplementation(
+      (_t: string, id: string) =>
+        Promise.resolve({ success: true, status: 200, data: [liveMessage(id)] }),
+    );
+    const store = await primedStore();
+
+    await store.dispatch(enrichPackageChannel({ channelId: '200' }));
+
+    const entries: Array<{ message: string }> =
+      (store.getState() as any).status?.entries ?? [];
+    const scanLog = entries.find((e) =>
+      e.message.startsWith('Channel scan matched '),
+    );
+    expect(scanLog).toBeDefined();
+    // 2 package messages ('1','2') matched out of 3 total in the package.
+    expect(scanLog!.message).toContain('matched 2 of 3 package messages');
+  });
+
   it('preflight: chips paint live during preflight via delta dispatches', async () => {
     // First page has 25 results with one package match ('1'), forcing
     // pagination. Second page (partial) has the remaining two.
