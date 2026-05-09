@@ -1215,6 +1215,21 @@ export const enrichPackageChannel = createAsyncThunk<
           },
         });
         for (const [id, msg] of preflight.foundById) {
+          // Discord's /messages/search returns reply messages without a
+          // populated `referenced_message` — the reply preview lives in
+          // an adjacent context slot of the per-hit array, which our
+          // flatten discards. Caching such replies makes every reply in
+          // the package render the "Original message was deleted" chip
+          // even when the parent is alive on Discord. Skip the cache
+          // for those; the AROUND fetch reliably populates the field
+          // on the bulk channel-messages endpoint.
+          if (
+            msg.type === 19 &&
+            msg.message_reference &&
+            !msg.referenced_message
+          ) {
+            continue;
+          }
           windowCache.set(id, msg);
         }
         // Always log a channel-scan summary so users can verify the

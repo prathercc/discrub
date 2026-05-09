@@ -683,6 +683,103 @@ describe('packageSlice — enrichPackageChannel', () => {
       .toEqual(['1', '2', '3']);
   });
 
+  it('preflight: type-19 reply without referenced_message falls through to AROUND', async () => {
+    // Discord's /messages/search returns reply messages with the reply
+    // preview in an adjacent context slot, not on referenced_message.
+    // If we cached such replies, the package view would render the
+    // "Original message was deleted" chip even when the parent is
+    // alive on Discord. Force them through AROUND, where the bulk
+    // channel-messages endpoint reliably populates referenced_message.
+    const replyHit = {
+      ...liveMessage('1'),
+      type: 19,
+      message_reference: {
+        type: 0,
+        channel_id: '200',
+        message_id: 'parent-id',
+        guild_id: 'guild-x',
+      },
+      // referenced_message intentionally absent (search response shape)
+    };
+    mockFetchSearchMessageData.mockResolvedValueOnce({
+      success: true,
+      status: 200,
+      data: {
+        messages: [replyHit, liveMessage('2'), liveMessage('3')],
+        threads: [],
+        total_results: 3,
+      },
+    });
+    // AROUND will get called for '1' and must return a copy WITH
+    // referenced_message populated (matching real Discord bulk-endpoint
+    // behavior).
+    mockFetchMessageData.mockImplementation(
+      (_t: string, id: string) => {
+        if (id === '1') {
+          return Promise.resolve({
+            success: true,
+            status: 200,
+            data: [
+              {
+                ...replyHit,
+                referenced_message: { id: 'parent-id', content: 'parent' },
+              },
+            ],
+          });
+        }
+        return Promise.resolve({ success: true, status: 200, data: [liveMessage(id)] });
+      },
+    );
+    const store = await primedStore();
+
+    await store.dispatch(enrichPackageChannel({ channelId: '200' }));
+
+    // '1' must have triggered an AROUND call despite being in the
+    // preflight result set. '2' and '3' (no message_reference) are
+    // served by the preflight cache.
+    const calledIds = mockFetchMessageData.mock.calls.map((c) => c[1]);
+    expect(calledIds).toEqual(['1']);
+    const enriched = store.getState().package.enrichedMessages['200'];
+    expect(
+      (enriched['1'] as { referenced_message?: unknown }).referenced_message,
+    ).toEqual({ id: 'parent-id', content: 'parent' });
+  });
+
+  it('preflight: type-19 reply WITH referenced_message stays cached', async () => {
+    // The opposite of the above: when search returns a reply already
+    // populated (rare but allowed by the API contract), we trust it
+    // and short-circuit the AROUND call.
+    const replyHit = {
+      ...liveMessage('1'),
+      type: 19,
+      message_reference: {
+        type: 0,
+        channel_id: '200',
+        message_id: 'parent-id',
+        guild_id: 'guild-x',
+      },
+      referenced_message: { id: 'parent-id', content: 'parent' },
+    };
+    mockFetchSearchMessageData.mockResolvedValueOnce({
+      success: true,
+      status: 200,
+      data: {
+        messages: [replyHit, liveMessage('2'), liveMessage('3')],
+        threads: [],
+        total_results: 3,
+      },
+    });
+    const store = await primedStore();
+
+    await store.dispatch(enrichPackageChannel({ channelId: '200' }));
+
+    expect(mockFetchMessageData).not.toHaveBeenCalled();
+    const enriched = store.getState().package.enrichedMessages['200'];
+    expect(
+      (enriched['1'] as { referenced_message?: unknown }).referenced_message,
+    ).toEqual({ id: 'parent-id', content: 'parent' });
+  });
+
   it('preflight: 403 falls back cleanly to per-message AROUND loop', async () => {
     // Default beforeEach mock returns { success: false, status: 403 } —
     // relying on that here. AROUND loop should handle all 3 messages.
