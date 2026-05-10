@@ -124,6 +124,14 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
     title: 'Search Match Count',
     content: '"X of Y matches loaded" means: Discord found Y messages matching your search, but only X are loaded so far. Scroll down (or click Load All) to fetch the rest in 25-message pages. Discord caps each search at 5000 matches, but Load All transparently chains queries past that.',
   },
+  'package-rehydrate': {
+    title: 'Rehydrate (Load Rich Data)',
+    content: "Your data package contains the bare facts: message text, timestamps, attachment URLs. Rehydration fetches live Message objects from Discord so you also get reactions, reply previews, named mentions, embeds, and fresh signed CDN URLs. The button shows an estimated runtime on hover. A guild-wide search preflight covers most messages in a single pass before per-message lookups begin. Results persist to IndexedDB so a rehydrated channel reopens instantly.",
+  },
+  'package-import': {
+    title: 'Discord Data Package',
+    content: "Drop in the ZIP from Discord's Request All My Data export. Discrub decompresses it once into IndexedDB, so reopening the page or browsing back to a channel never re-extracts the archive. Reload the page and your package auto-resumes without re-importing. Multi-gigabyte packages and any Discord locale (English, French, German, Spanish, Simplified Chinese, Cyrillic, etc.) are supported.",
+  },
 };
 
 /**

@@ -336,6 +336,39 @@ describe('streamPackageToStorage', () => {
     });
   });
 
+  describe('snowflake precision in metadata JSON files (Backlog #174)', () => {
+    // Stream-service mirror of the parse-service snowflake suite. The
+    // two services share the JSON helper but parse the bytes through
+    // different code paths (streaming-decompress vs. eager unzip), so
+    // both need their own regression guard.
+    const realUserSnowflake = '253286221395001999';
+
+    it('preserves user.id when account/user.json ships an unquoted snowflake', async () => {
+      const blob = await buildFixturePackage({
+        userId: realUserSnowflake,
+        unquotedSnowflakes: true,
+      });
+      const parsed = await streamPackageToStorage(blob);
+      expect(parsed.user.id).toBe(realUserSnowflake);
+    });
+
+    it('preserves recipients in DM channel.json when shipped unquoted', async () => {
+      const blob = await buildFixturePackage({
+        userId: realUserSnowflake,
+        includeGroupDm: true,
+        unquotedSnowflakes: true,
+      });
+      const parsed = await streamPackageToStorage(blob);
+      const dm = parsed.channels.find((c) => c.id === '300');
+      expect(dm?.recipients).toContain(realUserSnowflake);
+      const group = parsed.channels.find((c) => c.id === '500');
+      expect(group?.recipients).toEqual([realUserSnowflake, '888', '777']);
+      for (const id of group?.recipients ?? []) {
+        expect(typeof id).toBe('string');
+      }
+    });
+  });
+
   describe('compressed-size telemetry warning', () => {
     it('does not warn under 1 GiB compressed', async () => {
       const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});

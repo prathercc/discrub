@@ -18,6 +18,7 @@ import {
   GitHub as GitHubIcon,
   Star as StarIcon,
   PersonAdd as FollowIcon,
+  FolderZip as PackageIcon,
 } from '@mui/icons-material';
 
 const GITHUB_PROFILE_URL = 'https://github.com/prathercc';
@@ -65,6 +66,12 @@ const FEATURE_CARDS: FeatureCard[] = [
     icon: <ForumIcon />,
     title: 'Forum Channels',
     description: 'Full support for forum and media channels. Browse threads, load messages, and export individually or in bulk.',
+  },
+  {
+    id: 'package',
+    icon: <PackageIcon />,
+    title: 'Data Package',
+    description: 'Drop in your Discord "Request All My Data" ZIP. Browse every server, channel, and DM in your archive. Optional rehydration fetches live reactions, replies, and CDN URLs.',
   },
   {
     id: 'analytics',

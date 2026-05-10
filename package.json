@@ -1,6 +1,6 @@
 {
   "name": "discrub",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "type": "module",
   "private": true,
   "scripts": {
@@ -45,7 +45,7 @@
     "copy-to-clipboard": "^3.3.3",
     "date-fns": "^2.30.0",
     "date-fns-tz": "^3.2.0",
-    "discrub-core": "^1.0.1",
+    "discrub-core": "^1.0.2",
     "drip-fs": "^1.0.0",
     "file-saver": "^2.0.5",
     "fflate": "^0.8.2",

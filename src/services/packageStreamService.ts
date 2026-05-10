@@ -38,7 +38,7 @@
 import { unzip, strFromU8 } from 'fflate';
 import { storage } from '@/extension/storage';
 import { countCsvRows, parseMessagesCsv } from '@/utils/csvParser';
-import { countJsonMessages, parseMessagesJson } from '@/utils/jsonParser';
+import { countJsonMessages, parseMessagesJson, parseSnowflakeJson } from '@/utils/jsonParser';
 import {
   PACKAGE_CHANNEL_TYPE,
   type PackageChannel,
@@ -505,7 +505,7 @@ function readUserJson(
   if (!entry) {
     throw new PackageParseError('Package is missing account/user.json');
   }
-  const raw = JSON.parse(strFromU8(entry)) as RawUserJson;
+  const raw = parseSnowflakeJson<RawUserJson>(strFromU8(entry));
   if (!raw.id || !raw.username) {
     throw new PackageParseError('account/user.json is malformed');
   }
@@ -535,7 +535,7 @@ function readGuilds(
     const entry = files[actual];
     if (!entry) continue;
     try {
-      const raw = JSON.parse(strFromU8(entry)) as RawGuildJson;
+      const raw = parseSnowflakeJson<RawGuildJson>(strFromU8(entry));
       if (raw.id && raw.name) guilds.push({ id: raw.id, name: raw.name });
     } catch {
       /* skip malformed guild.json */
@@ -553,7 +553,7 @@ function readChannelNameIndex(
   const entry = resolveStructural(files, index, prefix, aliases, 'messages/index.json');
   if (!entry) return {};
   try {
-    return JSON.parse(strFromU8(entry)) as Record<string, string | null>;
+    return parseSnowflakeJson<Record<string, string | null>>(strFromU8(entry));
   } catch {
     return {};
   }
@@ -626,7 +626,7 @@ async function persistChannel(
 
   let raw: RawChannelJson;
   try {
-    raw = JSON.parse(strFromU8(resolved.channelJson)) as RawChannelJson;
+    raw = parseSnowflakeJson<RawChannelJson>(strFromU8(resolved.channelJson));
   } catch {
     return null;
   }

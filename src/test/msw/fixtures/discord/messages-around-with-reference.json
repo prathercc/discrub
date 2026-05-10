@@ -1,0 +1,96 @@
+[
+  {
+    "_doc_first_element": "Companion fixture for messages-search-type19-reply.json. This is what Discord's bulk channel-messages endpoint (?around={id}) returns when called with the same reply ID — `referenced_message` IS populated here, which is why our consumer code routes type-19 replies through AROUND instead of trusting the search result. Re-capture from a fresh HAR if shape drifts.",
+    "id": "7700000000000000111",
+    "type": 19,
+    "content": "reply body",
+    "channel_id": "1100000000000000200",
+    "author": {
+      "id": "9000000000000000111",
+      "username": "fixture_user_a",
+      "global_name": "Fixture User A",
+      "discriminator": "0",
+      "avatar": "abc123def456abc123def456abc123de",
+      "bot": false,
+      "public_flags": 0
+    },
+    "attachments": [],
+    "embeds": [],
+    "mentions": [],
+    "mention_roles": [],
+    "pinned": false,
+    "mention_everyone": false,
+    "tts": false,
+    "timestamp": "2026-05-08T12:34:56.789000+00:00",
+    "edited_timestamp": null,
+    "flags": 0,
+    "components": [],
+    "reactions": [
+      {
+        "emoji": { "id": null, "name": "👍" },
+        "count": 2,
+        "me": false
+      }
+    ],
+    "message_reference": {
+      "type": 0,
+      "channel_id": "1100000000000000200",
+      "message_id": "8800000000000000999",
+      "guild_id": "1000000000000000123"
+    },
+    "referenced_message": {
+      "id": "8800000000000000999",
+      "type": 0,
+      "content": "parent message body",
+      "channel_id": "1100000000000000200",
+      "author": {
+        "id": "9000000000000000222",
+        "username": "fixture_user_b",
+        "global_name": "Fixture User B",
+        "discriminator": "0",
+        "avatar": null,
+        "bot": false,
+        "public_flags": 0
+      },
+      "attachments": [],
+      "embeds": [],
+      "mentions": [],
+      "mention_roles": [],
+      "pinned": false,
+      "mention_everyone": false,
+      "tts": false,
+      "timestamp": "2026-05-08T12:30:30.000000+00:00",
+      "edited_timestamp": null,
+      "flags": 0,
+      "components": [],
+      "reactions": []
+    }
+  },
+  {
+    "id": "1341523000000000000",
+    "type": 0,
+    "content": "neighbor in the AROUND window",
+    "channel_id": "1100000000000000200",
+    "author": {
+      "id": "9000000000000000111",
+      "username": "fixture_user_a",
+      "global_name": "Fixture User A",
+      "discriminator": "0",
+      "avatar": null,
+      "bot": false,
+      "public_flags": 0
+    },
+    "attachments": [],
+    "embeds": [],
+    "mentions": [],
+    "mention_roles": [],
+    "pinned": false,
+    "mention_everyone": false,
+    "tts": false,
+    "timestamp": "2026-05-08T12:33:00.000000+00:00",
+    "edited_timestamp": null,
+    "flags": 0,
+    "components": [],
+    "reactions": []
+  }
+]

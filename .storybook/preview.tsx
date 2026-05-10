@@ -18,6 +18,11 @@ import cacheReducer from '../src/features/cache/cacheSlice';
 import statusReducer from '../src/features/status/statusSlice';
 import purgeReducer from '../src/features/purge/purgeSlice';
 import announcementReducer from '../src/features/announcement/announcementSlice';
+import presetsReducer from '../src/features/presets/presetsSlice';
+import historyReducer from '../src/features/history/historySlice';
+import packageReducer from '../src/features/package/packageSlice';
+import hotkeysReducer from '../src/features/hotkeys/hotkeysSlice';
+import devReducer from '../src/features/dev/devSlice';
 
 function createMockStore(preloadedState?: any) {
   return configureStore({
@@ -34,6 +39,11 @@ function createMockStore(preloadedState?: any) {
       status: statusReducer,
       purge: purgeReducer,
       announcement: announcementReducer,
+      presets: presetsReducer,
+      history: historyReducer,
+      package: packageReducer,
+      hotkeys: hotkeysReducer,
+      dev: devReducer,
     },
     preloadedState,
   });

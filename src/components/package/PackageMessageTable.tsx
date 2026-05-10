@@ -64,6 +64,8 @@ import {
 } from '@features/package/packageSlice';
 import {
   formatDeleteSummary,
+  formatRehydrateEta,
+  formatRehydrateEtaBreakdown,
   formatRehydrateInlineSummary,
 } from '@features/package/packageStatusCopy';
 import { selectSearchDelay } from '@features/app/appSlice';
@@ -1144,14 +1146,6 @@ interface EnrichmentBannerProps {
   onCancel: () => void;
 }
 
-function formatEta(totalMessages: number, searchDelayMs: number): string {
-  if (totalMessages <= 0) return '<1s';
-  const totalSec = (totalMessages * searchDelayMs) / 1000;
-  if (totalSec < 60) return `~${Math.max(1, Math.round(totalSec))}s`;
-  const mins = Math.round(totalSec / 60);
-  return `~${mins} min`;
-}
-
 function formatDaysAgo(ts: number): string {
   const diffMs = Date.now() - ts;
   const day = 24 * 60 * 60 * 1000;
@@ -1236,8 +1230,11 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
           .
         </Typography>
         <Tooltip
-          title={disabledReason ?? ''}
-          disableHoverListener={canEnrich}
+          title={
+            disabledReason
+              ? disabledReason
+              : formatRehydrateEtaBreakdown(messageCount, searchDelayMs)
+          }
         >
           <span>
             <Button
@@ -1284,8 +1281,11 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
         Rehydrate to see reactions, mentions, and fresh CDN URLs.
       </Typography>
       <Tooltip
-        title={disabledReason ?? ''}
-        disableHoverListener={canEnrich}
+        title={
+          disabledReason
+            ? disabledReason
+            : formatRehydrateEtaBreakdown(messageCount, searchDelayMs)
+        }
       >
         <span>
           <Button
@@ -1295,7 +1295,7 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
             disabled={!canEnrich}
             onClick={retryOrStart}
           >
-            {verb} rich data · {formatEta(messageCount, searchDelayMs)}
+            {verb} rich data · {formatRehydrateEta(messageCount, searchDelayMs)}
           </Button>
         </span>
       </Tooltip>

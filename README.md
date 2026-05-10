@@ -197,11 +197,11 @@ The importer handles large packages (multi-gigabyte archives, tens of thousands 
 
 ![Package analytics](docs/screenshots/package/package-analytics.png)
 
-**Browse the messages.** Lazy CSV loading (up to 5 channels cached at once), Discord-style message formatting with markdown, mention chips, custom emoji, and auto-linked URLs. Attachment placeholders preserve the original CDN URL.
+**Browse the messages.** Imports decompress once into IndexedDB; per-channel reads come straight from IDB on demand and never re-decompress the ZIP. Reload the page and the package auto-resumes without a re-import. Discord-style message formatting with markdown, mention chips, custom emoji, and auto-linked URLs. Attachment placeholders preserve the original CDN URL. Older packages with unquoted snowflake IDs survive parsing without precision loss across user, server, channel, and message metadata.
 
 ![Package message browser](docs/screenshots/package/package-message-browser.png)
 
-**Tier 2 rehydration (opt-in, per channel).** Click "Load rich data" to fetch live `Message` objects from Discord — real reactions, reply quotes, named mentions, embeds, stickers, and fresh signed CDN URLs for attachments. Results persist to IndexedDB so enriched channels load instantly on return. Pause/resume/cancel work the same as every other long-running operation; partial results are saved on cancel.
+**Tier 2 rehydration (opt-in, per channel).** Click "Load rich data" to fetch live `Message` objects from Discord — real reactions, reply quotes, named mentions, embeds, stickers, and fresh signed CDN URLs for attachments. The button surfaces an estimated runtime on hover (X messages, expected duration) so multi-hour rehydrates don't start without warning. A guild-wide search preflight covers most messages in a single pass before per-message lookups begin; the status log shows how many of the package's messages were served by that scan. Results persist to IndexedDB so enriched channels load instantly on return. Pause/resume/cancel work the same as every other long-running operation; partial results are saved on cancel.
 
 ![Package rehydrated](docs/screenshots/package/package-rehydrated.png)
 

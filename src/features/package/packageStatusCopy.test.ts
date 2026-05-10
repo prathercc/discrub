@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatDeleteSummary,
+  formatRehydrateEta,
+  formatRehydrateEtaBreakdown,
   formatRehydrateInlineSummary,
   formatRehydrateLogSummary,
 } from './packageStatusCopy';
@@ -172,5 +174,66 @@ describe('formatRehydrateLogSummary', () => {
     ).toBe(
       'Rich data loaded for "general": 50 messages, 3 unavailable, 1 no access. (cancelled)',
     );
+  });
+});
+
+describe('formatRehydrateEta (Backlog #174)', () => {
+  // Default search delay used in production is ~1000ms; stress the
+  // helper with both fast and slow values so the formatter holds at
+  // each duration band (sub-minute → minutes → hours).
+  it('returns "<1s" for an empty channel', () => {
+    expect(formatRehydrateEta(0, 1000)).toBe('<1s');
+  });
+
+  it('rounds sub-minute durations to whole seconds', () => {
+    // 30 messages × 1000ms = 30 sec
+    expect(formatRehydrateEta(30, 1000)).toBe('~30s');
+    // 5 messages × 200ms = 1 sec
+    expect(formatRehydrateEta(5, 200)).toBe('~1s');
+  });
+
+  it('formats minutes with the "min" suffix between 1 and 60 minutes', () => {
+    expect(formatRehydrateEta(60, 1000)).toBe('~1 min');
+    expect(formatRehydrateEta(300, 1000)).toBe('~5 min');
+    expect(formatRehydrateEta(2700, 1000)).toBe('~45 min');
+  });
+
+  it('switches to "Xh Ym" past one hour so multi-hour runs read clearly', () => {
+    // 4500 messages × 1000ms = 4500s = 1h 15m
+    expect(formatRehydrateEta(4500, 1000)).toBe('~1h 15m');
+    // Whole-hour case: 7200s = 2h
+    expect(formatRehydrateEta(7200, 1000)).toBe('~2h');
+    // 10000 × 1s = 10000s = 2h 47m
+    expect(formatRehydrateEta(10000, 1000)).toBe('~2h 47m');
+  });
+});
+
+describe('formatRehydrateEtaBreakdown (Backlog #174)', () => {
+  it('returns a no-op message when there are zero messages', () => {
+    expect(formatRehydrateEtaBreakdown(0, 1000)).toBe('No messages to rehydrate.');
+  });
+
+  it('describes message count, throughput, and headline ETA', () => {
+    const out = formatRehydrateEtaBreakdown(300, 1000);
+    expect(out).toContain('300 messages');
+    expect(out).toContain('per second');
+    expect(out).toContain('~5 min');
+    expect(out).toContain('preflight'); // mentions the preflight optimization
+  });
+
+  it('localizes large counts with thousands separators', () => {
+    const out = formatRehydrateEtaBreakdown(12345, 1000);
+    expect(out).toContain('12,345 messages');
+  });
+
+  it('uses singular "message" for a one-message channel', () => {
+    expect(formatRehydrateEtaBreakdown(1, 1000)).toContain('1 message ');
+    expect(formatRehydrateEtaBreakdown(1, 1000)).not.toContain('1 messages');
+  });
+
+  it('flips throughput to "X seconds per message" when delays are slow', () => {
+    // 5000ms delay = 1 message every 5 seconds
+    const out = formatRehydrateEtaBreakdown(10, 5000);
+    expect(out).toMatch(/5\.0s per message/);
   });
 });

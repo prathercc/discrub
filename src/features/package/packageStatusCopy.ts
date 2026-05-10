@@ -128,3 +128,60 @@ export function formatRehydrateLogSummary(opts: {
   if (opts.cancelled) sentence += ' (cancelled)';
   return sentence;
 }
+
+/**
+ * Compact ETA shown on the rehydrate button label, e.g.
+ *   `"~5 min"`, `"~1h 30m"`, `"~25s"`.
+ *
+ * Drives off `messages.length × searchDelayMs`. Real runs typically
+ * finish faster (search preflight covers most messages without
+ * per-message AROUND calls), so the estimate skews high — but a
+ * worst-case figure is the right thing to show before the user
+ * commits to the run. The breakdown helper below documents the
+ * underlying assumptions.
+ *
+ * Switches to `~Xh Ym` past the hour mark so multi-hour rehydrates
+ * don't render as "~78 min" — at that scale a user is likely to
+ * walk away from the tab and wants to plan around the duration.
+ */
+export function formatRehydrateEta(
+  totalMessages: number,
+  searchDelayMs: number,
+): string {
+  if (totalMessages <= 0) return '<1s';
+  const totalSec = (totalMessages * searchDelayMs) / 1000;
+  if (totalSec < 60) return `~${Math.max(1, Math.round(totalSec))}s`;
+  if (totalSec < 3600) {
+    const mins = Math.round(totalSec / 60);
+    return `~${mins} min`;
+  }
+  const hours = Math.floor(totalSec / 3600);
+  const minsRemainder = Math.round((totalSec % 3600) / 60);
+  if (minsRemainder === 0) return `~${hours}h`;
+  return `~${hours}h ${minsRemainder}m`;
+}
+
+/**
+ * Multi-line breakdown surfaced on hover of the rehydrate button.
+ * Shows what's driving the headline ETA so a user about to commit to
+ * a long run knows whether their assumption ("~5 min") matches the
+ * actual upper bound ("3,200 messages, ~1/sec, expected ~50 min").
+ */
+export function formatRehydrateEtaBreakdown(
+  totalMessages: number,
+  searchDelayMs: number,
+): string {
+  if (totalMessages <= 0) return 'No messages to rehydrate.';
+  const messagesPerSec = searchDelayMs > 0 ? 1000 / searchDelayMs : 0;
+  const rate =
+    messagesPerSec >= 1
+      ? `~${messagesPerSec.toFixed(messagesPerSec >= 10 ? 0 : 1)} per second`
+      : `~${(searchDelayMs / 1000).toFixed(1)}s per message`;
+  const eta = formatRehydrateEta(totalMessages, searchDelayMs);
+  return (
+    `${totalMessages.toLocaleString()} ${totalMessages === 1 ? 'message' : 'messages'} · ` +
+    `${rate} · expected ${eta}. ` +
+    `Discord caps fetch rate; the search preflight may finish sooner ` +
+    `if it covers most messages in one pass.`
+  );
+}

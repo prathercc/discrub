@@ -65,6 +65,18 @@ export interface FixtureOptions {
    * exercising the avatar-blob-url flow opt in.
    */
   includeAvatar?: boolean;
+  /**
+   * Emit user.json, guild.json, and channel.json with snowflake fields
+   * as bare numeric literals instead of quoted strings. Older Discord
+   * exports (and some current ones depending on locale/path) ship IDs
+   * unquoted; this option lets a test reproduce that wire shape so the
+   * parser's precision-preserving JSON helper is exercised end-to-end.
+   *
+   * Combine with `userId`/`includeGroupDm` to land 19-digit snowflakes
+   * in user.json, guild.json, recipients arrays, and nested guild.id
+   * within channel.json — every field the helper claims to protect.
+   */
+  unquotedSnowflakes?: boolean;
 }
 
 const HEADER = 'ID,Timestamp,Contents,Attachments';
@@ -123,7 +135,36 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     channelDirPrefix = 'c',
     messagesFormat = 'csv',
     includeAvatar = false,
+    unquotedSnowflakes = false,
   } = opts;
+  // Strips quotes from every snowflake-bearing field in a stringified
+  // object so the on-disk wire shape mirrors what older Discord exports
+  // ship. Only used when `unquotedSnowflakes` is true.
+  const SNOWFLAKE_KEYS = new Set([
+    'id',
+    'channel_id',
+    'guild_id',
+    'user_id',
+    'message_id',
+    'owner_id',
+    'recipient_id',
+    'application_id',
+  ]);
+  const stringify = (value: unknown): string => {
+    const json = JSON.stringify(value);
+    if (!unquotedSnowflakes) return json;
+    let out = json;
+    for (const key of SNOWFLAKE_KEYS) {
+      out = out.replace(new RegExp(`"${key}":"(\\d+)"`, 'g'), `"${key}":$1`);
+    }
+    // recipients: ["a","b"] → recipients: [a,b] (when entries are pure digits)
+    out = out.replace(
+      /"recipients":\[([^\]]*)\]/g,
+      (_match, inner: string) =>
+        `"recipients":[${inner.replace(/"(\d+)"/g, '$1')}]`,
+    );
+    return out;
+  };
   const dirP = channelDirPrefix === 'c' ? 'c' : '';
   const msgExt = messagesFormat;
 
@@ -156,7 +197,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
       `${account}/user.json`,
       malformedUserJson
         ? '{ not json'
-        : JSON.stringify({
+        : stringify({
             id: userId,
             username,
             global_name: 'Aaron',
@@ -178,7 +219,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
 
   put(
     `${servers}/100/guild.json`,
-    JSON.stringify({ id: '100', name: 'Test Guild' }),
+    stringify({ id: '100', name: 'Test Guild' }),
   );
 
   // Discord's current package format ships `servers/index.json` alongside
@@ -204,7 +245,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   // Guild text channel
   put(
     `${messages}/${dirP}200/channel.json`,
-    JSON.stringify({
+    stringify({
       id: '200',
       type: 0,
       name: 'general',
@@ -241,7 +282,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   // DM
   put(
     `${messages}/${dirP}300/channel.json`,
-    JSON.stringify({
+    stringify({
       id: '300',
       type: 1,
       recipients: [userId, '999'],
@@ -263,7 +304,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   if (includeOrphanChannel) {
     put(
       `${messages}/${dirP}400/channel.json`,
-      JSON.stringify({ id: '400', type: 0 }),
+      stringify({ id: '400', type: 0 }),
     );
     put(
       `${messages}/${dirP}400/messages.${msgExt}`,
@@ -282,7 +323,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
   if (includeGroupDm) {
     put(
       `${messages}/${dirP}500/channel.json`,
-      JSON.stringify({
+      stringify({
         id: '500',
         type: 3,
         recipients: [userId, '888', '777'],
@@ -300,7 +341,7 @@ export async function buildFixturePackage(opts: FixtureOptions = {}): Promise<Bl
     // path, so it intentionally writes a `.csv` file regardless.
     put(
       `${messages}/c600/channel.json`,
-      JSON.stringify({
+      stringify({
         id: '600',
         type: 0,
         name: 'broken',

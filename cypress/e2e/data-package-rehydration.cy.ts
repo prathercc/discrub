@@ -444,6 +444,320 @@ describe('Data package rehydration (Tier 2)', () => {
 });
 
 /**
+ * Regression coverage for the post-#162 fixes (backlog #174):
+ *  - 33a767d: messages.json snowflake precision (parser-level; URL must
+ *    pass through the package's exact stored ID with no Number coercion)
+ *  - 7fead58: search preflight must NOT cache type-19 replies (Discord's
+ *    /messages/search response shape lacks referenced_message)
+ *  - 3b14bc1: status log emits "Channel scan matched X of N package
+ *    messages" so the optimization is visible to the user
+ *
+ * Each of these shipped after a real-user HAR found a bug that synthetic
+ * tests had missed; this block pins the fixes so they can't silently
+ * regress.
+ */
+describe('Data package rehydration robustness fixes (#174)', () => {
+  beforeEach(() => {
+    cy.login();
+    cy.uploadPackage();
+    cy.contains('general').click();
+    cy.contains('hello world').should('be.visible');
+    setZeroDelay();
+  });
+
+  it('emits "Channel scan matched X of N package messages" when preflight returns hits', () => {
+    // Search preflight returns all 4 package messages — the new status
+    // log entry from 3b14bc1 must surface the package-overlap count.
+    cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+      statusCode: 200,
+      body: {
+        messages: [
+          {
+            id: '1001',
+            content: 'preflight 1001',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+          {
+            id: '1002',
+            content: 'preflight 1002',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+          {
+            id: '1003',
+            content: 'preflight 1003',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+          {
+            id: '1004',
+            content: 'preflight 1004',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+        ],
+        total_results: 4,
+      },
+    }).as('preflight');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@preflight');
+
+    cy.contains(/Channel scan matched 4 of 4 package messages/i, {
+      timeout: 10000,
+    }).should('exist');
+  });
+
+  it('replies returned by search preflight are re-fetched via AROUND so the parent renders', () => {
+    // Search preflight returns ID 1001 as a type-19 reply WITHOUT a
+    // populated referenced_message — this is what real Discord ships,
+    // and it's the shape that 7fead58 protects against caching.
+    cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+      statusCode: 200,
+      body: {
+        messages: [
+          {
+            id: '1001',
+            content: 'reply body',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 19,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+            message_reference: {
+              type: 0,
+              channel_id: '200',
+              message_id: 'parent-9001',
+              guild_id: '901000000000000001',
+            },
+          },
+          {
+            id: '1002',
+            content: 'preflight 1002',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+          {
+            id: '1003',
+            content: 'preflight 1003',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+          {
+            id: '1004',
+            content: 'preflight 1004',
+            author: { id: 'a1', username: 'u' },
+            reactions: [],
+            embeds: [],
+            mentions: [],
+            type: 0,
+            channel_id: '200',
+            timestamp: '2024-01-01T00:00:00.000Z',
+            attachments: [],
+          },
+        ],
+        total_results: 4,
+      },
+    }).as('preflight');
+
+    // AROUND for 1001 returns the same reply but WITH referenced_message
+    // populated (matching real Discord bulk-endpoint behavior). Other IDs
+    // should never be requested — they were served by preflight cache.
+    let aroundCallCount = 0;
+    const aroundIdsCalled: string[] = [];
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        aroundCallCount += 1;
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        aroundIdsCalled.push(targetId);
+        if (targetId === '1001') {
+          req.reply({
+            statusCode: 200,
+            body: [
+              {
+                id: '1001',
+                content: 'reply body',
+                author: { id: 'a1', username: 'u' },
+                reactions: [],
+                embeds: [],
+                mentions: [],
+                type: 19,
+                channel_id: '200',
+                timestamp: '2024-01-01T00:00:00.000Z',
+                attachments: [],
+                message_reference: {
+                  type: 0,
+                  channel_id: '200',
+                  message_id: 'parent-9001',
+                  guild_id: '901000000000000001',
+                },
+                referenced_message: {
+                  id: 'parent-9001',
+                  content: 'PARENT-IS-ALIVE',
+                  author: { id: 'a2', username: 'parent-author' },
+                  type: 0,
+                  channel_id: '200',
+                  timestamp: '2024-01-01T00:00:00.000Z',
+                  attachments: [],
+                  embeds: [],
+                  mentions: [],
+                  reactions: [],
+                },
+              },
+            ],
+          });
+        } else {
+          // Defensive — should not be hit. Reply with the cached form.
+          req.reply({
+            statusCode: 200,
+            body: [
+              {
+                id: targetId,
+                content: `LIVE ${targetId}`,
+                author: { id: 'a1', username: 'u' },
+                reactions: [],
+                embeds: [],
+                mentions: [],
+                type: 0,
+                channel_id: '200',
+                timestamp: '2024-01-01T00:00:00.000Z',
+                attachments: [],
+              },
+            ],
+          });
+        }
+      },
+    ).as('around');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@preflight');
+    cy.wait('@around');
+
+    cy.contains(/Rich data loaded for/i, { timeout: 10000 }).should('exist');
+
+    // Exactly ONE AROUND call: for the type-19 reply that the cache skipped.
+    cy.then(() => {
+      expect(aroundCallCount, 'AROUND call count').to.eq(1);
+      expect(aroundIdsCalled, 'AROUND target IDs').to.deep.eq(['1001']);
+    });
+
+    // The parent's content must render — confirmation that the reply
+    // dropped through to AROUND and got the populated referenced_message.
+    cy.contains('PARENT-IS-ALIVE', { timeout: 10000 }).should('exist');
+    // And the "Original message was deleted" chip must NOT appear for
+    // this reply (it would render if we'd cached the search result).
+    cy.contains(/Original message was deleted/i).should('not.exist');
+  });
+
+  it('AROUND URL preserves the exact package message ID', () => {
+    // Snowflake-precision regression guard (33a767d). Even with the
+    // fixture's small numeric IDs, the URL construction path must round-
+    // trip the ID as a string with zero loss. A future regression that
+    // introduces `Number(id)` anywhere in the AROUND path would corrupt
+    // 19-digit snowflakes; smaller IDs would survive Number rounding,
+    // so we assert exact string equality on the URL parameter.
+    cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+      statusCode: 200,
+      body: { messages: [], total_results: 0 },
+    }).as('preflight');
+
+    const aroundIdsCalled: string[] = [];
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        const url = new URL(req.url);
+        const targetId = url.searchParams.get('around') ?? '';
+        aroundIdsCalled.push(targetId);
+        req.reply({
+          statusCode: 200,
+          body: [
+            {
+              id: targetId,
+              content: `LIVE ${targetId}`,
+              author: { id: 'a1', username: 'u' },
+              reactions: [],
+              embeds: [],
+              mentions: [],
+              type: 0,
+              channel_id: '200',
+              timestamp: '2024-01-01T00:00:00.000Z',
+              attachments: [],
+            },
+          ],
+        });
+      },
+    ).as('around');
+
+    cy.contains('button', /Load rich data/i).click();
+    cy.wait('@around');
+    cy.wait('@around');
+    cy.wait('@around');
+    cy.wait('@around');
+    cy.contains(/Rich data loaded for/i, { timeout: 10000 }).should('exist');
+
+    cy.then(() => {
+      // Each ID arrives at AROUND exactly as it left the package — no
+      // truncation, no scientific notation, no precision loss.
+      expect([...aroundIdsCalled].sort()).to.deep.eq([
+        '1001',
+        '1002',
+        '1003',
+        '1004',
+      ]);
+      for (const id of aroundIdsCalled) {
+        // Same characters, same length, same trailing digits — i.e. the
+        // ID never round-tripped through Number along the way.
+        expect(id).to.match(/^\d+$/);
+      }
+    });
+  });
+});
+
+/**
  * Read-only packages (from a different user) can't rehydrate — the
  * banner button is disabled by `canEnrich` gating. Separate describe
  * so the test gets its own fixture, not the default one.
