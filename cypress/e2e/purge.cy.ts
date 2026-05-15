@@ -673,9 +673,11 @@ describe('Bulk Purge Operations', () => {
       }).as('lookupUser');
     });
 
-    it('should skip system messages and advance offset', () => {
-      // First search returns 25 system messages (type 7 = member join)
-      // Needs exactly 25 to trigger pagination (rawCount >= 25 means hasMore stays true)
+    it('should skip system messages and cap-shift past them', () => {
+      // First search returns 25 system messages (type 7 = member join).
+      // Per #188, the iterator cap-shifts via `searchBeforeDate` (max_id)
+      // on every iteration after the first, so the second call carries
+      // a `max_id` derived from the oldest system-message timestamp.
       const systemMessages = {
         messages: Array.from({ length: 25 }, (_, i) => [
           {
@@ -731,14 +733,15 @@ describe('Bulk Purge Operations', () => {
       // No messages should have been deleted (all were system messages)
       cy.get('@deleteMessage.all').should('have.length', 0);
 
-      // Search should have been called twice: once with results, once returning empty
+      // Search should have been called twice: once with results, once returning empty.
       cy.get('@searchMessages.all').should('have.length.gte', 2);
 
-      // Second search should have offset > 0 (offset advanced past system messages)
+      // First search has no max_id; second carries a cap-shifted max_id.
       cy.get('@searchMessages.all').then((calls) => {
-        const secondCall = calls[1] as any;
-        const url = secondCall.request.url;
-        expect(url).to.include('offset=');
+        const firstUrl = (calls[0] as any).request.url;
+        const secondUrl = (calls[1] as any).request.url;
+        expect(firstUrl, 'first call').to.not.include('max_id=');
+        expect(secondUrl, 'second call (cap-shifted)').to.include('max_id=');
       });
     });
   });
@@ -2157,14 +2160,28 @@ describe('Bulk Purge Operations', () => {
         body: activeThreadFixture,
       }).as('getPublicThreads2');
 
-      // Both search calls (parent + thread) return the same hit
-      cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
-        statusCode: 200,
-        body: {
-          messages: [[{ ...crossChannelHitMessage, reactions: [] }]],
-          total_results: 1,
-          threads: [],
-        },
+      // Each pass (parent + thread) gets its own iterator. Per #188's
+      // always-cap-shift model, the first call has no max_id; the
+      // iterator's second call carries a cap-shifted max_id. Discord's
+      // max_id is exclusive, so the cross-channel hit is structurally
+      // unreachable on cap-shifted calls — return empty there.
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        const url = new URL(req.url);
+        if (url.searchParams.has('max_id')) {
+          req.reply({
+            statusCode: 200,
+            body: { messages: [], total_results: 0, threads: [] },
+          });
+          return;
+        }
+        req.reply({
+          statusCode: 200,
+          body: {
+            messages: [[{ ...crossChannelHitMessage, reactions: [] }]],
+            total_results: 1,
+            threads: [],
+          },
+        });
       }).as('searchMessages');
 
       // Count around-fetches (any call with around= query param)
@@ -2288,6 +2305,153 @@ describe('Bulk Purge Operations', () => {
       cy.get('[role="dialog"]').contains('2 channels').should('be.visible');
       cy.get('[role="dialog"]').contains('general').should('be.visible');
       cy.get('[role="dialog"]').contains('feedback').should('be.visible');
+    });
+  });
+
+  // ── Cap-shift pagination (Backlog #186 / #188) ─────────────────────────
+  //
+  // scorpihoe-420 r/discrub bug: a 20,550-match channel purge stopped
+  // at 98 deleted / 22 skipped. Root cause was the iterator terminating
+  // after dedup-empty pages when Discord's search re-served the same
+  // top-of-search slice post-reset. The lib fix (#186, generalized by
+  // #188 into always-cap-shift) narrows `searchBeforeDate` to the
+  // oldest yielded timestamp on every iteration, advancing past
+  // already-seen messages into the older window. Discord's `max_id`
+  // is exclusive so previously-yielded messages are structurally
+  // unreachable on subsequent calls.
+  //
+  // This Cypress spec exercises the fix end-to-end through the actual
+  // BulkPurgeDialog flow: select channel → configure purge → confirm →
+  // verify all messages across both windows get DELETE'd.
+
+  describe('Cap-shift pagination (Backlog #186 / #188)', () => {
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.contains('general').should('be.visible');
+
+      interceptThreadDiscovery();
+
+      // Build messages with descending timestamps so cap-shift
+      // (searchBeforeDate=oldestSeenTimestamp) advances meaningfully.
+      const targetUserId = '111222333444555666';
+      const buildMsg = (idx: number, daysAgo: number) => ({
+        id: `780000000000000${String(idx).padStart(3, '0')}`,
+        channel_id: '801000000000000001',
+        author: {
+          id: targetUserId,
+          username: 'discrub_tester',
+          discriminator: '0',
+          avatar: 'abc123avatar',
+          global_name: 'Discrub Tester',
+        },
+        content: `cap-shift test message ${idx}`,
+        timestamp: new Date(2025, 0, 30 - daysAgo).toISOString(),
+        edited_timestamp: null,
+        tts: false,
+        mention_everyone: false,
+        mentions: [],
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        pinned: false,
+        type: 0,
+      });
+      // Compact scenario (3 + 3 = 6 messages) so the per-delete
+      // cancellableDelay budget fits in a Cypress timeout. The fix
+      // mechanism is identical at any scale; 6 is enough to prove
+      // cap-shift fires (need at least 1 in initial window + 1 in
+      // cap-shifted window to demonstrate both branches).
+      const initialWindow = Array.from({ length: 3 }, (_, i) => buildMsg(i + 1, i));
+      const olderWindow = Array.from({ length: 3 }, (_, i) => buildMsg(i + 4, 3 + i));
+
+      // Simulate Discord's max_id-exclusive cap-shift: the initial
+      // window comes back when no max_id is set; once the iterator
+      // narrows searchBeforeDate to the initial-window tail, the next
+      // call returns the older window; any subsequent cap-shift past
+      // the older-window tail returns empty (no more messages).
+      const initialTailMs = new Date(
+        initialWindow[initialWindow.length - 1].timestamp,
+      ).getTime();
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        const url = new URL(req.url);
+        const maxIdParam = url.searchParams.get('max_id');
+        if (!maxIdParam) {
+          req.reply({
+            statusCode: 200,
+            body: { messages: initialWindow.map((m) => [m]), total_results: 6 },
+          });
+          return;
+        }
+        // Decode the snowflake's embedded timestamp. Discord's epoch
+        // is 2015-01-01T00:00:00Z (1420070400000). Round-trips
+        // exactly with the lib's generateSnowflake.
+        const snowflake = BigInt(maxIdParam);
+        const tsMs = Number((snowflake >> 22n) + 1420070400000n);
+        // First cap-shift: max_id sits at the initial-window tail →
+        // serve the older window. Any subsequent cap-shift sits at the
+        // older-window tail (older still) → no more matches.
+        if (tsMs === initialTailMs) {
+          req.reply({
+            statusCode: 200,
+            body: { messages: olderWindow.map((m) => [m]), total_results: 3 },
+          });
+          return;
+        }
+        req.reply({
+          statusCode: 200,
+          body: { messages: [], total_results: 0 },
+        });
+      }).as('searchMessages');
+
+      cy.intercept('DELETE', `${API}/channels/*/messages/*`, {
+        statusCode: 204,
+        body: {},
+      }).as('deleteMessage');
+
+      cy.intercept('GET', `${API}/users/*`, {
+        statusCode: 200,
+        body: {
+          id: targetUserId,
+          username: 'discrub_tester',
+          discriminator: '0',
+          avatar: 'abc123avatar',
+          global_name: 'Discrub Tester',
+        },
+      }).as('lookupUser');
+    });
+
+    it('deletes all 6 messages across initial + cap-shifted search windows', () => {
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+      waitForPurgeComplete(60000);
+
+      // Without #186 this would have been 3 (iterator terminated after
+      // dedup-empty pages on the initial window). Cap-shift lets the
+      // iterator advance past `seen` into the older window and surface
+      // the remaining 3.
+      cy.get('@deleteMessage.all').should('have.length', 6);
+
+      // Sanity: the search call sequence proves cap-shift fired.
+      // At least one search hit with no max_id (initial window) AND
+      // at least one with max_id (cap-shifted window).
+      cy.get('@searchMessages.all').then((calls) => {
+        const urls = (calls as any[]).map((c) => c.request.url);
+        const initialSearches = urls.filter((u: string) => !u.includes('max_id='));
+        const capShiftedSearches = urls.filter((u: string) => u.includes('max_id='));
+        expect(initialSearches.length, 'initial-window searches').to.be.gte(1);
+        expect(capShiftedSearches.length, 'cap-shifted searches (proves #186 fix engaged)').to.be.gte(1);
+      });
+
+      verifyPurgeState((purge) => {
+        expect(purge.isPurging).to.eq(false);
+        expect(purge.purgeError).to.eq(null);
+      });
+      verifyStatusEntry(/Purge: Complete/);
     });
   });
 });

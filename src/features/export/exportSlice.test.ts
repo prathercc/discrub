@@ -843,7 +843,6 @@ describe('exportSlice', () => {
           totalResults: 1,
           pageIndex: 0,
           aggregatedCount: 1,
-          crossedQueryBoundary: false,
         };
       });
 
@@ -1040,7 +1039,6 @@ describe('exportSlice', () => {
           totalResults: 2311,
           pageIndex: 0,
           aggregatedCount: 500,
-          crossedQueryBoundary: false,
         };
         // Synthetic final page from the lib's safety valve.
         yield {
@@ -1048,7 +1046,6 @@ describe('exportSlice', () => {
           totalResults: 2311,
           pageIndex: 1,
           aggregatedCount: 500,
-          crossedQueryBoundary: false,
           incomplete: true,
         };
       });
@@ -1132,7 +1129,6 @@ describe('exportSlice', () => {
           totalResults: 1,
           pageIndex: 0,
           aggregatedCount: 1,
-          crossedQueryBoundary: false,
         };
       });
 
@@ -1222,7 +1218,6 @@ describe('exportSlice', () => {
           totalResults: 1,
           pageIndex: 0,
           aggregatedCount: 1,
-          crossedQueryBoundary: false,
         };
       });
 
@@ -1320,7 +1315,6 @@ describe('exportSlice', () => {
           totalResults: 1,
           pageIndex: 0,
           aggregatedCount: 1,
-          crossedQueryBoundary: false,
         };
       });
 

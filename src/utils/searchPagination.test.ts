@@ -84,8 +84,8 @@ describe('iterateSearchMessagesRedux', () => {
 
   it('forwards options to DiscordService.iterateSearchResults and yields each page', async () => {
     const fakePages = [
-      { messages: [{ id: 'a' } as any], totalResults: 2, pageIndex: 0, aggregatedCount: 1, crossedQueryBoundary: false },
-      { messages: [{ id: 'b' } as any], totalResults: 2, pageIndex: 1, aggregatedCount: 2, crossedQueryBoundary: false },
+      { messages: [{ id: 'a' } as any], totalResults: 2, pageIndex: 0, aggregatedCount: 1 },
+      { messages: [{ id: 'b' } as any], totalResults: 2, pageIndex: 1, aggregatedCount: 2 },
     ];
     mockIterateSearchResults.mockImplementation(async function* () {
       for (const p of fakePages) yield p;
@@ -122,9 +122,9 @@ describe('iterateSearchMessagesRedux', () => {
     checkCancelledMock.mockReturnValue(true);
 
     mockIterateSearchResults.mockImplementation(async function* () {
-      yield { messages: [{ id: '1' } as any], totalResults: 3, pageIndex: 0, aggregatedCount: 1, crossedQueryBoundary: false };
-      yield { messages: [{ id: '2' } as any], totalResults: 3, pageIndex: 1, aggregatedCount: 2, crossedQueryBoundary: false };
-      yield { messages: [{ id: '3' } as any], totalResults: 3, pageIndex: 2, aggregatedCount: 3, crossedQueryBoundary: false };
+      yield { messages: [{ id: '1' } as any], totalResults: 3, pageIndex: 0, aggregatedCount: 1 };
+      yield { messages: [{ id: '2' } as any], totalResults: 3, pageIndex: 1, aggregatedCount: 2 };
+      yield { messages: [{ id: '3' } as any], totalResults: 3, pageIndex: 2, aggregatedCount: 3 };
     });
 
     const collected: any[] = [];

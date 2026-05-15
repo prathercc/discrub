@@ -35,34 +35,38 @@ const mockFetchJoinedPrivateArchivedThreads = vi.fn();
 
 // Minimal reimplementation of the DiscordService.iterateSearchResults
 // generator, backed by mockFetchSearchMessageData. Mirrors the lib's
-// post-#148 semantics:
-// - terminates on 2 consecutive raw-empty pages (NOT short pages)
-// - resets offset to 0 when total_results changes between pages
-// - resets when an empty page lands at non-zero offset
-// - cap-shifts via searchBeforeDate (max_id) when offset >= 5000
+// post-#188 always-cap-shift semantics:
+// - always offset=0; pagination is cap-shift via searchBeforeDate
+//   (= oldestSeenTimestamp) on every iteration after the first
+// - terminates on 2 consecutive empty Discord responses
 // - initial-empty fast path: yield once for total_results=0 + no
 //   messages, then terminate
+//
+// Mocks-only safety: this iterator drops messages with already-yielded
+// IDs from each raw fetch. Real Discord enforces this structurally
+// because `max_id` is exclusive, so the lib has no equivalent dedup;
+// the mock has to simulate that property because tests commonly use
+// `mockResolvedValue` to return a fixed payload on every fetch (no
+// timestamps, no cap-shift cooperation), which would otherwise loop
+// forever in the new always-cap-shift model.
 const mockIterateSearchResults = async function* (options: any): AsyncGenerator<any> {
-  const MAX_PER_QUERY = 5000;
   const EMPTY_PAGE_TERMINATE_THRESHOLD = 2;
   let criteria = { ...options.criteria };
-  let offset = 0;
   let pageIndex = 0;
   let aggregatedCount = 0;
-  let crossedQueryBoundary = false;
-  let prevTotalResults: number | null = null;
-  let pendingReset = false;
-  let consecutiveEmptyPages = 0;
-  const seen = new Set<string>();
+  let consecutiveEmptyResponses = 0;
+  let oldestSeenTimestamp: Date | null = null;
+  const yieldedIds = new Set<string>();
 
   while (true) {
     if (options.shouldStop && (await options.shouldStop())) return;
-    if (pendingReset) {
-      offset = 0;
-      pendingReset = false;
+
+    if (oldestSeenTimestamp) {
+      criteria = { ...criteria, searchBeforeDate: oldestSeenTimestamp };
     }
+
     const response = await mockFetchSearchMessageData(
-      options.token, offset, options.channelId, options.guildId, criteria,
+      options.token, 0, options.channelId, options.guildId, criteria,
     );
     if (!response?.success || !response?.data) {
       const err = new Error(`Search request failed (HTTP ${response?.status ?? '?'})`);
@@ -70,67 +74,45 @@ const mockIterateSearchResults = async function* (options: any): AsyncGenerator<
       throw err;
     }
     const rawMessages = response.data.messages || [];
-    const rawCount = rawMessages.length;
-    const flatMessages = Array.isArray(rawMessages[0])
+    const rawFlat = Array.isArray(rawMessages[0])
       ? (rawMessages as any[]).flat()
       : rawMessages;
-    const pageMessages: any[] = [];
+    const flatMessages = rawFlat.filter((m: any) => {
+      if (yieldedIds.has(m.id)) return false;
+      yieldedIds.add(m.id);
+      return true;
+    });
+
     for (const m of flatMessages) {
-      if (!seen.has(m.id)) { seen.add(m.id); pageMessages.push(m); }
+      if (m.timestamp) {
+        const ts = new Date(m.timestamp);
+        if (oldestSeenTimestamp === null || ts < oldestSeenTimestamp) {
+          oldestSeenTimestamp = ts;
+        }
+      }
     }
-    aggregatedCount += pageMessages.length;
+    aggregatedCount += flatMessages.length;
     const totalResults = response.data.total_results ?? 0;
     yield {
-      messages: pageMessages,
+      messages: flatMessages,
       totalResults,
       pageIndex,
       aggregatedCount,
-      crossedQueryBoundary,
     };
-    crossedQueryBoundary = false;
     pageIndex++;
 
-    // Initial-empty fast path
-    if (totalResults === 0 && pageMessages.length === 0 && pageIndex === 1) return;
+    if (totalResults === 0 && flatMessages.length === 0 && pageIndex === 1) return;
 
-    // Termination: 2 consecutive pages with zero NEW unique messages
-    // (covers truly-empty pages AND fully-dedup'd pages where Discord
-    // re-served already-seen results)
-    if (pageMessages.length === 0) {
-      consecutiveEmptyPages++;
-      if (consecutiveEmptyPages >= EMPTY_PAGE_TERMINATE_THRESHOLD) return;
+    if (flatMessages.length === 0) {
+      consecutiveEmptyResponses++;
+      if (consecutiveEmptyResponses >= EMPTY_PAGE_TERMINATE_THRESHOLD) return;
     } else {
-      consecutiveEmptyPages = 0;
-    }
-
-    const nextOffset = offset + rawCount;
-    const atOrPastCap = nextOffset >= MAX_PER_QUERY;
-    if (atOrPastCap) {
-      if (flatMessages.length === 0) return;
-      const last = flatMessages[flatMessages.length - 1];
-      if (!last?.timestamp) return;
-      criteria = { ...criteria, searchBeforeDate: new Date(last.timestamp) };
-      offset = 0;
-      crossedQueryBoundary = true;
-      prevTotalResults = null;
-      consecutiveEmptyPages = 0;
-    } else {
-      if (prevTotalResults !== null && totalResults !== prevTotalResults) {
-        pendingReset = true;
-      }
-      prevTotalResults = totalResults;
-      if (rawCount === 0 && offset > 0) pendingReset = true;
-      if (!pendingReset) offset = nextOffset;
+      consecutiveEmptyResponses = 0;
     }
 
     if (options.onBetweenPages) {
       const action = await options.onBetweenPages();
       if (action === true) return;
-      if (action === 'reset') {
-        // Legacy explicit-reset hook (still supported as safety hatch).
-        offset = 0;
-        pendingReset = false;
-      }
     }
   }
 };
@@ -391,6 +373,13 @@ describe('purgeSlice thunks', () => {
   beforeEach(() => {
     store = createStore();
     vi.clearAllMocks();
+    // Wipe leftover mock implementations on the data-source mocks. The
+    // post-#188 always-cap-shift iterator has no in-memory dedup, so a
+    // stale `mockImplementation` from a prior test that returns the
+    // same payload forever would cause the next test's iterator to
+    // loop without terminating. Reset removes implementations too.
+    mockFetchSearchMessageData.mockReset();
+    mockFetchMessageData.mockReset();
     // Restore default mock implementations (clearAllMocks only clears call history)
     (waitWhilePaused as Mock).mockResolvedValue(undefined);
     (checkCancelled as Mock).mockReturnValue(false);
@@ -1119,33 +1108,52 @@ describe('purgeSlice thunks', () => {
       expect(mockDeleteMessage).toHaveBeenCalledTimes(3);
     });
 
-    it('resets to offset=0 only when Discord total_results shifts (#148)', async () => {
-      // The lib iterator (post-#148) advances offset normally and only
-      // resets on a total_results change between pages — Classic's
-      // pattern. Without a shift, we walk forward.
-      //
-      // Two hits per page keep the test under the 30s timeout (default
-      // delete delay is ~2s per message).
-      const batch1 = [[mockMessage('m1')], [mockMessage('m2')]];
-      const batch2 = [[mockMessage('m3')], [mockMessage('m4')]];
+    it('always uses offset=0 and cap-shifts searchBeforeDate to the oldest yielded timestamp (#188)', async () => {
+      // Post-#188 the iterator drops offset-based pagination entirely.
+      // Every call hits offset=0; the second and subsequent calls narrow
+      // `searchBeforeDate` to the oldest message timestamp seen so far.
+      const ts = (daysAgo: number) =>
+        new Date(2025, 0, 30 - daysAgo).toISOString();
+      const batch1 = [
+        [{ ...mockMessage('m1'), timestamp: ts(0) } as Message],
+        [{ ...mockMessage('m2'), timestamp: ts(1) } as Message],
+      ];
+      const batch2 = [
+        [{ ...mockMessage('m3'), timestamp: ts(2) } as Message],
+        [{ ...mockMessage('m4'), timestamp: ts(3) } as Message],
+      ];
 
       let callCount = 0;
-      mockFetchSearchMessageData.mockImplementation((_token: string, _offset: number) => {
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({
-            success: true,
-            data: { messages: batch1, total_results: 4 },
-          });
-        }
-        if (callCount === 2) {
-          return Promise.resolve({
-            success: true,
-            data: { messages: batch2, total_results: 2 },
-          });
-        }
-        return Promise.resolve({ success: true, data: { messages: [], total_results: 2 } });
-      });
+      mockFetchSearchMessageData.mockImplementation(
+        (
+          _token: string,
+          offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
+          callCount++;
+          // Always offset=0 under always-cap-shift.
+          expect(offset).toBe(0);
+          if (callCount === 1) {
+            // First call: no upper bound supplied.
+            expect(criteria.searchBeforeDate).toBeNull();
+            return Promise.resolve({
+              success: true,
+              data: { messages: batch1, total_results: 4 },
+            });
+          }
+          if (callCount === 2) {
+            // Second call: searchBeforeDate is the oldest from batch1 (m2).
+            expect(criteria.searchBeforeDate?.toISOString()).toBe(ts(1));
+            return Promise.resolve({
+              success: true,
+              data: { messages: batch2, total_results: 2 },
+            });
+          }
+          return Promise.resolve({ success: true, data: { messages: [], total_results: 2 } });
+        },
+      );
       mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
 
       await store.dispatch(
@@ -1156,10 +1164,7 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      // Call sequence: offset=0, offset=2 (advanced), offset=0 (reset on shift).
-      expect(mockFetchSearchMessageData.mock.calls[0][1]).toBe(0);
-      expect(mockFetchSearchMessageData.mock.calls[1][1]).toBe(2);
-      expect(mockFetchSearchMessageData.mock.calls[2][1]).toBe(0);
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(4);
     });
 
     it('handles failed search response', async () => {
@@ -1339,6 +1344,187 @@ describe('purgeSlice thunks', () => {
       // Only the unpinned message should have its attachments stripped.
       const editedIds = mockEditMessage.mock.calls.map((c) => c[1]);
       expect(editedIds).toEqual(['u1']);
+    });
+  });
+
+  // ── Cap-shift pagination (Backlog #186 / #188) ──────────────────────────
+  //
+  // scorpihoe-420 r/discrub bug: purge of a 20,550-match channel
+  // terminated at 98 deleted / 22 skipped. Root cause: post-deletion
+  // re-fetch landed on the same top-of-search slice (already deleted /
+  // skipped), the dedup-empty terminator fired, and the purge silently
+  // quit with thousands of matches still in Discord's index.
+  //
+  // Lib fix (#186, then generalized by #188): every iteration after
+  // the first cap-shifts `searchBeforeDate` to the oldest yielded
+  // timestamp, forcing the next search into an older window. Discord's
+  // `max_id` is exclusive so previously-yielded messages are
+  // structurally unreachable. These consumer-side tests use the
+  // simplified mock iterator (always-cap-shift) to prove that
+  // `purgeChannelMessages` end-to-end deletes the full match set
+  // instead of stopping at the first window.
+
+  describe('bulkPurgeChannels — cap-shift pagination (Backlog #186 / #188)', () => {
+    // Helper: timestamped messages so cap-shift
+    // (searchBeforeDate=oldestSeenTimestamp) advances meaningfully.
+    const mockTimestamped = (id: string, daysAgo: number): Message =>
+      ({
+        ...mockMessage(id),
+        timestamp: new Date(2025, 0, 30 - daysAgo).toISOString(),
+      } as Message);
+
+    it('walks past stuck-index dedup-empty pages via cap-shift, deleting all 30 messages instead of stopping at 25', async () => {
+      // 30 messages: m1..m25 visible in the initial search window,
+      // m26..m30 visible only after the iterator cap-shifts past the
+      // oldest-seen timestamp. Mirrors the real-world condition where
+      // Discord's search index becomes saturated past the live results
+      // without a window narrowing.
+      const initialWindow = Array.from({ length: 25 }, (_, i) =>
+        mockTimestamped(`m${i + 1}`, i),
+      );
+      const olderWindow = Array.from({ length: 5 }, (_, i) =>
+        mockTimestamped(`m${i + 26}`, 25 + i),
+      );
+
+      // Mock serves the initial window on the first call (no max_id).
+      // Subsequent calls always carry searchBeforeDate; we serve the
+      // olderWindow exactly once (when the boundary equals the initial
+      // window's tail), then empty.
+      let olderServed = false;
+      mockFetchSearchMessageData.mockImplementation(
+        (
+          _token: string,
+          _offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
+          const hasMaxId = criteria.searchBeforeDate != null;
+          if (!hasMaxId) {
+            return Promise.resolve({
+              success: true,
+              data: { messages: [initialWindow], total_results: 30 },
+            });
+          }
+          if (!olderServed) {
+            olderServed = true;
+            return Promise.resolve({
+              success: true,
+              data: { messages: [olderWindow], total_results: 5 },
+            });
+          }
+          return Promise.resolve({
+            success: true,
+            data: { messages: [], total_results: 5 },
+          });
+        },
+      );
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      const result = await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      // The fix: all 30 messages deleted across both windows.
+      // Pre-fix this would have been 25 (iterator terminated after the
+      // first window's dedup-empty pages).
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(30);
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1] as string);
+      expect(new Set(deletedIds).size).toBe(30);
+      expect(deletedIds).toContain('m1');
+      expect(deletedIds).toContain('m25');
+      expect(deletedIds).toContain('m26');
+      expect(deletedIds).toContain('m30');
+    });
+
+    it('preserves the pinned skip cohort while still deleting all 25 unpinned messages across both windows', async () => {
+      // scorpihoe-420 scenario at full fidelity: pinned cohort the
+      // user excluded via FilterModal stays in Discord's index and
+      // dominates the post-reset response. Without the cap-shift the
+      // iterator quits after 25; with it, the cap-shift past oldest-
+      // seen exposes the remaining unpinned messages.
+      const mockPinned = (id: string, daysAgo: number): Message =>
+        ({ ...mockTimestamped(id, daysAgo), pinned: true } as Message);
+      const mockUnpinned = (id: string, daysAgo: number): Message =>
+        ({ ...mockTimestamped(id, daysAgo), pinned: false } as Message);
+
+      // Initial window has 5 pinned (will be skipped) and 20
+      // unpinned. Cap-shifted window has 5 more unpinned.
+      const initialWindow: Message[] = [
+        ...Array.from({ length: 5 }, (_, i) => mockPinned(`p${i + 1}`, i)),
+        ...Array.from({ length: 20 }, (_, i) => mockUnpinned(`u${i + 1}`, 5 + i)),
+      ];
+      const olderWindow = Array.from({ length: 5 }, (_, i) =>
+        mockUnpinned(`u${i + 21}`, 25 + i),
+      );
+
+      let olderServed = false;
+      mockFetchSearchMessageData.mockImplementation(
+        (
+          _token: string,
+          _offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
+          const hasMaxId = criteria.searchBeforeDate != null;
+          if (!hasMaxId) {
+            return Promise.resolve({
+              success: true,
+              data: { messages: [initialWindow], total_results: 30 },
+            });
+          }
+          if (!olderServed) {
+            olderServed = true;
+            return Promise.resolve({
+              success: true,
+              data: { messages: [olderWindow], total_results: 5 },
+            });
+          }
+          return Promise.resolve({
+            success: true,
+            data: { messages: [], total_results: 5 },
+          });
+        },
+      );
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      const pinnedExclusionCriteria = {
+        searchBeforeDate: null,
+        searchAfterDate: null,
+        searchMessageContent: '',
+        selectedHasTypes: [],
+        userIds: [],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: IsPinnedType.NO,
+      } as unknown as SearchCriteria;
+
+      const result = await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+          searchCriteria: pinnedExclusionCriteria,
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      const deletedIds = mockDeleteMessage.mock.calls
+        .map((c) => c[1] as string)
+        .sort();
+      // All 25 unpinned messages deleted; none of the 5 pinned.
+      expect(deletedIds).toHaveLength(25);
+      expect(deletedIds.filter((id) => id.startsWith('p'))).toHaveLength(0);
+      expect(deletedIds.filter((id) => id.startsWith('u'))).toHaveLength(25);
+      // Both windows covered: u1 (initial) + u25 (cap-shifted) both present.
+      expect(deletedIds).toContain('u1');
+      expect(deletedIds).toContain('u25');
     });
   });
 
@@ -3288,29 +3474,36 @@ describe('purgeSlice thunks', () => {
   // ── Bug Fix Tests ───────────────────────────────────────────────────────
 
   describe('bug fixes', () => {
-    it('advances offset when all messages in batch are system messages (no infinite loop)', async () => {
-      // 25 system messages (25 search hits) → offset advances to 25, then empty → stops
+    it('handles a full page of system messages without infinite-looping (cap-shifts past them)', async () => {
+      // 25 system messages (25 search hits, all skipped by purge).
+      // Under always-cap-shift, the second call carries searchBeforeDate
+      // = oldest system-message timestamp; mock returns empty there,
+      // and after 2 consecutive empty responses the iterator terminates.
+      const ts = (i: number) =>
+        new Date(2025, 0, 30 - i).toISOString();
       let callCount = 0;
       mockFetchSearchMessageData.mockImplementation(
-        (_token: string, offset: number) => {
+        (
+          _token: string,
+          _offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
           callCount++;
           if (callCount === 1) {
-            expect(offset).toBe(0);
-            // 25 search hits, each as its own inner array
+            expect(criteria.searchBeforeDate).toBeNull();
             return Promise.resolve({
               success: true,
               data: {
                 messages: Array.from({ length: 25 }, (_, i) => [
-                  mockMessage(`sys${i}`, 7),
+                  { ...mockMessage(`sys${i}`, 7), timestamp: ts(i) } as Message,
                 ]),
               },
             });
           }
-          if (callCount === 2) {
-            // Offset should have advanced past the system messages
-            expect(offset).toBe(25);
-            return Promise.resolve({ success: true, data: { messages: [] } });
-          }
+          // Cap-shifted call(s): empty.
+          expect(criteria.searchBeforeDate).not.toBeNull();
           return Promise.resolve({ success: true, data: { messages: [] } });
         },
       );
@@ -3323,35 +3516,44 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      // Two consecutive empty pages now form the terminator (post-#148),
-      // so the iterator makes one extra call after the data page.
+      // Data page + 2 empty cap-shifted pages = 3 calls.
       expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(3);
       expect(mockDeleteMessage).not.toHaveBeenCalled();
     });
 
-    it('resets offset to 0 when batch has mixed system + normal messages', async () => {
-      // 25 search hits total: 10 with system msgs + 15 with normal msgs
+    it('handles mixed system + normal messages without dedup loops', async () => {
+      // Iterator yields the page once; purge skips system msgs and
+      // deletes the 15 normals. Second call is cap-shifted, returns
+      // empty, and we terminate after the 2-empty threshold.
+      const ts = (i: number) =>
+        new Date(2025, 0, 30 - i).toISOString();
       const mixedHits: Message[][] = [
-        ...Array.from({ length: 10 }, (_, i) => [mockMessage(`sys${i}`, 7)]),
-        ...Array.from({ length: 15 }, (_, i) => [mockMessage(`norm${i}`, 0)]),
+        ...Array.from({ length: 10 }, (_, i) => [
+          { ...mockMessage(`sys${i}`, 7), timestamp: ts(i) } as Message,
+        ]),
+        ...Array.from({ length: 15 }, (_, i) => [
+          { ...mockMessage(`norm${i}`, 0), timestamp: ts(10 + i) } as Message,
+        ]),
       ];
 
       let callCount = 0;
       mockFetchSearchMessageData.mockImplementation(
-        (_token: string, offset: number) => {
+        (
+          _token: string,
+          _offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
           callCount++;
           if (callCount === 1) {
-            expect(offset).toBe(0);
+            expect(criteria.searchBeforeDate).toBeNull();
             return Promise.resolve({
               success: true,
               data: { messages: mixedHits },
             });
           }
-          // After deletions occurred, offset resets to 0
-          if (callCount === 2) {
-            expect(offset).toBe(0);
-            return Promise.resolve({ success: true, data: { messages: [] } });
-          }
+          expect(criteria.searchBeforeDate).not.toBeNull();
           return Promise.resolve({ success: true, data: { messages: [] } });
         },
       );
@@ -3368,31 +3570,73 @@ describe('purgeSlice thunks', () => {
       expect(mockDeleteMessage).toHaveBeenCalledTimes(15);
     });
 
-    it('uses pre-flatten raw count for pagination boundary (not flattened count)', async () => {
-      // Pre-#148 the iterator terminated on rawCount<25. Post-#148 the
-      // termination uses 2 consecutive empty pages, so this test now
-      // only verifies that rawCount (= length of outer array, 10) is
-      // what advances the offset cursor — not the flattened count (50).
+    it('flattens nested Discord search payloads correctly', async () => {
+      // Discord wraps each hit in its own inner array. We verify that
+      // 10 inner arrays of 5 messages flatten to 50 distinct deletes.
+      const ts = (i: number) =>
+        new Date(2025, 0, 30 - i).toISOString();
       const rawArrays: Message[][] = Array.from({ length: 10 }, (_, i) => [
-        mockMessage(`m${i * 5}`),
-        mockMessage(`m${i * 5 + 1}`),
-        mockMessage(`m${i * 5 + 2}`),
-        mockMessage(`m${i * 5 + 3}`),
-        mockMessage(`m${i * 5 + 4}`),
+        { ...mockMessage(`m${i * 5}`), timestamp: ts(i * 5) } as Message,
+        { ...mockMessage(`m${i * 5 + 1}`), timestamp: ts(i * 5 + 1) } as Message,
+        { ...mockMessage(`m${i * 5 + 2}`), timestamp: ts(i * 5 + 2) } as Message,
+        { ...mockMessage(`m${i * 5 + 3}`), timestamp: ts(i * 5 + 3) } as Message,
+        { ...mockMessage(`m${i * 5 + 4}`), timestamp: ts(i * 5 + 4) } as Message,
       ]);
 
       let callCount = 0;
+      mockFetchSearchMessageData.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({ success: true, data: { messages: rawArrays } });
+        }
+        return Promise.resolve({ success: true, data: { messages: [] } });
+      });
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // All 50 flattened messages deleted; data page + 2 empties for the terminator.
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(50);
+      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(3);
+    });
+
+    it('cap-shift skips already-yielded messages structurally (no in-memory dedup needed)', async () => {
+      // Discord's max_id is exclusive, so a cap-shifted query cannot
+      // return a previously-yielded message. This proves it: serve the
+      // same 4 messages twice; on the second (cap-shifted) call we
+      // remove the messages that fall on or after the boundary so the
+      // payload contains only "older" messages. No dedup machinery.
+      const ts = (daysAgo: number) =>
+        new Date(2025, 0, 30 - daysAgo).toISOString();
+      const allMessages = [
+        { ...mockMessage('m1'), timestamp: ts(0) } as Message,
+        { ...mockMessage('m2'), timestamp: ts(1) } as Message,
+        { ...mockMessage('m3'), timestamp: ts(2) } as Message,
+        { ...mockMessage('m4'), timestamp: ts(3) } as Message,
+      ];
+
       mockFetchSearchMessageData.mockImplementation(
-        (_token: string, offset: number) => {
-          callCount++;
-          if (callCount === 1) {
-            return Promise.resolve({ success: true, data: { messages: rawArrays } });
-          }
-          if (callCount === 2) {
-            // Offset advanced by rawCount=10 (NOT flattened 50).
-            expect(offset).toBe(10);
-          }
-          return Promise.resolve({ success: true, data: { messages: [] } });
+        (
+          _token: string,
+          _offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
+          const before = criteria.searchBeforeDate;
+          const filtered = before
+            ? allMessages.filter((m) => new Date(m.timestamp) < before)
+            : allMessages;
+          return Promise.resolve({
+            success: true,
+            data: { messages: filtered.map((m) => [m]) },
+          });
         },
       );
       mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
@@ -3405,32 +3649,11 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      // Data page + 2 empties for the terminator.
-      expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(3);
-    });
-
-    it('deduplicates message IDs after flattening', async () => {
-      // Create arrays with duplicate message IDs
-      const msg1 = mockMessage('dup1');
-      const msg2 = mockMessage('dup2');
-      const msg3 = mockMessage('dup1'); // Same ID as msg1
-      const msg4 = mockMessage('unique1');
-
-      setupNestedSearchResults([[[msg1, msg2], [msg3, msg4]]]);
-      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
-
-      await store.dispatch(
-        bulkPurgeChannels({
-          channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig([CURRENT_USER.id]),
-          guildId: 'guild1',
-        }),
-      );
-
-      // Should only delete 3 unique IDs, not 4
-      expect(mockDeleteMessage).toHaveBeenCalledTimes(3);
-      const deletedIds = mockDeleteMessage.mock.calls.map((c: any[]) => c[1]);
-      expect(new Set(deletedIds).size).toBe(3);
+      // 4 unique deletions despite Discord re-serving the same payload
+      // shape on every call: cap-shift narrows the window each iteration.
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(4);
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1] as string);
+      expect(new Set(deletedIds).size).toBe(4);
     });
 
     it('throttles progress dispatches (not per-message)', async () => {
@@ -3739,46 +3962,46 @@ describe('purgeSlice thunks', () => {
       expect(mockFetchSearchMessageData).toHaveBeenCalledTimes(7);
     });
 
-    it('offset tracking with system messages across multiple pages', async () => {
-      const offsets: number[] = [];
+    it('cap-shifts past consecutive system-message pages and deletes the older normal-message batch', async () => {
+      // 3 pages: 25 system, 25 system, 15 normal. Each page is older
+      // than the last; cap-shift picks them up in order. Mock keys on
+      // searchBeforeDate to decide what to serve next.
+      const ts = (i: number) =>
+        new Date(2025, 0, 30 - i).toISOString();
+      const page1 = Array.from({ length: 25 }, (_, i) => [
+        { ...mockMessage(`sys1_${i}`, 7), timestamp: ts(i) } as Message,
+      ]);
+      const page2 = Array.from({ length: 25 }, (_, i) => [
+        { ...mockMessage(`sys2_${i}`, 7), timestamp: ts(25 + i) } as Message,
+      ]);
+      const page3 = Array.from({ length: 15 }, (_, i) => [
+        { ...mockMessage(`norm${i}`, 0), timestamp: ts(50 + i) } as Message,
+      ]);
 
+      let callCount = 0;
+      const calls: { hasBefore: boolean; iso: string | null }[] = [];
       mockFetchSearchMessageData.mockImplementation(
-        (_token: string, offset: number) => {
-          offsets.push(offset);
-          if (offsets.length === 1) {
-            // Page 1: 25 system messages (25 search hits, each one inner array)
-            return Promise.resolve({
-              success: true,
-              data: {
-                messages: Array.from({ length: 25 }, (_, i) => [
-                  mockMessage(`sys1_${i}`, 7),
-                ]),
-              },
-            });
+        (
+          _token: string,
+          _offset: number,
+          _channelId: string,
+          _guildId: string,
+          criteria: SearchCriteria,
+        ) => {
+          callCount++;
+          calls.push({
+            hasBefore: criteria.searchBeforeDate != null,
+            iso: criteria.searchBeforeDate?.toISOString() ?? null,
+          });
+          if (callCount === 1) {
+            return Promise.resolve({ success: true, data: { messages: page1 } });
           }
-          if (offsets.length === 2) {
-            // Page 2: 25 more system messages
-            return Promise.resolve({
-              success: true,
-              data: {
-                messages: Array.from({ length: 25 }, (_, i) => [
-                  mockMessage(`sys2_${i}`, 7),
-                ]),
-              },
-            });
+          if (callCount === 2) {
+            return Promise.resolve({ success: true, data: { messages: page2 } });
           }
-          if (offsets.length === 3) {
-            // Page 3: 15 normal messages (< 25 → stops)
-            return Promise.resolve({
-              success: true,
-              data: {
-                messages: Array.from({ length: 15 }, (_, i) => [
-                  mockMessage(`norm${i}`, 0),
-                ]),
-              },
-            });
+          if (callCount === 3) {
+            return Promise.resolve({ success: true, data: { messages: page3 } });
           }
-          // Page 4: empty (reached after offset resets to 0)
           return Promise.resolve({ success: true, data: { messages: [] } });
         },
       );
@@ -3792,13 +4015,14 @@ describe('purgeSlice thunks', () => {
         }),
       );
 
-      // Post-#148:
-      // Page 1 (offset 0): 25 system → all skipped, offset advances to 25
-      // Page 2 (offset 25): 25 system → all skipped, offset advances to 50
-      // Page 3 (offset 50): 15 normal → deletions occur, offset advances to 65
-      // Page 4 (offset 65): empty → pendingReset (empty at non-zero offset)
-      // Page 5 (offset 0):  empty → consecutiveEmpty=2 → terminate
-      expect(offsets).toEqual([0, 25, 50, 65, 0]);
+      // Always-cap-shift: call 1 has no boundary; calls 2/3 carry the
+      // oldest timestamp seen so far. Then 2 empty pages terminate us.
+      expect(callCount).toBe(5);
+      expect(calls[0].hasBefore).toBe(false);
+      expect(calls[1].iso).toBe(ts(24));
+      expect(calls[2].iso).toBe(ts(49));
+      expect(calls[3].iso).toBe(ts(64));
+      expect(calls[4].iso).toBe(ts(64));
       expect(mockDeleteMessage).toHaveBeenCalledTimes(15);
     });
 
@@ -4486,48 +4710,6 @@ describe('purgeSlice thunks', () => {
       );
       expect(totalEntry).toBeDefined();
     });
-
-    it('logs a 5000-cap crossover entry when Discord\'s total_results exceeds the offset cap', async () => {
-      setupNoThreads();
-      // Return 200 full pages of 25 msgs each (offset 0..4999, rawCount=25)
-      // with total_results=5100 so the iterator crosses the cap + continues.
-      // Deletes are NOT performed (skip path) to avoid mutation-restart,
-      // which would reset offset to 0 and never hit the cap.
-      let callNumber = 0;
-      mockFetchSearchMessageData.mockImplementation(() => {
-        callNumber++;
-        if (callNumber <= 200) {
-          // All system-type messages → purge skips them (no mutation).
-          const base = (callNumber - 1) * 25;
-          const ts = new Date(Date.UTC(2025, 0, 1) - callNumber * 60_000).toISOString();
-          const msgs = Array.from({ length: 25 }, (_, i) => ({
-            ...mockMessage(String(base + i)),
-            type: 7, // GUILD_MEMBER_JOIN — skipped by purge
-            timestamp: ts,
-          }));
-          return Promise.resolve({
-            success: true,
-            data: { messages: msgs.map((m) => [m]), total_results: 5100 },
-          });
-        }
-        return Promise.resolve({
-          success: true,
-          data: { messages: [], total_results: 0 },
-        });
-      });
-
-      await store.dispatch(
-        bulkPurgeChannels({
-          channels: [mockChannel('ch1', 'general')],
-          config: messagesConfig([CURRENT_USER.id]),
-          guildId: 'guild1',
-        }),
-      );
-
-      const entries = store.getState().status.entries;
-      const capEntry = entries.find((e) => e.message.includes('5000-match'));
-      expect(capEntry).toBeDefined();
-    }, 15000);
 
     it('logs scan batch details with reaction counts in reactions mode', async () => {
       setupNoThreads();

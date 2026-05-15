@@ -413,10 +413,10 @@ const hasAnyFilter = (c: SearchCriteria | null | undefined): boolean => {
  * - **No filter** (criteria null / all defaults): the original list-messages
  *   endpoint with `before=` cursor pagination. Fetches every message in the channel.
  * - **Filter present** (#112): Discord's `/messages/search` endpoint via the
- *   shared search iterator. Handles offset pagination + transparent
- *   continuation past the 5000-match per-query cap, and emits status-log
- *   entries (start, per-100-msg milestones, cap-crossing note, completion)
- *   unless `logContext.silent` is set.
+ *   shared search iterator. The iterator advances the search window via
+ *   `searchBeforeDate` cap-shifts (#188), so there is no per-query match cap
+ *   to cross. Emits status-log entries (start, per-100-msg milestones,
+ *   completion) unless `logContext.silent` is set.
  */
 async function fetchAllChannelMessages(
   channelId: string,
@@ -458,7 +458,6 @@ async function fetchAllChannelMessages(
         guildId,
         criteria: searchCriteria as SearchCriteria,
         getState,
-        terminateOnDedupEmpty: false,
       })) {
         if (checkCancelled(getState)) break;
         lastPage = page;
@@ -471,13 +470,6 @@ async function fetchAllChannelMessages(
               message: `Discord reports ${page.totalResults.toLocaleString()} matching message${page.totalResults === 1 ? '' : 's'} in ${label}`,
             }));
           }
-        }
-
-        if (page.crossedQueryBoundary) {
-          dispatch(addStatusEntry({
-            level: 'info',
-            message: `Continuing past Discord's 5000-match per-query limit in ${label}…`,
-          }));
         }
 
         allMessages.push(...page.messages);
@@ -662,8 +654,7 @@ async function fetchThreadMessages(
       delayModifier,
       searchCriteria,
       // Threads usually have few matches and the wrapping entry above
-      // already identifies the thread; keep detailed logging quiet unless
-      // the iterator crosses the 5000-cap (always logged).
+      // already identifies the thread; keep detailed logging quiet.
       { channelLabel: `thread "${threadName}"`, silent: true },
     );
 

@@ -543,19 +543,19 @@ async function purgeChannelMessages(
         }
       }
 
-      if (page.crossedQueryBoundary) {
-        dispatch(addStatusEntry({
-          level: 'info',
-          message: `Continuing past Discord's 5000-match per-query limit in ${label}…`,
-        }));
-      }
-
       const messages = page.messages;
       if (messages.length === 0) continue;
 
       searchPageCount++;
-      const batchDenom = page.totalResults > 0
-        ? ` (${page.aggregatedCount.toLocaleString()} of ${page.totalResults.toLocaleString()} matches fetched)`
+      // Use the original totalResults (announced once at the top of the
+      // search) as the denominator. After deletions Discord's totalResults
+      // shrinks every page, which made the live denominator nonsensical
+      // ("75 of 64 matches fetched") as aggregatedCount kept growing past
+      // the now-shrunken total. The stable original keeps the progress
+      // signal honest: how much of the originally-reported set we've
+      // touched, not a live ratio against a moving target.
+      const batchDenom = totalForThisUser > 0
+        ? ` (${page.aggregatedCount.toLocaleString()} of ${totalForThisUser.toLocaleString()} matches fetched)`
         : '';
       dispatch(addStatusEntry({
         level: 'info',
@@ -792,10 +792,10 @@ async function purgeChannelMessages(
       // matches came back (totalForThisUser stays 0).
       void totalForThisUser;
 
-      // The lib iterator self-detects index reshuffles via total_results
-      // change and resets to offset=0 automatically. It also handles the
-      // 5000-cap searchBeforeDate continuation transparently, so no
-      // caller-side restart plumbing is needed.
+      // The lib iterator (#188) cap-shifts `searchBeforeDate` to the
+      // oldest yielded timestamp on every iteration, so post-deletion
+      // re-fetches transparently advance past everything we've already
+      // seen. No caller-side restart plumbing needed.
     }
   }
 
