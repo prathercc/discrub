@@ -192,4 +192,91 @@ describe('LoadAllDialog', () => {
       expect(screen.getByText(/for threads with thousands/)).toBeInTheDocument();
     });
   });
+
+  describe('Filter-aware copy (#178)', () => {
+    const buildFilteredState = (criteria: Record<string, unknown>) =>
+      createBaseState({
+        message: {
+          messages: [],
+          filteredMessages: [],
+          selectedMessages: [],
+          searchCriteria: criteria as any,
+          order: { order: 'desc' as any, orderBy: 'timestamp' },
+          isLoading: false,
+          isEditing: false,
+          error: null,
+          pagination: {
+            lastMessageId: null,
+            hasMore: true,
+            totalCount: 1010,
+            isLoadingMore: false,
+            isLoadingAll: false,
+            loadAllProgress: null,
+            mode: 'search' as any,
+            searchOffset: 0,
+          },
+        } as any,
+      });
+
+    it('uses the filtered title when a search filter is active', () => {
+      renderWithProviders(<LoadAllDialog {...defaultProps} />, {
+        preloadedState: buildFilteredState({ searchMessageContent: 'hello' }),
+      });
+      expect(screen.getByText('Load All Filtered Messages')).toBeInTheDocument();
+      expect(screen.queryByText('Load All Messages')).not.toBeInTheDocument();
+    });
+
+    it('reports the active filter count in the alert copy', () => {
+      renderWithProviders(<LoadAllDialog {...defaultProps} />, {
+        preloadedState: buildFilteredState({
+          searchMessageContent: 'hello',
+          userIds: ['u1', 'u2'],
+        }),
+      });
+      expect(screen.getByText(/3 active/)).toBeInTheDocument();
+      expect(screen.getByText(/matches your active filters/)).toBeInTheDocument();
+    });
+
+    it('uses singular wording when exactly one filter is active', () => {
+      renderWithProviders(<LoadAllDialog {...defaultProps} />, {
+        preloadedState: buildFilteredState({ searchMessageContent: 'hello' }),
+      });
+      expect(screen.getByText(/your active filter \(1 active\)/)).toBeInTheDocument();
+    });
+
+    it('keeps the default copy when search mode is active but no filters are set', () => {
+      renderWithProviders(<LoadAllDialog {...defaultProps} />, {
+        preloadedState: buildFilteredState({}),
+      });
+      expect(screen.getByText('Load All Messages')).toBeInTheDocument();
+      expect(screen.getByText(/load all messages from this channel/)).toBeInTheDocument();
+    });
+
+    it('keeps the default copy when filters are present but mode is not search', () => {
+      renderWithProviders(<LoadAllDialog {...defaultProps} />, {
+        preloadedState: createBaseState({
+          message: {
+            messages: [],
+            filteredMessages: [],
+            selectedMessages: [],
+            searchCriteria: { searchMessageContent: 'hello' } as any,
+            order: { order: 'desc' as any, orderBy: 'timestamp' },
+            isLoading: false,
+            isEditing: false,
+            error: null,
+            pagination: {
+              lastMessageId: null,
+              hasMore: false,
+              totalCount: null,
+              isLoadingMore: false,
+              isLoadingAll: false,
+              loadAllProgress: null,
+              mode: 'paginated' as any,
+            },
+          } as any,
+        }),
+      });
+      expect(screen.getByText('Load All Messages')).toBeInTheDocument();
+    });
+  });
 });

@@ -16,6 +16,7 @@ import { addStatusEntry, showOperationTip, showToast } from '@features/status/st
 import { getEmojiKey } from '@/utils/emojiUtils';
 import { applyRefineCriteria, criteriaIsActive } from './messageFiltering';
 import { nextMilestone } from '@utils/searchPagination';
+import { countActiveFilters } from '@utils/searchCriteria';
 
 /**
  * Emit a status-log entry when a just-loaded page produced zero matches
@@ -1035,6 +1036,51 @@ export const loadAllSearchResults = createAsyncThunk(
     let totalForCurrentQuery = initial.message.pagination.totalCount ?? 0;
     let milestoneBoundary = nextMilestone(aggregated.length);
 
+    const filterCount = countActiveFilters(initialCriteria);
+    const isFiltered = filterCount > 0;
+
+    dispatch(
+      addStatusEntry({
+        level: 'info',
+        message: isFiltered
+          ? `Loading all filtered messages (${filterCount} filter${filterCount === 1 ? '' : 's'} active)…`
+          : 'Loading all messages…',
+      })
+    );
+
+    // Reaction enrichment status cadence: emit on first batch, then on
+    // nextMilestone boundaries over cumulative enrichment count, then
+    // once at the end. Mirrors the search-count ladder (#154) and the
+    // reaction-discovery throttle (#170) — avoids the per-batch spam
+    // (#178) where a 1010-result load would print ~40 near-identical
+    // "fetching reaction data…" entries.
+    let reactionTotal = 0;
+    let reactionMilestone = nextMilestone(0);
+    let reactionAnnounced = false;
+    const emitReactionStatus = (count: number) => {
+      reactionTotal += count;
+      if (!reactionAnnounced) {
+        dispatch(
+          addStatusEntry({
+            level: 'info',
+            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+          })
+        );
+        reactionAnnounced = true;
+        reactionMilestone = nextMilestone(reactionTotal);
+        return;
+      }
+      if (reactionTotal >= reactionMilestone) {
+        dispatch(
+          addStatusEntry({
+            level: 'info',
+            message: `Search: enriched reactions for ${reactionTotal} messages so far`,
+          })
+        );
+        reactionMilestone = nextMilestone(reactionTotal);
+      }
+    };
+
     try {
       while (!signal.aborted) {
         await waitWhilePaused(getState as () => RootState);
@@ -1075,10 +1121,7 @@ export const loadAllSearchResults = createAsyncThunk(
               await waitWhilePaused(getState as () => RootState);
               return checkCancelled(getState as () => RootState);
             },
-            onWillEnrich: (count) => dispatch(addStatusEntry({
-              level: 'info',
-              message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
-            })),
+            onWillEnrich: emitReactionStatus,
           },
         );
 
@@ -1134,10 +1177,21 @@ export const loadAllSearchResults = createAsyncThunk(
         return rejectWithValue('Load all cancelled');
       }
 
+      if (reactionAnnounced) {
+        dispatch(
+          addStatusEntry({
+            level: 'info',
+            message: `Search: enriched reactions for ${reactionTotal} message${reactionTotal === 1 ? '' : 's'} total`,
+          })
+        );
+      }
+
       dispatch(
         addStatusEntry({
           level: 'success',
-          message: `Search complete: ${aggregated.length} results loaded`,
+          message: isFiltered
+            ? `Loaded ${aggregated.length} filtered message${aggregated.length === 1 ? '' : 's'}`
+            : `Loaded ${aggregated.length} message${aggregated.length === 1 ? '' : 's'}`,
         })
       );
 
@@ -1726,6 +1780,30 @@ export const searchThreadMessages = createAsyncThunk(
       let batchNumber = 0;
       let milestoneBoundary = nextMilestone(0);
 
+      // Reaction enrichment status cadence — see loadAllSearchResults (#178).
+      let reactionTotal = 0;
+      let reactionMilestone = nextMilestone(0);
+      let reactionAnnounced = false;
+      const emitReactionStatus = (count: number) => {
+        reactionTotal += count;
+        if (!reactionAnnounced) {
+          dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+          }));
+          reactionAnnounced = true;
+          reactionMilestone = nextMilestone(reactionTotal);
+          return;
+        }
+        if (reactionTotal >= reactionMilestone) {
+          dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: enriched reactions for ${reactionTotal} messages so far`,
+          }));
+          reactionMilestone = nextMilestone(reactionTotal);
+        }
+      };
+
       while (shouldContinue && !signal.aborted) {
         let batchMessages: Message[] = [];
         let offset = 0;
@@ -1778,10 +1856,7 @@ export const searchThreadMessages = createAsyncThunk(
                 await waitWhilePaused(getState as () => RootState);
                 return checkCancelled(getState as () => RootState);
               },
-              onWillEnrich: (count) => dispatch(addStatusEntry({
-                level: 'info',
-                message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
-              })),
+              onWillEnrich: emitReactionStatus,
             },
           );
 
@@ -1861,6 +1936,12 @@ export const searchThreadMessages = createAsyncThunk(
         },
       }));
 
+      if (reactionAnnounced) {
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `Search: enriched reactions for ${reactionTotal} message${reactionTotal === 1 ? '' : 's'} total`,
+        }));
+      }
       dispatch(addStatusEntry({ level: 'success', message: `Search complete: ${allMessages.length} results found` }));
       return { threadId, count: allMessages.length };
     } catch (error) {

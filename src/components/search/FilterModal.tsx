@@ -18,7 +18,6 @@ import {
 } from '@mui/icons-material';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import type { SearchCriteria, ExportUserMap } from 'discrub-core/types/discrub-types';
-import { IsPinnedType } from 'discrub-core/discord-enum';
 import DateRangeFilter, { type DateFilterMode } from './filters/DateRangeFilter';
 import MessageTypeFilter from './filters/MessageTypeFilter';
 import UserPicker from '@components/ui/UserPicker';
@@ -27,6 +26,10 @@ import PinnedFilter from './filters/PinnedFilter';
 import AuthorTypeFilter from './filters/AuthorTypeFilter';
 import { defaultCriteria } from './searchConstants';
 import type { AuthorType } from 'discrub-core/discord-enum';
+import {
+  countActiveFilters as countActiveFiltersUtil,
+  countTotalFilters as countTotalFiltersUtil,
+} from '@utils/searchCriteria';
 
 interface FilterModalProps {
   open: boolean;
@@ -57,25 +60,8 @@ interface FilterModalProps {
   hideAuthorFilters?: boolean;
 }
 
-/**
- * Counts the number of active filters in criteria
- */
-export const countActiveFilters = (criteria: SearchCriteria): number => {
-  let count = 0;
-  if (criteria.searchMessageContent) count++;
-  if (criteria.userIds.length > 0) count += criteria.userIds.length;
-  if (criteria.selectedHasTypes.length > 0) count += criteria.selectedHasTypes.length;
-  if (criteria.searchAfterDate) count++;
-  if (criteria.searchBeforeDate) count++;
-  if (criteria.isPinned !== IsPinnedType.UNSET) count++;
-  if (criteria.authorType) count++;
-  if (criteria.mentionIds && criteria.mentionIds.length > 0) count += criteria.mentionIds.length;
-  return count;
-};
-
-export const countTotalFilters = (search: SearchCriteria, refine: SearchCriteria): number => {
-  return countActiveFilters(search) + countActiveFilters(refine);
-};
+export const countActiveFilters = countActiveFiltersUtil;
+export const countTotalFilters = countTotalFiltersUtil;
 
 const inferDateMode = (c?: SearchCriteria): DateFilterMode => {
   if (!c) return null;

@@ -4884,5 +4884,167 @@ describe('messageSlice', () => {
         expect(tab.messages.every((m) => m.reactions === undefined)).toBe(true);
       });
     });
+
+    describe('#178 Load All UX clarity bundle', () => {
+      const seedSearchActive = (criteria: Record<string, unknown>): typeof initialMessageState => ({
+        ...initialMessageState,
+        searchCriteria: criteria as any,
+        pagination: {
+          ...initialMessageState.pagination,
+          mode: 'search' as const,
+          searchOffset: 0,
+          totalCount: 25,
+          hasMore: true,
+        },
+      });
+
+      const drainStatusMessages = (): string[] =>
+        vi.mocked(addStatusEntry).mock.calls.map((c) => (c[0] as any).message);
+
+      const mockTwoPageThenEmpty = (perPage: number) => {
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) {
+              return {
+                success: true,
+                data: { messages: [searchShapedMessages(perPage)], total_results: perPage },
+              };
+            }
+            return { success: true, data: { messages: [[]], total_results: perPage } };
+          }),
+        } as any);
+      };
+
+      it('emits an unfiltered opening status entry when searchCriteria has no active filters', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive({}));
+        mockTwoPageThenEmpty(5);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const messages = drainStatusMessages();
+        expect(messages).toContain('Loading all messages…');
+        expect(messages.some((m) => /Loading all filtered/.test(m))).toBe(false);
+      });
+
+      it('emits a filtered opening status entry with a filter count when criteria are active', async () => {
+        const testStore = await buildStoreWithReactions(
+          false,
+          seedSearchActive({ searchMessageContent: 'hi', userIds: ['u1', 'u2'] }),
+        );
+        mockTwoPageThenEmpty(5);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const messages = drainStatusMessages();
+        expect(messages).toContain('Loading all filtered messages (3 filters active)…');
+      });
+
+      it('uses singular wording when exactly one filter is active', async () => {
+        const testStore = await buildStoreWithReactions(
+          false,
+          seedSearchActive({ searchMessageContent: 'hi' }),
+        );
+        mockTwoPageThenEmpty(5);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const messages = drainStatusMessages();
+        expect(messages).toContain('Loading all filtered messages (1 filter active)…');
+      });
+
+      it('emits a filtered completion entry when filters are active', async () => {
+        const testStore = await buildStoreWithReactions(
+          false,
+          seedSearchActive({ searchMessageContent: 'hi' }),
+        );
+        mockTwoPageThenEmpty(5);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const messages = drainStatusMessages();
+        expect(messages).toContain('Loaded 5 filtered messages');
+        expect(messages).not.toContain('Loaded 5 messages');
+      });
+
+      it('emits an unfiltered completion entry when no filters are active', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive({}));
+        mockTwoPageThenEmpty(5);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const messages = drainStatusMessages();
+        expect(messages).toContain('Loaded 5 messages');
+      });
+
+      it('throttles per-batch reaction enrichment status entries to a milestone ladder', async () => {
+        const testStore = await buildStoreWithReactions(true, seedSearchActive({}));
+
+        // Override the parent mock with one that actually invokes onWillEnrich
+        // — that's the hook we're testing the cadence of.
+        vi.mocked(reactionEnrichmentService.enrichMessages).mockImplementation(
+          async (msgs: Message[], _token: string, _settings: any, cbs: any) => {
+            cbs?.onWillEnrich?.(msgs.length);
+            return mockEnrichedReturn(msgs);
+          },
+        );
+
+        // Six pages of 25 messages each, then end-of-results. Pre-throttle,
+        // this would emit six near-identical "fetching reaction data for 25
+        // messages…" entries. After #178 only the first batch + milestone
+        // crossings emit.
+        const totalPages = 6;
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call <= totalPages) {
+              return {
+                success: true,
+                data: {
+                  messages: [searchShapedMessages(25)],
+                  total_results: totalPages * 25,
+                },
+              };
+            }
+            return { success: true, data: { messages: [[]], total_results: totalPages * 25 } };
+          }),
+        } as any);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const reactionEntries = drainStatusMessages().filter((m) =>
+          /reaction data|enriched reactions/i.test(m),
+        );
+        // Floor: the opening "fetching reaction data for 25 messages…" and
+        // the final total. Ceiling: well under one-per-batch.
+        expect(reactionEntries.length).toBeGreaterThanOrEqual(2);
+        expect(reactionEntries.length).toBeLessThan(totalPages);
+        expect(reactionEntries[0]).toMatch(/fetching reaction data for 25 message/);
+        expect(reactionEntries[reactionEntries.length - 1]).toMatch(
+          /enriched reactions for \d+ messages? total/,
+        );
+      });
+
+      it('does not emit any reaction enrichment entries when REACTIONS_ENABLED is false', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive({}));
+        mockTwoPageThenEmpty(25);
+        vi.mocked(addStatusEntry).mockClear();
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const reactionEntries = drainStatusMessages().filter((m) =>
+          /reaction data|enriched reactions/i.test(m),
+        );
+        expect(reactionEntries).toEqual([]);
+      });
+    });
   });
 });
