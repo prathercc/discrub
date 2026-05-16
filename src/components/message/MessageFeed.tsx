@@ -79,7 +79,7 @@ const MessageFeed = ({
   const settings = useAppSelector(selectSettings);
   const activeTab = useAppSelector(selectActiveTab);
 
-  const { hasMore, isLoadingMore, lastMessageId } = useAppSelector(selectActivePagination);
+  const { hasMore, isLoadingMore, isLoadingAll, lastMessageId } = useAppSelector(selectActivePagination);
   const highlightedMessageId = useAppSelector(selectHighlightedMessageId);
   const currentContext = selectedChannel || selectedDm;
 
@@ -200,7 +200,7 @@ const MessageFeed = ({
   const paginationHasMore = useAppSelector((s) => s.message.pagination.hasMore);
 
   const handleLoadMore = useCallback(() => {
-    if (!token || isLoadingMore || !paginationHasMore) return;
+    if (!token || isLoadingMore || isLoadingAll || !paginationHasMore) return;
 
     // In search mode the cursor is an offset in Redux state, not a
     // last-message-id, so branch on mode instead of on lastMessageId.
@@ -231,6 +231,7 @@ const MessageFeed = ({
     currentContext,
     dispatch,
     isLoadingMore,
+    isLoadingAll,
     lastMessageId,
     paginationHasMore,
     paginationMode,
@@ -239,18 +240,21 @@ const MessageFeed = ({
     token,
   ]);
 
-  // Infinite scroll: trigger load-more when scrolled near the bottom
+  // Infinite scroll: trigger load-more when scrolled near the bottom.
+  // Latches off during Load All (#181) — the dialog promises this; before
+  // this gate, a concurrent infinite-scroll fetch could race the Load All
+  // iterator and corrupt the dedup/cap-shift state.
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
     const onScroll = () => {
-      if (!hasMore || isLoadingMore) return;
+      if (!hasMore || isLoadingMore || isLoadingAll) return;
       const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
       if (distanceFromBottom < 200) handleLoadMore();
     };
     el.addEventListener('scroll', onScroll);
     return () => el.removeEventListener('scroll', onScroll);
-  }, [handleLoadMore, hasMore, isLoadingMore]);
+  }, [handleLoadMore, hasMore, isLoadingMore, isLoadingAll]);
 
   return (
     <>

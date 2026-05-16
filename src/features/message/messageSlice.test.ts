@@ -5046,5 +5046,133 @@ describe('messageSlice', () => {
         expect(reactionEntries).toEqual([]);
       });
     });
+
+    describe('#181 Load All live message rendering', () => {
+      const seedSearchActive = (): typeof initialMessageState => ({
+        ...initialMessageState,
+        searchCriteria: { content: 'x' } as any,
+        pagination: {
+          ...initialMessageState.pagination,
+          mode: 'search' as const,
+          searchOffset: 0,
+          totalCount: 0,
+          hasMore: true,
+        },
+      });
+
+      it('appends loadAllSearchResults pages to state.messages between page fetches', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive());
+
+        // Pages must be SEARCH_PAGE_SIZE (25) to keep the iterator looping.
+        const page1 = searchShapedMessages(25).map((m, i) => ({ ...m, id: `p1-${i}` }));
+        const page2 = searchShapedMessages(25).map((m, i) => ({ ...m, id: `p2-${i}` }));
+        const snapshots: number[] = [];
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            // Capture state's message count BEFORE returning the next page.
+            // After page 1 the snapshot should already be 25 — proving
+            // appendLoadAllPage ran live, not at fulfilled.
+            snapshots.push(testStore.getState().message.messages.length);
+            call += 1;
+            if (call === 1) {
+              return { success: true, data: { messages: [page1], total_results: 50 } };
+            }
+            if (call === 2) {
+              return { success: true, data: { messages: [page2], total_results: 50 } };
+            }
+            return { success: true, data: { messages: [[]], total_results: 50 } };
+          }),
+        } as any);
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        expect(snapshots[0]).toBe(0);
+        expect(snapshots[1]).toBe(25);
+        expect(testStore.getState().message.messages).toHaveLength(50);
+      });
+
+      it('dedupes overlapping ids across appendLoadAllPage dispatches', async () => {
+        const testStore = await buildStoreWithReactions(false, seedSearchActive());
+
+        const page1 = searchShapedMessages(25).map((m, i) => ({ ...m, id: `m-${i}` }));
+        // page2 overlaps two messages of page1 (m-23, m-24) — should dedupe.
+        const page2 = [
+          { ...searchShapedMessages(1)[0], id: 'm-23' },
+          { ...searchShapedMessages(1)[0], id: 'm-24' },
+          ...Array.from({ length: 23 }, (_, i) => ({
+            ...searchShapedMessages(1)[0],
+            id: `m-${25 + i}`,
+          })),
+        ];
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) return { success: true, data: { messages: [page1], total_results: 48 } };
+            if (call === 2) return { success: true, data: { messages: [page2], total_results: 48 } };
+            return { success: true, data: { messages: [[]], total_results: 48 } };
+          }),
+        } as any);
+
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        const ids = testStore.getState().message.messages.map((m) => m.id);
+        // 25 from page1 + 23 net-new from page2 = 48 unique.
+        expect(ids).toHaveLength(48);
+        expect(new Set(ids).size).toBe(48);
+      });
+
+      it('appends fetchAllMessages pages live (channel-mode Load All)', async () => {
+        const testStore = await buildStoreWithReactions(false, initialMessageState);
+
+        const batch1 = Array.from({ length: 100 }, (_, i) =>
+          createMockMessage({ id: `b1-${i}`, reactions: undefined as any }),
+        );
+        const batch2 = Array.from({ length: 50 }, (_, i) =>
+          createMockMessage({ id: `b2-${i}`, reactions: undefined as any }),
+        );
+        const snapshots: number[] = [];
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchMessageData: vi.fn().mockImplementation(async () => {
+            snapshots.push(testStore.getState().message.messages.length);
+            call += 1;
+            if (call === 1) return { success: true, data: batch1 };
+            return { success: true, data: batch2 };
+          }),
+        } as any);
+
+        await testStore.dispatch(fetchAllMessages({ channelId: 'ch-1', token: 'token' }));
+
+        expect(snapshots[0]).toBe(0);
+        expect(snapshots[1]).toBe(100);
+        expect(testStore.getState().message.messages).toHaveLength(150);
+      });
+
+      it('routes each appended page through getSortedMessages so the live view stays sorted', async () => {
+        const { getSortedMessages } = await import('discrub-core/discrub-utils');
+        const testStore = await buildStoreWithReactions(false, seedSearchActive());
+
+        const page = searchShapedMessages(25);
+        let call = 0;
+        vi.mocked(discordService.getDiscordService).mockReturnValue({
+          fetchSearchMessageData: vi.fn().mockImplementation(async () => {
+            call += 1;
+            if (call === 1) return { success: true, data: { messages: [page], total_results: 25 } };
+            return { success: true, data: { messages: [[]], total_results: 25 } };
+          }),
+        } as any);
+
+        vi.mocked(getSortedMessages).mockClear();
+        await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
+
+        // appendLoadAllPage in the reducer + the fulfilled defensive sort
+        // = at least 2 calls under the active order.
+        const orderCalls = vi.mocked(getSortedMessages).mock.calls.map((c) => c[1]);
+        expect(orderCalls.length).toBeGreaterThanOrEqual(2);
+        expect(orderCalls.every((o) => o === 'desc')).toBe(true);
+      });
+    });
   });
 });

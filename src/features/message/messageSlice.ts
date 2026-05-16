@@ -1128,6 +1128,19 @@ export const loadAllSearchResults = createAsyncThunk(
         aggregated.push(...page);
         offset += page.length;
 
+        // #181: append this page to state.messages live so the table
+        // grows as Load All walks pages, instead of staying frozen until
+        // fulfilled. Dedupes + re-sorts under the active order; the
+        // fulfilled handler does one final canonical sort over the same
+        // set.
+        dispatch(
+          messageSlice.actions.appendLoadAllPage({
+            messages: page,
+            totalCount: pageTotal,
+            searchOffset: offset,
+          })
+        );
+
         dispatch(
           updateLoadAllProgress({
             current: aggregated.length,
@@ -1262,6 +1275,9 @@ export const fetchAllMessages = createAsyncThunk(
         const messages = response.data as Message[];
         allMessages = [...allMessages, ...messages];
         batchCount++;
+
+        // #181: live append so the table grows during the operation.
+        dispatch(messageSlice.actions.appendLoadAllPage({ messages }));
 
         // Update progress
         dispatch(
@@ -2059,6 +2075,29 @@ const messageSlice = createSlice({
     ) => {
       state.pagination.loadAllProgress = action.payload;
     },
+    // #181: per-page live append during Load All. Appends new messages,
+    // dedupes against existing, re-sorts under the active order, and
+    // refreshes the filtered view. Used by loadAllSearchResults +
+    // fetchAllMessages so the table grows while the iterator is still
+    // walking pages. The fulfilled reducer re-applies the same sort over
+    // the final aggregated set — these appends are not a separate "preview
+    // slice"; they are the same source of truth, just written incrementally.
+    appendLoadAllPage: (
+      state,
+      action: PayloadAction<{ messages: Message[]; totalCount?: number; searchOffset?: number }>
+    ) => {
+      const { messages: pageMessages, totalCount, searchOffset } = action.payload;
+      if (pageMessages.length === 0) return;
+      const existingIds = new Set(state.messages.map((m) => m.id));
+      const fresh = pageMessages.filter((m) => !existingIds.has(m.id));
+      if (fresh.length === 0) return;
+      const combined = [...state.messages, ...fresh];
+      const sorted = getSortedMessages(combined, state.order.order);
+      state.messages = sorted;
+      state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+      if (totalCount !== undefined) state.pagination.totalCount = totalCount;
+      if (searchOffset !== undefined) state.pagination.searchOffset = searchOffset;
+    },
     cancelLoadAll: (state) => {
       state.pagination.isLoadingAll = false;
       state.pagination.loadAllProgress = null;
@@ -2308,12 +2347,14 @@ const messageSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchAllMessages.fulfilled, (state, action) => {
+        // Messages were appended live via appendLoadAllPage (#181); just
+        // finalize flags + run a defensive canonical sort over what's
+        // already in state.
         state.pagination.isLoadingAll = false;
         state.pagination.loadAllProgress = null;
 
-        const sorted = getSortedMessages(action.payload.messages, state.order.order);
-        state.messages = sorted;
-        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+        state.messages = getSortedMessages(state.messages, state.order.order);
+        state.filteredMessages = applyRefineCriteria(state.messages, state.refineCriteria);
         state.selectedMessages = [];
 
         state.pagination.lastMessageId = action.payload.lastMessageId;
@@ -2405,16 +2446,20 @@ const messageSlice = createSlice({
         };
       })
       .addCase(loadAllSearchResults.fulfilled, (state, action) => {
+        // Messages were appended live via appendLoadAllPage (#181); just
+        // finalize flags + run a defensive canonical sort over what's
+        // already in state. The aggregated payload may contain duplicates
+        // (the thunk doesn't dedup the local accumulator) — using
+        // state.messages here preserves the deduped/sorted version.
         state.pagination.isLoadingAll = false;
         state.pagination.loadAllProgress = null;
 
-        const sorted = getSortedMessages(action.payload.messages, state.order.order);
-        state.messages = sorted;
-        state.filteredMessages = applyRefineCriteria(sorted, state.refineCriteria);
+        state.messages = getSortedMessages(state.messages, state.order.order);
+        state.filteredMessages = applyRefineCriteria(state.messages, state.refineCriteria);
 
         state.pagination.totalCount = action.payload.totalResults;
         state.pagination.hasMore = false;
-        state.pagination.searchOffset = action.payload.messages.length;
+        state.pagination.searchOffset = state.messages.length;
       })
       .addCase(loadAllSearchResults.rejected, (state, action) => {
         state.pagination.isLoadingAll = false;
@@ -2585,6 +2630,7 @@ export const {
   clearMessages,
   resetPagination,
   updateLoadAllProgress,
+  appendLoadAllPage,
   cancelLoadAll,
   setActiveTab,
   addThreadTab,
