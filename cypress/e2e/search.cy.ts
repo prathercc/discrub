@@ -675,24 +675,20 @@ describe('Search & Filters', () => {
       cy.get('[role="dialog"]').contains('button', 'During').should('exist');
     });
 
-    it('shows date picker matching selected mode', () => {
+    it('shows date pickers matching selected mode (Before, between, During)', () => {
+      // #182: Before + After coexist as "between". During remains a
+      // mutually exclusive single-day shortcut.
       cy.contains('button', 'Filters').click();
       cy.get('[role="dialog"]').within(() => {
         cy.contains('Add date').scrollIntoView().click();
-        // Before is default after clicking "+ Add date"
-        // After / Before use DateTimePicker (placeholder "MM/DD/YYYY hh:mm aa");
-// During still uses DatePicker ("MM/DD/YYYY"). Starts-with matches both.
-cy.get('input[placeholder^="MM/DD/YYYY"]').should('exist');
-        // Switch to After
+        // Before is the default after clicking "+ Add date" — one picker.
+        cy.get('input[placeholder^="MM/DD/YYYY"]').should('have.length', 1);
+        // Adding After while in Before promotes to "between" — two pickers.
         cy.contains('button', 'After').click();
-        // After / Before use DateTimePicker (placeholder "MM/DD/YYYY hh:mm aa");
-// During still uses DatePicker ("MM/DD/YYYY"). Starts-with matches both.
-cy.get('input[placeholder^="MM/DD/YYYY"]').should('exist');
-        // Switch to During
+        cy.get('input[placeholder^="MM/DD/YYYY"]').should('have.length', 2);
+        // Switching to During clears the others and shows a single day picker.
         cy.contains('button', 'During').click();
-        // After / Before use DateTimePicker (placeholder "MM/DD/YYYY hh:mm aa");
-// During still uses DatePicker ("MM/DD/YYYY"). Starts-with matches both.
-cy.get('input[placeholder^="MM/DD/YYYY"]').should('exist');
+        cy.get('input[placeholder^="MM/DD/YYYY"]').should('have.length', 1);
       });
     });
 
@@ -877,10 +873,12 @@ cy.get('input[placeholder^="MM/DD/YYYY"]').should('exist');
       cy.contains('button', 'Filters').click();
       cy.get('[role="dialog"]').within(() => {
         cy.contains('Add date').click();
+        // "Add date" defaults to Before. Clicking After (#182) keeps Before
+        // toggled and promotes the mode to "between", so both pickers
+        // render. The After input is rendered first; we only need it set
+        // for this min_id assertion (an empty Before picker is fine).
         cy.contains('button', 'After').click();
-        // After-mode uses DateTimePicker (#126) — full date + time needed
-        // to commit a valid value through the MUI field sections.
-        cy.get('input[placeholder^="MM/DD/YYYY"]').type('01/01/2026 12:00 AM');
+        cy.get('input[placeholder^="MM/DD/YYYY"]').eq(0).type('01/01/2026 12:00 AM');
       });
       cy.get('[role="dialog"]').find('button[class*="contained"]').contains('Search').click();
 
@@ -902,6 +900,31 @@ cy.get('input[placeholder^="MM/DD/YYYY"]').should('exist');
       cy.get('[role="dialog"]').find('button[class*="contained"]').contains('Search').click();
 
       cy.wait('@guildSearch').its('request.url').should('include', 'max_id=');
+    });
+
+    it('sends both min_id and max_id when Before and After are set together (#182)', () => {
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+        fixture: 'search-results.json',
+      }).as('guildSearch');
+
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]').within(() => {
+        cy.contains('Add date').click();
+        // Default is Before. Fill it.
+        cy.get('input[placeholder^="MM/DD/YYYY"]').type('12/31/2026 11:59 PM');
+        // Adding After promotes to "between" — both pickers render.
+        // After is rendered first when both are active, so the newly
+        // shown input at index 0 is After; the already-filled Before
+        // moves to index 1.
+        cy.contains('button', 'After').click();
+        cy.get('input[placeholder^="MM/DD/YYYY"]').eq(0).type('01/01/2026 12:00 AM');
+      });
+      cy.get('[role="dialog"]').find('button[class*="contained"]').contains('Search').click();
+
+      cy.wait('@guildSearch').then((interception) => {
+        expect(interception.request.url).to.include('min_id=');
+        expect(interception.request.url).to.include('max_id=');
+      });
     });
 
     it('makes zero API calls when using Refine', () => {

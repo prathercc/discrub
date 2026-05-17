@@ -63,12 +63,31 @@ interface FilterModalProps {
 export const countActiveFilters = countActiveFiltersUtil;
 export const countTotalFilters = countTotalFiltersUtil;
 
-const inferDateMode = (c?: SearchCriteria): DateFilterMode => {
+export const inferDateMode = (c?: SearchCriteria): DateFilterMode => {
   if (!c) return null;
-  if (c.searchAfterDate && !c.searchBeforeDate) return 'after';
-  if (c.searchBeforeDate && !c.searchAfterDate) return 'before';
-  if (c.searchAfterDate && c.searchBeforeDate) return 'during';
-  return null;
+  const hasAfter = !!c.searchAfterDate;
+  const hasBefore = !!c.searchBeforeDate;
+  if (!hasAfter && !hasBefore) return null;
+  if (hasAfter && !hasBefore) return 'after';
+  if (hasBefore && !hasAfter) return 'before';
+  // Both bounds set. Treat as a "During" single-day filter only when the
+  // bounds match the startOfDay/endOfDay pair that handleDuringDateChange
+  // emits for one calendar day; otherwise it's a between-range.
+  const after = c.searchAfterDate as Date;
+  const before = c.searchBeforeDate as Date;
+  const sameDay =
+    after.getFullYear() === before.getFullYear() &&
+    after.getMonth() === before.getMonth() &&
+    after.getDate() === before.getDate();
+  const isStartOfDay =
+    after.getHours() === 0 &&
+    after.getMinutes() === 0 &&
+    after.getSeconds() === 0;
+  const isEndOfDay =
+    before.getHours() === 23 &&
+    before.getMinutes() === 59 &&
+    before.getSeconds() === 59;
+  return sameDay && isStartOfDay && isEndOfDay ? 'during' : 'between';
 };
 
 /**

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
-import FilterModal from './FilterModal';
+import FilterModal, { inferDateMode } from './FilterModal';
 import { IsPinnedType } from 'discrub-core/discord-enum';
 import { defaultCriteria } from './searchConstants';
 import { renderWithProviders } from '@/test/test-utils';
@@ -176,6 +176,50 @@ describe('FilterModal', () => {
     it('should show "+ Add date" by default', () => {
       renderWithProviders(<FilterModal {...defaultProps} />);
       expect(screen.getByText('Add date')).toBeInTheDocument();
+    });
+  });
+
+  // ── #182: inferDateMode distinguishes during vs between ──────────
+  describe('inferDateMode', () => {
+    it('returns null when no criteria is supplied', () => {
+      expect(inferDateMode(undefined)).toBeNull();
+    });
+
+    it('returns null when neither bound is set', () => {
+      expect(inferDateMode({ ...defaultCriteria })).toBeNull();
+    });
+
+    it('returns "after" when only searchAfterDate is set', () => {
+      expect(inferDateMode({ ...defaultCriteria, searchAfterDate: new Date(2024, 0, 1) })).toBe('after');
+    });
+
+    it('returns "before" when only searchBeforeDate is set', () => {
+      expect(inferDateMode({ ...defaultCriteria, searchBeforeDate: new Date(2024, 0, 31) })).toBe('before');
+    });
+
+    it('returns "during" when bounds match the startOfDay/endOfDay pair for one calendar day', () => {
+      const day = new Date(2024, 0, 15);
+      const start = new Date(2024, 0, 15, 0, 0, 0);
+      const end = new Date(2024, 0, 15, 23, 59, 59);
+      expect(inferDateMode({ ...defaultCriteria, searchAfterDate: start, searchBeforeDate: end })).toBe('during');
+      // Sanity: the picker emits exactly this shape via date-fns startOfDay/endOfDay on `day`.
+      void day;
+    });
+
+    it('returns "between" when both bounds are set but the day window does not match During', () => {
+      // Different days
+      expect(inferDateMode({
+        ...defaultCriteria,
+        searchAfterDate: new Date(2024, 0, 1, 0, 0, 0),
+        searchBeforeDate: new Date(2024, 0, 31, 23, 59, 59),
+      })).toBe('between');
+
+      // Same day but the bounds don't span midnight to end-of-day
+      expect(inferDateMode({
+        ...defaultCriteria,
+        searchAfterDate: new Date(2024, 0, 15, 9, 0, 0),
+        searchBeforeDate: new Date(2024, 0, 15, 17, 0, 0),
+      })).toBe('between');
     });
   });
 

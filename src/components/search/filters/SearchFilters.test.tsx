@@ -157,6 +157,175 @@ describe('DateRangeFilter', () => {
     const beforeInput = screen.getByLabelText('Before') as HTMLInputElement;
     expect(beforeInput.value).toMatch(/09:45/);
   });
+
+  // ── #182: Before + After coexist as 'between' ────────────────────
+
+  it('renders both Before and After pickers in between mode', () => {
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 1, 0, 0)}
+        endDate={new Date(2024, 0, 31, 23, 59)}
+        onStartDateChange={vi.fn()}
+        onEndDateChange={vi.fn()}
+        dateMode="between"
+        onDateModeChange={vi.fn()}
+      />
+    );
+    expect(screen.getByLabelText('Before')).toBeInTheDocument();
+    expect(screen.getByLabelText('After')).toBeInTheDocument();
+    expect(screen.queryByLabelText('During')).not.toBeInTheDocument();
+  });
+
+  it('shows both Before and After toggles selected in between mode', () => {
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 1)}
+        endDate={new Date(2024, 0, 31)}
+        onStartDateChange={vi.fn()}
+        onEndDateChange={vi.fn()}
+        dateMode="between"
+        onDateModeChange={vi.fn()}
+      />
+    );
+    const toggleGroup = screen.getByRole('group');
+    expect(within(toggleGroup).getByText('Before').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(within(toggleGroup).getByText('After').closest('button')).toHaveAttribute('aria-pressed', 'true');
+    expect(within(toggleGroup).getByText('During').closest('button')).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('clicking After while in Before promotes the mode to between (preserving Before date)', () => {
+    const onDateModeChange = vi.fn();
+    const onStartDateChange = vi.fn();
+    const onEndDateChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={null}
+        endDate={new Date(2024, 0, 31)}
+        onStartDateChange={onStartDateChange}
+        onEndDateChange={onEndDateChange}
+        dateMode="before"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'After' }));
+    expect(onDateModeChange).toHaveBeenCalledWith('between');
+    // Bounds must not be wiped — the existing Before date is preserved
+    // and the user can now add an After date alongside it.
+    expect(onEndDateChange).not.toHaveBeenCalled();
+    expect(onStartDateChange).not.toHaveBeenCalled();
+  });
+
+  it('clicking Before while in After promotes the mode to between (preserving After date)', () => {
+    const onDateModeChange = vi.fn();
+    const onStartDateChange = vi.fn();
+    const onEndDateChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 1)}
+        endDate={null}
+        onStartDateChange={onStartDateChange}
+        onEndDateChange={onEndDateChange}
+        dateMode="after"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Before' }));
+    expect(onDateModeChange).toHaveBeenCalledWith('between');
+    expect(onStartDateChange).not.toHaveBeenCalled();
+    expect(onEndDateChange).not.toHaveBeenCalled();
+  });
+
+  it('untoggling Before while in between reverts to after (and clears the Before bound)', () => {
+    const onDateModeChange = vi.fn();
+    const onEndDateChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 1)}
+        endDate={new Date(2024, 0, 31)}
+        onStartDateChange={vi.fn()}
+        onEndDateChange={onEndDateChange}
+        dateMode="between"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Before' }));
+    expect(onDateModeChange).toHaveBeenCalledWith('after');
+    expect(onEndDateChange).toHaveBeenCalledWith(null);
+  });
+
+  it('untoggling After while in between reverts to before (and clears the After bound)', () => {
+    const onDateModeChange = vi.fn();
+    const onStartDateChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 1)}
+        endDate={new Date(2024, 0, 31)}
+        onStartDateChange={onStartDateChange}
+        onEndDateChange={vi.fn()}
+        dateMode="between"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'After' }));
+    expect(onDateModeChange).toHaveBeenCalledWith('before');
+    expect(onStartDateChange).toHaveBeenCalledWith(null);
+  });
+
+  it('clicking During while in between clears both bounds and switches to during', () => {
+    const onDateModeChange = vi.fn();
+    const onStartDateChange = vi.fn();
+    const onEndDateChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 1)}
+        endDate={new Date(2024, 0, 31)}
+        onStartDateChange={onStartDateChange}
+        onEndDateChange={onEndDateChange}
+        dateMode="between"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'During' }));
+    expect(onDateModeChange).toHaveBeenCalledWith('during');
+    expect(onStartDateChange).toHaveBeenCalledWith(null);
+    expect(onEndDateChange).toHaveBeenCalledWith(null);
+  });
+
+  it('clicking Before while in During clears the during date and restarts in Before', () => {
+    const onDateModeChange = vi.fn();
+    const onStartDateChange = vi.fn();
+    const onEndDateChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={new Date(2024, 0, 15)}
+        endDate={new Date(2024, 0, 15)}
+        onStartDateChange={onStartDateChange}
+        onEndDateChange={onEndDateChange}
+        dateMode="during"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Before' }));
+    expect(onDateModeChange).toHaveBeenCalledWith('before');
+    expect(onStartDateChange).toHaveBeenCalledWith(null);
+    expect(onEndDateChange).toHaveBeenCalledWith(null);
+  });
+
+  it('untoggling the only active mode (before alone) drops back to null', () => {
+    const onDateModeChange = vi.fn();
+    render(
+      <DateRangeFilter
+        startDate={null}
+        endDate={new Date(2024, 0, 31)}
+        onStartDateChange={vi.fn()}
+        onEndDateChange={vi.fn()}
+        dateMode="before"
+        onDateModeChange={onDateModeChange}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Before' }));
+    expect(onDateModeChange).toHaveBeenCalledWith(null);
+  });
 });
 
 describe('MessageTypeFilter', () => {
