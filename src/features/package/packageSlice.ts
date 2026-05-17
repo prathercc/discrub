@@ -619,7 +619,7 @@ function extractHttpStatus(err: unknown): number | null {
  */
 export interface ExportPackageChannelParams {
   channelId: string;
-  format: 'html' | 'csv' | 'json' | 'media';
+  format: 'html' | 'csv' | 'json' | 'media' | 'text';
   messagesPerPage: number;
   includeMedia: boolean;
   mediaConfig?: import('@features/export/exportTypes').MediaConfig;
@@ -737,6 +737,12 @@ export const exportPackageChannel = createAsyncThunk<
           mediaConfig,
           exportConfig,
           shouldContinue,
+          undefined,                   // externalZipService
+          undefined,                   // separateThreads
+          undefined,                   // threads
+          undefined,                   // reactionMap
+          undefined,                   // guildRoles
+          state.export?.textOptions,   // #184: thread text-format options (optional — fall back to defaults inside exportToZip when absent)
         );
       }
 

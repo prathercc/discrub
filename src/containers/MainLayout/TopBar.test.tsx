@@ -330,6 +330,7 @@ describe('TopBar', () => {
             sortOrder: 'descending' as const,
             previewMedia: true,
             exportTemplate: 'discord',
+            textOptions: { attachmentStyle: 'inline', reactions: 'include', replies: 'quote', botIndicator: 'include' },
           },
         }),
       });
@@ -360,6 +361,7 @@ describe('TopBar', () => {
             sortOrder: 'descending' as const,
             previewMedia: true,
             exportTemplate: 'discord',
+            textOptions: { attachmentStyle: 'inline', reactions: 'include', replies: 'quote', botIndicator: 'include' },
           },
         }),
       });
@@ -389,6 +391,7 @@ describe('TopBar', () => {
             sortOrder: 'descending' as const,
             previewMedia: true,
             exportTemplate: 'discord',
+            textOptions: { attachmentStyle: 'inline', reactions: 'include', replies: 'quote', botIndicator: 'include' },
           },
         }),
       });

@@ -37,6 +37,38 @@ describe('Export', () => {
     cy.get('[role="dialog"]').find('input[type="number"]').should('not.be.disabled');
   });
 
+  // #184: Plain text format
+  it('lists Plain Text as a format option', () => {
+    cy.contains('button', 'Export').click();
+    cy.get('[role="dialog"]').contains('Plain Text - Human-readable').should('be.visible');
+  });
+
+  it('reveals the text-format options panel when Plain Text is selected', () => {
+    cy.contains('button', 'Export').click();
+    cy.get('[role="dialog"]').contains('Plain Text - Human-readable').click();
+    cy.get('[role="dialog"]').find('[data-testid="text-format-options"]').should('be.visible');
+    // The four gated selectors should be present.
+    cy.get('[data-testid="text-format-options"]').contains('Attachments').should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Reactions').should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Replies').should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Bot tag').should('be.visible');
+  });
+
+  it('hides the text-format options panel when switching back to HTML', () => {
+    cy.contains('button', 'Export').click();
+    cy.get('[role="dialog"]').contains('Plain Text - Human-readable').click();
+    cy.get('[data-testid="text-format-options"]').should('be.visible');
+    cy.get('[role="dialog"]').contains('HTML - Styled').click();
+    cy.get('[data-testid="text-format-options"]').should('not.exist');
+  });
+
+  it('hides the HTML Template dropdown when Plain Text is selected', () => {
+    cy.contains('button', 'Export').click();
+    cy.get('[role="dialog"]').contains('Plain Text - Human-readable').click();
+    // Template dropdown is HTML-only.
+    cy.get('[role="dialog"]').contains('Template').should('not.exist');
+  });
+
   it('disables "Messages per page" input when Media Only is selected', () => {
     cy.contains('button', 'Export').click();
     cy.get('[role="dialog"]').contains('Media Only').click();

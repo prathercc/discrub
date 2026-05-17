@@ -486,6 +486,161 @@ describe('exportService', () => {
 
       expect(mockCancel).toHaveBeenCalled();
     });
+
+    // ── #184: 'text' format integration ────────────────────────────
+
+    describe('text format (#184)', () => {
+      it('writes a .txt page file for each prepareExportData page', async () => {
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'text',
+          100,
+          false,
+          null,
+          {},
+          null,
+        );
+
+        const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
+        const pageFiles = filenames.filter((p) => p.endsWith('.txt') && !p.includes('README'));
+        expect(pageFiles.length).toBeGreaterThanOrEqual(1);
+        // Page name follows the same pattern as HTML/CSV/JSON.
+        expect(pageFiles[0]).toMatch(/test_channel\/test_channel-page-\d+\.txt$/);
+      });
+
+      it('writes a plain-text README.txt instead of README.html for text exports', async () => {
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'text',
+          100,
+          false,
+          null,
+          {},
+          null,
+        );
+
+        const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
+        expect(filenames).toContain('test_channel/README.txt');
+        expect(filenames).not.toContain('test_channel/README.html');
+      });
+
+      it('uses the text/plain MIME type for page blobs', async () => {
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'text',
+          100,
+          false,
+          null,
+          {},
+          null,
+        );
+
+        const pageCall = mockAddFile.mock.calls.find((c: any[]) => /-page-\d+\.txt$/.test(c[1] as string));
+        expect(pageCall).toBeDefined();
+        const blob = pageCall![0] as Blob;
+        expect(blob.type).toMatch(/^text\/plain/);
+      });
+
+      it('emits .txt thread files when prepareExportData returns thread exports', async () => {
+        const exportDataMod = await import('discrub-core/export-data-service');
+        vi.mocked(exportDataMod.prepareExportData).mockReturnValueOnce({
+          mainPages: [{ messages: [], pageNumber: 1, filePath: '' }],
+          threadExports: [
+            {
+              thread: { id: 't-1', name: 'My Thread' },
+              pages: [{ messages: [], pageNumber: 1, filePath: '' }],
+              threadNumber: 1,
+              totalThreads: 1,
+            },
+          ],
+          totalPages: 1,
+        } as any);
+
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'text',
+          100,
+          false,
+          null,
+          {},
+          null,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          true,
+        );
+
+        const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
+        const threadFiles = filenames.filter((p) => p.includes('/threads/') && p.endsWith('.txt'));
+        expect(threadFiles.length).toBeGreaterThanOrEqual(1);
+        expect(threadFiles[0]).toMatch(/threads\/my_thread\.txt$/);
+      });
+
+      it('does not emit a Discord shell wrapper for text format', async () => {
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'text',
+          100,
+          false,
+          null,
+          {},
+          null,
+          undefined,
+          undefined,
+          { artistMode: false, sortOrder: 'descending', previewMedia: false, dateFormat: 'yyyy-MM-dd', timeFormat: 'HH:mm:ss', exportTemplate: 'discord' },
+        );
+
+        const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
+        expect(filenames.some((p) => p.endsWith('shell.html'))).toBe(false);
+      });
+    });
   });
 
   describe('generateCSV with ExportConfig', () => {

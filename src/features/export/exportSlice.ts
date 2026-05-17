@@ -3,7 +3,7 @@ import type { Message, Channel } from 'discrub-core/types/discord-types';
 import { getThreadsFromMessages } from 'discrub-core/discrub-utils';
 import { initialExportState } from './exportTypes';
 import type { ExportFormat, MediaConfig, ExportConfig, ExportProgress, MediaDownloadProgress, ExportSettingsSnapshot, RecentExport } from './exportTypes';
-import { getExportService, generateExportReadme } from '@services/exportService';
+import { getExportService, generateExportReadme, generatePlainTextReadme } from '@services/exportService';
 import { StreamingZipService } from '@services/streamingZipService';
 import { getDiscordService } from '@services/discordService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
@@ -203,6 +203,7 @@ function buildConfigSnapshot(state: RootState): ExportSettingsSnapshot {
     artistMode: exp.artistMode,
     sortOrder: exp.sortOrder,
     previewMedia: exp.previewMedia,
+    textOptions: { ...exp.textOptions },
   };
 }
 
@@ -356,6 +357,7 @@ export const exportMessages = createAsyncThunk<
           threads,
           reactionMap,
           guildRoles,
+          state.export.textOptions,
         );
       }
 
@@ -807,7 +809,7 @@ export const bulkExportChannels = createAsyncThunk<
             await exportService.exportToZip(
               allMessages, folderName, format, messagesPerPage, includeMedia,
               selectedGuild, cachedUserMap, guildId || null, onProgress, mediaConfig, exportConfig, shouldContinue, zipService,
-              separateThreads, threads, reactionMap, guildRoles,
+              separateThreads, threads, reactionMap, guildRoles, initialState.export.textOptions,
             );
           }
 
@@ -861,12 +863,20 @@ export const bulkExportChannels = createAsyncThunk<
       }
 
       // Add README
-      const readmeHtml = generateExportReadme({
-        format,
-        isDiscordShell: format === 'html' && exportConfig?.exportTemplate === 'discord',
-        isBulk: true,
-      });
-      await zipService.addFile(new Blob([readmeHtml], { type: 'text/html' }), 'README.html');
+      if (format === 'text') {
+        const readmeTxt = generatePlainTextReadme({ isBulk: true });
+        await zipService.addFile(
+          new Blob([readmeTxt], { type: 'text/plain;charset=utf-8' }),
+          'README.txt',
+        );
+      } else {
+        const readmeHtml = generateExportReadme({
+          format,
+          isDiscordShell: format === 'html' && exportConfig?.exportTemplate === 'discord',
+          isBulk: true,
+        });
+        await zipService.addFile(new Blob([readmeHtml], { type: 'text/html' }), 'README.html');
+      }
 
       await zipService.finalize();
 
@@ -1004,7 +1014,7 @@ export const bulkExportDMs = createAsyncThunk<
             await exportService.exportToZip(
               allMessages, folderName, format, messagesPerPage, includeMedia,
               null, cachedUserMap, null, onProgress, mediaConfig, exportConfig, shouldContinue, zipService,
-              separateThreads, threads, reactionMap, [],
+              separateThreads, threads, reactionMap, [], initialState.export.textOptions,
             );
           }
 
@@ -1054,12 +1064,20 @@ export const bulkExportDMs = createAsyncThunk<
       }
 
       // Add README
-      const readmeHtml = generateExportReadme({
-        format,
-        isDiscordShell: format === 'html' && exportConfig?.exportTemplate === 'discord',
-        isBulk: true,
-      });
-      await zipService.addFile(new Blob([readmeHtml], { type: 'text/html' }), 'README.html');
+      if (format === 'text') {
+        const readmeTxt = generatePlainTextReadme({ isBulk: true });
+        await zipService.addFile(
+          new Blob([readmeTxt], { type: 'text/plain;charset=utf-8' }),
+          'README.txt',
+        );
+      } else {
+        const readmeHtml = generateExportReadme({
+          format,
+          isDiscordShell: format === 'html' && exportConfig?.exportTemplate === 'discord',
+          isBulk: true,
+        });
+        await zipService.addFile(new Blob([readmeHtml], { type: 'text/html' }), 'README.html');
+      }
 
       await zipService.finalize();
 
@@ -1125,6 +1143,12 @@ const exportSlice = createSlice({
     setExportTemplate: (state, action: PayloadAction<import('./exportTypes').ExportTemplate>) => {
       state.exportTemplate = action.payload;
     },
+    setTextOptions: (
+      state,
+      action: PayloadAction<Partial<import('./exportTypes').TextFormatOptions>>,
+    ) => {
+      state.textOptions = { ...state.textOptions, ...action.payload };
+    },
     applyPreset: (state, action: PayloadAction<ExportSettingsSnapshot>) => {
       const preset = action.payload;
       state.exportFormat = preset.format;
@@ -1135,6 +1159,9 @@ const exportSlice = createSlice({
       state.artistMode = preset.artistMode;
       state.sortOrder = preset.sortOrder;
       state.previewMedia = preset.previewMedia;
+      if (preset.textOptions) {
+        state.textOptions = { ...preset.textOptions };
+      }
     },
     initializeExportFromSettings: (state, action: PayloadAction<Record<string, any> | null>) => {
       const settings = action.payload;
@@ -1142,7 +1169,13 @@ const exportSlice = createSlice({
 
       // Format
       const format = settings.exportFormat;
-      if (format === 'html' || format === 'csv' || format === 'json' || format === 'media') {
+      if (
+        format === 'html' ||
+        format === 'csv' ||
+        format === 'json' ||
+        format === 'media' ||
+        format === 'text'
+      ) {
         state.exportFormat = format;
       } else {
         state.exportFormat = 'html';
@@ -1250,6 +1283,7 @@ export const {
   setSortOrder,
   setPreviewMedia,
   setExportTemplate,
+  setTextOptions,
   applyPreset,
   initializeExportFromSettings,
   resetExport,
@@ -1260,6 +1294,7 @@ export const selectExport = (state: RootState) => state.export;
 export const selectIsExporting = (state: RootState) => state.export.isExporting;
 export const selectExportProgress = (state: RootState) => state.export.exportProgress;
 export const selectExportFormat = (state: RootState) => state.export.exportFormat;
+export const selectTextOptions = (state: RootState) => state.export.textOptions;
 export const selectExportError = (state: RootState) => state.export.exportError;
 
 export default exportSlice.reducer;

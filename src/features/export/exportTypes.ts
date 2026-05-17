@@ -19,8 +19,31 @@ export interface MediaConfig {
   other: boolean;
 }
 
-export type ExportFormat = 'html' | 'csv' | 'json' | 'media';
+export type ExportFormat = 'html' | 'csv' | 'json' | 'media' | 'text';
 export type ExportTemplate = 'standard' | 'discord';
+
+// Plain text emitter knobs (#184). Stay local to the consumer; the
+// canonical AppSettings shape in discrub-core does not (yet) carry
+// dedicated text-format keys, so user tweaks persist via presets and
+// per-export snapshots rather than the global settings DB.
+export type TextAttachmentStyle = 'inline' | 'sidecar' | 'skip';
+export type TextReactionsStyle = 'include' | 'skip';
+export type TextRepliesStyle = 'quote' | 'link' | 'skip';
+export type TextBotIndicatorStyle = 'include' | 'skip';
+
+export interface TextFormatOptions {
+  attachmentStyle: TextAttachmentStyle;
+  reactions: TextReactionsStyle;
+  replies: TextRepliesStyle;
+  botIndicator: TextBotIndicatorStyle;
+}
+
+export const defaultTextFormatOptions: TextFormatOptions = {
+  attachmentStyle: 'inline',
+  reactions: 'include',
+  replies: 'quote',
+  botIndicator: 'include',
+};
 
 export interface ExportConfig {
   artistMode: boolean;
@@ -53,6 +76,7 @@ export interface ExportSettingsSnapshot {
   artistMode: boolean;
   sortOrder: 'ascending' | 'descending';
   previewMedia: boolean;
+  textOptions?: TextFormatOptions;
 }
 
 export type PresetCategory = 'Backup' | 'Data' | 'Media';
@@ -211,6 +235,21 @@ export const BUILT_IN_PRESETS: ExportPreset[] = [
     previewMedia: true,
 
   },
+  {
+    id: 'builtin-plain-text',
+    name: 'Plain text',
+    isBuiltIn: true,
+    category: 'Backup',
+    format: 'text',
+    messagesPerPage: 500,
+    separateThreads: false,
+    includeMedia: false,
+    mediaConfig: { images: false, videos: false, audio: false, other: false },
+    artistMode: false,
+    sortOrder: 'descending',
+    previewMedia: false,
+    textOptions: { ...defaultTextFormatOptions },
+  },
 ];
 
 export interface ExportState {
@@ -229,6 +268,7 @@ export interface ExportState {
   sortOrder: 'ascending' | 'descending';
   previewMedia: boolean;
   exportTemplate: ExportTemplate;
+  textOptions: TextFormatOptions;
 }
 
 export const initialExportState: ExportState = {
@@ -252,4 +292,5 @@ export const initialExportState: ExportState = {
   sortOrder: 'descending',
   previewMedia: true,
   exportTemplate: 'discord',
+  textOptions: { ...defaultTextFormatOptions },
 };

@@ -27,9 +27,17 @@ import {
   setSortOrder,
   setPreviewMedia,
   setExportTemplate,
+  setTextOptions,
   selectExport,
 } from '@features/export/exportSlice';
-import type { ExportFormat, ExportTemplate } from '@features/export/exportTypes';
+import type {
+  ExportFormat,
+  ExportTemplate,
+  TextAttachmentStyle,
+  TextReactionsStyle,
+  TextRepliesStyle,
+  TextBotIndicatorStyle,
+} from '@features/export/exportTypes';
 import type { MediaCategorySummary } from '@/utils/mediaUtils';
 import { formatBytes, getTotalMediaSize, SIZE_WARNING_THRESHOLD } from '@/utils/mediaUtils';
 import MediaBreakdownBar from './MediaBreakdownBar';
@@ -161,6 +169,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                   { value: 'html', label: isBulk ? 'HTML' : 'HTML - Styled webpage with avatars and formatting' },
                   { value: 'csv', label: isBulk ? 'CSV' : 'CSV - Spreadsheet compatible format' },
                   { value: 'json', label: isBulk ? 'JSON' : 'JSON - Raw data format for analysis' },
+                  { value: 'text', label: isBulk ? 'Plain Text' : 'Plain Text - Human-readable .txt file' },
                   { value: 'media', label: isBulk ? 'Media Only' : 'Media Only - Download attachments without message content' },
                 ].map(({ value, label }) => (
                   <FormControlLabel
@@ -226,6 +235,67 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                   </Typography>
                 )}
               </FormControl>
+            )}
+
+            {exportState.exportFormat === 'text' && (
+              <Box
+                data-testid="text-format-options"
+                sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  Plain text options
+                </Typography>
+                <FormControl size="small">
+                  <InputLabel id="text-attachment-style-label">Attachments</InputLabel>
+                  <Select
+                    labelId="text-attachment-style-label"
+                    value={exportState.textOptions.attachmentStyle}
+                    label="Attachments"
+                    onChange={(e) => dispatch(setTextOptions({ attachmentStyle: e.target.value as TextAttachmentStyle }))}
+                  >
+                    <MenuItem value="inline">Inline URL</MenuItem>
+                    <MenuItem value="sidecar">Sidecar folder</MenuItem>
+                    <MenuItem value="skip">Skip</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <InputLabel id="text-reactions-label">Reactions</InputLabel>
+                  <Select
+                    labelId="text-reactions-label"
+                    value={exportState.textOptions.reactions}
+                    label="Reactions"
+                    onChange={(e) => dispatch(setTextOptions({ reactions: e.target.value as TextReactionsStyle }))}
+                  >
+                    <MenuItem value="include">Include</MenuItem>
+                    <MenuItem value="skip">Skip</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <InputLabel id="text-replies-label">Replies</InputLabel>
+                  <Select
+                    labelId="text-replies-label"
+                    value={exportState.textOptions.replies}
+                    label="Replies"
+                    onChange={(e) => dispatch(setTextOptions({ replies: e.target.value as TextRepliesStyle }))}
+                  >
+                    <MenuItem value="quote">Quote line</MenuItem>
+                    <MenuItem value="link">Author only</MenuItem>
+                    <MenuItem value="skip">Skip</MenuItem>
+                  </Select>
+                </FormControl>
+                <FormControl size="small">
+                  <InputLabel id="text-bot-indicator-label">Bot tag</InputLabel>
+                  <Select
+                    labelId="text-bot-indicator-label"
+                    value={exportState.textOptions.botIndicator}
+                    label="Bot tag"
+                    onChange={(e) => dispatch(setTextOptions({ botIndicator: e.target.value as TextBotIndicatorStyle }))}
+                  >
+                    <MenuItem value="include">Include</MenuItem>
+                    <MenuItem value="skip">Skip</MenuItem>
+                  </Select>
+                </FormControl>
+              </Box>
             )}
           </Box>
         </AccordionDetails>

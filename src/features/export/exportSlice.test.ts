@@ -15,11 +15,13 @@ import exportReducer, {
   applyPreset,
   initializeExportFromSettings,
   resetExport,
+  setTextOptions,
   selectExport,
   selectIsExporting,
   selectExportProgress,
   selectExportFormat,
   selectExportError,
+  selectTextOptions,
 } from './exportSlice';
 import cacheReducer from '@features/cache/cacheSlice';
 import { initialExportState, MediaDownloadProgress } from './exportTypes';
@@ -255,6 +257,12 @@ describe('exportSlice', () => {
         [],
         undefined,
         [],
+        expect.objectContaining({
+          attachmentStyle: 'inline',
+          reactions: 'include',
+          replies: 'quote',
+          botIndicator: 'include',
+        }),
       );
 
       const state = store.getState().export;
@@ -473,6 +481,7 @@ describe('exportSlice', () => {
         [],
         undefined,
         [],
+        expect.any(Object), // textOptions (#184)
       );
     });
 
@@ -513,6 +522,7 @@ describe('exportSlice', () => {
         [],
         undefined,
         [],
+        expect.any(Object), // textOptions (#184)
       );
     });
   });
@@ -660,6 +670,11 @@ describe('exportSlice', () => {
       expect(state.previewMedia).toBe(false);
     });
 
+    it('initializeExportFromSettings accepts the "text" format (#184)', () => {
+      store.dispatch(initializeExportFromSettings({ exportFormat: 'text' }));
+      expect(store.getState().export.exportFormat).toBe('text');
+    });
+
     it('initializeExportFromSettings restores export template', () => {
       store.dispatch(initializeExportFromSettings({
         exportTemplate: 'discord',
@@ -696,6 +711,84 @@ describe('exportSlice', () => {
       store.dispatch(setExportFormat('csv'));
       store.dispatch(initializeExportFromSettings(null));
       expect(store.getState().export.exportFormat).toBe('csv');
+    });
+
+    // ── #184: plain text format ───────────────────────────────────
+
+    it('setExportFormat("text") records the new format in state', () => {
+      store.dispatch(setExportFormat('text'));
+      expect(store.getState().export.exportFormat).toBe('text');
+      // Picking text must not auto-enable media (only the media format does).
+      expect(store.getState().export.includeMedia).toBe(initialExportState.includeMedia);
+    });
+
+    it('setTextOptions partial merges into existing textOptions', () => {
+      store.dispatch(setTextOptions({ attachmentStyle: 'sidecar' }));
+      const after = selectTextOptions(store.getState());
+      expect(after.attachmentStyle).toBe('sidecar');
+      // Other fields keep their initial defaults
+      expect(after.reactions).toBe('include');
+      expect(after.replies).toBe('quote');
+      expect(after.botIndicator).toBe('include');
+    });
+
+    it('setTextOptions supports updating every field', () => {
+      store.dispatch(setTextOptions({
+        attachmentStyle: 'skip',
+        reactions: 'skip',
+        replies: 'link',
+        botIndicator: 'skip',
+      }));
+      expect(selectTextOptions(store.getState())).toEqual({
+        attachmentStyle: 'skip',
+        reactions: 'skip',
+        replies: 'link',
+        botIndicator: 'skip',
+      });
+    });
+
+    it('applyPreset with format="text" + textOptions hydrates both', () => {
+      store.dispatch(applyPreset({
+        format: 'text',
+        messagesPerPage: 500,
+        separateThreads: false,
+        includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: false,
+        textOptions: {
+          attachmentStyle: 'sidecar',
+          reactions: 'skip',
+          replies: 'link',
+          botIndicator: 'skip',
+        },
+      }));
+      const state = store.getState().export;
+      expect(state.exportFormat).toBe('text');
+      expect(state.textOptions).toEqual({
+        attachmentStyle: 'sidecar',
+        reactions: 'skip',
+        replies: 'link',
+        botIndicator: 'skip',
+      });
+    });
+
+    it('applyPreset without textOptions does NOT clobber existing textOptions', () => {
+      // First customize text options
+      store.dispatch(setTextOptions({ attachmentStyle: 'skip' }));
+      // Then apply a preset that doesn't carry textOptions
+      store.dispatch(applyPreset({
+        format: 'csv',
+        messagesPerPage: 500,
+        separateThreads: false,
+        includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false,
+        sortOrder: 'ascending',
+        previewMedia: false,
+      }));
+      expect(selectTextOptions(store.getState()).attachmentStyle).toBe('skip');
     });
 
     it('resetExport only clears operation state', () => {
