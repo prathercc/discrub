@@ -6,12 +6,12 @@ import { ReactionType, IsPinnedType } from 'discrub-core/discord-enum';
 import { MessageOrder, initialMessageState, initialPaginationState, ThreadTabState } from './messageTypes';
 import { getDiscordService } from '@services/discordService';
 import type { RootState } from '@/app/store';
-import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
+import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettings, setDiscrubPaused } from '@features/app/appSlice';
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { userEnrichmentService } from '@services/userEnrichmentService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
 import { mergeCachedUserMap, addFailedUserId, saveCacheToLocalStorage } from '@features/cache/cacheSlice';
-import { waitWhilePaused, checkCancelled, cancellableDelay } from '@/utils/operationLoopUtils';
+import { waitWhilePaused, checkCancelled, cancellableDelay, withTransientRetry, isTransientApiFailure } from '@/utils/operationLoopUtils';
 import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
 import { getEmojiKey } from '@/utils/emojiUtils';
 import { applyRefineCriteria, criteriaIsActive } from './messageFiltering';
@@ -1088,15 +1088,39 @@ export const loadAllSearchResults = createAsyncThunk(
           return rejectWithValue('Load all cancelled');
         }
 
-        const response = await discordService.fetchSearchMessageData(
-          token,
-          offset,
-          channelId || null,
-          guildId || null,
-          currentCriteria
+        // #185 Bug A: retry transient failures; pause + ask the user to
+        // fix their network on exhaustion. Offset is preserved across
+        // retries, so partial progress survives a network dropout.
+        const response = await withTransientRetry(
+          () =>
+            discordService.fetchSearchMessageData(
+              token,
+              offset,
+              channelId || null,
+              guildId || null,
+              currentCriteria
+            ),
+          {
+            getState: getState as () => RootState,
+            signal,
+            onRetry: (attempt, delayMs) => {
+              dispatch(addStatusEntry({
+                level: 'warning',
+                message: `Search Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+              }));
+            },
+          },
         );
 
         if (!response.success || !response.data) {
+          if (isTransientApiFailure(response)) {
+            dispatch(setDiscrubPaused(true));
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `Search Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${aggregated.length} messages loaded.`,
+            }));
+            continue;
+          }
           return rejectWithValue('Failed while loading all search results');
         }
 
@@ -1261,14 +1285,33 @@ export const fetchAllMessages = createAsyncThunk(
         await waitWhilePaused(getState as () => RootState);
         if (checkCancelled(getState as () => RootState)) break;
 
-        // Fetch next batch
-        const response = await discordService.fetchMessageData(
-          token,
-          lastMessageId,
-          channelId
+        // Fetch next batch — retry transient failures (#185 Bug A).
+        // On exhaustion, pause the operation so the user can fix
+        // their network and click Resume; the loop continues with
+        // the same lastMessageId on the next iteration.
+        const response = await withTransientRetry(
+          () => discordService.fetchMessageData(token, lastMessageId, channelId),
+          {
+            getState: getState as () => RootState,
+            signal,
+            onRetry: (attempt, delayMs) => {
+              dispatch(addStatusEntry({
+                level: 'warning',
+                message: `Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+              }));
+            },
+          },
         );
 
         if (!response.success || !response.data) {
+          if (isTransientApiFailure(response)) {
+            dispatch(setDiscrubPaused(true));
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${allMessages.length} messages fetched.`,
+            }));
+            continue;
+          }
           return rejectWithValue('Failed to fetch all messages');
         }
 

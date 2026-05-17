@@ -394,6 +394,81 @@ describe('Search & Filters', () => {
       // Both pages combined in results
       cy.contains('[data-testid="message-feed-row"]', 'Final paginated result').should('exist');
     });
+
+    // #185 Bug A: a single transient failure during search Load All gets
+    // retried automatically; the user sees a [WARN] status entry but the
+    // operation finishes with the full match set, not a dropped half-load.
+    it('retries search Load All on transient network failure and completes', () => {
+      // Disable Pass 1 reaction enrichment (per the lazy-pagination spec
+      // above — adds per-message latency we don't need here).
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        store.dispatch({
+          type: 'app/updateSetting/fulfilled',
+          payload: { ...store.getState().app.settings, reactionsEnabled: 'false' },
+        });
+      });
+
+      const makePage = (offset: number, count: number) =>
+        Array.from({ length: count }, (_, i) => [{
+          id: `800000000000000${String(offset + i).padStart(3, '0')}`,
+          channel_id: '801000000000000001',
+          author: {
+            id: '222333444555666777',
+            username: 'alice_dev',
+            discriminator: '0',
+            avatar: 'alice_avatar',
+            global_name: 'Alice',
+          },
+          content: `Match ${offset + i + 1}`,
+          timestamp: `2026-02-01T${String(12 + Math.floor((offset + i) / 60)).padStart(2, '0')}:${String((offset + i) % 60).padStart(2, '0')}:00.000Z`,
+          edited_timestamp: null,
+          tts: false,
+          mention_everyone: false,
+          mentions: [],
+          attachments: [],
+          embeds: [],
+          reactions: [],
+          pinned: false,
+          type: 0,
+        }]);
+
+      let call = 0;
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        call += 1;
+        if (call === 1) {
+          // Initial search → 25 matches, more pages available
+          req.reply({ statusCode: 200, body: { messages: makePage(0, 25), total_results: 50, threads: [] } });
+        } else if (call === 2) {
+          // First Load All page — server-side 503 simulates a transient blip
+          req.reply({ statusCode: 503, body: 'Service Unavailable' });
+        } else {
+          // Retry recovers and the iterator walks to the final page
+          req.reply({ statusCode: 200, body: { messages: makePage(25, 25), total_results: 50, threads: [] } });
+        }
+      }).as('flakySearch');
+
+      searchViaModal('match');
+      cy.wait('@flakySearch');
+      cy.contains('25 of 50 matches loaded').should('be.visible');
+
+      cy.contains('button', 'Load All').click();
+      cy.get('[role="dialog"]').contains('button', 'Load All').click();
+
+      // After retry recovers, both pages are merged — header shows the
+      // full match count and the last-page result is visible in the feed.
+      cy.contains('50 matches', { timeout: 20000 }).should('be.visible');
+      cy.contains('[data-testid="message-feed-row"]', 'Match 50').should('exist');
+
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        const entries = store?.getState()?.status?.entries ?? [];
+        const messages = entries.map((e: any) => e.message);
+        expect(
+          messages.some((m: string) => /Search Load All: connection failed, retrying in/.test(m)),
+        ).to.be.true;
+      });
+    });
   });
 
   // ── CLIENT-SIDE FILTERING ──────────────────────────────────────

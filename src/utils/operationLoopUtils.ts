@@ -40,23 +40,25 @@ export const checkCancelled = (getState: () => RootState): boolean => {
 
 /**
  * Waits for the specified duration in small increments, checking for
- * cancellation and pause at each step. Returns true if cancelled.
+ * cancellation and pause at each step. Returns true if cancelled (by
+ * either the Discrub cancel flag or, when provided, an AbortSignal).
  */
 export const cancellableDelay = async (
   delayMs: number,
   getState: () => RootState,
+  signal?: AbortSignal,
 ): Promise<boolean> => {
   const interval = 200;
   let elapsed = 0;
   while (elapsed < delayMs) {
-    if (checkCancelled(getState)) return true;
+    if (signal?.aborted || checkCancelled(getState)) return true;
     await waitWhilePaused(getState);
-    if (checkCancelled(getState)) return true;
+    if (signal?.aborted || checkCancelled(getState)) return true;
     const remaining = delayMs - elapsed;
     await new Promise((r) => setTimeout(r, Math.min(interval, remaining)));
     elapsed += interval;
   }
-  return checkCancelled(getState);
+  return signal?.aborted || checkCancelled(getState);
 };
 
 /**
@@ -70,4 +72,83 @@ export const createShouldContinue = (getState: () => RootState) => {
       throw new CancelledError();
     }
   };
+};
+
+/**
+ * Minimal response shape required by withTransientRetry. Matches
+ * discrub-core's APIResponse<T> ({ success, status?, data? }); kept
+ * minimal here so any caller that returns the same envelope works.
+ */
+export interface RetryableResponse {
+  success: boolean;
+  status?: number;
+}
+
+export interface TransientRetryOptions<T extends RetryableResponse> {
+  /** Max retries after the initial attempt. Default 5 (so up to 6 total calls). */
+  maxRetries?: number;
+  /** First backoff delay. Doubles each retry, capped at maxDelayMs. */
+  baseDelayMs?: number;
+  /** Backoff cap. Default 30000 (30s). */
+  maxDelayMs?: number;
+  /** Predicate to decide whether a failed response is transient. */
+  shouldRetry?: (response: T) => boolean;
+  /** Fires before each backoff sleep with (1-indexed retry number, delayMs, response). */
+  onRetry?: (retryNumber: number, delayMs: number, response: T) => void;
+  /** State accessor so backoff sleep can honor Pause/Cancel. */
+  getState: () => RootState;
+  /** Optional thunk signal so backoff sleep can honor abort. */
+  signal?: AbortSignal;
+}
+
+/**
+ * True for failed responses that withTransientRetry would have
+ * retried: network errors (status undefined) and server-side
+ * transients (5xx, 408 timeout, 425 too-early). 4xx (auth/perms/
+ * not-found/bad-request) is permanent and not retried. 429 is
+ * handled inside the lib and never bubbles here.
+ *
+ * Exported so consumers can distinguish "exhausted retries on a
+ * transient" (pause + ask user to fix network) from "hard fail"
+ * (reject the thunk) after withTransientRetry returns.
+ */
+export const isTransientApiFailure = (response: RetryableResponse): boolean => {
+  if (response.success) return false;
+  if (response.status === undefined) return true;
+  if (response.status >= 500) return true;
+  if (response.status === 408 || response.status === 425) return true;
+  return false;
+};
+
+/**
+ * Wraps an APIResponse-returning function with bounded transient
+ * retry. Up to `maxRetries` retries on transient failure with
+ * exponential backoff. Backoff sleep is Pause/Cancel/signal-aware so
+ * the user can still cancel mid-wait. Returns the final response —
+ * the caller decides what to do with terminal failure (e.g. pause
+ * the operation so the user can fix the network).
+ */
+export const withTransientRetry = async <T extends RetryableResponse>(
+  fn: () => Promise<T>,
+  opts: TransientRetryOptions<T>,
+): Promise<T> => {
+  const maxRetries = opts.maxRetries ?? 5;
+  const baseDelayMs = opts.baseDelayMs ?? 1000;
+  const maxDelayMs = opts.maxDelayMs ?? 30000;
+  const shouldRetry = opts.shouldRetry ?? isTransientApiFailure;
+
+  let lastResponse: T = { success: false } as T;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (opts.signal?.aborted || checkCancelled(opts.getState)) return lastResponse;
+
+    lastResponse = await fn();
+    if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+    if (attempt === maxRetries) return lastResponse;
+
+    const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
+    opts.onRetry?.(attempt + 1, delayMs, lastResponse);
+    const cancelled = await cancellableDelay(delayMs, opts.getState, opts.signal);
+    if (cancelled) return lastResponse;
+  }
+  return lastResponse;
 };

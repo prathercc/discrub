@@ -107,4 +107,71 @@ describe('Channel Messages', () => {
     cy.wait('@getEmptyMessages');
     cy.contains('button', 'Export').should('be.disabled');
   });
+
+  // #185 Bug A: transient network failures during Load All must be retried
+  // (up to 5 attempts) before giving up. This validates the consumer side:
+  // a single forceNetworkError on the second batch is followed by a retry
+  // that succeeds, and the operation completes with the full message set.
+  it('retries the second Load All batch on transient network failure and completes', () => {
+    const makeBatch = (offset: number, count: number) =>
+      Array.from({ length: count }, (_, i) => ({
+        id: `700000000000000${String(offset + i + 1).padStart(3, '0')}`,
+        channel_id: '801000000000000001',
+        author: {
+          id: '111222333444555666',
+          username: 'discrub_tester',
+          discriminator: '0',
+          avatar: 'abc123avatar',
+          global_name: 'Discrub Tester',
+        },
+        content: `Message ${offset + i + 1}`,
+        timestamp: new Date(2026, 1, 1, 0, 0, offset + i).toISOString(),
+        edited_timestamp: null,
+        tts: false,
+        mention_everyone: false,
+        mentions: [],
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        pinned: false,
+        type: 0,
+      }));
+
+    let call = 0;
+    cy.intercept('GET', '**/api/v10/channels/*/messages?*', (req) => {
+      call += 1;
+      if (call === 1) {
+        // First page — opens the channel + makes the Load All button appear
+        req.reply({ statusCode: 200, body: makeBatch(0, 100) });
+      } else if (call === 2) {
+        // Load All's first batch (during the loop)
+        req.reply({ statusCode: 200, body: makeBatch(100, 100) });
+      } else if (call === 3) {
+        // Transient blip — server-side 503 is unambiguously transient
+        req.reply({ statusCode: 503, body: 'Service Unavailable' });
+      } else {
+        // Retry succeeds and the loop reaches a < 100 batch to end
+        req.reply({ statusCode: 200, body: makeBatch(200, 50) });
+      }
+    }).as('messagesFlaky');
+
+    cy.contains('general').click();
+    cy.wait('@messagesFlaky');
+    cy.contains('button', 'Load All').click();
+    cy.get('[role="dialog"]').contains('button', 'Load All').click();
+
+    // Loop should finish with 250 messages (100 + 100 + 50) despite the
+    // transient blip. Surface visible in the header count.
+    cy.contains('250 messages', { timeout: 20000 }).should('be.visible');
+
+    // Retry warning should have surfaced in the status log.
+    cy.window().then((win) => {
+      const store = (win as any).__store__;
+      const entries = store?.getState()?.status?.entries ?? [];
+      const messages = entries.map((e: any) => e.message);
+      expect(
+        messages.some((m: string) => /Load All: connection failed, retrying in/.test(m)),
+      ).to.be.true;
+    });
+  });
 });
