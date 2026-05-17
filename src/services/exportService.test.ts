@@ -759,6 +759,101 @@ describe('exportService', () => {
     });
   });
 
+  describe('#185 Bug B: generateHTMLPageParts (stream-friendly emission)', () => {
+    // Pages 1-300 of testaccounta_1's "znone" export emitted fine, then
+    // crashed with `RangeError: Invalid string length`. The crash surfaced
+    // as "Failed on znone — Invalid string length" at exportSlice.ts:386.
+    // generateHTMLPageParts keeps per-message HTML rows as separate Blob
+    // parts so `new Blob(parts)` never materializes one mega-string.
+    const baseMessages: Message[] = [
+      {
+        id: 'm1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'first',
+        author: { id: 'u1', username: 'alice' },
+        attachments: [], embeds: [], reactions: [],
+      } as unknown as Message,
+      {
+        id: 'm2',
+        timestamp: '2026-06-15T14:31:00.000Z',
+        content: 'second',
+        author: { id: 'u2', username: 'bob' },
+        attachments: [], embeds: [], reactions: [],
+      } as unknown as Message,
+      {
+        id: 'm3',
+        timestamp: '2026-06-15T14:32:00.000Z',
+        content: 'third',
+        author: { id: 'u1', username: 'alice' },
+        attachments: [], embeds: [], reactions: [],
+      } as unknown as Message,
+    ];
+
+    it('returns parts whose join equals the original generateHTMLPage output', () => {
+      const partsArr = service.generateHTMLPageParts(
+        baseMessages, 'general', 1, 1, null, 'general',
+      );
+      const joined = partsArr.join('');
+      const wrapperOutput = service.generateHTMLPage(
+        baseMessages, 'general', 1, 1, null, 'general',
+      );
+      expect(joined).toBe(wrapperOutput);
+    });
+
+    it('emits one part for the head, one per message row, and one for the foot', () => {
+      const parts = service.generateHTMLPageParts(
+        baseMessages, 'general', 1, 1, null, 'general',
+      );
+      // Head + 3 rows + foot = 5 parts. Head must include <!DOCTYPE,
+      // foot must include the closing </html> and the export-data script.
+      expect(parts).toHaveLength(2 + baseMessages.length);
+      expect(parts[0]).toContain('<!DOCTYPE html>');
+      expect(parts[0]).toContain('<main class="container"');
+      const foot = parts[parts.length - 1];
+      expect(foot).toContain('</main>');
+      expect(foot).toContain('export-data');
+      expect(foot).toContain('</html>');
+    });
+
+    it('no part exceeds the size of the joined output (cap-per-part guarantee)', () => {
+      const parts = service.generateHTMLPageParts(
+        baseMessages, 'general', 1, 1, null, 'general',
+      );
+      const joinedLen = parts.join('').length;
+      for (const p of parts) {
+        expect(p.length).toBeLessThan(joinedLen);
+      }
+    });
+
+    it('applies mediaPathPrefix to each part independently for thread files', () => {
+      // Build a message with an avatar reference so the regex has something
+      // to match. The avatarMap entry routes through the local path.
+      const withAvatar: Message[] = [{
+        id: 'm-thread',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: 'thread reply',
+        author: { id: 'u-thread', username: 'carol', avatar: 'avatarhash' },
+        attachments: [], embeds: [], reactions: [],
+      } as unknown as Message];
+
+      const mediaMaps = {
+        avatarMap: { 'u-thread/avatarhash': 'general/avatars/u-thread.png' },
+        mediaMap: {},
+        emojiMap: {},
+        roleMap: {},
+      } as any;
+
+      const parts = service.generateHTMLPageParts(
+        withAvatar, 'general', 1, 1, mediaMaps, 'general',
+        undefined, undefined, '../',
+      );
+      const joined = parts.join('');
+      // mediaPathPrefix='../' means every src="avatars/..." gets prefixed.
+      expect(joined).toContain('src="../avatars/');
+      expect(joined).not.toContain('src="avatars/');
+    });
+  });
+
   describe('exportToZip with ExportConfig sort order', () => {
     it('should sort messages before export based on sortOrder', async () => {
       // Reset StreamingZipService mock to avoid leakage from prior tests

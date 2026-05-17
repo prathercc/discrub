@@ -335,7 +335,11 @@ class ExportService {
         // HTML - multiple pages
         for (const page of exportData.mainPages) {
           if (shouldContinue) await shouldContinue();
-          const pageContent = this.generateHTMLPage(
+          // #185 Bug B: parts-array variant. Each per-message HTML row
+          // stays its own Blob part; Blob stitches them together
+          // without ever allocating one mega-string that could cross
+          // V8's ~512MB cap.
+          const pageParts = this.generateHTMLPageParts(
             page.messages,
             channelName,
             page.pageNumber,
@@ -352,7 +356,7 @@ class ExportService {
 
           const filename = `${sanitizedName}-page-${page.pageNumber}.html`;
 
-          const blob = new Blob([pageContent], { type: 'text/html' });
+          const blob = new Blob(pageParts, { type: 'text/html' });
           await zipService.addFile(blob, `${sanitizedName}/${filename}`);
 
           processedPages++;
@@ -404,7 +408,8 @@ class ExportService {
               : `${threadName}.csv`;
             mimeType = 'text/csv';
           } else {
-            content = this.generateHTMLPage(
+            // #185 Bug B: same parts-array path as the main-page loop above.
+            const threadParts = this.generateHTMLPageParts(
               page.messages,
               threadExport.thread.name || `Thread ${threadExport.thread.id}`,
               page.pageNumber,
@@ -422,7 +427,21 @@ class ExportService {
             filename = threadTotalPages > 1
               ? `${threadName}-page-${page.pageNumber}.html`
               : `${threadName}.html`;
-            mimeType = 'text/html';
+            // Add the thread blob directly here so we don't fall through to
+            // the generic Blob below (which assumes a single `content` string).
+            const blob = new Blob(threadParts, { type: 'text/html' });
+            await zipService.addFile(blob, `${sanitizedName}/threads/${filename}`);
+            processedPages++;
+
+            if (typeof onProgress === 'function') {
+              onProgress({
+                stage: 'html',
+                current: processedPages,
+                total: totalPages,
+                message: `Generating thread ${threadExport.threadNumber}/${threadExport.totalThreads} page ${page.pageNumber}/${threadTotalPages}`,
+              });
+            }
+            continue;
           }
 
           const blob = new Blob([content], { type: mimeType });
@@ -648,12 +667,48 @@ class ExportService {
     guildId?: string | null,
     backLinkPage?: number,
   ): string {
+    return this.generateHTMLPageParts(
+      messages, channelName, pageNumber, totalPages, mediaMaps, sanitizedName,
+      formattingContext, exportConfig, mediaPathPrefix, reactionMap, cachedUserMap,
+      guildId, backLinkPage,
+    ).join('');
+  }
+
+  /**
+   * Parts-array variant of {@link generateHTMLPage}. The page-writing
+   * loops in `exportToZip` use this and hand the array straight to
+   * `new Blob(parts)`, which never materializes one mega-string.
+   *
+   * Background: a single ~200k-message channel ("znone" in
+   * testaccounta_1's r/discrub report) tripped V8's ~512MB string cap
+   * during the final template-literal evaluation here. The crash
+   * surfaced as `RangeError: Invalid string length` caught at
+   * `exportSlice.ts:386` ("Failed on znone — Invalid string length").
+   * Per-message row HTML stayed in scope as an array instead of being
+   * pre-joined, and the head/foot are emitted as separate parts so
+   * the Blob can stitch them together at addFile time. See #185 Bug B.
+   */
+  generateHTMLPageParts(
+    messages: Message[],
+    channelName: string,
+    pageNumber: number,
+    totalPages: number,
+    mediaMaps?: MediaMaps | null,
+    sanitizedName?: string,
+    formattingContext?: HtmlFormattingContext,
+    exportConfig?: ExportConfig,
+    mediaPathPrefix?: string,
+    reactionMap?: import('discrub-core/types/discrub-types').ExportReactionMap,
+    cachedUserMap?: ExportUserMap,
+    guildId?: string | null,
+    backLinkPage?: number,
+  ): string[] {
     const previewMedia = exportConfig?.previewMedia !== false; // default true
 
     const GROUPING_WINDOW_MS = 7 * 60 * 1000; // 7 minutes
     let imageIndex = 0;
 
-    const messageRows = messages
+    const messageRowParts: string[] = messages
       .map((msg, idx) => {
         const prevMsg = idx > 0 ? messages[idx - 1] : null;
 
@@ -961,12 +1016,11 @@ class ExportService {
             </div>
           </div>
         `;
-      })
-      .join('');
+      });
 
     const pageInfo = totalPages > 1 ? ` - Page ${pageNumber} of ${totalPages}` : '';
 
-    let html = `
+    const headHtml = `
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3140,7 +3194,9 @@ class ExportService {
     </div>
   </div>
   <main class="container" role="main">
-    ${messageRows}
+    `;
+
+    const footHtml = `
   </main>${totalPages > 1 ? `
   <nav class="bottom-nav" role="navigation" aria-label="Page navigation">
     ${pageNumber > 1
@@ -3162,12 +3218,22 @@ class ExportService {
 </html>
     `;
 
-    // For thread files (nested in threads/ subdirectory), prefix relative media paths
+    // Stitch head + per-message rows + foot as separate Blob parts so
+    // `new Blob(parts)` (at the page-writing call sites) never has to
+    // allocate one mega-string. Per-message HTML stays in scope as the
+    // array entries; the head and foot are bounded constants. The cap
+    // is per-part now, not per-page (#185 Bug B).
+    let parts: string[] = [headHtml, ...messageRowParts, footHtml];
+
+    // For thread files (nested in threads/ subdirectory), prefix relative
+    // media paths on each part independently. Safe because every media
+    // reference is fully contained within a single message-row part (no
+    // src=/href= spans a part boundary).
     if (mediaPathPrefix) {
-      html = this.prefixRelativeMediaPaths(html, mediaPathPrefix);
+      parts = parts.map((p) => this.prefixRelativeMediaPaths(p, mediaPathPrefix));
     }
 
-    return html;
+    return parts;
   }
 
   /**
