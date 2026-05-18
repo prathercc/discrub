@@ -58,6 +58,14 @@ interface FilterModalProps {
   // Reactions modes should NOT pass true: their target is the reactor,
   // and the message-author filter remains independently useful.
   hideAuthorFilters?: boolean;
+  // When true, strips the modal down to the fields evaluable against a
+  // raw `PackageMessage` (#172): keeps Content + Date range, hides
+  // Mentions / Has / Author Type / Pinned / From, and forces the Refine
+  // section off. Reactions, pinned, mentions, and the per-author filters
+  // require Tier 2 rehydration data and would silently produce 0-row
+  // results against package-only data — better to remove them from the
+  // surface entirely than to leave dead controls.
+  packageMode?: boolean;
 }
 
 export const countActiveFilters = countActiveFiltersUtil;
@@ -102,7 +110,13 @@ const FilterModal = ({
   hideRefineSection = false,
   applyButtonLabel,
   hideAuthorFilters = false,
+  packageMode = false,
 }: FilterModalProps) => {
+  // Package data exposes only Content + Date Range — every other field
+  // requires Tier 2 rehydration. Force off the Refine section + author
+  // filters when packageMode is on.
+  const effectiveHideRefineSection = hideRefineSection || packageMode;
+  const effectiveHideAuthorFilters = hideAuthorFilters || packageMode;
   // Search section state
   const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>(savedSearchCriteria ?? defaultCriteria);
   const [dateMode, setDateMode] = useState<DateFilterMode>(inferDateMode(savedSearchCriteria));
@@ -218,12 +232,14 @@ const FilterModal = ({
           <Box sx={sectionHeaderSx(true)} onClick={() => setSearchExpanded(!searchExpanded)}>
             <SearchIcon sx={(theme) => ({ fontSize: 18, color: theme.palette.primary.main })} />
             <Typography variant="subtitle2" sx={(theme) => ({ fontWeight: 700, color: theme.palette.primary.main, flex: 1 })}>
-              Search
+              {packageMode ? 'Refine' : 'Search'}
             </Typography>
             {searchFilterCount > 0 && (
               <Chip label={searchFilterCount} size="small" color="primary" sx={{ height: 20, fontSize: '0.7rem', minWidth: 20 }} />
             )}
-            <Chip label="Discord API" size="small" variant="outlined" color="primary" sx={{ height: 18, fontSize: '0.55rem' }} />
+            {!packageMode && (
+              <Chip label="Discord API" size="small" variant="outlined" color="primary" sx={{ height: 18, fontSize: '0.55rem' }} />
+            )}
             <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: searchExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }} />
           </Box>
 
@@ -240,19 +256,23 @@ const FilterModal = ({
                 />
               </Box>
 
-              {!hideAuthorFilters && (
+              {!effectiveHideAuthorFilters && (
                 <Box data-testid="filter-modal-search-from">
                   <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>From</Typography>
                   <UserPicker selectedUserIds={searchCriteria.userIds} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, userIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
                 </Box>
               )}
 
-              <MessageTypeFilter selectedTypes={searchCriteria.selectedHasTypes} onChange={(types) => updateSearchCriteria((p) => ({ ...p, selectedHasTypes: types }))} />
+              {!packageMode && (
+                <MessageTypeFilter selectedTypes={searchCriteria.selectedHasTypes} onChange={(types) => updateSearchCriteria((p) => ({ ...p, selectedHasTypes: types }))} />
+              )}
 
-              <Box>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>Mentions</Typography>
-                <UserPicker selectedUserIds={searchCriteria.mentionIds || []} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, mentionIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
-              </Box>
+              {!packageMode && (
+                <Box>
+                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>Mentions</Typography>
+                  <UserPicker selectedUserIds={searchCriteria.mentionIds || []} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, mentionIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
+                </Box>
+              )}
 
               <DateRangeFilter
                 startDate={searchCriteria.searchAfterDate || null}
@@ -263,13 +283,15 @@ const FilterModal = ({
                 onDateModeChange={setDateMode}
               />
 
-              {!hideAuthorFilters && (
+              {!effectiveHideAuthorFilters && (
                 <Box data-testid="filter-modal-search-author-type">
                   <AuthorTypeFilter value={searchCriteria.authorType} onChange={(v: AuthorType | null) => updateSearchCriteria((p) => ({ ...p, authorType: v }))} />
                 </Box>
               )}
 
-              <PinnedFilter value={searchCriteria.isPinned} onChange={(v) => updateSearchCriteria((p) => ({ ...p, isPinned: v }))} />
+              {!packageMode && (
+                <PinnedFilter value={searchCriteria.isPinned} onChange={(v) => updateSearchCriteria((p) => ({ ...p, isPinned: v }))} />
+              )}
             </Box>
 
             {/* Sticky action bar */}
@@ -285,7 +307,7 @@ const FilterModal = ({
         </Box>
 
         {/* ═══ REFINE SECTION ═══ */}
-        {!hideRefineSection && (
+        {!effectiveHideRefineSection && (
         <Box sx={sectionContainerSx(false)}>
           {/* Collapsible header */}
           <Box sx={sectionHeaderSx(false)} onClick={() => setRefineExpanded(!refineExpanded)}>

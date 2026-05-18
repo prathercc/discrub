@@ -285,4 +285,75 @@ describe('FilterModal', () => {
       expect(screen.getAllByText('From')).toHaveLength(1);
     });
   });
+
+  // ── #172: packageMode strips the modal to package-evaluable criteria ──
+  describe('packageMode', () => {
+    it('shows the "Refine" header label (not "Search") when packageMode is true', () => {
+      renderWithProviders(<FilterModal {...defaultProps} packageMode />);
+      // "Refine" appears once — as the section header. The Apply button
+      // defaults to "Search" text unless overridden, so we only check
+      // the header by scoping inside the dialog title area.
+      expect(screen.getByText('Refine')).toBeInTheDocument();
+      // No "Loaded messages" tag (that's the live-mode Refine section).
+      expect(screen.queryByText('Loaded messages')).toBeNull();
+    });
+
+    it('hides the "Discord API" chip in packageMode', () => {
+      renderWithProviders(<FilterModal {...defaultProps} packageMode />);
+      expect(screen.queryByText('Discord API')).toBeNull();
+    });
+
+    it('hides the Refine section entirely in packageMode', () => {
+      renderWithProviders(<FilterModal {...defaultProps} packageMode />);
+      // "Apply Refine" button only exists when the refine section renders.
+      expect(screen.queryByRole('button', { name: /Apply Refine/i })).toBeNull();
+      expect(screen.queryByText('Loaded messages')).toBeNull();
+    });
+
+    it('hides Mentions, Has, Author Type, Pinned, and From in packageMode', () => {
+      renderWithProviders(<FilterModal {...defaultProps} packageMode />);
+      expect(screen.queryByText('Mentions')).toBeNull();
+      expect(screen.queryByText('Author Type')).toBeNull();
+      expect(screen.queryByText(/^Pinned$/)).toBeNull();
+      // 'Has' is the MessageTypeFilter label
+      expect(screen.queryByText('Has')).toBeNull();
+      // No "From" anywhere — Search From hidden via packageMode's
+      // hideAuthorFilters, Refine From hidden because the whole Refine
+      // section is gone.
+      expect(screen.queryByText('From')).toBeNull();
+    });
+
+    it('keeps Message Content + Date in packageMode', () => {
+      renderWithProviders(<FilterModal {...defaultProps} packageMode />);
+      expect(screen.getByPlaceholderText(/Search message content/i)).toBeInTheDocument();
+      expect(screen.getByText('Date')).toBeInTheDocument();
+    });
+
+    it('preserves saved criteria when opened in packageMode', () => {
+      const saved = { ...defaultCriteria, searchMessageContent: 'pizza' };
+      renderWithProviders(<FilterModal {...defaultProps} packageMode savedSearchCriteria={saved} />);
+      expect(screen.getByDisplayValue('pizza')).toBeInTheDocument();
+    });
+
+    it('respects applyButtonLabel in packageMode (e.g. "Apply filters")', () => {
+      renderWithProviders(<FilterModal {...defaultProps} packageMode applyButtonLabel="Apply filters" savedSearchCriteria={{ ...defaultCriteria, searchMessageContent: 'pizza' }} />);
+      expect(screen.getByRole('button', { name: /Apply filters/i })).toBeInTheDocument();
+    });
+
+    it('dispatches the Apply action with the typed criteria', () => {
+      const onServerSearch = vi.fn();
+      const saved = { ...defaultCriteria, searchMessageContent: 'hello' };
+      renderWithProviders(
+        <FilterModal
+          {...defaultProps}
+          packageMode
+          applyButtonLabel="Apply filters"
+          onServerSearch={onServerSearch}
+          savedSearchCriteria={saved}
+        />,
+      );
+      fireEvent.click(screen.getByRole('button', { name: /Apply filters/i }));
+      expect(onServerSearch).toHaveBeenCalledWith(expect.objectContaining({ searchMessageContent: 'hello' }));
+    });
+  });
 });

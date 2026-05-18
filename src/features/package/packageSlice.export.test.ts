@@ -8,8 +8,13 @@ import packageReducer, {
   exportPackageChannel,
   importPackage,
   loadPackageChannelMessages,
+  setPackageFilterCriteria,
+  clearPackageFilterCriteria,
+  selectPackageFilterCriteria,
   __testHelpers__,
 } from './packageSlice';
+import type { SearchCriteria } from 'discrub-core/types/discrub-types';
+import { HasType, IsPinnedType } from 'discrub-core/discord-enum';
 import authReducer from '@features/auth/authSlice';
 import userReducer from '@features/user/userSlice';
 import appReducer from '@features/app/appSlice';
@@ -330,5 +335,133 @@ describe('packageSlice — exportPackageChannel', () => {
     );
     expect(mockExportMediaOnly).toHaveBeenCalledTimes(1);
     expect(mockExportToZip).not.toHaveBeenCalled();
+  });
+
+  // ── #172: filter-then-export ─────────────────────────────────────
+
+  describe('package filter criteria (#172)', () => {
+    const baseCriteria: SearchCriteria = {
+      searchBeforeDate: null,
+      searchAfterDate: null,
+      searchMessageContent: null,
+      selectedHasTypes: [] as HasType[],
+      userIds: [],
+      mentionIds: [],
+      channelIds: [],
+      isPinned: IsPinnedType.UNSET,
+      authorType: null,
+    };
+
+    it('setPackageFilterCriteria stores criteria scoped to a channel', async () => {
+      const store = await primedStore();
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+      }));
+      expect(selectPackageFilterCriteria('200')(store.getState())!.searchMessageContent).toBe('hello');
+      // A different channel keeps its own (unset) state.
+      expect(selectPackageFilterCriteria('300')(store.getState())).toBeNull();
+    });
+
+    it('setPackageFilterCriteria with null deletes the entry', async () => {
+      const store = await primedStore();
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: { ...baseCriteria, searchMessageContent: 'hi' },
+      }));
+      store.dispatch(setPackageFilterCriteria({ channelId: '200', criteria: null }));
+      expect(selectPackageFilterCriteria('200')(store.getState())).toBeNull();
+    });
+
+    it('clearPackageFilterCriteria removes an active filter', async () => {
+      const store = await primedStore();
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+      }));
+      store.dispatch(clearPackageFilterCriteria('200'));
+      expect(selectPackageFilterCriteria('200')(store.getState())).toBeNull();
+    });
+
+    it('exportPackageChannel filters messages by content before passing them to exportService', async () => {
+      const store = await primedStore();
+      await store.dispatch(loadPackageChannelMessages('200'));
+
+      // Channel 200 has 3 messages: "hello", "with, comma", "multi\nline"
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+      }));
+
+      await store.dispatch(exportPackageChannel(exportArgs('200')));
+
+      const [messages] = mockExportToZip.mock.calls[0];
+      expect(Array.isArray(messages)).toBe(true);
+      // Only the "hello" message should be exported.
+      expect(messages).toHaveLength(1);
+      expect((messages as any[])[0].content).toBe('hello');
+    });
+
+    it('exportPackageChannel filters messages by date range before passing them to exportService', async () => {
+      const store = await primedStore();
+      await store.dispatch(loadPackageChannelMessages('200'));
+
+      // Fixture timestamps span 22:30:52 to 22:32:00 on 2022-07-28.
+      // Bracket the first two messages only.
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: {
+          ...baseCriteria,
+          searchAfterDate: new Date('2022-07-28T22:30:00Z'),
+          searchBeforeDate: new Date('2022-07-28T22:31:30Z'),
+        },
+      }));
+
+      await store.dispatch(exportPackageChannel(exportArgs('200')));
+
+      const [messages] = mockExportToZip.mock.calls[0];
+      expect(messages).toHaveLength(2);
+    });
+
+    it('exportPackageChannel passes every message when no filter is active', async () => {
+      const store = await primedStore();
+      await store.dispatch(loadPackageChannelMessages('200'));
+
+      await store.dispatch(exportPackageChannel(exportArgs('200')));
+
+      const [messages] = mockExportToZip.mock.calls[0];
+      expect(messages).toHaveLength(3);
+    });
+
+    it('filter criteria for one channel does not affect exports of another channel', async () => {
+      const store = await primedStore();
+      await store.dispatch(loadPackageChannelMessages('300'));
+
+      // Set a content filter on channel 200; export channel 300.
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: { ...baseCriteria, searchMessageContent: 'pizza' },
+      }));
+
+      await store.dispatch(exportPackageChannel(exportArgs('300')));
+
+      const [messages] = mockExportToZip.mock.calls[0];
+      // Channel 300 (DM with friend) has 1 message in the fixture.
+      expect(messages).toHaveLength(1);
+    });
+
+    it('re-importing a package resets all per-channel filter criteria', async () => {
+      const store = await primedStore();
+      store.dispatch(setPackageFilterCriteria({
+        channelId: '200',
+        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+      }));
+      expect(selectPackageFilterCriteria('200')(store.getState())).not.toBeNull();
+
+      // Re-import the same fixture.
+      const blob = await buildFixturePackage();
+      await store.dispatch(importPackage(blob));
+      expect(selectPackageFilterCriteria('200')(store.getState())).toBeNull();
+    });
   });
 });

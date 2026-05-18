@@ -44,6 +44,7 @@ import type {
 } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { toDiscordMessage } from './packageMessageAdapter';
+import { applyPackageFilter, hasAnyPackageCriterion } from './packageFilter';
 import {
   enrichmentCache,
   type EnrichedChannelCache,
@@ -166,6 +167,12 @@ export interface PackageState {
    * deletes). Non-null means an enrichment loop is actively running.
    */
   activeEnrichmentChannelId: string | null;
+  /**
+   * Per-channel filter criteria (#172). Persists for the session so
+   * users can switch channels and come back to a filtered view. Cleared
+   * when the package is re-imported or the user explicitly clicks Clear.
+   */
+  filterCriteria: Record<string, import('discrub-core/types/discrub-types').SearchCriteria | null>;
 }
 
 export const initialPackageState: PackageState = {
@@ -197,6 +204,7 @@ export const initialPackageState: PackageState = {
   enrichmentLastFetched: {},
   enrichedOrder: [],
   activeEnrichmentChannelId: null,
+  filterCriteria: {},
 };
 
 /** Per-user IDB key for the deleted-message cache (lives in Discrub-package). */
@@ -678,13 +686,24 @@ export const exportPackageChannel = createAsyncThunk<
 
     const enrichedMap = state.package.enrichedMessages[channelId];
 
+    // #172: respect the active package filter for this channel. When
+    // the user has refined the table view, the export should only
+    // include the visible subset; otherwise the "Export" button on a
+    // filtered view would silently emit every message and surprise the
+    // user.
+    const activeCriteria = state.package.filterCriteria[channelId] ?? null;
+    const totalPackageMessages = packageMessages.length;
+    const filteredPackageMessages = activeCriteria
+      ? applyPackageFilter(packageMessages, activeCriteria)
+      : packageMessages;
+
     // Discord's post-2025-06-14 package format ships permanently-signed
     // CDN URLs (the `uc=dp` discriminator), so a media-only export
     // against the package URLs is now a valid path even without
     // rehydration. Pre-2025 packages have ephemeral URLs that may 403
     // — users get the legacy-format banner at import time + a per-URL
     // download warning during export, but we don't gate the operation.
-    const discordMessages: Message[] = packageMessages.map((pm) => {
+    const discordMessages: Message[] = filteredPackageMessages.map((pm) => {
       const live = enrichedMap?.[pm.id];
       // Enriched message wins; fall back to package-adapted shape.
       return live ?? (toDiscordMessage(pm, channelId, parsed.user) as Message);
@@ -693,9 +712,13 @@ export const exportPackageChannel = createAsyncThunk<
     const channelName =
       channel.name ?? (channel.type === 1 ? 'Direct Message' : channel.id);
 
+    const filterScopeLabel =
+      activeCriteria && hasAnyPackageCriterion(activeCriteria)
+        ? ` (filtered: ${discordMessages.length} of ${totalPackageMessages})`
+        : '';
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Package export: starting ${format.toUpperCase()} export for "${channelName}" (${discordMessages.length} messages)`,
+      message: `Package export: starting ${format.toUpperCase()} export for "${channelName}"${filterScopeLabel}`,
     }));
 
     const exportService = getExportService();
@@ -1580,6 +1603,26 @@ const packageSlice = createSlice({
     clearChannelMessageSelection(state, action: PayloadAction<string>) {
       delete state.selectedMessageIds[action.payload];
     },
+    /**
+     * #172: Replace the per-channel filter criteria for `channelId`. Pass
+     * `null` (or call clearPackageFilterCriteria) to remove the filter.
+     * Criteria persist across channel switches so users can navigate and
+     * return; only re-importing the package or explicit clear resets.
+     */
+    setPackageFilterCriteria(
+      state,
+      action: PayloadAction<{ channelId: string; criteria: import('discrub-core/types/discrub-types').SearchCriteria | null }>,
+    ) {
+      const { channelId, criteria } = action.payload;
+      if (criteria === null) {
+        delete state.filterCriteria[channelId];
+      } else {
+        state.filterCriteria[channelId] = criteria;
+      }
+    },
+    clearPackageFilterCriteria(state, action: PayloadAction<string>) {
+      delete state.filterCriteria[action.payload];
+    },
     dismissDeleteResult(state) {
       state.deleteResult = null;
       state.deleteError = null;
@@ -1728,6 +1771,8 @@ const packageSlice = createSlice({
         // `deletedMessageIds` gets hydrated by the hydratePackageDeletedCache
         // thunk which runs right after a successful import.
         state.deletedMessageIds = {};
+        // #172: previous package's filters don't carry over to a new import.
+        state.filterCriteria = {};
       })
       .addCase(importPackage.rejected, (state, action) => {
         state.status = 'error';
@@ -1745,6 +1790,7 @@ const packageSlice = createSlice({
         state.loadedChannels = {};
         state.loadedOrder = [];
         state.deletedMessageIds = {};
+        state.filterCriteria = {};
       })
       .addCase(loadPackageChannelMessages.pending, (state, action) => {
         state.loadingChannelId = action.meta.arg;
@@ -1885,6 +1931,8 @@ export const {
   hydrateEnrichmentFromCache,
   mergeEnrichmentDelta,
   clearChannelEnrichmentState,
+  setPackageFilterCriteria,
+  clearPackageFilterCriteria,
 } = packageSlice.actions;
 export default packageSlice.reducer;
 
@@ -1902,6 +1950,11 @@ export const selectPackageChannelMessages =
     channelId ? state.package.loadedChannels[channelId] : undefined;
 export const selectIsPackageChannelLoading = (state: RootState) =>
   state.package.loadingChannelId !== null;
+/** #172: per-channel filter criteria. `null` (or missing) means no filter. */
+export const selectPackageFilterCriteria =
+  (channelId: string | null) =>
+  (state: RootState): import('discrub-core/types/discrub-types').SearchCriteria | null =>
+    channelId ? state.package.filterCriteria?.[channelId] ?? null : null;
 export const selectIsPackageReadOnly = (state: RootState) =>
   state.package.validation?.readOnly ?? true;
 export const selectTimelineStatus = (state: RootState) =>

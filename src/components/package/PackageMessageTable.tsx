@@ -36,6 +36,7 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   applyLocalMessageEdits,
   clearChannelMessageSelection,
+  clearPackageFilterCriteria,
   deletePackageMessages,
   dismissDeleteResult,
   enrichPackageChannel,
@@ -58,10 +59,21 @@ import {
   selectIsPackageReadOnly,
   selectPackageChannelMessages,
   selectPackageExportStatus,
+  selectPackageFilterCriteria,
   selectParsedPackage,
+  setPackageFilterCriteria,
   toggleMessageSelection,
   type EnrichmentStatus,
 } from '@features/package/packageSlice';
+import {
+  applyPackageFilter,
+  hasAnyPackageCriterion,
+} from '@features/package/packageFilter';
+import FilterModal from '@components/search/FilterModal';
+import ActiveFilterChips from '@components/search/ActiveFilterChips';
+import { defaultCriteria } from '@components/search/searchConstants';
+import type { SearchCriteria } from 'discrub-core/types/discrub-types';
+import { FilterList as FilterIcon } from '@mui/icons-material';
 import {
   formatDeleteSummary,
   formatRehydrateEta,
@@ -116,6 +128,61 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterCriteria = useAppSelector(selectPackageFilterCriteria(channel.id));
+  const filterActive = hasAnyPackageCriterion(filterCriteria);
+
+  /**
+   * #172: Remove a single chip from the active filter. Operates on the
+   * package criteria; for `userIds` / `mentionIds` / `selectedHasTypes`
+   * the value argument disambiguates which element to remove (those
+   * fields are never populated in packageMode today, but the predicate
+   * supports them in case a saved criteria gets carried over).
+   */
+  const handleRemoveChip = useCallback(
+    (field: keyof SearchCriteria, value?: string) => {
+      if (!filterCriteria) return;
+      const next: SearchCriteria = { ...filterCriteria };
+      switch (field) {
+        case 'searchMessageContent':
+          next.searchMessageContent = null;
+          break;
+        case 'searchAfterDate':
+          next.searchAfterDate = null;
+          break;
+        case 'searchBeforeDate':
+          next.searchBeforeDate = null;
+          break;
+        case 'userIds':
+          next.userIds = next.userIds.filter((id) => id !== value);
+          break;
+        case 'mentionIds':
+          next.mentionIds = (next.mentionIds ?? []).filter((id) => id !== value);
+          break;
+        case 'selectedHasTypes':
+          next.selectedHasTypes = next.selectedHasTypes.filter((t) => t !== value);
+          break;
+        case 'isPinned':
+          next.isPinned = defaultCriteria.isPinned;
+          break;
+        case 'authorType':
+          next.authorType = null;
+          break;
+        default:
+          break;
+      }
+      if (hasAnyPackageCriterion(next)) {
+        dispatch(setPackageFilterCriteria({ channelId: channel.id, criteria: next }));
+      } else {
+        dispatch(clearPackageFilterCriteria(channel.id));
+      }
+    },
+    [dispatch, channel.id, filterCriteria],
+  );
+
+  const handleClearAllFilters = useCallback(() => {
+    dispatch(clearPackageFilterCriteria(channel.id));
+  }, [dispatch, channel.id]);
 
   useEffect(() => {
     if (messages === undefined) {
@@ -148,6 +215,15 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
     if (!messages) return [];
     return [...messages].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   }, [messages]);
+
+  // #172: applyPackageFilter on the sorted list. When no criteria is
+  // active, returns the same array reference — no allocation on the
+  // unfiltered hot path. `filteredSorted` becomes the canonical "what
+  // the user sees" for virtualization, counts, export, and bulk delete.
+  const filteredSorted = useMemo(
+    () => applyPackageFilter(sorted, filterCriteria),
+    [sorted, filterCriteria],
+  );
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
@@ -283,12 +359,13 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
 
   // Rows known to be gone on Discord can't be selected — exclude them
   // from bulk select-all and from the header checkbox's "all / some"
-  // state so the UI reflects what the user can actually act on.
+  // state so the UI reflects what the user can actually act on. Operates
+  // on the filtered slice so "select all" only grabs visible rows.
   const selectableIds = useMemo(
-    () => sorted
+    () => filteredSorted
       .filter((m) => !deletedIdSet.has(m.id) && !forbiddenIdSet.has(m.id))
       .map((m) => m.id),
-    [sorted, deletedIdSet, forbiddenIdSet],
+    [filteredSorted, deletedIdSet, forbiddenIdSet],
   );
   const selectableCount = selectableIds.length;
 
@@ -311,13 +388,13 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
   };
 
   const selectedMessages = useMemo(
-    () => sorted.filter((m) => selectedSet.has(m.id)),
-    [sorted, selectedSet],
+    () => filteredSorted.filter((m) => selectedSet.has(m.id)),
+    [filteredSorted, selectedSet],
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowVirtualizer = useVirtualizer({
-    count: sorted.length,
+    count: filteredSorted.length,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => 72,
     overscan: 12,
@@ -395,7 +472,9 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
         <Typography variant="body2" sx={{ flexGrow: 1 }}>
           {selectedIds.length > 0
             ? `${selectedIds.length.toLocaleString()} selected`
-            : `${sorted.length.toLocaleString()} messages`}
+            : filterActive
+              ? `${filteredSorted.length.toLocaleString()} of ${sorted.length.toLocaleString()} messages match`
+              : `${sorted.length.toLocaleString()} messages`}
           {deletedIds.length > 0 && (
             <Typography
               component="span"
@@ -407,6 +486,17 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
             </Typography>
           )}
         </Typography>
+
+        <Button
+          size="small"
+          variant={filterActive ? 'contained' : 'outlined'}
+          color={filterActive ? 'primary' : 'inherit'}
+          startIcon={<FilterIcon />}
+          onClick={() => setFilterOpen(true)}
+          data-testid="package-refine-button"
+        >
+          {filterActive ? 'Refining' : 'Refine'}
+        </Button>
 
         <Tooltip title={deleteDisabledReason ?? ''} disableHoverListener={canDelete}>
           <span>
@@ -426,7 +516,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           size="small"
           variant="outlined"
           startIcon={<DownloadIcon />}
-          disabled={isDeleting || exportStatus === 'running' || sorted.length === 0}
+          disabled={isDeleting || exportStatus === 'running' || filteredSorted.length === 0}
           onClick={() => setExportOpen(true)}
         >
           {exportStatus === 'running' ? 'Exporting…' : 'Export'}
@@ -447,6 +537,18 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           </span>
         </Tooltip>
       </Stack>
+
+      {filterActive && filterCriteria && (
+        <Box data-testid="package-active-filter-chips">
+          <ActiveFilterChips
+            searchCriteria={filterCriteria}
+            refineCriteria={defaultCriteria}
+            onClearSearchFilter={handleRemoveChip}
+            onClearRefineFilter={() => { /* unused in packageMode */ }}
+            onClearAll={handleClearAllFilters}
+          />
+        </Box>
+      )}
 
       {deleteError && (
         <Alert severity="error" sx={{ mb: 1 }} onClose={() => dispatch(dismissDeleteResult())}>
@@ -521,7 +623,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           }}
         >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-            const msg = sorted[virtualRow.index];
+            const msg = filteredSorted[virtualRow.index];
             return (
               <Box
                 key={msg.id}
@@ -566,6 +668,24 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         exportContext={{ source: 'package', channelId: channel.id }}
+      />
+
+      <FilterModal
+        open={filterOpen}
+        onClose={() => setFilterOpen(false)}
+        onServerSearch={(criteria: SearchCriteria) => {
+          dispatch(setPackageFilterCriteria({ channelId: channel.id, criteria }));
+        }}
+        onRefine={() => { /* Refine section is hidden in packageMode */ }}
+        onClearSearch={() => {
+          dispatch(clearPackageFilterCriteria(channel.id));
+        }}
+        onClearRefine={() => { /* unused in packageMode */ }}
+        savedSearchCriteria={filterCriteria ?? undefined}
+        cachedUserMap={{}}
+        currentUserId={parsed?.user?.id ?? ''}
+        packageMode
+        applyButtonLabel="Apply filters"
       />
 
       <EditMessageModal
