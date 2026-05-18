@@ -33,11 +33,11 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Click-to-Jump Navigation** — Click any reply bar, pinned-message notice, or thread-created notice to jump to the referenced message. The target row briefly flashes amber.
 - **Inline Filter-by-User** — Click any author's avatar or name to open their profile, then one-click to filter the channel to messages by them or messages mentioning them. Other active filters preserved.
 - **Focus Mode** — Distraction-free reading mode that hides the sidebar and status panel for a full-width feed. Press `F` to toggle, `Escape` to exit.
-- **Two-Layer Filter Modal** — Search hits Discord's API; Refine narrows already-loaded messages client-side. Date filters now support **time-of-day precision** (hour and minute, not just whole days). Search results stream in lazily with a live "X of Y matches loaded" counter.
+- **Two-Layer Filter Modal** — Search hits Discord's API; Refine narrows already-loaded messages client-side. Date filters support **time-of-day precision** (hour and minute, not just whole days) and now also a **between two dates** range (combine Before and After together). Search results stream in lazily with a live "X of Y matches loaded" counter; Load All renders matches as pages arrive and retries transient network failures automatically.
 - **Tour Mode + Targeted Help** — A guided tour runs once for new users covering the major features. For day-to-day "what does this do?" moments, small `?` help icons sit next to the trickier affordances (multi-select, filters, focus, purge mode, pause/resume, operation delays, export presets, etc.) and open a one-paragraph explainer on click.
 - **Stale-Feed Reload Toast** — After a purge that targets the channel you're viewing, a one-click toast offers to reload the feed so you see Discord's post-purge state instead of the cached snapshot.
 - **Discord Layout HTML Exports** — Exported HTML wraps in a Discord-like shell with server sidebar, channel navigation, and theme toggle. Browse between channels within a single export file.
-- **Data Package Import & Rehydration** — Import Discord's "Request All of My Data" ZIP to browse, analyze, and re-export your entire message history, including servers you've left. The importer handles large packages (multi-gigabyte, ZIP64-encoded archives that previously failed to open) and packages exported in any Discord locale (French, German, Spanish, Simplified Chinese, Cyrillic, etc.). Multi-attachment messages render every attachment, not just the first. Imports decompress once into IndexedDB and per-channel reads come straight from IDB; reload the page and the package auto-resumes without re-import. Per-channel Tier 2 rehydration fetches live reactions, mentions, embeds, and fresh CDN URLs so old exports match the live app, with an estimated runtime shown before you commit and a guild-wide search preflight that covers most messages in a single pass.
+- **Data Package Import & Rehydration** — Import Discord's "Request All of My Data" ZIP to browse, analyze, and re-export your entire message history, including servers you've left. The importer handles large packages (multi-gigabyte, ZIP64-encoded archives that previously failed to open) and packages exported in any Discord locale (French, German, Spanish, Simplified Chinese, Cyrillic, etc.). Multi-attachment messages render every attachment, not just the first. Imports decompress once into IndexedDB and per-channel reads come straight from IDB; reload the page and the package auto-resumes without re-import. A Filter button on the package message table opens a focused modal with Content and Date controls so you can narrow the list without touching the network, and exports honor whatever filter is currently active. Per-channel Tier 2 rehydration fetches live reactions, mentions, embeds, and fresh CDN URLs so old exports match the live app, with an estimated runtime shown before you commit and a guild-wide search preflight that covers most messages in a single pass; once enriched, clicking any reaction chip opens the live ReactionModal so you can see who reacted.
 - **Forum Channel Support** — Full support for Discord forum and media channels. Browse active and archived threads, load thread messages, and export them individually.
 - **Voice and Stage Channel Chat** — The persistent text chat embedded in voice and stage channels (rolled out by Discord in 2021) is now browsable, exportable, and purgeable just like any text channel.
 - **Thread Discoverability** — The Load Thread modal auto-discovers active and archived threads in the current channel and renders a clickable list. Threads whose starter message has been deleted are still reachable, no thread ID hunting required.
@@ -63,9 +63,13 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Feature | Discrub Classic | Discrub |
 |---------|------------|---------|
 | HTML Templates | Standard only | Standard + Discord Layout (default) |
-| Export Presets | None | 9 built-in + custom |
+| Export Presets | None | 10 built-in + custom |
+| Formats | HTML | HTML, Plain Text, CSV, JSON, Media Only |
+| Plain Text Knobs | No | Configurable attachment style, reactions, replies, and bot indicator |
+| Large HTML Exports | Could crash at ~thousands of messages | Streamed in chunks so multi-thousand-message channels finish reliably |
+| Thread Filenames | Last write wins on collision | Auto dedupe (`_<threadId>` suffix) so duplicate-named threads keep separate files |
 | Media Breakdown | None | Per-type counts and sizes with preview |
-| README in Export | No | Yes — bundled guide explaining file structure |
+| README in Export | No | Yes. Bundled guide explaining file structure |
 | Role Colors in HTML | Basic | Enhanced with role icon support next to author names |
 | Reply Bars in HTML | Basic | Enhanced with formatted content preview |
 
@@ -92,8 +96,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Progress Feedback | Basic | Milestone-based status log entries with operation tracking |
 | Client-Side Filter | Basic | Full criteria support with mode indicator |
 | Two-Layer Model | Single layer | Search (Discord API) + Refine (client-side, no API) in one modal |
-| Date Precision | Whole days | Hour and minute (time-of-day) |
-| Pagination | All-at-once | Lazy 25-msg pages with "X of Y matches loaded" counter, optional Load All |
+| Date Precision | Whole days | Hour and minute (time-of-day), with Before, After, or Between two dates |
+| Pagination | All-at-once | Lazy 25-msg pages with "X of Y matches loaded" counter; Load All renders pages live and retries transient network failures |
 | Inline Filter-by-User | No | Click an author → one-click filter by them or messages mentioning them |
 
 ---

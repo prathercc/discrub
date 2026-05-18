@@ -55,7 +55,7 @@ A Discord-style chunked feed with inline message rendering, role-colored author 
 
 **Filters** uses a two-layer model in one modal:
 
-- **Search** hits Discord's API. Filter by message content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), date range with **time-of-day precision**, pinned status, and author type (human / bot / webhook). Results stream in lazily — the channel header shows `X of Y matches loaded` as you scroll, with a Load All option that transparently chains queries past Discord's 5,000-result cap.
+- **Search** hits Discord's API. Filter by message content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), date range (before, after, or between two dates) with **time-of-day precision**, pinned status, and author type (human / bot / webhook). Results stream in lazily as the channel header shows `X of Y matches loaded` and a Load All option transparently chains queries past Discord's 5,000-result cap. Load All renders messages live as pages arrive (no more waiting for the full run to finish before anything appears), retries transient network failures with exponential backoff, and pauses if retries exhaust so you can resume after fixing the network.
 - **Refine** narrows the messages already loaded, client-side, with no API calls. Survives "Load more" so new pages stay filtered, and a status entry appears when an incoming page contributed zero matches.
 
 ![Search & Filters](docs/screenshots/messages/search-filters.png)
@@ -99,11 +99,12 @@ Click any `?` for a short paragraph explaining how the feature actually works �
 
 ### Export
 
-Export messages in four formats with granular control:
+Export messages in five formats with granular control:
 
 | Format | Description |
 |--------|-------------|
 | **HTML** | Styled webpage with avatars, formatting, reactions, role colors, and theme toggle |
+| **Plain Text** | Lightweight `.txt` files with configurable attachment style, reactions, replies, and bot indicator. Suitable for archive, grep, or plain-editor review |
 | **CSV** | Spreadsheet-compatible format |
 | **JSON** | Raw data format for analysis |
 | **Media Only** | Download attachments without message content |
@@ -113,16 +114,17 @@ Export messages in four formats with granular control:
 - **Standard** — clean standalone HTML pages
 
 **Export Features:**
-- 9 built-in presets (Quick Text Backup, Full Archive, Data Analysis, Media Gallery, etc.)
+- 10 built-in presets (Quick Text Backup, Full Archive, Plain Text, Data Analysis, Media Gallery, etc.)
 - Custom preset creation and management
 - Per-type media selection (images, videos, audio)
 - Configurable messages per page
-- Thread/forum post separation into individual files
+- Thread/forum post separation into individual files, with automatic name-collision dedupe so threads that share a title don't overwrite each other
 - Detailed reaction user data in HTML exports
 - Media breakdown bar showing file counts and sizes
 - Artist mode (organize media by author)
 - Sort order (oldest/newest first)
-- README.html bundled with every export explaining how to navigate the files
+- README.html (HTML/CSV/JSON/Media exports) or README.txt (Plain Text exports) bundled with every export explaining how to navigate the files
+- Large HTML exports stream each page as separate chunks so multi-thousand-message channels no longer hit the V8 string-size cap mid-run
 
 ![Export Dialog](docs/screenshots/export/export-dialog.png)
 ![Media Settings](docs/screenshots/export/media-settings.png)
@@ -198,6 +200,8 @@ The importer handles large packages (multi-gigabyte archives, tens of thousands 
 ![Package analytics](docs/screenshots/package/package-analytics.png)
 
 **Browse the messages.** Imports decompress once into IndexedDB; per-channel reads come straight from IDB on demand and never re-decompress the ZIP. Reload the page and the package auto-resumes without a re-import. Discord-style message formatting with markdown, mention chips, custom emoji, and auto-linked URLs. Attachment placeholders preserve the original CDN URL. Older packages with unquoted snowflake IDs survive parsing without precision loss across user, server, channel, and message metadata.
+
+**Filter package messages.** A Filter button above the package message table opens a focused FilterModal with Content and Date controls, applying a client-side predicate so you can narrow the list to matches without touching the network. The header shows the filtered count above the total, and exports honor whatever filter is currently active. After enriching a channel via "Load rich data", reaction emoji chips also become clickable, opening the live ReactionModal so you can see who reacted (when a Discord token is available; without one the modal shows "User list not available").
 
 ![Package message browser](docs/screenshots/package/package-message-browser.png)
 
