@@ -526,4 +526,60 @@ describe('textEmitter', () => {
       expect(out).toContain('naïve façade 🎉 中文');
     });
   });
+
+  describe('formatTimestamp fallback paths', () => {
+    it('falls back to the raw value when the timestamp is unparseable', () => {
+      // new Date('not-a-date') yields Invalid Date; date-fns format() throws,
+      // and the catch returns the original string so the header still renders.
+      const lines = buildTextMessageBlock(
+        makeMessage({ content: 'x', timestamp: 'not-a-date' as any }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      expect(lines[0]).toBe('@Alice (not-a-date)');
+    });
+
+    it('omits the timestamp parens entirely when timestamp is null', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({ content: 'x', timestamp: null as any }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      expect(lines[0]).toBe('@Alice');
+    });
+
+    it('falls back to raw value on unparseable edited_timestamp without losing the created timestamp', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({
+          content: 'x',
+          timestamp: '2026-01-02T03:04:05Z',
+          edited_timestamp: 'garbage' as any,
+        }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      expect(lines[0]).toMatch(/^@Alice \(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}, edited garbage\)$/);
+    });
+
+    it('drops the edited suffix when edited_timestamp is null', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({ content: 'x', edited_timestamp: null }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      expect(lines[0]).not.toContain('edited');
+    });
+  });
 });

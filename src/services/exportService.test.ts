@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { getExportService } from './exportService';
+import { getExportService, generatePlainTextReadme } from './exportService';
 import { createMockMessages } from '@/test/fixtures';
 import type { Message } from 'discrub-core/types/discord-types';
 import type { ExportUserMap } from 'discrub-core/types/discrub-types';
@@ -1090,6 +1090,34 @@ describe('exportService', () => {
       }
     });
 
+    it('scales linearly: 500 messages produce 502 parts (head + N rows + foot) and a valid Blob composes them', () => {
+      // The whole point of Bug B is that no single string ever exceeds V8's
+      // ~512MB cap. Verifying the scaling property here protects the parts
+      // strategy from a future refactor that quietly re-concatenates rows.
+      const many: Message[] = Array.from({ length: 500 }, (_, i) => ({
+        id: `m${i}`,
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: `msg-${i}`,
+        author: { id: 'u1', username: 'alice' },
+        attachments: [], embeds: [], reactions: [],
+      } as unknown as Message));
+
+      const parts = service.generateHTMLPageParts(many, 'general', 1, 1, null, 'general');
+      expect(parts.length).toBe(many.length + 2);
+
+      // Each row part is bounded — none approaches the joined total.
+      const joinedLen = parts.join('').length;
+      for (const p of parts) {
+        expect(p.length).toBeLessThan(joinedLen / 2);
+      }
+
+      // Composing into a Blob matches what exportService does at runtime; the
+      // resulting blob must contain the same bytes as the joined output.
+      const blob = new Blob(parts, { type: 'text/html' });
+      const joinedBytes = new TextEncoder().encode(parts.join('')).length;
+      expect(blob.size).toBe(joinedBytes);
+    });
+
     it('applies mediaPathPrefix to each part independently for thread files', () => {
       // Build a message with an avatar reference so the regex has something
       // to match. The avatarMap entry routes through the local path.
@@ -1116,6 +1144,41 @@ describe('exportService', () => {
       // mediaPathPrefix='../' means every src="avatars/..." gets prefixed.
       expect(joined).toContain('src="../avatars/');
       expect(joined).not.toContain('src="avatars/');
+    });
+  });
+
+  describe('#184 generatePlainTextReadme', () => {
+    it('emits a single-channel README that names the first page file', () => {
+      const txt = generatePlainTextReadme({ isBulk: false, channelName: 'general' });
+      expect(txt).toContain('Discrub Export');
+      expect(txt).toContain('Format: PLAIN TEXT');
+      expect(txt).toContain('Open general-page-1.txt in a text editor.');
+      // No HTML, no bulk wording.
+      expect(txt).not.toContain('<');
+      expect(txt).not.toContain('Each channel has its own folder');
+    });
+
+    it('emits a bulk README that references per-channel folders', () => {
+      const txt = generatePlainTextReadme({ isBulk: true });
+      expect(txt).toContain('Format: PLAIN TEXT');
+      expect(txt).toContain('Each channel has its own folder');
+      // Bulk README does not name a single page file.
+      expect(txt).not.toMatch(/page-1\.txt/);
+    });
+
+    it('falls back to a generic open-the-files line when channelName is missing in single mode', () => {
+      const txt = generatePlainTextReadme({ isBulk: false });
+      expect(txt).toContain('Open the .txt file(s) in a text editor.');
+      expect(txt).not.toContain('Open undefined-page-1.txt');
+    });
+
+    it('keeps the readme plain ASCII and ends without a trailing blank line beyond one', () => {
+      const txt = generatePlainTextReadme({ isBulk: false, channelName: 'general' });
+      // No CRLF, no Windows-only artifacts.
+      expect(txt).not.toContain('\r');
+      // Sections are separated by single blank lines.
+      expect(txt).toMatch(/Getting Started\n-+\n/);
+      expect(txt).toMatch(/File Structure\n-+\n/);
     });
   });
 

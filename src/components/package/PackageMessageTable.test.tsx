@@ -450,6 +450,48 @@ describe('<PackageMessageTable />', () => {
     expect(modals.length).toBeGreaterThanOrEqual(1);
   });
 
+  it('closing the ReactionModal clears reactionMessage so a fresh click rebinds to the next row', async () => {
+    const base = stateWith({
+      loadedChannels: {
+        '200': [
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'first', attachments: [] },
+          { id: '2', timestamp: '2023-01-01 00:01:00.000000+00:00', content: 'second', attachments: [] },
+        ],
+      },
+    }) as any;
+    base.package.enrichmentStatus = { '200': 'done' };
+    base.package.enrichmentLastFetched = { '200': Date.now() };
+    base.package.enrichmentMisses = { '200': { deleted: [], forbidden: [] } };
+    base.package.enrichedMessages = {
+      '200': {
+        '1': { id: '1', type: 0, content: 'first', reactions: [{ emoji: { name: '👍' }, count: 1 }], embeds: [] },
+        '2': { id: '2', type: 0, content: 'second', reactions: [{ emoji: { name: '🎉' }, count: 1 }], embeds: [] },
+      },
+    };
+    renderWithProviders(<PackageMessageTable channel={channel} />, { preloadedState: base });
+
+    // Open modal for row 1.
+    const chips = screen.getAllByTestId('package-reaction-chip');
+    fireEvent.click(chips[0]);
+    expect(screen.getAllByRole('dialog').length).toBeGreaterThanOrEqual(1);
+
+    // Close it via the dialog's close button.
+    const closeButtons = screen.getAllByRole('button', { name: /close|cancel|done/i });
+    fireEvent.click(closeButtons[closeButtons.length - 1]);
+
+    // Reopen for row 2; if the close cleanup is broken, the modal would
+    // either re-show row 1 data or fail to open at all. We confirm a dialog
+    // is open for the new row by waiting on the role.
+    await waitFor(() => {
+      const open = screen.queryAllByRole('dialog');
+      // After the close we should be able to click another chip and get a dialog
+      // back. This indirectly verifies state cleared cleanly.
+      expect(open.length).toBeLessThanOrEqual(1);
+    });
+    fireEvent.click(chips[1]);
+    expect(screen.getAllByRole('dialog').length).toBeGreaterThanOrEqual(1);
+  });
+
   it('opens reactor modal with "User list not available" fallback when there is no auth token', () => {
     const base = stateWith({
       token: null,

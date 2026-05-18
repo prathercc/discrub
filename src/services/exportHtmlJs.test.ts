@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildExportPageData, generateEmbeddedJs } from './exportHtmlJs';
+import { getExportService } from './exportService';
 import {
   EXPORT_MESSAGES,
   THREAD_MESSAGES,
@@ -7,6 +8,7 @@ import {
   AUTHOR_BOB,
 } from '@/test/export-html-fixtures';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
+import type { Message, Channel } from 'discrub-core/types/discord-types';
 
 const MOCK_CONTEXT: HtmlFormattingContext = {
   userMap: {
@@ -64,6 +66,73 @@ describe('buildExportPageData', () => {
     const parsed = JSON.parse(json);
     expect(parsed.page.current).toBe(1);
     expect(parsed.users[AUTHOR_ALICE.id].username).toBe('alice');
+  });
+
+  // #175: the inline slug in exportHtmlJs builds the threadMap that the
+  // embedded client JS uses to resolve thread filenames. ExportService
+  // emits the actual files using sanitizeFilename(thread.name, thread.id).
+  // If those two slugifiers ever drift, threadMap entries point at files
+  // that don't exist. These tests pin them together across edge-case names.
+  describe('#175: threadMap slug matches ExportService.sanitizeFilename', () => {
+    function makeThreadMessage(threadName: string, threadId: string): Message {
+      const thread: Channel = {
+        id: threadId,
+        name: threadName,
+        type: 11,
+      } as Channel;
+      return {
+        id: `msg-for-${threadId}`,
+        channel_id: 'channel-123',
+        author: AUTHOR_ALICE,
+        content: 'starter',
+        timestamp: '2026-06-15T10:00:00.000Z',
+        edited_timestamp: null,
+        tts: false,
+        mention_everyone: false,
+        mentions: [],
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        pinned: false,
+        type: 0,
+        thread,
+      } as unknown as Message;
+    }
+
+    const cases: Array<[string, string, string]> = [
+      ['simple ASCII', 'bug-discussion', 'thread-001'],
+      ['uppercase', 'GT3 RS Build Log', 'thread-002'],
+      ['punctuation', 'GT3 RS!', 'thread-003'],
+      ['leading/trailing junk', '!!hello!!', 'thread-004'],
+      ['runs of separators', 'foo   ---   bar', 'thread-005'],
+      ['non-alphanumeric only', '###', 'thread-006'],
+      ['mixed unicode + ascii', 'Café Talk', 'thread-007'],
+    ];
+
+    for (const [label, name, id] of cases) {
+      it(`emits matching paths for ${label}: "${name}"`, () => {
+        const service = getExportService();
+        const msg = makeThreadMessage(name, id);
+        const data = buildExportPageData([msg], 1, 1, 'test', MOCK_CONTEXT);
+
+        const expectedFilename = `threads/${service.sanitizeFilename(name, id)}.html`;
+        expect(data.threads[msg.id]).toBe(expectedFilename);
+      });
+    }
+
+    it('collisions on cosmetic punctuation still resolve to distinct files', () => {
+      const service = getExportService();
+      // Two threads with names that slugify to the same base. The id
+      // suffix is what disambiguates; both threadMap and sanitizeFilename
+      // must agree on that.
+      const a = makeThreadMessage('GT3 RS', '111');
+      const b = makeThreadMessage('GT3 RS!', '222');
+      const data = buildExportPageData([a, b], 1, 1, 'test', MOCK_CONTEXT);
+
+      expect(data.threads[a.id]).toBe(`threads/${service.sanitizeFilename('GT3 RS', '111')}.html`);
+      expect(data.threads[b.id]).toBe(`threads/${service.sanitizeFilename('GT3 RS!', '222')}.html`);
+      expect(data.threads[a.id]).not.toBe(data.threads[b.id]);
+    });
   });
 });
 

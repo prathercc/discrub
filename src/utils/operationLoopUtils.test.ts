@@ -261,4 +261,29 @@ describe('withTransientRetry', () => {
       expect(call[1]).toBeLessThanOrEqual(50);
     }
   });
+
+  it('passes the actual delayMs to onRetry following the exponential schedule', async () => {
+    // The schedule is baseDelayMs * 2^attempt, capped at maxDelayMs. With
+    // baseDelayMs=10 and maxDelayMs=10000, attempts 0..3 should emit
+    // (10, 20, 40, 80) ms. Pinning the actual numbers here means any
+    // future change to the backoff formula has to update this test
+    // intentionally; right now nothing asserts the schedule itself.
+    const getState = createMockGetState();
+    const fn = vi.fn().mockResolvedValue({ success: false, status: 500 });
+    const onRetry = vi.fn();
+
+    await withTransientRetry(fn, {
+      getState,
+      onRetry,
+      baseDelayMs: 10,
+      maxDelayMs: 10000,
+      maxRetries: 4,
+    });
+
+    const delays = onRetry.mock.calls.map((c) => c[1]);
+    expect(delays).toEqual([10, 20, 40, 80]);
+    // And the attempt counters track in step (1-indexed by design).
+    const attempts = onRetry.mock.calls.map((c) => c[0]);
+    expect(attempts).toEqual([1, 2, 3, 4]);
+  });
 });
