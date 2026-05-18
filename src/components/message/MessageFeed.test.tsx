@@ -344,6 +344,69 @@ describe('<MessageFeed />', () => {
     ).toBeInTheDocument();
   });
 
+  // ── #191: every thread starter in a chunk gets its own link ──────
+  describe('Open Thread links for adjacent starters (#191)', () => {
+    it('renders an Open Thread button for each starter in a multi-thread chunk', () => {
+      const alice = createMockUser({ id: 'alice', username: 'alice' });
+      const messages = [
+        createMockMessage({
+          id: 'm1',
+          author: alice,
+          content: 'test',
+          timestamp: '2026-04-19T15:00:00.000Z',
+          // @ts-expect-error — `thread` is on the Discord wire shape, not in our trimmed Message type
+          thread: { id: 't-1', name: 'first thread', type: 11 },
+        }),
+        createMockMessage({
+          id: 'm2',
+          author: alice,
+          content: 'test',
+          timestamp: '2026-04-19T15:02:00.000Z',
+          // @ts-expect-error — same as above
+          thread: { id: 't-2', name: 'second thread', type: 11 },
+        }),
+      ];
+      const onOpenThread = vi.fn();
+      renderWithProviders(
+        <MessageFeed {...baseProps} onOpenThread={onOpenThread} />,
+        { preloadedState: stateWithMessages(messages) },
+      );
+
+      const links = screen.getAllByTestId('message-chunk-open-thread');
+      expect(links).toHaveLength(2);
+      // Names disambiguate the two links.
+      expect(links[0].textContent).toContain('first thread');
+      expect(links[1].textContent).toContain('second thread');
+
+      fireEvent.click(links[1]);
+      expect(onOpenThread).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'm2' }),
+      );
+    });
+
+    it('keeps the generic "Open thread" label when a chunk has exactly one starter', () => {
+      const alice = createMockUser({ id: 'alice', username: 'alice' });
+      const messages = [
+        createMockMessage({
+          id: 'm1',
+          author: alice,
+          content: 'just one',
+          timestamp: '2026-04-19T15:00:00.000Z',
+          // @ts-expect-error — `thread` is on the Discord wire shape, not in our trimmed Message type
+          thread: { id: 't-1', name: 'only thread', type: 11 },
+        }),
+      ];
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(messages),
+      });
+
+      const links = screen.getAllByTestId('message-chunk-open-thread');
+      expect(links).toHaveLength(1);
+      // Single-starter case preserves the legacy label, no name suffix.
+      expect(links[0].textContent).toBe('Open thread');
+    });
+  });
+
   // ── #192: Load More button hidden during Load All ────────────────
   describe('Load More button gating (#192)', () => {
     it('renders the Load More button when more pages are available and nothing else is loading', () => {

@@ -99,7 +99,12 @@ const MessageChunk = memo(function MessageChunk({
     headerTimestamp = chunk.firstTimestamp;
   }
 
-  const threadMessage = chunk.messages.find(
+  // #191: a chunk can contain more than one message that spawned its own
+  // thread (same author, type 0, within the 7-minute grouping window).
+  // Collecting them all keeps every starter reachable from the chunk
+  // header; pre-#191 the .find() returned only the first and the rest
+  // were silently unreachable.
+  const threadMessages = chunk.messages.filter(
     (m) => (m as any).thread,
   );
 
@@ -171,30 +176,42 @@ const MessageChunk = memo(function MessageChunk({
           >
             {headerTimestamp}
           </Typography>
-          {threadMessage && onOpenThread && (
-            <Typography
-              component="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenThread(threadMessage);
-              }}
-              sx={{
-                border: 0,
-                background: 'none',
-                p: 0,
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 0.25,
-                fontSize: '0.75rem',
-                color: theme.palette.primary.main,
-                '&:hover': { textDecoration: 'underline' },
-              }}
-            >
-              <ThreadIcon sx={{ fontSize: 14 }} />
-              Open thread
-            </Typography>
-          )}
+          {onOpenThread && threadMessages.map((tm) => {
+            const threadName = ((tm as any).thread?.name as string | undefined)?.trim();
+            // Single starter keeps the original generic label so existing
+            // visuals don't shift. Multiple starters get name-suffixed
+            // labels so users can tell them apart.
+            const label =
+              threadMessages.length > 1 && threadName
+                ? `Open: ${threadName}`
+                : 'Open thread';
+            return (
+              <Typography
+                key={tm.id}
+                component="button"
+                data-testid="message-chunk-open-thread"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenThread(tm);
+                }}
+                sx={{
+                  border: 0,
+                  background: 'none',
+                  p: 0,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 0.25,
+                  fontSize: '0.75rem',
+                  color: theme.palette.primary.main,
+                  '&:hover': { textDecoration: 'underline' },
+                }}
+              >
+                <ThreadIcon sx={{ fontSize: 14 }} />
+                {label}
+              </Typography>
+            );
+          })}
         </Box>
 
         {chunk.messages.map((message, idx) => (
