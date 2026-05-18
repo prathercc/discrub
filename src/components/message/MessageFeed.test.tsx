@@ -344,6 +344,35 @@ describe('<MessageFeed />', () => {
     ).toBeInTheDocument();
   });
 
+  // ── #192: Load More button hidden during Load All ────────────────
+  describe('Load More button gating (#192)', () => {
+    it('renders the Load More button when more pages are available and nothing else is loading', () => {
+      const messages = [createMockMessage({ id: 'm1', content: 'hi' })];
+      const state = stateWithMessages(messages);
+      state.message.pagination = {
+        ...state.message.pagination,
+        hasMore: true,
+        isLoadingMore: false,
+        isLoadingAll: false,
+      };
+      renderWithProviders(<MessageFeed {...baseProps} />, { preloadedState: state });
+      expect(screen.getByTestId('message-feed-load-more')).toBeInTheDocument();
+    });
+
+    it('hides the Load More button while a Load All operation is in flight', () => {
+      const messages = [createMockMessage({ id: 'm1', content: 'hi' })];
+      const state = stateWithMessages(messages);
+      state.message.pagination = {
+        ...state.message.pagination,
+        hasMore: true,
+        isLoadingMore: false,
+        isLoadingAll: true,
+      };
+      renderWithProviders(<MessageFeed {...baseProps} />, { preloadedState: state });
+      expect(screen.queryByTestId('message-feed-load-more')).not.toBeInTheDocument();
+    });
+  });
+
   // Backlog #162 — TIME_FORMAT setting must drive the in-app timestamp
   // strings in both the chunk header and the per-row gutter clock.
   // Two messages from the same author within the 7-min chunking window so

@@ -355,7 +355,7 @@ const MessageFeed = ({
               to trigger the scroll-for-more listener (which only fires on
               actual scroll events). Always present when there are more pages
               to fetch and we aren't currently loading. */}
-          {paginationHasMore && !isLoadingMore && (
+          {paginationHasMore && !isLoadingMore && !isLoadingAll && (
             <Box sx={{ display: 'flex', justifyContent: 'center', py: 1.5 }}>
               <Button
                 size="small"
