@@ -168,9 +168,12 @@ describe('Error Logging & Status Log', () => {
     it('persists status entries to the Discrub-statuslog IDB store', () => {
       cy.login();
 
-      // Verify page load entries are persisted to IndexedDB.
+      // #183 introduced a 250ms coalesced write buffer in front of the
+      // statuslog IDB store; entries sit in memory briefly before
+      // flushing. The buffer's tick is fixed, so a single short wait
+      // is sufficient and avoids polling churn.
+      cy.wait(300);
       cy.readIdbStore<{ message: string }>('statuslog').then((entries) => {
-        // Should have at least session + server load entries
         expect(entries.length).to.be.greaterThan(0);
         expect(entries.some((e) => e.message === 'New session established')).to.be.true;
       });
@@ -189,13 +192,20 @@ describe('Error Logging & Status Log', () => {
     it('shows a new session marker after page reload', () => {
       cy.login();
 
+      // #183 buffers status writes for 250ms. We must let the first
+      // session marker hit IDB before reloading; otherwise the
+      // in-memory buffer is discarded when the page unloads and we end
+      // up with only the post-reload marker. The buffer flush on
+      // unload is a separate gap tracked under #183's remaining arms.
+      cy.wait(300);
+
       // Reload
       cy.interceptDiscordApi();
       cy.visit('/');
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
 
       cy.contains('STATUS LOG').click();
-      // Should have at least 2 session markers (from initial + reload)
+      cy.wait(300);
       cy.readIdbStore<{ level: string }>('statuslog').then((entries) => {
         const sessionEntries = entries.filter((e) => e.level === 'session');
         expect(sessionEntries.length).to.be.greaterThan(1);
