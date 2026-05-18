@@ -137,6 +137,19 @@ describe('Feature Showcase — Documentation Screenshots', () => {
       cy.wait(PAUSE);
       screenshot('messages/search-filters');
     });
+
+    // #182: Before + After together as a between-range
+    //
+    // Skipped from auto-capture for now. The DateRangeFilter's
+    // ToggleButtonGroup interactions don't survive a clean Cypress
+    // selector pass (the picker renders its own buttons that shadow
+    // the toggle text, and MUI's class names changed across versions
+    // in a way that broke `.MuiToggleButton-root`). The feature is
+    // already covered in README and ONBOARDING prose; a manual
+    // capture can fill the screenshot gap if a visual is needed.
+    it.skip('filter modal with Before and After both active (between)', () => {
+      // intentional placeholder; see comment above.
+    });
   });
 
   describe('04 — User Profile', () => {
@@ -237,6 +250,31 @@ describe('Feature Showcase — Documentation Screenshots', () => {
       cy.get('[role="dialog"]').find('[role="combobox"]').first().click({ force: true });
       cy.wait(PAUSE);
       screenshot('export/preset-selector');
+    });
+
+    // #184: Plain Text format reveals a dedicated options accordion
+    it('export dialog — plain text options', () => {
+      hideDonationDrawer();
+      cy.contains('button', 'Export').click();
+      cy.wait(PAUSE);
+      // The Format selector is a checkbox list (one selected acts as
+      // radio). Click the "Plain Text" entry to switch formats.
+      cy.get('[role="dialog"]')
+        .contains(/^Plain Text/)
+        .closest('label')
+        .find('input[type="checkbox"]')
+        .click({ force: true });
+      cy.wait(PAUSE);
+      // The "Plain text options" accordion appears below; expand if
+      // collapsed.
+      cy.get('[role="dialog"]').then(($d) => {
+        const accordion = $d.find(':contains("Plain text options")').last();
+        if (accordion.length && accordion.attr('aria-expanded') === 'false') {
+          cy.wrap(accordion).click({ force: true });
+        }
+      });
+      cy.wait(PAUSE);
+      screenshot('export/plain-text-options');
     });
   });
 
@@ -451,6 +489,84 @@ describe('Feature Showcase — Documentation Screenshots', () => {
       });
       cy.contains(/Rich data loaded/).should('be.visible');
       screenshot('package/package-rehydrated');
+    });
+
+    // #172: package message filter modal + filtered count + active chip
+    it('package message browser with active content filter', () => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+      // Drawer can lazy-load after the upload completes.
+      hideDonationDrawer();
+
+      cy.get('[data-testid="package-refine-button"]').click();
+      cy.get('[role="dialog"]').should('be.visible');
+      cy.get('[role="dialog"]')
+        .find('input[placeholder*="Search message content"]')
+        .type('hello');
+      cy.get('[role="dialog"]')
+        .find('button[class*="contained"]')
+        .contains(/Apply filters|Search/)
+        .click();
+
+      cy.get('[role="dialog"]').should('not.exist');
+      cy.contains(/of \d+ messages match/).should('be.visible');
+      cy.wait(PAUSE);
+      screenshot('package/package-filter');
+    });
+
+    // #173: reaction chips on enriched package rows open the live ReactionModal
+    it('package reactor modal opens from an enriched row', () => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+      // Hide the donation drawer BEFORE opening the reactor modal so
+      // the screenshot doesn't capture both UI surfaces stacked.
+      hideDonationDrawer();
+
+      // Same enrichment fixture as package-rehydrated above. msg 1001
+      // carries two reactions (👍, ❤️) that turn into clickable chips
+      // once the enriched state lands.
+      cy.window().then((win) => {
+        const store = (win as { __store__?: { dispatch: (a: unknown) => void } }).__store__;
+        if (!store) throw new Error('Redux store not exposed');
+        store.dispatch({
+          type: 'package/hydrateEnrichmentFromCache',
+          payload: {
+            channelId: '200',
+            cache: {
+              lastFetched: Date.now(),
+              messages: {
+                '1001': {
+                  id: '1001',
+                  type: 0,
+                  content: 'hello world 🎉',
+                  author: { id: 'a', username: 'you', global_name: 'You' },
+                  reactions: [
+                    { emoji: { name: '👍' }, count: 4 },
+                    { emoji: { name: '❤️' }, count: 9 },
+                  ],
+                  embeds: [],
+                  mentions: [],
+                  channel_id: '200',
+                  timestamp: '2022-07-28T22:30:52.000Z',
+                  attachments: [],
+                },
+              },
+              misses: { deleted: [], forbidden: [] },
+            },
+          },
+        });
+      });
+      cy.contains(/Rich data loaded/).should('be.visible');
+
+      // Click the first reaction chip to open the modal. Token-less
+      // package context surfaces "User list not available" rather than
+      // hitting Discord, which still captures the modal's shape.
+      cy.get('[data-testid="package-reaction-chip"]').first().click({ force: true });
+      cy.get('[role="dialog"]').should('be.visible');
+      cy.wait(PAUSE);
+      screenshot('package/package-reaction-modal');
     });
   });
 });
