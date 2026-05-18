@@ -1,5 +1,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import statusReducer, { addStatusEntry, clearStatusLog, loadStatusLog, showOperationTip, hideOperationTip, selectStatusEntries, selectStatusCount, selectOperationTip, _setCurrentSessionIdForTesting } from './statusSlice';
+import statusReducer, {
+  addStatusEntry,
+  clearStatusLog,
+  loadStatusLog,
+  showOperationTip,
+  hideOperationTip,
+  selectStatusEntries,
+  selectStatusCount,
+  selectOperationTip,
+  _setCurrentSessionIdForTesting,
+  _flushPersistBufferForTesting,
+  _getPersistBufferSizeForTesting,
+} from './statusSlice';
 import { createTestStore } from '@/test/test-utils';
 import { initialStatusState } from './statusTypes';
 import { storage } from '@/extension/storage';
@@ -17,6 +29,8 @@ const flush = () => new Promise<void>((r) => setTimeout(r, 0));
 
 describe('statusSlice', () => {
   beforeEach(async () => {
+    // Drain any buffered writes from a previous test so storage starts clean.
+    _flushPersistBufferForTesting();
     await storage.statuslog.clear();
   });
 
@@ -62,10 +76,67 @@ describe('statusSlice', () => {
     it('persists entries to IndexedDB statuslog store', async () => {
       const store = createStore();
       store.dispatch(addStatusEntry({ level: 'info', message: 'Persisted' }));
+      // #183: writes are now batched; force a flush before assertion.
+      _flushPersistBufferForTesting();
       await flush();
       const stored = (await storage.statuslog.entries()).map(([, v]) => v) as Array<{ message: string }>;
       expect(stored).toHaveLength(1);
       expect(stored[0].message).toBe('Persisted');
+    });
+
+    // ── #183: batched IDB persistence ─────────────────────────────
+
+    it('buffers writes until the flush threshold is hit (default 50)', async () => {
+      const store = createStore();
+      // 30 writes — under threshold and within the 250ms timer window.
+      for (let i = 0; i < 30; i++) {
+        store.dispatch(addStatusEntry({ level: 'info', message: `Burst ${i}` }));
+      }
+      // Without forcing a flush, IDB should still be empty (buffered).
+      expect(_getPersistBufferSizeForTesting()).toBe(30);
+      expect((await storage.statuslog.entries()).length).toBe(0);
+    });
+
+    it('auto-flushes when the threshold is exceeded', async () => {
+      const store = createStore();
+      for (let i = 0; i < 60; i++) {
+        store.dispatch(addStatusEntry({ level: 'info', message: `Burst ${i}` }));
+      }
+      await flush();
+      // After 60 writes the threshold (50) has fired at least once.
+      // Buffer holds the remaining 10; IDB holds the first 50.
+      expect(_getPersistBufferSizeForTesting()).toBe(10);
+      expect((await storage.statuslog.entries()).length).toBe(50);
+    });
+
+    it('explicit flush drains the buffer', async () => {
+      const store = createStore();
+      for (let i = 0; i < 5; i++) {
+        store.dispatch(addStatusEntry({ level: 'info', message: `b${i}` }));
+      }
+      expect(_getPersistBufferSizeForTesting()).toBe(5);
+      _flushPersistBufferForTesting();
+      await flush();
+      expect(_getPersistBufferSizeForTesting()).toBe(0);
+      expect((await storage.statuslog.entries()).length).toBe(5);
+    });
+
+    it('cap-trim of buffered-but-not-yet-persisted entries drops them in place (no write+delete churn)', async () => {
+      const store = createStore({
+        status: { ...initialStatusState, maxEntries: 3 },
+      });
+      // Push 5 entries — first 2 should be trimmed AND dropped from the
+      // buffer before they ever hit IDB.
+      for (let i = 0; i < 5; i++) {
+        store.dispatch(addStatusEntry({ level: 'info', message: `Trim ${i}` }));
+      }
+      // Buffer holds only the surviving 3 (the trimmed-from-front ones
+      // were excised before flush).
+      expect(_getPersistBufferSizeForTesting()).toBe(3);
+      _flushPersistBufferForTesting();
+      await flush();
+      const stored = (await storage.statuslog.entries()).map(([, v]) => v) as Array<{ message: string }>;
+      expect(stored.map((s) => s.message).sort()).toEqual(['Trim 2', 'Trim 3', 'Trim 4']);
     });
   });
 
@@ -89,6 +160,7 @@ describe('statusSlice', () => {
     it('clears IndexedDB statuslog store on clear', async () => {
       const store = createStore();
       store.dispatch(addStatusEntry({ level: 'info', message: 'Test' }));
+      _flushPersistBufferForTesting();
       await flush();
       expect(await storage.statuslog.entries()).toHaveLength(1);
 

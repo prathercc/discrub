@@ -71,17 +71,79 @@ export const loadStatusLog = createAsyncThunk(
  * Best-effort persistence helpers — fire-and-forget, never block the
  * Redux dispatch they originate from. Failures are logged via the
  * adapter; we can't surface storage errors to the UI from a reducer.
+ *
+ * #183: a 5k+ purge that hits errors per-message used to issue one IDB
+ * write per entry. Even though `void storage.set(...)` is async, the
+ * 5000 individual transactions serialize through IDB's request queue
+ * and add measurable main-thread pressure (each call also allocates +
+ * structurally clones the entry). The batch buffer below coalesces
+ * pending writes into a single `setMany` flushed every 250ms or every
+ * 50 entries, whichever comes first.
  */
+const PERSIST_FLUSH_INTERVAL_MS = 250;
+const PERSIST_FLUSH_THRESHOLD = 50;
+let pendingPersistBuffer: Array<[string, StatusLogEntry]> = [];
+let pendingFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPersistBuffer(): void {
+  if (pendingPersistBuffer.length === 0) return;
+  const batch = pendingPersistBuffer;
+  pendingPersistBuffer = [];
+  if (pendingFlushTimer !== null) {
+    clearTimeout(pendingFlushTimer);
+    pendingFlushTimer = null;
+  }
+  void storage.statuslog.setMany(batch);
+}
+
 function persistEntry(entry: StatusLogEntry): void {
-  void storage.statuslog.set(String(entry.timestamp) + '-' + entry.id, entry);
+  pendingPersistBuffer.push([
+    String(entry.timestamp) + '-' + entry.id,
+    entry,
+  ]);
+  if (pendingPersistBuffer.length >= PERSIST_FLUSH_THRESHOLD) {
+    flushPersistBuffer();
+    return;
+  }
+  if (pendingFlushTimer === null) {
+    pendingFlushTimer = setTimeout(flushPersistBuffer, PERSIST_FLUSH_INTERVAL_MS);
+  }
 }
 
 function persistTrim(removedKeys: string[]): void {
+  // If the trimmed entries are still in the pending-write buffer, drop
+  // them in place rather than write-then-delete. Reduces churn during
+  // cap-trim cascades on long-running operations.
+  if (pendingPersistBuffer.length > 0 && removedKeys.length > 0) {
+    const removedSet = new Set(removedKeys);
+    pendingPersistBuffer = pendingPersistBuffer.filter(
+      ([key]) => !removedSet.has(key),
+    );
+  }
   removedKeys.forEach((k) => void storage.statuslog.remove(k));
 }
 
 function persistClear(): void {
+  pendingPersistBuffer = [];
+  if (pendingFlushTimer !== null) {
+    clearTimeout(pendingFlushTimer);
+    pendingFlushTimer = null;
+  }
   void storage.statuslog.clear();
+}
+
+/**
+ * Test-only escape hatch: synchronously flush the persist buffer and
+ * reset bookkeeping. Lets unit tests assert on the post-flush IDB state
+ * without waiting on the 250ms timer.
+ */
+export function _flushPersistBufferForTesting(): void {
+  flushPersistBuffer();
+}
+
+/** Test-only escape hatch: inspect the pending buffer size. */
+export function _getPersistBufferSizeForTesting(): number {
+  return pendingPersistBuffer.length;
 }
 
 const statusSlice = createSlice({
@@ -102,11 +164,14 @@ const statusSlice = createSlice({
       state.entries.push(entry);
       persistEntry(entry);
 
-      // Trim from the front if exceeding max — also trim the persisted store.
+      // #183: when already at the cap, every push triggers an overflow
+      // trim. The previous `slice(overflow)` allocated a brand new
+      // array of `maxEntries` length per push — O(N) work per addition
+      // during a high-volume operation. `splice` operates on the Immer
+      // draft in place: O(overflow) which is 1 in the steady state.
       if (state.entries.length > state.maxEntries) {
         const overflow = state.entries.length - state.maxEntries;
-        const removed = state.entries.slice(0, overflow);
-        state.entries = state.entries.slice(overflow);
+        const removed = state.entries.splice(0, overflow);
         persistTrim(removed.map((e) => String(e.timestamp) + '-' + e.id));
       }
     },
