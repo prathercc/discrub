@@ -13,6 +13,10 @@ describe('AttachmentModal', () => {
         createMockAttachment({ id: 'att-2', filename: 'document.pdf', size: 204800, width: undefined, height: undefined, content_type: 'application/pdf' }),
       ],
     }),
+    // The default mock message author id is 'user-123' (see createMockUser
+    // in test/fixtures.ts). Pinning the same id here keeps the prior
+    // interactive-mode tests valid against the #189 author/perm gate.
+    currentUserId: 'user-123',
   };
 
   beforeEach(() => {
@@ -268,5 +272,88 @@ describe('AttachmentModal', () => {
       <AttachmentModal open={true} onClose={onClose} message={null} />
     );
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // ── #189: author + Manage Messages gate ─────────────────────────
+  describe('delete affordance gate (#189)', () => {
+    const otherUserMessage = createMockMessage({
+      author: { id: 'someone-else', username: 'other', discriminator: '0001', avatar: null, bot: false } as any,
+      attachments: [createMockAttachment({ id: 'att-x', filename: 'x.png' })],
+    });
+
+    it('shows the per-attachment delete icon when the viewer authored the message', () => {
+      render(
+        <AttachmentModal
+          {...defaultProps}
+          onDeleteAttachment={vi.fn()}
+          currentUserId="user-123"
+          canManageMessages={false}
+        />
+      );
+      expect(screen.getAllByLabelText('delete attachment').length).toBeGreaterThan(0);
+    });
+
+    it('shows the per-attachment delete icon when the viewer has Manage Messages on the channel', () => {
+      render(
+        <AttachmentModal
+          open
+          onClose={vi.fn()}
+          message={otherUserMessage}
+          onDeleteAttachment={vi.fn()}
+          currentUserId="user-123"
+          canManageMessages
+        />
+      );
+      expect(screen.getAllByLabelText('delete attachment')).toHaveLength(1);
+    });
+
+    it('hides the delete affordance when the viewer did not author the message and lacks Manage Messages', () => {
+      render(
+        <AttachmentModal
+          open
+          onClose={vi.fn()}
+          message={otherUserMessage}
+          onDeleteAttachment={vi.fn()}
+          currentUserId="user-123"
+          canManageMessages={false}
+        />
+      );
+      expect(screen.queryAllByLabelText('delete attachment')).toHaveLength(0);
+      expect(screen.queryByText('Remove All')).not.toBeInTheDocument();
+    });
+
+    it('hides the delete affordance when currentUserId is missing entirely', () => {
+      // Safer default: with no auth context, treat the user as unauthorized
+      // rather than rendering an action that will always 403.
+      render(
+        <AttachmentModal
+          {...defaultProps}
+          onDeleteAttachment={vi.fn()}
+          currentUserId={undefined}
+        />
+      );
+      expect(screen.queryAllByLabelText('delete attachment')).toHaveLength(0);
+    });
+
+    it('hides the Remove All button when the viewer cannot delete', () => {
+      const msgWithMany = createMockMessage({
+        author: { id: 'someone-else', username: 'other' } as any,
+        attachments: [
+          createMockAttachment({ id: 'a', filename: 'a.png' }),
+          createMockAttachment({ id: 'b', filename: 'b.png' }),
+        ],
+      });
+      render(
+        <AttachmentModal
+          open
+          onClose={vi.fn()}
+          message={msgWithMany}
+          onDeleteAttachment={vi.fn()}
+          currentUserId="user-123"
+          canManageMessages={false}
+        />
+      );
+      expect(screen.queryByText('Remove All')).not.toBeInTheDocument();
+    });
   });
 });

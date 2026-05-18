@@ -403,6 +403,8 @@ const MessageFeed = ({
         message={selectedMessageForModal}
         onDeleteAttachment={onDeleteAttachment}
         onDeleteAllAttachments={onDeleteAllAttachments}
+        currentUserId={currentUserId}
+        canManageMessages={canManageMessages}
       />
 
       <ReactionModal

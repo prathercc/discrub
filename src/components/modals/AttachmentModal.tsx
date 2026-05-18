@@ -35,6 +35,12 @@ interface AttachmentModalProps {
   message: Message | null;
   onDeleteAttachment?: (message: Message, attachment: Attachment) => Promise<void>;
   onDeleteAllAttachments?: (message: Message) => Promise<void>;
+  // #189: Discord only allows attachment deletion on your own message OR
+  // with MANAGE_MESSAGES on the channel. Passing both lets the modal
+  // gate the affordance instead of showing a control that the API will
+  // always 403.
+  currentUserId?: string;
+  canManageMessages?: boolean;
 }
 
 /** Get the appropriate MUI icon for a file type */
@@ -104,6 +110,8 @@ const AttachmentModal = ({
   onClose,
   message,
   onDeleteAttachment,
+  currentUserId,
+  canManageMessages,
 }: AttachmentModalProps) => {
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
@@ -127,7 +135,9 @@ const AttachmentModal = ({
     return null;
   }
 
-  const isInteractive = !!onDeleteAttachment;
+  const isOwnMessage = !!currentUserId && message.author?.id === currentUserId;
+  const canDeleteAttachments = isOwnMessage || !!canManageMessages;
+  const isInteractive = !!onDeleteAttachment && canDeleteAttachments;
   const isLastAttachment = message.attachments.length === 1;
   const wouldDeleteMessage = isLastAttachment && !message.content?.trim();
 
