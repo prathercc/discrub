@@ -611,7 +611,117 @@ describe('exportService', () => {
         const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
         const threadFiles = filenames.filter((p) => p.includes('/threads/') && p.endsWith('.txt'));
         expect(threadFiles.length).toBeGreaterThanOrEqual(1);
-        expect(threadFiles[0]).toMatch(/threads\/my_thread\.txt$/);
+        // #175: thread filenames now carry an `_<id>` dedupe suffix.
+        expect(threadFiles[0]).toMatch(/threads\/my_thread_t-1\.txt$/);
+      });
+
+      // #175: two thread names that sanitize to the same slug must
+      // land in the ZIP under distinct paths. Pre-fix this threw JSZip
+      // "File already exists" mid-export and aborted the whole channel.
+      it('produces distinct ZIP paths when thread names collide on sanitization (#175)', async () => {
+        const exportDataMod = await import('discrub-core/export-data-service');
+        vi.mocked(exportDataMod.prepareExportData).mockReturnValueOnce({
+          mainPages: [{ messages: [], pageNumber: 1, filePath: '' }],
+          threadExports: [
+            {
+              thread: { id: 'thread-1', name: 'GT3 RS' },
+              pages: [{ messages: [], pageNumber: 1, filePath: '' }],
+              threadNumber: 1,
+              totalThreads: 2,
+            },
+            {
+              thread: { id: 'thread-2', name: 'GT3 RS!' },
+              pages: [{ messages: [], pageNumber: 1, filePath: '' }],
+              threadNumber: 2,
+              totalThreads: 2,
+            },
+          ],
+          totalPages: 1,
+        } as any);
+
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'rate-my-ride-gta',
+          'json',
+          100,
+          false,
+          null,
+          {},
+          null,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          true,
+        );
+
+        const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
+        const threadFiles = filenames.filter((p) => p.includes('/threads/'));
+        // Both threads land under distinct paths.
+        expect(threadFiles).toHaveLength(2);
+        const unique = new Set(threadFiles);
+        expect(unique.size).toBe(2);
+        // Each path is the slug + id suffix.
+        expect(threadFiles.some((p) => p.includes('gt3_rs_thread-1'))).toBe(true);
+        expect(threadFiles.some((p) => p.includes('gt3_rs_thread-2'))).toBe(true);
+      });
+
+      it('Needle-style channel with many same-name threads keeps every thread file (#175)', async () => {
+        // Simulate the user's scenario: Needle promotes every message
+        // into its own thread, and many users post variations of the
+        // same name ("GT3 RS", "gt3 rs", "GT3 RS!", "GT3 RS?", "GT3 RS!!").
+        const exportDataMod = await import('discrub-core/export-data-service');
+        const collidingNames = ['GT3 RS', 'gt3 rs', 'GT3 RS!', 'GT3 RS?', 'GT3 RS!!'];
+        vi.mocked(exportDataMod.prepareExportData).mockReturnValueOnce({
+          mainPages: [{ messages: [], pageNumber: 1, filePath: '' }],
+          threadExports: collidingNames.map((name, i) => ({
+            thread: { id: `t-${i + 1}`, name },
+            pages: [{ messages: [], pageNumber: 1, filePath: '' }],
+            threadNumber: i + 1,
+            totalThreads: collidingNames.length,
+          })),
+          totalPages: 1,
+        } as any);
+
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'rate-my-ride-gta',
+          'json',
+          100,
+          false,
+          null,
+          {},
+          null,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          true,
+        );
+
+        const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
+        const threadFiles = filenames.filter((p) => p.includes('/threads/'));
+        expect(threadFiles).toHaveLength(collidingNames.length);
+        // Every path is unique.
+        expect(new Set(threadFiles).size).toBe(collidingNames.length);
       });
 
       it('does not emit a Discord shell wrapper for text format', async () => {

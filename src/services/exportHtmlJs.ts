@@ -83,10 +83,20 @@ export function buildExportPageData(
     if (msg.author?.id) {
       userMessageCounts[msg.author.id] = (userMessageCounts[msg.author.id] || 0) + 1;
     }
-    // Build thread map from messages that spawned threads
+    // Build thread map from messages that spawned threads.
+    // #175: keep this filename in sync with ExportService.sanitizeFilename
+    // (lowercase + `_` collapse + thread.id suffix) so the embedded
+    // client JS resolves to the actual on-disk thread file. Pre-#175
+    // this used a different slug shape and broke for any thread whose
+    // name had uppercase or non-alphanumeric chars.
     const thread = (msg as any).thread;
     if (thread?.id && thread?.name) {
-      const threadFilename = `threads/${thread.name.replace(/[^a-z0-9-_]/gi, '-')}.html`;
+      const slug = (thread.name as string)
+        .replace(/[^a-z0-9]/gi, '_')
+        .toLowerCase()
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+      const threadFilename = `threads/${slug}_${thread.id}.html`;
       threadMap[msg.id] = threadFilename;
     }
   }

@@ -448,7 +448,15 @@ class ExportService {
 
       // Phase 2b: Generate thread files if separateThreads is enabled
       for (const threadExport of exportData.threadExports) {
-        const threadName = this.sanitizeFilename(threadExport.thread.name || `thread-${threadExport.thread.id}`);
+        // #175: pass the thread id as the dedupe suffix so channels with
+        // many auto-spawned threads (Needle-bot promotes every message
+        // into a thread) can't collide on sanitization. Without this,
+        // "GT3 RS" + "GT3 RS!" both became "gt_rs" and the second
+        // zipService.addFile threw JSZip's "File already exists".
+        const threadName = this.sanitizeFilename(
+          threadExport.thread.name || `thread-${threadExport.thread.id}`,
+          threadExport.thread.id,
+        );
         const threadTotalPages = threadExport.pages.length;
 
         for (const page of threadExport.pages) {
@@ -547,7 +555,13 @@ class ExportService {
 
         // Add thread channels to sidebar
         for (const threadExport of exportData.threadExports) {
-          const threadName = this.sanitizeFilename(threadExport.thread.name || `thread-${threadExport.thread.id}`);
+          // #175: same dedupe-by-id strategy as the Phase 2b loop — the
+          // shell's sidebar links must resolve to the same on-disk
+          // filenames that got written.
+          const threadName = this.sanitizeFilename(
+            threadExport.thread.name || `thread-${threadExport.thread.id}`,
+            threadExport.thread.id,
+          );
           shellChannels.push({
             id: threadName,
             name: threadExport.thread.name || threadName,
@@ -1049,7 +1063,10 @@ class ExportService {
         let threadBannerHtml = '';
         const thread = (msg as any).thread;
         if (thread?.name && !mediaPathPrefix) {
-          const threadFilename = `threads/${this.sanitizeFilename(thread.name)}.html`;
+          // #175: thread file targets are now sanitized with the thread
+          // id suffix to dedupe Needle-style collisions. The banner link
+          // must match the on-disk filename or it points at a 404.
+          const threadFilename = `threads/${this.sanitizeFilename(thread.name, thread.id)}.html`;
           threadBannerHtml = `
             <div class="thread-banner">
               <a href="${threadFilename}" class="thread-banner-link">
