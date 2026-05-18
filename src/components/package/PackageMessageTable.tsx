@@ -93,7 +93,9 @@ import type {
 } from '@features/package/packageTypes';
 import { parseDiscordTimestamp } from '@/utils/packageAnalyticsUtils';
 import EditMessageModal from '@components/modals/EditMessageModal';
+import ReactionModal from '@components/modals/ReactionModal';
 import ExportDialog from '@containers/ExportView/ExportDialog';
+import { fetchReactingUsers } from '@features/message/messageSlice';
 
 interface PackageMessageTableProps {
   channel: PackageChannel;
@@ -131,6 +133,44 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
   const [filterOpen, setFilterOpen] = useState(false);
   const filterCriteria = useAppSelector(selectPackageFilterCriteria(channel.id));
   const filterActive = hasAnyPackageCriterion(filterCriteria);
+  const [reactionModalOpen, setReactionModalOpen] = useState(false);
+  const [reactionMessage, setReactionMessage] = useState<Message | null>(null);
+
+  /**
+   * #173: open the reactor list modal scoped to the clicked row. The
+   * modal reads from the enriched live `Message` (Tier 2 data), not the
+   * raw PackageMessage — package data has no reactions field at all.
+   */
+  const handleOpenReactions = useCallback((live: Message) => {
+    setReactionMessage(live);
+    setReactionModalOpen(true);
+  }, []);
+
+  /**
+   * Reactor lookup runs through the same authenticated thunk the live
+   * feed uses. Without a token (read-only package view) we return
+   * undefined so the modal renders "User list not available" — the
+   * emoji + count chips still render so users can at least see what
+   * reactions exist on the message.
+   */
+  const fetchReactorsForCurrentMessage = useCallback(
+    async (emoji: string) => {
+      if (!token || !reactionMessage) return [];
+      const action = await dispatch(
+        fetchReactingUsers({
+          channelId: channel.id,
+          messageId: reactionMessage.id,
+          emoji,
+          token,
+        }),
+      );
+      if (fetchReactingUsers.fulfilled.match(action)) {
+        return action.payload.users;
+      }
+      return [];
+    },
+    [dispatch, token, reactionMessage, channel.id],
+  );
 
   /**
    * #172: Remove a single chip from the active filter. Operates on the
@@ -657,6 +697,11 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
                         ? 'forbidden'
                         : null
                   }
+                  onOpenReactions={
+                    enrichedMap?.[msg.id]?.reactions?.length
+                      ? () => handleOpenReactions(enrichedMap[msg.id])
+                      : undefined
+                  }
                 />
               </Box>
             );
@@ -668,6 +713,17 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
         open={exportOpen}
         onClose={() => setExportOpen(false)}
         exportContext={{ source: 'package', channelId: channel.id }}
+      />
+
+      <ReactionModal
+        open={reactionModalOpen}
+        onClose={() => {
+          setReactionModalOpen(false);
+          setReactionMessage(null);
+        }}
+        message={reactionMessage}
+        onFetchReactingUsers={token ? fetchReactorsForCurrentMessage : undefined}
+        currentUserId={parsed?.user?.id}
       />
 
       <FilterModal
@@ -758,6 +814,12 @@ interface MessageRowProps {
    * not the target), `'forbidden'` = 403 (user left the server etc).
    */
   gone?: 'deleted' | 'forbidden' | null;
+  /**
+   * #173: opens the reactor list modal scoped to this row's reactions.
+   * Provided only when the row carries reactions (Tier 2 enriched data);
+   * the chip becomes a button with a hover state when set.
+   */
+  onOpenReactions?: () => void;
 }
 
 const MessageRow = memo(function MessageRow({
@@ -774,6 +836,7 @@ const MessageRow = memo(function MessageRow({
   theme,
   enriched,
   gone,
+  onOpenReactions,
 }: MessageRowProps) {
   const parsedDate = parseDiscordTimestamp(message.timestamp);
   const displayTime = parsedDate ? parsedDate.toLocaleString() : message.timestamp;
@@ -994,7 +1057,7 @@ const MessageRow = memo(function MessageRow({
           <AttachmentLink key={`${message.id}-${i}`} url={url} />
         ))}
         {enriched?.reactions && enriched.reactions.length > 0 && (
-          <ReactionsRow reactions={enriched.reactions} />
+          <ReactionsRow reactions={enriched.reactions} onReactionClick={onOpenReactions} />
         )}
         {enriched?.embeds && enriched.embeds.length > 0 && (
           <EmbedsChip count={enriched.embeds.length} />
@@ -1178,9 +1241,18 @@ const ReplyQuote = memo(function ReplyQuote({
  */
 const ReactionsRow = memo(function ReactionsRow({
   reactions,
+  onReactionClick,
 }: {
   reactions: NonNullable<Message['reactions']>;
+  /**
+   * #173: when provided, every chip in the row becomes a button that
+   * opens the shared ReactionModal for this message. The handler is
+   * row-level (not per-emoji) because the modal owns the
+   * emoji-selection state internally and auto-selects the first.
+   */
+  onReactionClick?: () => void;
 }) {
+  const clickable = typeof onReactionClick === 'function';
   return (
     <Stack direction="row" spacing={0.5} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.5 }}>
       {reactions.map((r, i) => {
@@ -1189,6 +1261,21 @@ const ReactionsRow = memo(function ReactionsRow({
         return (
           <Box
             key={key}
+            role={clickable ? 'button' : undefined}
+            tabIndex={clickable ? 0 : undefined}
+            aria-label={clickable ? `View reactors for ${emoji?.name ?? 'emoji'}` : undefined}
+            data-testid="package-reaction-chip"
+            onClick={clickable ? (e) => { e.stopPropagation(); onReactionClick(); } : undefined}
+            onKeyDown={
+              clickable
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onReactionClick();
+                    }
+                  }
+                : undefined
+            }
             sx={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -1199,6 +1286,14 @@ const ReactionsRow = memo(function ReactionsRow({
               backgroundColor: 'action.hover',
               fontSize: '0.75rem',
               fontWeight: 500,
+              cursor: clickable ? 'pointer' : 'default',
+              transition: clickable ? 'background-color 120ms ease' : undefined,
+              '&:hover': clickable ? { backgroundColor: 'action.selected' } : undefined,
+              '&:focus-visible': clickable ? {
+                outline: '2px solid',
+                outlineColor: 'primary.main',
+                outlineOffset: 1,
+              } : undefined,
             }}
           >
             {emoji?.id ? (

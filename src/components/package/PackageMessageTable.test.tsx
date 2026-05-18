@@ -387,6 +387,100 @@ describe('<PackageMessageTable />', () => {
     expect(screen.getByText('2')).toBeInTheDocument();
   });
 
+  // ── #173: reactor list modal ─────────────────────────────────────
+
+  it('reaction chips render as buttons with click affordance when enriched data is present', () => {
+    const base = stateWith({
+      loadedChannels: {
+        '200': [
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachments: [] },
+        ],
+      },
+    }) as any;
+    base.package.enrichedMessages = {
+      '200': {
+        '1': {
+          id: '1',
+          type: 0,
+          content: 'hi',
+          reactions: [{ emoji: { name: '👍' }, count: 2 }],
+          embeds: [],
+        },
+      },
+    };
+    base.package.enrichmentStatus = { '200': 'done' };
+    base.package.enrichmentMisses = { '200': { deleted: [], forbidden: [] } };
+    base.package.enrichmentLastFetched = { '200': Date.now() };
+    renderWithProviders(<PackageMessageTable channel={channel} />, { preloadedState: base });
+
+    const chip = screen.getByTestId('package-reaction-chip');
+    expect(chip).toHaveAttribute('role', 'button');
+    expect(chip).toHaveAttribute('aria-label', 'View reactors for 👍');
+  });
+
+  it('clicking a reaction chip opens the ReactionModal scoped to that message', () => {
+    const base = stateWith({
+      loadedChannels: {
+        '200': [
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachments: [] },
+        ],
+      },
+    }) as any;
+    base.package.enrichedMessages = {
+      '200': {
+        '1': {
+          id: '1',
+          type: 0,
+          content: 'hi',
+          reactions: [{ emoji: { name: '👍' }, count: 2 }],
+          embeds: [],
+        },
+      },
+    };
+    base.package.enrichmentStatus = { '200': 'done' };
+    base.package.enrichmentMisses = { '200': { deleted: [], forbidden: [] } };
+    base.package.enrichmentLastFetched = { '200': Date.now() };
+    renderWithProviders(<PackageMessageTable channel={channel} />, { preloadedState: base });
+
+    fireEvent.click(screen.getByTestId('package-reaction-chip'));
+
+    // The ReactionModal renders with a heading containing "Reactions" or
+    // the per-emoji count layout — check via dialog role.
+    const modals = screen.getAllByRole('dialog');
+    expect(modals.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('opens reactor modal with "User list not available" fallback when there is no auth token', () => {
+    const base = stateWith({
+      token: null,
+      loadedChannels: {
+        '200': [
+          { id: '1', timestamp: '2023-01-01 00:00:00.000000+00:00', content: 'hi', attachments: [] },
+        ],
+      },
+    }) as any;
+    base.package.enrichedMessages = {
+      '200': {
+        '1': {
+          id: '1',
+          type: 0,
+          content: 'hi',
+          reactions: [{ emoji: { name: '👍' }, count: 1 }],
+          embeds: [],
+        },
+      },
+    };
+    base.package.enrichmentStatus = { '200': 'done' };
+    base.package.enrichmentMisses = { '200': { deleted: [], forbidden: [] } };
+    base.package.enrichmentLastFetched = { '200': Date.now() };
+    renderWithProviders(<PackageMessageTable channel={channel} />, { preloadedState: base });
+
+    fireEvent.click(screen.getByTestId('package-reaction-chip'));
+    // The "User list not available" fallback is rendered by the modal when
+    // no fetcher is supplied (token-less package context).
+    expect(screen.getByText(/User list not available/i)).toBeInTheDocument();
+  });
+
   it('rows show the "unavailable" chip for deleted misses', () => {
     const base = stateWith({
       loadedChannels: {
