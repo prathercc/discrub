@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import type { Channel, Message, User } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
-import { IsPinnedType } from 'discrub-core/discord-enum';
+import { IsPinnedType, MessageType } from 'discrub-core/discord-enum';
 import type { PurgeConfig } from './purgeTypes';
 
 import purgeReducer, {
@@ -259,11 +259,13 @@ const messagesConfig = (
   userIds: string[],
   retainAttachedMedia = false,
   deleteAttachmentsOnly = false,
+  systemMessageTypesToDelete?: string[],
 ): PurgeConfig => ({
   mode: 'messages',
   targetUserIds: userIds,
   retainAttachedMedia,
   deleteAttachmentsOnly,
+  systemMessageTypesToDelete,
 });
 
 const reactionsConfig = (userIds: string[]): PurgeConfig => ({
@@ -1344,6 +1346,133 @@ describe('purgeSlice thunks', () => {
       // Only the unpinned message should have its attachments stripped.
       const editedIds = mockEditMessage.mock.calls.map((c) => c[1]);
       expect(editedIds).toEqual(['u1']);
+    });
+  });
+
+  // ── Delete system messages opt-in (Backlog #196 Phase 2) ────────────────
+  //
+  // The default purge skips every message type except DEFAULT (0) and
+  // REPLY (19) — so type-6 CHANNEL_PINNED_MESSAGE "X pinned a message"
+  // notifications survive a purge and leave a confusing trail. Phase 2
+  // adds a BulkPurgeDialog section where the user opts specific system
+  // types into the sweep; the selection flows through PurgeConfig
+  // .systemMessageTypesToDelete and lifts the skip gate for those types.
+
+  describe('bulkPurgeChannels — delete system messages opt-in (Backlog #196 Phase 2)', () => {
+    it('still skips type-6 pin notifications when no system types are selected (default preserved)', async () => {
+      const normal = mockMessage('m1', 0);
+      const pinNotif = mockMessage('m2', 6); // CHANNEL_PINNED_MESSAGE
+      setupSearchResults([[normal, pinNotif]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]);
+      expect(deletedIds).toEqual(['m1']);
+    });
+
+    it('treats an explicit empty selection the same as the default (regression guard for the ?? [] path)', async () => {
+      const pinNotif = mockMessage('m1', 6);
+      setupSearchResults([[pinNotif]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id], false, false, []),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockDeleteMessage).not.toHaveBeenCalled();
+    });
+
+    it('deletes type-6 pin notifications when the user opts that type in', async () => {
+      const normal = mockMessage('m1', 0);
+      const pinNotif = mockMessage('m2', 6);
+      const memberJoin = mockMessage('m3', 7); // USER_JOIN — NOT selected
+      setupSearchResults([[normal, pinNotif, memberJoin]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id], false, false, [
+            MessageType.CHANNEL_PINNED_MESSAGE,
+          ]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // type-0 (always) + type-6 (opted in). type-7 stays skipped.
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]).sort();
+      expect(deletedIds).toEqual(['m1', 'm2']);
+    });
+
+    it('deletes every selected system type while still skipping unselected ones', async () => {
+      const normal = mockMessage('m1', 0);
+      const pinNotif = mockMessage('m2', 6); // selected
+      const memberJoin = mockMessage('m3', 7); // selected
+      const boost = mockMessage('m4', 8); // GUILD_BOOST — NOT selected
+      setupSearchResults([[normal, pinNotif, memberJoin, boost]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id], false, false, [
+            MessageType.CHANNEL_PINNED_MESSAGE,
+            MessageType.USER_JOIN,
+          ]),
+          guildId: 'guild1',
+        }),
+      );
+
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]).sort();
+      expect(deletedIds).toEqual(['m1', 'm2', 'm3']);
+    });
+
+    it('honors isPinned=NO on real messages while still deleting opted-in type-6 notifications', async () => {
+      // The system-message opt-in scopes which system types get swept; it
+      // does not override the #156 pinned-message protection on type-0
+      // messages. A pinned real message stays; the pin notification goes.
+      const pinnedReal = { ...mockMessage('m1', 0), pinned: true } as Message;
+      const pinNotif = { ...mockMessage('m2', 6), pinned: false } as Message;
+      const normal = { ...mockMessage('m3', 0), pinned: false } as Message;
+      setupSearchResults([[pinnedReal, pinNotif, normal]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      const criteria = {
+        searchBeforeDate: null,
+        searchAfterDate: null,
+        searchMessageContent: '',
+        selectedHasTypes: [],
+        userIds: [],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: IsPinnedType.NO,
+      } as unknown as SearchCriteria;
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id], false, false, [
+            MessageType.CHANNEL_PINNED_MESSAGE,
+          ]),
+          guildId: 'guild1',
+          searchCriteria: criteria,
+        }),
+      );
+
+      // m1 (pinned real) preserved by #156; m2 (pin notif) + m3 (normal) deleted.
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]).sort();
+      expect(deletedIds).toEqual(['m2', 'm3']);
     });
   });
 

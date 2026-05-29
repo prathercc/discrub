@@ -744,6 +744,95 @@ describe('Bulk Purge Operations', () => {
         expect(secondUrl, 'second call (cap-shifted)').to.include('max_id=');
       });
     });
+
+    // ── Backlog #196 Phase 2 — opt-in pin-notification deletion ──────────
+    // A real purge leaves the "X pinned a message" trail (type-6
+    // CHANNEL_PINNED_MESSAGE) behind because the predicate skips all
+    // system types. The BulkPurgeDialog "Also delete system messages"
+    // section lets the user opt those types into the sweep.
+
+    const makeSystemHandlingMsg = (id: string, type: number) => ({
+      id,
+      channel_id: '801000000000000001',
+      author: {
+        id: '111222333444555666',
+        username: 'discrub_tester',
+        discriminator: '0',
+        avatar: 'abc123avatar',
+        global_name: 'Discrub Tester',
+      },
+      content: type === 0 ? `msg-${id}` : '',
+      timestamp: '2026-02-01T10:00:00.000Z',
+      edited_timestamp: null,
+      tts: false,
+      mention_everyone: false,
+      mentions: [],
+      attachments: [],
+      embeds: [],
+      reactions: [],
+      pinned: false,
+      type,
+    });
+
+    // 2 normal (type-0) + 2 pin notifications (type-6), all by the target.
+    const seedPinNotificationSearch = () => {
+      const body = {
+        messages: [
+          [makeSystemHandlingMsg('780000000000000201', 0)],
+          [makeSystemHandlingMsg('780000000000000202', 6)],
+          [makeSystemHandlingMsg('780000000000000203', 0)],
+          [makeSystemHandlingMsg('780000000000000204', 6)],
+        ],
+        total_results: 4,
+        threads: [],
+      };
+      let callCount = 0;
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        callCount++;
+        req.reply({
+          statusCode: 200,
+          body: callCount === 1 ? body : { messages: [], total_results: 0, threads: [] },
+        });
+      }).as('searchMessages');
+      cy.intercept('DELETE', `${API}/channels/*/messages/*`, {
+        statusCode: 204,
+        body: {},
+      }).as('deleteMessage');
+    };
+
+    it('leaves type-6 pin notifications in place when the system-message section is untouched', () => {
+      seedPinNotificationSearch();
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+      waitForPurgeComplete();
+      // Only the two type-0 messages go; both pin notifications survive.
+      cy.get('@deleteMessage.all').should('have.length', 2);
+    });
+
+    it('deletes type-6 pin notifications when "Pin notifications" is opted in (#196 Phase 2)', () => {
+      seedPinNotificationSearch();
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+
+      // Expand the section and opt the pin-notification type into the sweep.
+      cy.get('[role="dialog"]').first().contains('Also delete system messages').click();
+      cy.get('[role="dialog"]')
+        .first()
+        .find('input[aria-label="Pin notifications"]')
+        .click({ force: true });
+
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+      waitForPurgeComplete();
+      // All four go: 2 normal + 2 pin notifications.
+      cy.get('@deleteMessage.all').should('have.length', 4);
+    });
   });
 
   describe('Reactions Mode — Guild Channels with Threads', () => {

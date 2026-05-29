@@ -466,6 +466,10 @@ async function purgeChannelMessages(
   // Human-readable channel label for status-log entries (e.g. `#general`
   // or the DM recipient list). Falls back to `#${channelId}`.
   channelLabel?: string,
+  // Backlog #196 Phase 2 — MessageType enum string values (e.g. "6") the
+  // user opted to delete despite being system messages. Converted to a
+  // numeric Set below and consulted by the system-message skip gate.
+  systemMessageTypesToDelete?: string[],
 ): Promise<ChannelPurgeResult> {
   const discordService = getDiscordService();
   let totalDeleted = 0;
@@ -501,6 +505,13 @@ async function purgeChannelMessages(
   try {
 
   const label = channelLabel ?? `#${channelId}`;
+
+  // Backlog #196 Phase 2 — system message types the user explicitly
+  // opted to delete. `message.type` is numeric on the wire; the config
+  // carries MessageType enum string values, so normalize to numbers once.
+  const includedSystemTypes = new Set(
+    (systemMessageTypesToDelete ?? []).map(Number),
+  );
 
   for (const userId of targetUserIds) {
     const searchCriteria = buildSearchCriteria([userId], filterOverrides);
@@ -568,8 +579,14 @@ async function purgeChannelMessages(
         await waitWhilePaused(getState);
         if (checkCancelled(getState)) throw new CancelledError(partialMessages());
 
-        // Skip system messages (type > 0 that aren't DEFAULT or REPLY)
-        if (message.type !== 0 && message.type !== 19) {
+        // Skip system messages (type > 0 that aren't DEFAULT or REPLY),
+        // unless the user opted to delete this specific type via the
+        // BulkPurgeDialog system-message section (#196 Phase 2).
+        if (
+          message.type !== 0 &&
+          message.type !== 19 &&
+          !includedSystemTypes.has(message.type)
+        ) {
           totalSkipped++;
           totalProcessed++;
           // Throttled progress dispatch
@@ -1387,7 +1404,7 @@ export const bulkPurgeChannels = createAsyncThunk<
   'purge/bulkPurgeChannels',
   async (params, { rejectWithValue, dispatch, getState }) => {
     const { channels, config, guildId, searchCriteria: filterCriteria } = params;
-    const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly } = config;
+    const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly, systemMessageTypesToDelete } = config;
     const errors: string[] = [];
     const isDm = !guildId;
     const isReactionsMode = mode === 'reactions';
@@ -1731,6 +1748,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               channelThreadIds,
               archivedThreadIds,
               `${isDm ? '' : '#'}${channelName}`,
+              systemMessageTypesToDelete,
             );
 
             if (

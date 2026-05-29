@@ -14,11 +14,16 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Divider,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
   useTheme,
 } from '@mui/material';
 import {
   DeleteSweep as PurgeIcon,
+  ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
+import { MessageType } from 'discrub-core/discord-enum';
 import type { Channel } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -42,6 +47,64 @@ import { canManageMessages as channelCanManageMessages } from '@/utils/permissio
 // UI-level mode — promotes "Attachments Only" to a first-class choice.
 // Maps to the underlying PurgeMode + deleteAttachmentsOnly flag on dispatch.
 type UiPurgeMode = 'messages' | 'attachmentsOnly' | 'reactions' | 'clearReactions';
+
+// Backlog #196 Phase 2 — the purge skips every message type except
+// DEFAULT and REPLY, so system messages (pin notifications, joins,
+// boosts, etc.) survive a purge. This groups Discord's MessageType enum
+// into plain-English buckets the user can opt into deleting. Each group
+// toggles its whole `types` list; the union of checked groups flows into
+// PurgeConfig.systemMessageTypesToDelete. DEFAULT (0) and REPLY (19) are
+// intentionally absent — they're real messages, not system events.
+const SYSTEM_MESSAGE_GROUPS: { key: string; label: string; types: MessageType[] }[] = [
+  { key: 'pins', label: 'Pin notifications', types: [MessageType.CHANNEL_PINNED_MESSAGE] },
+  {
+    key: 'members',
+    label: 'Member joins & leaves',
+    types: [MessageType.RECIPIENT_ADD, MessageType.RECIPIENT_REMOVE, MessageType.USER_JOIN],
+  },
+  {
+    key: 'channel',
+    label: 'Channel name / icon changes',
+    types: [MessageType.CHANNEL_NAME_CHANGE, MessageType.CHANNEL_ICON_CHANGE, MessageType.CHANNEL_FOLLOW_ADD],
+  },
+  {
+    key: 'boosts',
+    label: 'Boost notifications',
+    types: [
+      MessageType.GUILD_BOOST,
+      MessageType.GUILD_BOOST_TIER_1,
+      MessageType.GUILD_BOOST_TIER_2,
+      MessageType.GUILD_BOOST_TIER_3,
+    ],
+  },
+  {
+    key: 'threads',
+    label: 'Thread created',
+    types: [MessageType.THREAD_CREATED, MessageType.THREAD_STARTER_MESSAGE],
+  },
+  { key: 'automod', label: 'Auto-mod actions', types: [MessageType.AUTO_MODERATION_ACTION] },
+  {
+    key: 'other',
+    label: 'Other events',
+    types: [
+      MessageType.CALL,
+      MessageType.GUILD_DISCOVERY_DISQUALIFIED,
+      MessageType.GUILD_DISCOVERY_REQUALIFIED,
+      MessageType.GUILD_DISCOVERY_GRACE_PERIOD_INITIAL_WARNING,
+      MessageType.GUILD_DISCOVERY_GRACE_PERIOD_FINAL_WARNING,
+      MessageType.CHAT_INPUT_COMMAND,
+      MessageType.GUILD_INVITE_REMINDER,
+      MessageType.CONTEXT_MENU_COMMAND,
+      MessageType.ROLE_SUBSCRIPTION_PURCHASE,
+      MessageType.INTERACTION_PREMIUM_UPSELL,
+      MessageType.STAGE_START,
+      MessageType.STAGE_END,
+      MessageType.STAGE_SPEAKER,
+      MessageType.STAGE_TOPIC,
+      MessageType.GUILD_APPLICATION_PREMIUM_SUBSCRIPTION,
+    ],
+  },
+];
 
 interface BulkPurgeDialogProps {
   open: boolean;
@@ -76,6 +139,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
 
   const [uiMode, setUiMode] = useState<UiPurgeMode>('messages');
   const [retainAttachedMedia, setRetainAttachedMedia] = useState(false);
+  const [selectedSystemGroups, setSelectedSystemGroups] = useState<string[]>([]);
   const [targetUserIds, setTargetUserIds] = useState<string[]>([]);
   const [filterCriteria, setFilterCriteria] = useState<SearchCriteria | null>(null);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -98,6 +162,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
         settings[DiscrubSetting.PURGE_DELETE_ATTACHMENTS_ONLY] === 'true';
       setUiMode(deriveUiMode(rawMode, deleteAttachmentsOnlySetting, canManageMessages));
       setRetainAttachedMedia(settings[DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA] === 'true');
+      setSelectedSystemGroups([]);
       setTargetUserIds([]);
       setFilterCriteria(null);
       setFilterModalOpen(false);
@@ -174,6 +239,23 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
 
   const filterCount = filterCriteria ? countActiveFilters(filterCriteria) : 0;
 
+  // Backlog #196 Phase 2 — flatten the checked group buckets into the
+  // MessageType value list the purge predicate consults. Only meaningful
+  // in pure Messages mode (full delete); other modes pass an empty list.
+  const selectedSystemTypes = useMemo(
+    () =>
+      SYSTEM_MESSAGE_GROUPS.filter((g) => selectedSystemGroups.includes(g.key)).flatMap(
+        (g) => g.types,
+      ),
+    [selectedSystemGroups],
+  );
+
+  const toggleSystemGroup = (key: string) => {
+    setSelectedSystemGroups((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+    );
+  };
+
   const handleConfirm = () => {
     const underlyingMode: PurgeMode = isReactionsFamily
       ? (uiMode === 'clearReactions' ? 'clearReactions' : 'reactions')
@@ -184,6 +266,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       targetUserIds: isClearReactions ? [] : effectiveTargetUserIds,
       retainAttachedMedia: uiMode === 'messages' ? retainAttachedMedia : false,
       deleteAttachmentsOnly: uiMode === 'attachmentsOnly',
+      // Opt-in system-message deletion only applies to full Messages mode.
+      systemMessageTypesToDelete: uiMode === 'messages' ? selectedSystemTypes : [],
     };
 
     // All modes now thread filterCriteria — messages family consumes it as
@@ -405,6 +489,65 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                 </Box>
               }
             />
+          )}
+
+          {/* Backlog #196 Phase 2 — opt-in deletion of Discord system
+              messages. Messages mode only: attachments-only / reactions
+              modes can't act on contentless system events. */}
+          {uiMode === 'messages' && (
+            <Accordion
+              disableGutters
+              elevation={0}
+              square
+              sx={{
+                border: `1px solid ${theme.palette.divider}`,
+                borderRadius: 1,
+                backgroundColor: 'transparent',
+                '&:before': { display: 'none' },
+              }}
+            >
+              <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+                <Typography variant="body2">Also delete system messages</Typography>
+                {selectedSystemGroups.length > 0 && (
+                  <Chip
+                    label={selectedSystemGroups.length}
+                    size="small"
+                    color="error"
+                    sx={{ ml: 1, height: 20, '& .MuiChip-label': { px: 1 } }}
+                  />
+                )}
+              </AccordionSummary>
+              <AccordionDetails>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                  By default the purge leaves Discord's automatic notices in place — the
+                  "pinned a message" trail, join and boost notices, and so on. Check any
+                  you also want removed.
+                </Typography>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
+                    columnGap: 1,
+                  }}
+                >
+                  {SYSTEM_MESSAGE_GROUPS.map((group) => (
+                    <FormControlLabel
+                      key={group.key}
+                      sx={{ m: 0 }}
+                      control={
+                        <Checkbox
+                          size="small"
+                          checked={selectedSystemGroups.includes(group.key)}
+                          onChange={() => toggleSystemGroup(group.key)}
+                          inputProps={{ 'aria-label': group.label }}
+                        />
+                      }
+                      label={<Typography variant="body2">{group.label}</Typography>}
+                    />
+                  ))}
+                </Box>
+              </AccordionDetails>
+            </Accordion>
           )}
 
           {/* Summary */}

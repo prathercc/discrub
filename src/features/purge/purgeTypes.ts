@@ -32,6 +32,13 @@ export interface PurgeConfig {
   targetUserIds: string[];
   retainAttachedMedia: boolean;
   deleteAttachmentsOnly: boolean;
+  // Backlog #196 Phase 2 — opt-in set of Discord MessageType values
+  // (as enum string values, e.g. "6" for CHANNEL_PINNED_MESSAGE) that
+  // the purge should delete despite being system messages. Empty/omitted
+  // preserves the default behavior of skipping every non-DEFAULT,
+  // non-REPLY type. Purge-scope decision, set in BulkPurgeDialog — not a
+  // search filter.
+  systemMessageTypesToDelete?: string[];
 }
 
 export interface PurgeState {

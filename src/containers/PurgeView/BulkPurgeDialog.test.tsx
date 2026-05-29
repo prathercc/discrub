@@ -423,6 +423,7 @@ describe('BulkPurgeDialog', () => {
           targetUserIds: ['999'],
           retainAttachedMedia: false,
           deleteAttachmentsOnly: false,
+          systemMessageTypesToDelete: [],
         },
         guildId: 'g1',
         // Reactions mode doesn't narrow messages via FilterModal (yet).
@@ -450,6 +451,7 @@ describe('BulkPurgeDialog', () => {
           targetUserIds: ['999'],
           retainAttachedMedia: false,
           deleteAttachmentsOnly: false,
+          systemMessageTypesToDelete: [],
         },
         // DM messages mode exposes the optional filter row but sends null
         // when the user hasn't opened/applied it.
@@ -522,6 +524,7 @@ describe('BulkPurgeDialog', () => {
           targetUserIds: [],
           retainAttachedMedia: false,
           deleteAttachmentsOnly: false,
+          systemMessageTypesToDelete: [],
         },
         guildId: 'g1',
         searchCriteria: null,
@@ -820,6 +823,79 @@ describe('BulkPurgeDialog', () => {
       expect(
         screen.getByText(/Manage Messages missing in #staff-only\. Deselect to unlock\./),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe('Delete system messages section (Backlog #196 Phase 2)', () => {
+    it('renders the section in Messages mode', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      expect(screen.getByText('Also delete system messages')).toBeInTheDocument();
+    });
+
+    it('hides the section in Attachments Only mode', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
+      expect(screen.queryByText('Also delete system messages')).not.toBeInTheDocument();
+    });
+
+    it('hides the section in Reactions mode', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByRole('button', { name: 'Reactions' }));
+      expect(screen.queryByText('Also delete system messages')).not.toBeInTheDocument();
+    });
+
+    it('threads a checked group\'s MessageType values into the dispatched config', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByText('Also delete system messages'));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
+
+      fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
+
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            // CHANNEL_PINNED_MESSAGE = "6"
+            systemMessageTypesToDelete: ['6'],
+          }),
+        }),
+      );
+    });
+
+    it('unions multiple checked groups (in enum-group order) and shows a count chip', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByText('Also delete system messages'));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Member joins & leaves' }));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
+
+      // Chip reflects the number of selected groups, not types.
+      expect(screen.getByText('2')).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
+
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            // Group order (pins → members), not click order:
+            // pins ["6"] + members ["1","2","7"].
+            systemMessageTypesToDelete: ['6', '1', '2', '7'],
+          }),
+        }),
+      );
     });
   });
 });
