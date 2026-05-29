@@ -10,6 +10,7 @@ import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettin
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { userEnrichmentService } from '@services/userEnrichmentService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
+import { replyEnrichmentService } from '@services/replyEnrichmentService';
 import { mergeCachedUserMap, addFailedUserId, saveCacheToLocalStorage } from '@features/cache/cacheSlice';
 import { waitWhilePaused, checkCancelled, cancellableDelay, withTransientRetry, isTransientApiFailure } from '@/utils/operationLoopUtils';
 import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
@@ -868,7 +869,7 @@ export const searchMessages = createAsyncThunk(
       // button, and downstream exports all silently lose reaction data
       // for search-loaded sets.
       const settings = selectSettings(getState() as RootState);
-      const messages = await reactionEnrichmentService.enrichMessages(
+      const reactionEnriched = await reactionEnrichmentService.enrichMessages(
         rawMessages,
         token,
         settings,
@@ -880,6 +881,26 @@ export const searchMessages = createAsyncThunk(
           onWillEnrich: (count) => dispatch(addStatusEntry({
             level: 'info',
             message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+          })),
+        },
+      );
+      // Pass 2 reply parent enrichment (#194): Discord's search endpoint
+      // omits `referenced_message` on type-19 hits. Without this, every
+      // reply in a search result shows "Original message was deleted"
+      // even when the parent is alive. Sequenced after reaction
+      // enrichment to keep the around-fetch loop deterministic.
+      const messages = await replyEnrichmentService.enrichMessages(
+        reactionEnriched,
+        token,
+        settings,
+        {
+          shouldStop: async () => {
+            await waitWhilePaused(getState as () => RootState);
+            return checkCancelled(getState as () => RootState);
+          },
+          onWillEnrich: (count) => dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
           })),
         },
       );
@@ -962,7 +983,7 @@ export const fetchNextSearchPage = createAsyncThunk(
 
       // Pass 1 reaction enrichment (#163) — see searchMessages thunk.
       const settings = selectSettings(getState() as RootState);
-      const messages = await reactionEnrichmentService.enrichMessages(
+      const reactionEnriched = await reactionEnrichmentService.enrichMessages(
         rawMessages,
         token,
         settings,
@@ -974,6 +995,22 @@ export const fetchNextSearchPage = createAsyncThunk(
           onWillEnrich: (count) => dispatch(addStatusEntry({
             level: 'info',
             message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+          })),
+        },
+      );
+      // Pass 2 reply parent enrichment (#194) — see searchMessages thunk.
+      const messages = await replyEnrichmentService.enrichMessages(
+        reactionEnriched,
+        token,
+        settings,
+        {
+          shouldStop: async () => {
+            await waitWhilePaused(getState as () => RootState);
+            return checkCancelled(getState as () => RootState);
+          },
+          onWillEnrich: (count) => dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
           })),
         },
       );
@@ -1081,6 +1118,34 @@ export const loadAllSearchResults = createAsyncThunk(
       }
     };
 
+    // #194: parallel milestone ladder for reply parent enrichment.
+    let replyTotal = 0;
+    let replyMilestone = nextMilestone(0);
+    let replyAnnounced = false;
+    const emitReplyStatus = (count: number) => {
+      replyTotal += count;
+      if (!replyAnnounced) {
+        dispatch(
+          addStatusEntry({
+            level: 'info',
+            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
+          })
+        );
+        replyAnnounced = true;
+        replyMilestone = nextMilestone(replyTotal);
+        return;
+      }
+      if (replyTotal >= replyMilestone) {
+        dispatch(
+          addStatusEntry({
+            level: 'info',
+            message: `Search: resolved reply parents for ${replyTotal} messages so far`,
+          })
+        );
+        replyMilestone = nextMilestone(replyTotal);
+      }
+    };
+
     try {
       while (!signal.aborted) {
         await waitWhilePaused(getState as () => RootState);
@@ -1136,7 +1201,7 @@ export const loadAllSearchResults = createAsyncThunk(
         // partway through a multi-page load preserves enriched messages
         // for pages that finished before the cancel.
         const settings = selectSettings(getState() as RootState);
-        const page = await reactionEnrichmentService.enrichMessages(
+        const reactionEnriched = await reactionEnrichmentService.enrichMessages(
           rawPage,
           token,
           settings,
@@ -1146,6 +1211,19 @@ export const loadAllSearchResults = createAsyncThunk(
               return checkCancelled(getState as () => RootState);
             },
             onWillEnrich: emitReactionStatus,
+          },
+        );
+        // Pass 2 reply parent enrichment (#194) — also per-page.
+        const page = await replyEnrichmentService.enrichMessages(
+          reactionEnriched,
+          token,
+          settings,
+          {
+            shouldStop: async () => {
+              await waitWhilePaused(getState as () => RootState);
+              return checkCancelled(getState as () => RootState);
+            },
+            onWillEnrich: emitReplyStatus,
           },
         );
 
@@ -1863,6 +1941,30 @@ export const searchThreadMessages = createAsyncThunk(
         }
       };
 
+      // #194: parallel milestone ladder for reply parent enrichment.
+      let replyTotal = 0;
+      let replyMilestone = nextMilestone(0);
+      let replyAnnounced = false;
+      const emitReplyStatus = (count: number) => {
+        replyTotal += count;
+        if (!replyAnnounced) {
+          dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
+          }));
+          replyAnnounced = true;
+          replyMilestone = nextMilestone(replyTotal);
+          return;
+        }
+        if (replyTotal >= replyMilestone) {
+          dispatch(addStatusEntry({
+            level: 'info',
+            message: `Search: resolved reply parents for ${replyTotal} messages so far`,
+          }));
+          replyMilestone = nextMilestone(replyTotal);
+        }
+      };
+
       while (shouldContinue && !signal.aborted) {
         let batchMessages: Message[] = [];
         let offset = 0;
@@ -1906,7 +2008,7 @@ export const searchThreadMessages = createAsyncThunk(
 
           // Pass 1 reaction enrichment (#163) — see searchMessages thunk.
           const settings = selectSettings(getState() as RootState);
-          const messages = await reactionEnrichmentService.enrichMessages(
+          const reactionEnriched = await reactionEnrichmentService.enrichMessages(
             rawMessages,
             token,
             settings,
@@ -1916,6 +2018,19 @@ export const searchThreadMessages = createAsyncThunk(
                 return checkCancelled(getState as () => RootState);
               },
               onWillEnrich: emitReactionStatus,
+            },
+          );
+          // Pass 2 reply parent enrichment (#194) — see searchMessages thunk.
+          const messages = await replyEnrichmentService.enrichMessages(
+            reactionEnriched,
+            token,
+            settings,
+            {
+              shouldStop: async () => {
+                await waitWhilePaused(getState as () => RootState);
+                return checkCancelled(getState as () => RootState);
+              },
+              onWillEnrich: emitReplyStatus,
             },
           );
 

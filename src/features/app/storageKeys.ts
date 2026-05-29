@@ -37,6 +37,7 @@ export const defaultSettings: AppSettings = {
 
   // User Data Settings
   [DiscrubSetting.REACTIONS_ENABLED]: 'true',
+  [DiscrubSetting.REPLIES_ENABLED]: 'true',
   [DiscrubSetting.SERVER_NICKNAME_LOOKUP]: 'true',
   [DiscrubSetting.DISPLAY_NAME_LOOKUP]: 'true',
   [DiscrubSetting.APP_USER_DATA_REFRESH_RATE]: UserDataRefreshRate.DAILY,

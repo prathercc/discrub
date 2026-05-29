@@ -7,6 +7,7 @@ import { getExportService, generateExportReadme, generatePlainTextReadme } from 
 import { StreamingZipService } from '@services/streamingZipService';
 import { getDiscordService } from '@services/discordService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
+import { replyEnrichmentService } from '@services/replyEnrichmentService';
 import type { ExportReactionMap, SearchCriteria, SearchIterationPage } from 'discrub-core/types/discrub-types';
 import type { RootState } from '@/app/store';
 import type { ThunkDispatch, UnknownAction } from '@reduxjs/toolkit';
@@ -531,7 +532,7 @@ async function fetchAllChannelMessages(
     // data for N messages" and "Fetching reaction details" while the lib
     // runs the AROUND loop.
     let batchesScanned = 0;
-    return await reactionEnrichmentService.enrichMessages(
+    const reactionEnriched = await reactionEnrichmentService.enrichMessages(
       allMessages,
       token,
       settings,
@@ -553,6 +554,25 @@ async function fetchAllChannelMessages(
             }));
           }
         },
+      },
+    );
+    // Pass 2 reply parent enrichment (#194): bulk export search branch
+    // needs the same enrichment so type-19 replies in the export render
+    // with their referenced_message intact instead of the "Original
+    // message was deleted" fallback.
+    return await replyEnrichmentService.enrichMessages(
+      reactionEnriched,
+      token,
+      settings,
+      {
+        shouldStop: async () => {
+          await waitWhilePaused(getState);
+          return checkCancelled(getState);
+        },
+        onWillEnrich: (count) => dispatch(addStatusEntry({
+          level: 'info',
+          message: `Bulk export: resolving reply parents for ${count} message${count === 1 ? '' : 's'} in ${logContext?.channelLabel ?? channelId}…`,
+        })),
       },
     );
   }
