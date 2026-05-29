@@ -23,7 +23,8 @@ import {
   DeleteSweep as PurgeIcon,
   ExpandMore as ExpandMoreIcon,
 } from '@mui/icons-material';
-import { MessageType } from 'discrub-core/discord-enum';
+import { groupsToTypes } from '@/utils/systemMessageGroups';
+import SystemMessageTypePicker from '@components/message/SystemMessageTypePicker';
 import type { Channel } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -47,64 +48,6 @@ import { canManageMessages as channelCanManageMessages } from '@/utils/permissio
 // UI-level mode — promotes "Attachments Only" to a first-class choice.
 // Maps to the underlying PurgeMode + deleteAttachmentsOnly flag on dispatch.
 type UiPurgeMode = 'messages' | 'attachmentsOnly' | 'reactions' | 'clearReactions';
-
-// Backlog #196 Phase 2 — the purge skips every message type except
-// DEFAULT and REPLY, so system messages (pin notifications, joins,
-// boosts, etc.) survive a purge. This groups Discord's MessageType enum
-// into plain-English buckets the user can opt into deleting. Each group
-// toggles its whole `types` list; the union of checked groups flows into
-// PurgeConfig.systemMessageTypesToDelete. DEFAULT (0) and REPLY (19) are
-// intentionally absent — they're real messages, not system events.
-const SYSTEM_MESSAGE_GROUPS: { key: string; label: string; types: MessageType[] }[] = [
-  { key: 'pins', label: 'Pin notifications', types: [MessageType.CHANNEL_PINNED_MESSAGE] },
-  {
-    key: 'members',
-    label: 'Member joins & leaves',
-    types: [MessageType.RECIPIENT_ADD, MessageType.RECIPIENT_REMOVE, MessageType.USER_JOIN],
-  },
-  {
-    key: 'channel',
-    label: 'Channel name / icon changes',
-    types: [MessageType.CHANNEL_NAME_CHANGE, MessageType.CHANNEL_ICON_CHANGE, MessageType.CHANNEL_FOLLOW_ADD],
-  },
-  {
-    key: 'boosts',
-    label: 'Boost notifications',
-    types: [
-      MessageType.GUILD_BOOST,
-      MessageType.GUILD_BOOST_TIER_1,
-      MessageType.GUILD_BOOST_TIER_2,
-      MessageType.GUILD_BOOST_TIER_3,
-    ],
-  },
-  {
-    key: 'threads',
-    label: 'Thread created',
-    types: [MessageType.THREAD_CREATED, MessageType.THREAD_STARTER_MESSAGE],
-  },
-  { key: 'automod', label: 'Auto-mod actions', types: [MessageType.AUTO_MODERATION_ACTION] },
-  {
-    key: 'other',
-    label: 'Other events',
-    types: [
-      MessageType.CALL,
-      MessageType.GUILD_DISCOVERY_DISQUALIFIED,
-      MessageType.GUILD_DISCOVERY_REQUALIFIED,
-      MessageType.GUILD_DISCOVERY_GRACE_PERIOD_INITIAL_WARNING,
-      MessageType.GUILD_DISCOVERY_GRACE_PERIOD_FINAL_WARNING,
-      MessageType.CHAT_INPUT_COMMAND,
-      MessageType.GUILD_INVITE_REMINDER,
-      MessageType.CONTEXT_MENU_COMMAND,
-      MessageType.ROLE_SUBSCRIPTION_PURCHASE,
-      MessageType.INTERACTION_PREMIUM_UPSELL,
-      MessageType.STAGE_START,
-      MessageType.STAGE_END,
-      MessageType.STAGE_SPEAKER,
-      MessageType.STAGE_TOPIC,
-      MessageType.GUILD_APPLICATION_PREMIUM_SUBSCRIPTION,
-    ],
-  },
-];
 
 interface BulkPurgeDialogProps {
   open: boolean;
@@ -243,27 +186,9 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   // MessageType value list the purge predicate consults. Only meaningful
   // in pure Messages mode (full delete); other modes pass an empty list.
   const selectedSystemTypes = useMemo(
-    () =>
-      SYSTEM_MESSAGE_GROUPS.filter((g) => selectedSystemGroups.includes(g.key)).flatMap(
-        (g) => g.types,
-      ),
+    () => groupsToTypes(selectedSystemGroups),
     [selectedSystemGroups],
   );
-
-  const toggleSystemGroup = (key: string) => {
-    setSelectedSystemGroups((prev) =>
-      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-    );
-  };
-
-  const allSystemGroupsSelected =
-    selectedSystemGroups.length === SYSTEM_MESSAGE_GROUPS.length;
-
-  const toggleAllSystemGroups = () => {
-    setSelectedSystemGroups(
-      allSystemGroupsSelected ? [] : SYSTEM_MESSAGE_GROUPS.map((g) => g.key),
-    );
-  };
 
   const handleConfirm = () => {
     const underlyingMode: PurgeMode = isReactionsFamily
@@ -527,43 +452,11 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                 )}
               </AccordionSummary>
               <AccordionDetails>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
-                  <Typography variant="caption" color="text.secondary">
-                    By default the purge leaves Discord's automatic notices in place — the
-                    "pinned a message" trail, join and boost notices, and so on. Check any
-                    you also want removed.
-                  </Typography>
-                  <Button
-                    size="small"
-                    onClick={toggleAllSystemGroups}
-                    sx={{ textTransform: 'none', flexShrink: 0, alignSelf: 'center' }}
-                  >
-                    {allSystemGroupsSelected ? 'Clear all' : 'Select all'}
-                  </Button>
-                </Box>
-                <Box
-                  sx={{
-                    display: 'grid',
-                    gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' },
-                    columnGap: 1,
-                  }}
-                >
-                  {SYSTEM_MESSAGE_GROUPS.map((group) => (
-                    <FormControlLabel
-                      key={group.key}
-                      sx={{ m: 0 }}
-                      control={
-                        <Checkbox
-                          size="small"
-                          checked={selectedSystemGroups.includes(group.key)}
-                          onChange={() => toggleSystemGroup(group.key)}
-                          inputProps={{ 'aria-label': group.label }}
-                        />
-                      }
-                      label={<Typography variant="body2">{group.label}</Typography>}
-                    />
-                  ))}
-                </Box>
+                <SystemMessageTypePicker
+                  selectedGroups={selectedSystemGroups}
+                  onChange={setSelectedSystemGroups}
+                  description={`By default the purge leaves Discord's automatic notices in place — the "pinned a message" trail, join and boost notices, and so on. Check any you also want removed.`}
+                />
               </AccordionDetails>
             </Accordion>
           )}
