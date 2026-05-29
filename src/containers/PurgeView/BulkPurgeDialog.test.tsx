@@ -832,7 +832,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      expect(screen.getByText('System messages')).toBeInTheDocument();
+      expect(screen.getByText('System Messages')).toBeInTheDocument();
     });
 
     it('hides the section in Attachments Only mode', () => {
@@ -841,7 +841,7 @@ describe('BulkPurgeDialog', () => {
         { preloadedState: stateWithUser },
       );
       fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
-      expect(screen.queryByText('System messages')).not.toBeInTheDocument();
+      expect(screen.queryByText('System Messages')).not.toBeInTheDocument();
     });
 
     it('hides the section in Reactions mode', () => {
@@ -850,7 +850,7 @@ describe('BulkPurgeDialog', () => {
         { preloadedState: stateWithUser },
       );
       fireEvent.click(screen.getByRole('button', { name: 'Reactions' }));
-      expect(screen.queryByText('System messages')).not.toBeInTheDocument();
+      expect(screen.queryByText('System Messages')).not.toBeInTheDocument();
     });
 
     it('threads a checked group\'s MessageType values into the dispatched config', () => {
@@ -858,7 +858,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System messages'));
+      fireEvent.click(screen.getByText('System Messages'));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
 
       fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
@@ -878,7 +878,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System messages'));
+      fireEvent.click(screen.getByText('System Messages'));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Member joins & leaves' }));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
 
@@ -903,7 +903,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System messages'));
+      fireEvent.click(screen.getByText('System Messages'));
 
       // Select all → all 7 groups checked, count chip + label flips.
       fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
@@ -921,7 +921,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System messages'));
+      fireEvent.click(screen.getByText('System Messages'));
       fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
       fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
 

@@ -516,7 +516,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="body2">System messages</Typography>
+                <Typography variant="body2">System Messages</Typography>
                 {selectedSystemGroups.length > 0 && (
                   <Chip
                     label={selectedSystemGroups.length}

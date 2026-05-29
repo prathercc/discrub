@@ -8,6 +8,7 @@ import {
 } from '@mui/icons-material';
 import type { Message, User } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
+import { isSystemMessageType } from 'discrub-core/system-messages';
 import DeleteConfirmModal from '@components/modals/DeleteConfirmModal';
 import EditMessageModal from '@components/modals/EditMessageModal';
 import EmbedModal from '@components/modals/EmbedModal';
@@ -68,11 +69,19 @@ const MessageActions = ({
     ? selectedMessages.some((m) => m.author?.id !== currentUserId)
     : false;
   const deleteBlockedByPermission = hasNonSelfSelection && !canManageMessages;
-  const editBlockedByPermission = hasNonSelfSelection;
+  // System messages (pin/join/boost notices etc.) carry no editable body —
+  // Discord's PATCH endpoint only accepts your own DEFAULT/REPLY messages.
+  // Now that they're selectable in the feed (#196 Phase 3), guard Edit so a
+  // mixed selection doesn't offer an action that can only 403. Delete stays
+  // available — removing system messages is the whole point of #196.
+  const hasSystemSelection = selectedMessages.some((m) => isSystemMessageType(m.type));
+  const editBlocked = hasNonSelfSelection || hasSystemSelection;
   const deleteLockReason = isDm
     ? 'You can only delete your own messages in DMs.'
     : 'You can only delete your own messages without Manage Messages permission in this channel.';
-  const editLockReason = 'You can only edit your own messages. Discord blocks editing other users\' messages.';
+  const editLockReason = hasSystemSelection
+    ? "System messages (pins, joins, boosts, etc.) can't be edited."
+    : 'You can only edit your own messages. Discord blocks editing other users\' messages.';
 
   const handleDelete = async () => {
     setDeleteModalOpen(false);
@@ -112,13 +121,13 @@ const MessageActions = ({
             </span>
           </Tooltip>
 
-          <Tooltip title={editBlockedByPermission ? editLockReason : ''} disableHoverListener={!editBlockedByPermission}>
+          <Tooltip title={editBlocked ? editLockReason : ''} disableHoverListener={!editBlocked}>
             <span>
               <Button
                 variant="outlined"
                 size="small"
                 startIcon={<EditIcon />}
-                disabled={selectedCount === 0 || (selectedCount > 1 && isOperationRunning) || editBlockedByPermission}
+                disabled={selectedCount === 0 || (selectedCount > 1 && isOperationRunning) || editBlocked}
                 onClick={() => setEditModalOpen(true)}
               >
                 Edit

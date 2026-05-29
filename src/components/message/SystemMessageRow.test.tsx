@@ -173,32 +173,74 @@ describe('<SystemMessageRow />', () => {
     expect(c19.firstChild).toBeNull();
   });
 
-  // ── Deep-link click wiring (#123 Phase 1) ───────────────────────────────
+  // ── Navigation vs selection (#123 deep-link + #196 Phase 3) ─────────────
+  // The "See all …" link navigates; a plain row click selects. The row
+  // itself is no longer a button — navigation is scoped to the anchor so a
+  // row click doesn't jump the user away from a message they meant to pick.
 
-  describe('click-to-navigate', () => {
-    it('pin notice exposes role=button for keyboard users', () => {
+  describe('navigation vs selection', () => {
+    it('exposes the See all pinned messages link as a focusable button', () => {
       const msg = baseMsg(6, {
         message_reference: { message_id: 'pinned-target' } as any,
       });
-      render(<SystemMessageRow message={msg} formattingContext={formattingContext} />);
-      const row = screen.getByTestId('system-message-row');
-      expect(row).toHaveAttribute('role', 'button');
-      expect(row).toHaveAttribute('tabindex', '0');
+      const { container } = render(
+        <SystemMessageRow message={msg} formattingContext={formattingContext} />,
+      );
+      const link = container.querySelector('.system-link');
+      expect(link).toHaveAttribute('role', 'button');
+      expect(link).toHaveAttribute('tabindex', '0');
+      // The row itself is no longer a button — selection, not navigation.
+      expect(screen.getByTestId('system-message-row')).not.toHaveAttribute('role', 'button');
     });
 
-    it('thread-created notice exposes role=button for keyboard users', () => {
+    it('exposes the See all threads link for thread-created notices', () => {
       const msg = baseMsg(18, {
         thread: { id: 't1', name: 'Project planning' } as Message['thread'],
       });
-      render(<SystemMessageRow message={msg} formattingContext={formattingContext} />);
-      expect(screen.getByTestId('system-message-row')).toHaveAttribute('role', 'button');
+      const { container } = render(
+        <SystemMessageRow message={msg} formattingContext={formattingContext} />,
+      );
+      expect(container.querySelector('.system-link')).toHaveAttribute('role', 'button');
     });
 
-    it('non-navigable system kinds (boost, join, etc.) are not interactive', () => {
-      render(<SystemMessageRow message={baseMsg(10)} formattingContext={formattingContext} />);
-      const row = screen.getByTestId('system-message-row');
-      expect(row).not.toHaveAttribute('role', 'button');
-      expect(row).not.toHaveAttribute('tabindex');
+    it('renders no navigation link for non-navigable kinds (boost, join, etc.)', () => {
+      const { container } = render(
+        <SystemMessageRow message={baseMsg(10)} formattingContext={formattingContext} />,
+      );
+      expect(container.querySelector('.system-link')).toBeNull();
+    });
+
+    it('selects the message when the row body (not the link) is clicked', () => {
+      const onToggleSelect = vi.fn();
+      const msg = baseMsg(6, {
+        message_reference: { message_id: 'pinned-target' } as any,
+      });
+      render(
+        <SystemMessageRow
+          message={msg}
+          formattingContext={formattingContext}
+          onToggleSelect={onToggleSelect}
+        />,
+      );
+      // The notice text is plain (the link is a child); clicking it selects.
+      fireEvent.click(screen.getByTestId('system-message-text'));
+      expect(onToggleSelect).toHaveBeenCalledWith(msg);
+    });
+
+    it('does NOT select when the See all link is clicked (navigation path)', () => {
+      const onToggleSelect = vi.fn();
+      const msg = baseMsg(6, {
+        message_reference: { message_id: 'pinned-target' } as any,
+      });
+      const { container } = render(
+        <SystemMessageRow
+          message={msg}
+          formattingContext={formattingContext}
+          onToggleSelect={onToggleSelect}
+        />,
+      );
+      fireEvent.click(container.querySelector('.system-link')!);
+      expect(onToggleSelect).not.toHaveBeenCalled();
     });
 
     it('reflects the highlighted prop via data-highlighted attribute', () => {

@@ -80,12 +80,11 @@ const SystemMessageRow = memo(function SystemMessageRow({
     guildName: guildName ?? formattingContext.guildName,
   });
 
-  // Delegate clicks on the notice body to the right navigation action
-  // based on the system-message kind. Type 6 (pinned) references another
-  // message in the channel, type 18 (thread-created) carries a thread
-  // object we can open in a new tab. Wired here (rather than in linkify)
-  // so the whole notice row — not just the "See all …" anchor — acts as
-  // the click target, matching Discord's own behavior.
+  // Navigation action for the "See all …" link only. Type 6 (pinned)
+  // references another message in the channel; type 18 (thread-created)
+  // carries a thread object we can open in a new tab. Scoped to the
+  // anchor (not the whole row) so a plain row click selects the message
+  // instead of jumping away (#196 Phase 3 feedback).
   const handleNoticeClick = useCallback(() => {
     if (!descriptor) return;
     if (descriptor.kind === 'pin') {
@@ -103,12 +102,43 @@ const SystemMessageRow = memo(function SystemMessageRow({
     }
   }, [descriptor, message, token, dispatch]);
 
+  // Row click toggles selection (mirrors MessageFeedRow), EXCEPT when the
+  // click lands on the "See all …" link — that navigates. Other
+  // interactive descendants (the selection checkbox) handle their own
+  // clicks and are skipped here.
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.system-link')) {
+        handleNoticeClick();
+        return;
+      }
+      if (target.closest('a, button, input, [role="button"], [role="link"]')) return;
+      onToggleSelect?.(message);
+    },
+    [handleNoticeClick, onToggleSelect, message],
+  );
+
+  // Keyboard activation for the focusable "See all …" link.
+  const handleRowKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.system-link') && (e.key === 'Enter' || e.key === ' ')) {
+        e.preventDefault();
+        handleNoticeClick();
+      }
+    },
+    [handleNoticeClick],
+  );
+
   if (!descriptor) return null;
 
   const Icon = getSystemMessageIcon(descriptor.kind);
   const html = linkify(formatContentAsHtml(descriptor.text, formattingContext));
 
   const isClickable = descriptor.kind === 'pin' || descriptor.kind === 'thread';
+  // The row is interactive when it can be selected OR carries a nav link.
+  const interactive = !!onToggleSelect || isClickable;
 
   const roleColor =
     cachedUserMap && guildRoles && message.author?.id
@@ -132,15 +162,8 @@ const SystemMessageRow = memo(function SystemMessageRow({
       data-message-id={message.id}
       data-system-kind={descriptor.kind}
       data-highlighted={highlighted ? 'true' : undefined}
-      role={isClickable ? 'button' : undefined}
-      tabIndex={isClickable ? 0 : undefined}
-      onClick={isClickable ? handleNoticeClick : undefined}
-      onKeyDown={isClickable ? (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleNoticeClick();
-        }
-      } : undefined}
+      onClick={interactive ? handleRowClick : undefined}
+      onKeyDown={isClickable ? handleRowKeyDown : undefined}
       sx={{
         // Outer container mirrors MessageChunk's shell: same `px` +
         // `gap` so the icon column sits where the avatar would, and
@@ -158,14 +181,17 @@ const SystemMessageRow = memo(function SystemMessageRow({
         fontSize: '0.9rem',
         lineHeight: 1.5,
         borderRadius: 0.5,
-        cursor: isClickable ? 'pointer' : 'default',
+        cursor: interactive ? 'pointer' : 'default',
         ...(selected && {
           backgroundColor: 'rgba(88, 101, 242, 0.16)',
         }),
         '&:hover .system-row-hover-actions': { opacity: 1 },
-        ...(isClickable && {
-          '&:hover': { backgroundColor: 'rgba(114, 137, 218, 0.06)' },
-          '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
+        ...(interactive && {
+          '&:hover': {
+            backgroundColor: selected
+              ? 'rgba(88, 101, 242, 0.22)'
+              : 'rgba(114, 137, 218, 0.06)',
+          },
         }),
         ...(highlighted && {
           animation: 'deeplink-flash-system 2s ease-out',
@@ -230,6 +256,12 @@ const SystemMessageRow = memo(function SystemMessageRow({
               textDecoration: 'none',
               '&:hover': {
                 textDecoration: 'underline',
+              },
+              '&:focus-visible': {
+                outline: '2px solid',
+                outlineColor: theme.palette.primary.main,
+                outlineOffset: 2,
+                borderRadius: '2px',
               },
             },
             '& .user-mention, & .role-mention': {

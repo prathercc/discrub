@@ -150,10 +150,25 @@ describe('System / pinned message selection (#196 Phase 3)', () => {
     cy.contains('1 selected').should('be.visible');
   });
 
+  it('selects a pin notification by clicking the row body (not just the checkbox)', () => {
+    // Click the left side of the row (the icon column) to avoid the
+    // trailing "See all pinned messages" link, which navigates instead.
+    cy.get('[data-testid="system-message-row"][data-system-kind="pin"]')
+      .first()
+      .click('left');
+    cy.contains('1 selected').should('be.visible');
+  });
+
   it('Select all now visibly includes the pin notification', () => {
     cy.get('input[aria-label="Select all messages"]').click({ force: true });
     cy.contains('2 selected').should('be.visible');
     cy.get('input[aria-label="Select system message 700000000000000092"]').should('be.checked');
+  });
+
+  it('disables Edit but keeps Delete enabled for a selected system message', () => {
+    cy.get('input[aria-label="Select system message 700000000000000092"]').click({ force: true });
+    cy.contains('button', 'Edit').should('be.disabled');
+    cy.contains('button', 'Delete').should('not.be.disabled');
   });
 
   it('deletes a selected pin notification (sends DELETE for its id)', () => {

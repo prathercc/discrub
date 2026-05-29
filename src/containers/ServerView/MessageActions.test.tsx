@@ -268,6 +268,33 @@ describe('MessageActions', () => {
     });
   });
 
+  describe('System message edit gating (#196 Phase 3)', () => {
+    it('disables Edit when the selection includes a system message', () => {
+      const normal = createMockMessage({ id: 'n1', type: 0 });
+      const pinNotice = createMockMessage({ id: 's1', type: 6 });
+      render(<MessageActions {...defaultProps} selectedMessages={[normal, pinNotice]} />);
+      expect(screen.getByRole('button', { name: /Edit/ })).toBeDisabled();
+    });
+
+    it('keeps Delete enabled for a system-message selection (deletion is the point of #196)', () => {
+      const pinNotice = createMockMessage({ id: 's1', type: 6 });
+      render(<MessageActions {...defaultProps} selectedMessages={[pinNotice]} />);
+      expect(screen.getByRole('button', { name: /Delete/ })).not.toBeDisabled();
+    });
+
+    it('shows the system-message lock reason on the disabled Edit button', async () => {
+      const pinNotice = createMockMessage({ id: 's1', type: 6 });
+      render(<MessageActions {...defaultProps} selectedMessages={[pinNotice]} />);
+      const button = screen.getByRole('button', { name: /Edit/ });
+      fireEvent.mouseOver(button.parentElement!);
+      await waitFor(() => {
+        expect(
+          screen.getByText("System messages (pins, joins, boosts, etc.) can't be edited."),
+        ).toBeInTheDocument();
+      });
+    });
+  });
+
   describe('Edit Callback', () => {
     it('should call onEdit with message and new content when saved', async () => {
       const onEdit = vi.fn().mockResolvedValue(undefined);

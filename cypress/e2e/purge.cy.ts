@@ -748,7 +748,7 @@ describe('Bulk Purge Operations', () => {
     // ── Backlog #196 Phase 2 — opt-in pin-notification deletion ──────────
     // A real purge leaves the "X pinned a message" trail (type-6
     // CHANNEL_PINNED_MESSAGE) behind because the predicate skips all
-    // system types. The BulkPurgeDialog "System messages"
+    // system types. The BulkPurgeDialog "System Messages"
     // section lets the user opt those types into the sweep.
 
     const makeSystemHandlingMsg = (id: string, type: number) => ({
@@ -821,7 +821,7 @@ describe('Bulk Purge Operations', () => {
       cy.wait('@lookupUser');
 
       // Expand the section and opt the pin-notification type into the sweep.
-      cy.get('[role="dialog"]').first().contains('System messages').click();
+      cy.get('[role="dialog"]').first().contains('System Messages').click();
       cy.get('[role="dialog"]')
         .first()
         .find('input[aria-label="Pin notifications"]')
