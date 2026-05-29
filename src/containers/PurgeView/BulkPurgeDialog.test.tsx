@@ -832,7 +832,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      expect(screen.getByText('Also delete system messages')).toBeInTheDocument();
+      expect(screen.getByText('System messages')).toBeInTheDocument();
     });
 
     it('hides the section in Attachments Only mode', () => {
@@ -841,7 +841,7 @@ describe('BulkPurgeDialog', () => {
         { preloadedState: stateWithUser },
       );
       fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
-      expect(screen.queryByText('Also delete system messages')).not.toBeInTheDocument();
+      expect(screen.queryByText('System messages')).not.toBeInTheDocument();
     });
 
     it('hides the section in Reactions mode', () => {
@@ -850,7 +850,7 @@ describe('BulkPurgeDialog', () => {
         { preloadedState: stateWithUser },
       );
       fireEvent.click(screen.getByRole('button', { name: 'Reactions' }));
-      expect(screen.queryByText('Also delete system messages')).not.toBeInTheDocument();
+      expect(screen.queryByText('System messages')).not.toBeInTheDocument();
     });
 
     it('threads a checked group\'s MessageType values into the dispatched config', () => {
@@ -858,7 +858,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('Also delete system messages'));
+      fireEvent.click(screen.getByText('System messages'));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
 
       fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
@@ -878,7 +878,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('Also delete system messages'));
+      fireEvent.click(screen.getByText('System messages'));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Member joins & leaves' }));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
 
@@ -893,6 +893,45 @@ describe('BulkPurgeDialog', () => {
             // Group order (pins → members), not click order:
             // pins ["6"] + members ["1","2","7"].
             systemMessageTypesToDelete: ['6', '1', '2', '7'],
+          }),
+        }),
+      );
+    });
+
+    it('toggles every group via the Select all / Clear all button', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByText('System messages'));
+
+      // Select all → all 7 groups checked, count chip + label flips.
+      fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+      expect(screen.getByText('7')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Clear all' })).toBeInTheDocument();
+
+      // Clear all → empty again.
+      fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
+      expect(screen.queryByText('7')).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Select all' })).toBeInTheDocument();
+    });
+
+    it('Select all threads every system type into the dispatched config', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      fireEvent.click(screen.getByText('System messages'));
+      fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
+      fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
+
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            // A representative sample from across the buckets.
+            systemMessageTypesToDelete: expect.arrayContaining([
+              '6', '1', '2', '7', '8', '24',
+            ]),
           }),
         }),
       );

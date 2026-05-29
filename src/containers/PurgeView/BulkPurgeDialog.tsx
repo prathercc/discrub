@@ -256,6 +256,15 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
     );
   };
 
+  const allSystemGroupsSelected =
+    selectedSystemGroups.length === SYSTEM_MESSAGE_GROUPS.length;
+
+  const toggleAllSystemGroups = () => {
+    setSelectedSystemGroups(
+      allSystemGroupsSelected ? [] : SYSTEM_MESSAGE_GROUPS.map((g) => g.key),
+    );
+  };
+
   const handleConfirm = () => {
     const underlyingMode: PurgeMode = isReactionsFamily
       ? (uiMode === 'clearReactions' ? 'clearReactions' : 'reactions')
@@ -507,7 +516,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="body2">Also delete system messages</Typography>
+                <Typography variant="body2">System messages</Typography>
                 {selectedSystemGroups.length > 0 && (
                   <Chip
                     label={selectedSystemGroups.length}
@@ -518,11 +527,20 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                 )}
               </AccordionSummary>
               <AccordionDetails>
-                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                  By default the purge leaves Discord's automatic notices in place — the
-                  "pinned a message" trail, join and boost notices, and so on. Check any
-                  you also want removed.
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 1, mb: 1 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    By default the purge leaves Discord's automatic notices in place — the
+                    "pinned a message" trail, join and boost notices, and so on. Check any
+                    you also want removed.
+                  </Typography>
+                  <Button
+                    size="small"
+                    onClick={toggleAllSystemGroups}
+                    sx={{ textTransform: 'none', flexShrink: 0, alignSelf: 'center' }}
+                  >
+                    {allSystemGroupsSelected ? 'Clear all' : 'Select all'}
+                  </Button>
+                </Box>
                 <Box
                   sx={{
                     display: 'grid',
