@@ -22,6 +22,16 @@ export interface PaginationState {
     total: number;
     message: string;
   } | null;
+  /**
+   * True when the most recent Load All / Fetch All was cancelled by the
+   * user (as opposed to errored or completed). Distinct from the legacy
+   * `error` path so the UI can render a soft "stopped at N" callout
+   * instead of the red error banner. Set by `cancelLoadAll` and the
+   * cancel-payload branch of the loadAll/fetchAll rejected handlers;
+   * reset on the next `.pending` (a fresh attempt) or by an explicit
+   * `dismissLoadAllCancelled` from the UI. See backlog #193.
+   */
+  loadAllCancelled: boolean;
   mode: 'paginated' | 'all' | 'search';
   /**
    * Offset-based cursor for the next search page fetch. Only meaningful when
@@ -81,6 +91,7 @@ export const initialPaginationState: PaginationState = {
   isLoadingMore: false,
   isLoadingAll: false,
   loadAllProgress: null,
+  loadAllCancelled: false,
   mode: 'paginated',
   searchOffset: 0,
 };

@@ -43,12 +43,14 @@ import {
   selectActiveMessages,
   selectActiveLoading,
   selectActiveError,
+  selectActiveLoadAllCancelled,
   selectActivePagination,
   selectActiveTab,
   selectMessages,
   setFilteredMessages,
   setThreadFilteredMessages,
   deleteMessages,
+  dismissLoadAllCancelled,
   editMessage,
   editMessages,
   fetchReactingUsers,
@@ -123,6 +125,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const selectedMessages = useAppSelector(selectActiveSelectedMessages);
   const isLoading = useAppSelector(selectActiveLoading);
   const error = useAppSelector(selectActiveError);
+  const loadAllCancelled = useAppSelector(selectActiveLoadAllCancelled);
   const token = useAppSelector(selectAuthToken);
   const pagination = useAppSelector(selectActivePagination);
   const activeTab = useAppSelector(selectActiveTab);
@@ -1014,6 +1017,34 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       {error && (
         <Paper sx={{ p: 2, backgroundColor: 'error.dark', mb: 2 }}>
           <Typography color="error.contrastText">{error}</Typography>
+        </Paper>
+      )}
+
+      {/* #193: cancelled Load All renders a soft info callout, not the red
+          error banner. state.messages is preserved across cancel, so the
+          partial results stay rendered below. Dismissable. */}
+      {loadAllCancelled && !error && (
+        <Paper
+          data-testid="load-all-cancelled-callout"
+          sx={{
+            p: 1.5,
+            backgroundColor: 'info.dark',
+            mb: 2,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1,
+          }}
+        >
+          <Typography sx={{ flex: 1, color: 'info.contrastText', fontSize: '0.875rem' }}>
+            Load All stopped. The {messages.length.toLocaleString()} message{messages.length === 1 ? '' : 's'} loaded so far {messages.length === 1 ? 'is' : 'are'} still available below.
+          </Typography>
+          <Button
+            size="small"
+            onClick={() => dispatch(dismissLoadAllCancelled())}
+            sx={{ color: 'info.contrastText', textTransform: 'none', minWidth: 'auto' }}
+          >
+            Dismiss
+          </Button>
         </Paper>
       )}
 

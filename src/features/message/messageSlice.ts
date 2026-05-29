@@ -2144,6 +2144,16 @@ const messageSlice = createSlice({
     cancelLoadAll: (state) => {
       state.pagination.isLoadingAll = false;
       state.pagination.loadAllProgress = null;
+      // #193: mark the run as user-cancelled so the rejected handler
+      // (which fires shortly after when the in-flight thunk detects
+      // cancellation) knows to route the resulting payload to the
+      // soft-callout state instead of state.error.
+      state.pagination.loadAllCancelled = true;
+    },
+    dismissLoadAllCancelled: (state) => {
+      // #193: lets the user close the "stopped at N" soft callout in
+      // ServerView without starting a new load. Idempotent.
+      state.pagination.loadAllCancelled = false;
     },
     // Thread tab management
     setActiveTab: (state, action: PayloadAction<string | null>) => {
@@ -2381,6 +2391,7 @@ const messageSlice = createSlice({
       // Fetch all messages (bulk load)
       .addCase(fetchAllMessages.pending, (state) => {
         state.pagination.isLoadingAll = true;
+        state.pagination.loadAllCancelled = false; // #193: clear stale cancel state on a new attempt
         state.pagination.loadAllProgress = {
           current: 0,
           total: 0,
@@ -2407,7 +2418,18 @@ const messageSlice = createSlice({
       .addCase(fetchAllMessages.rejected, (state, action) => {
         state.pagination.isLoadingAll = false;
         state.pagination.loadAllProgress = null;
-        state.error = action.payload as string;
+        // #193: the in-flight thunk emits the cancel sentinel via
+        // rejectWithValue when the user-driven cancel flag is detected
+        // mid-poll. Route that payload to the soft-callout state instead
+        // of state.error — partial results below remain rendered, and
+        // ServerView shows a dismissable "Load All stopped" callout
+        // instead of the red error banner.
+        const payload = action.payload as string | undefined;
+        if (payload === 'Load all cancelled' || payload === 'Load cancelled') {
+          state.pagination.loadAllCancelled = true;
+          return;
+        }
+        state.error = payload ?? null;
       })
       // Bulk edit messages
       .addCase(editMessages.pending, (state) => {
@@ -2482,6 +2504,7 @@ const messageSlice = createSlice({
       })
       .addCase(loadAllSearchResults.pending, (state) => {
         state.pagination.isLoadingAll = true;
+        state.pagination.loadAllCancelled = false; // #193: clear stale cancel state on a new attempt
         state.pagination.loadAllProgress = {
           current: state.messages.length,
           total: state.pagination.totalCount ?? 0,
@@ -2507,7 +2530,13 @@ const messageSlice = createSlice({
       .addCase(loadAllSearchResults.rejected, (state, action) => {
         state.pagination.isLoadingAll = false;
         state.pagination.loadAllProgress = null;
-        state.error = action.payload as string;
+        // #193: see fetchAllMessages.rejected comment — symmetric handling.
+        const payload = action.payload as string | undefined;
+        if (payload === 'Load all cancelled' || payload === 'Load cancelled') {
+          state.pagination.loadAllCancelled = true;
+          return;
+        }
+        state.error = payload ?? null;
       })
       // Delete single reaction
       .addCase(deleteReaction.fulfilled, (state, action) => {
@@ -2675,6 +2704,7 @@ export const {
   updateLoadAllProgress,
   appendLoadAllPage,
   cancelLoadAll,
+  dismissLoadAllCancelled,
   setActiveTab,
   addThreadTab,
   removeThreadTab,
@@ -2775,6 +2805,17 @@ export const selectActivePagination = (state: RootState) => {
     return threadTabs[activeTab].pagination;
   }
   return pagination;
+};
+
+// #193: thread-aware accessor for the cancelled-load-all flag. ServerView
+// reads this to render the soft callout in the correct container (main
+// channel vs active thread tab).
+export const selectActiveLoadAllCancelled = (state: RootState): boolean => {
+  const { activeTab, threadTabs, pagination } = state.message;
+  if (activeTab && threadTabs[activeTab]) {
+    return threadTabs[activeTab].pagination.loadAllCancelled;
+  }
+  return pagination.loadAllCancelled;
 };
 
 export default messageSlice.reducer;

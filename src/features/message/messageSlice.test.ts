@@ -70,6 +70,8 @@ import messageReducer, {
   setHighlightedMessageId,
   selectHighlightedMessageId,
   applyUserFilter,
+  cancelLoadAll,
+  dismissLoadAllCancelled,
 } from './messageSlice';
 import { initialMessageState } from './messageTypes';
 import * as discordService from '@services/discordService';
@@ -5070,6 +5072,108 @@ describe('messageSlice', () => {
           /reaction data|enriched reactions/i.test(m),
         );
         expect(reactionEntries).toEqual([]);
+      });
+    });
+
+    describe('#193 Cancelled Load All is distinct from errored state', () => {
+      it('cancelLoadAll keeps state.messages intact and state.error null', () => {
+        const seeded = {
+          ...initialMessageState,
+          messages: createMockMessages(5),
+          pagination: { ...initialMessageState.pagination, isLoadingAll: true },
+        };
+        const next = messageReducer(seeded, cancelLoadAll());
+        expect(next.messages).toHaveLength(5);
+        expect(next.pagination.isLoadingAll).toBe(false);
+        expect(next.pagination.loadAllProgress).toBeNull();
+        expect(next.error).toBeNull();
+      });
+
+      it('cancelLoadAll sets pagination.loadAllCancelled = true', () => {
+        const seeded = { ...initialMessageState };
+        const next = messageReducer(seeded, cancelLoadAll());
+        expect(next.pagination.loadAllCancelled).toBe(true);
+      });
+
+      it('loadAllSearchResults.rejected with cancel payload does NOT set state.error and FLIPS loadAllCancelled', () => {
+        // The thunk's cancellableDelay polling fires rejectWithValue with
+        // this exact sentinel string. The handler must recognize it even
+        // when cancelLoadAll was NOT separately dispatched (the real
+        // cancel flow goes through setDiscrubCancelled in the app slice,
+        // not cancelLoadAll in the message slice).
+        const seeded = {
+          ...initialMessageState,
+          pagination: { ...initialMessageState.pagination, isLoadingAll: true },
+        };
+        const action = {
+          type: loadAllSearchResults.rejected.type,
+          payload: 'Load all cancelled',
+          error: { message: 'Rejected' },
+        };
+        const next = messageReducer(seeded, action as any);
+        expect(next.error).toBeNull();
+        expect(next.pagination.isLoadingAll).toBe(false);
+        expect(next.pagination.loadAllCancelled).toBe(true);
+      });
+
+      it('loadAllSearchResults.rejected with real error payload still sets state.error', () => {
+        const seeded = { ...initialMessageState };
+        const action = {
+          type: loadAllSearchResults.rejected.type,
+          payload: 'Network failure',
+          error: { message: 'Rejected' },
+        };
+        const next = messageReducer(seeded, action as any);
+        expect(next.error).toBe('Network failure');
+        expect(next.pagination.loadAllCancelled).toBe(false);
+      });
+
+      it('fetchAllMessages.rejected with cancel payload does NOT set state.error and FLIPS loadAllCancelled', () => {
+        // fetchAllMessages uses the slightly different sentinel 'Load
+        // cancelled' (without 'all'). Both must be recognized.
+        const seeded = {
+          ...initialMessageState,
+          pagination: { ...initialMessageState.pagination, isLoadingAll: true },
+        };
+        const action = {
+          type: fetchAllMessages.rejected.type,
+          payload: 'Load cancelled',
+          error: { message: 'Rejected' },
+        };
+        const next = messageReducer(seeded, action as any);
+        expect(next.error).toBeNull();
+        expect(next.pagination.loadAllCancelled).toBe(true);
+      });
+
+      it('loadAllSearchResults.pending resets loadAllCancelled to false', () => {
+        const seeded = {
+          ...initialMessageState,
+          pagination: { ...initialMessageState.pagination, loadAllCancelled: true },
+        };
+        const action = { type: loadAllSearchResults.pending.type };
+        const next = messageReducer(seeded, action as any);
+        expect(next.pagination.loadAllCancelled).toBe(false);
+      });
+
+      it('loadAllSearchResults.fulfilled keeps loadAllCancelled false', () => {
+        const seeded = { ...initialMessageState };
+        const action = {
+          type: loadAllSearchResults.fulfilled.type,
+          payload: { totalResults: 0 },
+        };
+        const next = messageReducer(seeded, action as any);
+        expect(next.pagination.loadAllCancelled).toBe(false);
+      });
+
+      it('dismissLoadAllCancelled clears the cancelled flag without touching anything else', () => {
+        const seeded = {
+          ...initialMessageState,
+          messages: createMockMessages(3),
+          pagination: { ...initialMessageState.pagination, loadAllCancelled: true },
+        };
+        const next = messageReducer(seeded, dismissLoadAllCancelled());
+        expect(next.pagination.loadAllCancelled).toBe(false);
+        expect(next.messages).toHaveLength(3);
       });
     });
 

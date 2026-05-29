@@ -469,6 +469,67 @@ describe('Search & Filters', () => {
         ).to.be.true;
       });
     });
+
+    // #193: cancelled Load All renders a soft callout, not the red error
+    // banner. Partial results below remain rendered and the user can
+    // dismiss the callout to clear it.
+    it('cancelled Load All shows soft callout, not red error banner, and preserves partial results', () => {
+      // Same reaction-enrichment disable as the lazy-pagination test —
+      // we're verifying the cancel UX, not enrichment cadence.
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        store.dispatch({
+          type: 'app/updateSetting/fulfilled',
+          payload: { ...store.getState().app.settings, reactionsEnabled: 'false' },
+        });
+      });
+
+      const page1Messages = Array.from({ length: 25 }, (_, i) => [{
+        id: `800000000000000${String(i).padStart(3, '0')}`,
+        channel_id: '801000000000000001',
+        author: { id: '222333444555666777', username: 'alice_dev', discriminator: '0', avatar: 'alice_avatar', global_name: 'Alice' },
+        content: `Match ${i + 1}`,
+        timestamp: `2026-02-01T${String(12 + Math.floor(i / 60)).padStart(2, '0')}:${String(i % 60).padStart(2, '0')}:00.000Z`,
+        edited_timestamp: null, tts: false, mention_everyone: false, mentions: [], attachments: [], embeds: [], reactions: [], pinned: false, type: 0,
+      }]);
+
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        req.reply({ statusCode: 200, body: { messages: page1Messages, total_results: 100, threads: [] } });
+      }).as('search');
+
+      searchViaModal('match');
+      cy.wait('@search');
+      cy.contains('25 of 100 matches loaded').should('be.visible');
+
+      // Simulate the cancel path that the in-flight Load All thunk would
+      // produce when the user clicks Cancel via PauseResumeControls. The
+      // real cancel goes through setDiscrubCancelled → cancellableDelay
+      // poll → rejectWithValue('Load all cancelled') → our .rejected
+      // handler. We short-circuit to the dispatch-the-rejected-action step
+      // because Cypress timing for "click cancel mid-poll" is flaky.
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        store.dispatch({
+          type: 'message/loadAllSearchResults/rejected',
+          payload: 'Load all cancelled',
+          error: { message: 'Rejected' },
+          meta: { aborted: false, condition: false, requestId: 'cy-cancel-1', requestStatus: 'rejected', arg: {} },
+        });
+      });
+
+      // Soft callout must appear; red error banner must NOT.
+      cy.get('[data-testid="load-all-cancelled-callout"]').should('be.visible');
+      cy.contains(/Load All stopped/i).should('be.visible');
+
+      // The 25 partial messages are still rendered below.
+      cy.contains('[data-testid="message-feed-row"]', 'Match 1').should('exist');
+      cy.contains('[data-testid="message-feed-row"]', 'Match 25').should('exist');
+
+      // Clicking Dismiss removes the callout, messages stay.
+      cy.get('[data-testid="load-all-cancelled-callout"]').contains('button', 'Dismiss').click();
+      cy.get('[data-testid="load-all-cancelled-callout"]').should('not.exist');
+      cy.contains('[data-testid="message-feed-row"]', 'Match 1').should('exist');
+    });
   });
 
   // ── CLIENT-SIDE FILTERING ──────────────────────────────────────
