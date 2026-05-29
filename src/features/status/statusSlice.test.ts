@@ -11,6 +11,7 @@ import statusReducer, {
   _setCurrentSessionIdForTesting,
   _flushPersistBufferForTesting,
   _getPersistBufferSizeForTesting,
+  installUnloadFlushListener,
 } from './statusSlice';
 import { createTestStore } from '@/test/test-utils';
 import { initialStatusState } from './statusTypes';
@@ -300,6 +301,100 @@ describe('statusSlice', () => {
       expect(messages).toContain('old C');
       expect(messages).not.toContain('old A');
       expect(messages).not.toContain('old B');
+    });
+  });
+
+  describe('installUnloadFlushListener (#183 — flush on tab close / hide)', () => {
+    it('flushes the pending persist buffer when pagehide fires', async () => {
+      const store = createStore();
+      const uninstall = installUnloadFlushListener();
+      try {
+        // Push one entry; it should sit in the 250ms coalescing buffer.
+        store.dispatch(addStatusEntry({ level: 'info', message: 'about to close tab' }));
+        expect(_getPersistBufferSizeForTesting()).toBe(1);
+
+        window.dispatchEvent(new Event('pagehide'));
+
+        // Listener calls flushPersistBuffer synchronously — buffer is empty.
+        expect(_getPersistBufferSizeForTesting()).toBe(0);
+
+        await flush();
+        const keys = await storage.statuslog.keys();
+        expect(keys.length).toBe(1);
+      } finally {
+        uninstall();
+      }
+    });
+
+    it('flushes when visibilitychange fires with document.hidden = true', async () => {
+      const store = createStore();
+      const uninstall = installUnloadFlushListener();
+      try {
+        store.dispatch(addStatusEntry({ level: 'info', message: 'tab going hidden' }));
+        expect(_getPersistBufferSizeForTesting()).toBe(1);
+
+        // jsdom: redefine document.hidden to simulate the visible→hidden transition.
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        expect(_getPersistBufferSizeForTesting()).toBe(0);
+        await flush();
+        const keys = await storage.statuslog.keys();
+        expect(keys.length).toBe(1);
+      } finally {
+        uninstall();
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+      }
+    });
+
+    it('does NOT flush on visibilitychange when document.hidden is false', () => {
+      const store = createStore();
+      const uninstall = installUnloadFlushListener();
+      try {
+        store.dispatch(addStatusEntry({ level: 'info', message: 'tab becoming visible' }));
+        expect(_getPersistBufferSizeForTesting()).toBe(1);
+
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+        document.dispatchEvent(new Event('visibilitychange'));
+
+        // Buffer untouched — flushing on visible would needlessly write
+        // mid-session every time the user tabs back.
+        expect(_getPersistBufferSizeForTesting()).toBe(1);
+      } finally {
+        uninstall();
+      }
+    });
+
+    it('uninstall stops further flushes from firing', () => {
+      const store = createStore();
+      const uninstall = installUnloadFlushListener();
+      uninstall();
+
+      store.dispatch(addStatusEntry({ level: 'info', message: 'after uninstall' }));
+      expect(_getPersistBufferSizeForTesting()).toBe(1);
+
+      window.dispatchEvent(new Event('pagehide'));
+
+      // Listener is gone — buffer stays unflushed (the 250ms timer would
+      // eventually drain it, but the unload event didn't trigger early flush).
+      expect(_getPersistBufferSizeForTesting()).toBe(1);
+    });
+
+    it('is idempotent — calling install twice still installs only one effective listener pair', () => {
+      const store = createStore();
+      const uninstall1 = installUnloadFlushListener();
+      const uninstall2 = installUnloadFlushListener();
+      try {
+        store.dispatch(addStatusEntry({ level: 'info', message: 'double install' }));
+        expect(_getPersistBufferSizeForTesting()).toBe(1);
+
+        window.dispatchEvent(new Event('pagehide'));
+        // Doesn't matter that two listeners ran; the second flush is a no-op.
+        expect(_getPersistBufferSizeForTesting()).toBe(0);
+      } finally {
+        uninstall1();
+        uninstall2();
+      }
     });
   });
 });

@@ -146,6 +146,50 @@ export function _getPersistBufferSizeForTesting(): number {
   return pendingPersistBuffer.length;
 }
 
+/**
+ * #183 unload-flush arm: registers handlers that drain the 250ms-coalesced
+ * persist buffer when the tab is about to die or go background. Without
+ * this, the in-memory buffer's tail (up to 50 entries / 250ms worth) is
+ * lost if the user closes the tab, reloads the extension, or the browser
+ * crashes mid-coalesce. Confirmed by a Cypress regression where the
+ * session-marker test had to wait past the flush window before reloading.
+ *
+ * Uses `pagehide` (modern unload signal, fires reliably for tab close)
+ * and `visibilitychange` to `hidden` (catches user backgrounding the tab).
+ * `beforeunload` is intentionally skipped — modern browsers throttle it
+ * heavily on mobile and may skip it entirely for tab close.
+ *
+ * Returns an uninstaller function; safe to call multiple times (each
+ * install registers its own listeners; each uninstall removes the
+ * exact pair it added).
+ */
+export function installUnloadFlushListener(): () => void {
+  const onPageHide = () => {
+    flushPersistBuffer();
+  };
+  const onVisibilityChange = () => {
+    if (typeof document !== 'undefined' && document.hidden) {
+      flushPersistBuffer();
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('pagehide', onPageHide);
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+
+  return () => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('pagehide', onPageHide);
+    }
+    if (typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    }
+  };
+}
+
 const statusSlice = createSlice({
   name: 'status',
   initialState: initialStatusState,
