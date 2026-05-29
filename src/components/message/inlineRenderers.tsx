@@ -18,6 +18,7 @@ import {
 import type { Message, Attachment, Embed } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { formatEmbedContent } from '@/utils/messageLightFormatting';
+import { reserveMediaBox } from '@/utils/reserveMediaBox';
 
 const isImageAttachment = (a: Attachment): boolean => {
   const ct = (a.content_type || '').toLowerCase();
@@ -94,8 +95,7 @@ export const InlineAttachments = memo(function InlineAttachments({
                 src={a.proxy_url || a.url}
                 alt={a.filename}
                 sx={{
-                  maxWidth: 400,
-                  maxHeight: 300,
+                  ...reserveMediaBox(a, 300, 400),
                   borderRadius: 1,
                   objectFit: 'contain',
                   display: 'block',
@@ -113,8 +113,7 @@ export const InlineAttachments = memo(function InlineAttachments({
               controls
               src={a.proxy_url || a.url}
               sx={{
-                maxWidth: 400,
-                maxHeight: 300,
+                ...reserveMediaBox(a, 300, 400),
                 borderRadius: 1,
                 display: 'block',
               }}
@@ -324,8 +323,7 @@ export const InlineEmbeds = memo(function InlineEmbeds({
                 src={embed.image.proxy_url || embed.image.url}
                 alt=""
                 sx={{
-                  maxWidth: '100%',
-                  maxHeight: 300,
+                  ...reserveMediaBox(embed.image, 300),
                   borderRadius: 0.5,
                   display: 'block',
                   mt: 1,
@@ -338,8 +336,7 @@ export const InlineEmbeds = memo(function InlineEmbeds({
                 src={embed.thumbnail.proxy_url || embed.thumbnail.url}
                 alt=""
                 sx={{
-                  maxWidth: '100%',
-                  maxHeight: 240,
+                  ...reserveMediaBox(embed.thumbnail, 240),
                   borderRadius: 0.5,
                   display: 'block',
                   mt: 1,
@@ -352,7 +349,12 @@ export const InlineEmbeds = memo(function InlineEmbeds({
                   component="video"
                   controls
                   src={embed.video.proxy_url || embed.video.url}
-                  sx={{ maxWidth: '100%', maxHeight: 300, borderRadius: 0.5, display: 'block', mt: 1 }}
+                  sx={{
+                    ...reserveMediaBox(embed.video, 300),
+                    borderRadius: 0.5,
+                    display: 'block',
+                    mt: 1,
+                  }}
                 />
               ) : (
                 <Link

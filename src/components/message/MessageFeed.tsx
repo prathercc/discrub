@@ -36,6 +36,7 @@ import UserProfileModal from '@/components/modals/UserProfileModal';
 import AttachmentModal from '@/components/modals/AttachmentModal';
 import ReactionModal from '@/components/modals/ReactionModal';
 import { chunkMessages } from '@/utils/messageChunking';
+import { createChunkSizeEstimator } from '@/utils/chunkSizeEstimator';
 import MessageChunk from './MessageChunk';
 import MessageFeedToolbar from './MessageFeedToolbar';
 
@@ -105,7 +106,25 @@ const MessageFeed = ({
   // heights (short content vs embeds + attachments + reactions), so
   // measureElement is essential to avoid overlap or wasted space.
   const parentRef = useRef<HTMLDivElement>(null);
-  const estimateSize = useCallback(() => 160, []);
+
+  // #190: feed the virtualizer a running average of measured chunk heights
+  // instead of a flat guess, so not-yet-measured rows start close to their
+  // real size and the ResizeObserver snap (the scroll-up "jump") is smaller.
+  const estimatorRef = useRef<ReturnType<typeof createChunkSizeEstimator>>();
+  if (!estimatorRef.current) estimatorRef.current = createChunkSizeEstimator(160);
+  // Stable chunk lookup for the measure wrapper without rebinding every ref.
+  const chunksRef = useRef(chunks);
+  chunksRef.current = chunks;
+
+  // The component persists across channel/DM switches (no remount), so drop
+  // accumulated heights when the active context changes — otherwise the Map
+  // grows unbounded and the average is skewed by other channels' chunks.
+  const contextId = currentContext?.id;
+  useEffect(() => {
+    estimatorRef.current!.reset();
+  }, [contextId]);
+
+  const estimateSize = useCallback(() => estimatorRef.current!.estimate(), []);
   const rowVirtualizer = useVirtualizer({
     count: chunks.length,
     getScrollElement: () => parentRef.current,
@@ -114,6 +133,22 @@ const MessageFeed = ({
     getItemKey: useCallback((index: number) => chunks[index]?.key ?? index, [chunks]),
   });
   const virtualItems = rowVirtualizer.getVirtualItems();
+
+  // Record each measured height into the estimator, then delegate to the
+  // virtualizer's own measureElement. Kept ref-stable so rows don't re-attach.
+  const measureChunk = useCallback(
+    (el: Element | null) => {
+      if (el) {
+        const idxAttr = el.getAttribute('data-index');
+        const idx = idxAttr != null ? Number(idxAttr) : NaN;
+        const key = Number.isNaN(idx) ? undefined : chunksRef.current[idx]?.key;
+        const height = (el as HTMLElement).offsetHeight;
+        if (key) estimatorRef.current!.record(key, height);
+      }
+      rowVirtualizer.measureElement(el);
+    },
+    [rowVirtualizer],
+  );
 
   // Deep-link scroll-to-message (#123 Phase 1). When navigateToMessage
   // sets highlightedMessageId, find the chunk that contains it, scroll
@@ -309,7 +344,7 @@ const MessageFeed = ({
                 <Box
                   key={chunk.key}
                   data-index={virtualRow.index}
-                  ref={rowVirtualizer.measureElement}
+                  ref={measureChunk}
                   sx={{
                     position: 'absolute',
                     top: 0,
