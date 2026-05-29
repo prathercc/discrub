@@ -2883,6 +2883,51 @@ describe('messageSlice', () => {
       expect(selectActiveFilteredMessages(state)).toEqual(mainMessages);
     });
 
+    // #190 Phase 3: reference-stability regression guards. The selector
+    // must return the SAME array reference across dispatches that don't
+    // touch filteredMessages — otherwise every MessageFeed re-renders
+    // when an unrelated state change (status-log append, progress tick,
+    // settings update) fires. Pinned so a future refactor that introduces
+    // derived work (a .map(), a filter(), a new Array spread) breaks
+    // visibly here instead of silently regressing scroll perf.
+    it('selectActiveFilteredMessages returns the same reference across unrelated state changes (main tab)', () => {
+      const before = selectActiveFilteredMessages(store.getState());
+      // Trigger an unrelated state change — settings update doesn't touch
+      // state.message.filteredMessages.
+      store.dispatch({ type: 'app/updateSetting/fulfilled', payload: {} as any });
+      const after = selectActiveFilteredMessages(store.getState());
+      expect(after).toBe(before);
+    });
+
+    it('selectActiveFilteredMessages returns the same reference across unrelated state changes (thread tab)', () => {
+      store.dispatch(addThreadTab({ threadId: 'thread-100', threadName: 'My Thread' }));
+      store.dispatch(setThreadMessages({ threadId: 'thread-100', messages: threadMessages }));
+      const before = selectActiveFilteredMessages(store.getState());
+      store.dispatch({ type: 'app/updateSetting/fulfilled', payload: {} as any });
+      const after = selectActiveFilteredMessages(store.getState());
+      expect(after).toBe(before);
+    });
+
+    it('selectActiveFilteredMessages returns a NEW reference when filteredMessages actually changes', () => {
+      const before = selectActiveFilteredMessages(store.getState());
+      store.dispatch(setFilteredMessages([...mainMessages, createMockMessage({ id: 'new-1' })]));
+      const after = selectActiveFilteredMessages(store.getState());
+      expect(after).not.toBe(before);
+    });
+
+    it('selectActiveFilteredMessages returns the same reference when activeTab toggles between equivalent main states', () => {
+      // Set active tab to a nonexistent thread (falls back to main),
+      // then back to null (still main). Both states should return the
+      // same main filteredMessages reference.
+      const beforeMain = selectActiveFilteredMessages(store.getState());
+      store.dispatch(setActiveTab('nonexistent'));
+      const afterToggle = selectActiveFilteredMessages(store.getState());
+      store.dispatch(setActiveTab(null));
+      const backToMain = selectActiveFilteredMessages(store.getState());
+      expect(afterToggle).toBe(beforeMain);
+      expect(backToMain).toBe(beforeMain);
+    });
+
     it('selectThreadTabs returns all thread tabs', () => {
       store.dispatch(addThreadTab({ threadId: 'thread-100', threadName: 'Thread 1' }));
       store.dispatch(addThreadTab({ threadId: 'thread-200', threadName: 'Thread 2' }));

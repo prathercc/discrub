@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, createSelector, PayloadAction } from '@reduxjs/toolkit';
 import type { Message, Attachment, User } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { getSortedMessages } from 'discrub-core/discrub-utils';
@@ -2866,13 +2866,29 @@ export const selectActiveMessages = (state: RootState) => {
   return messages;
 };
 
-export const selectActiveFilteredMessages = (state: RootState) => {
-  const { activeTab, threadTabs, filteredMessages } = state.message;
-  if (activeTab && threadTabs[activeTab]) {
-    return threadTabs[activeTab].filteredMessages;
-  }
-  return filteredMessages;
-};
+// #190 Phase 3: converted to a Reselect createSelector. The previous
+// raw-property selector was already referentially stable (it returns one
+// of two stored arrays without deriving), so the direct perf win is
+// marginal — what this conversion buys is INTENT DOCUMENTATION (this
+// selector is on the MessageFeed hot path and must stay ref-stable) and
+// FUTURE-PROOFING against a refactor that adds derived work (a .map,
+// a filter, a spread) — Reselect would still cache the output, where a
+// raw selector would emit a new reference on every dispatch and force
+// the whole feed to re-render. Backed by 4 regression-guard tests in
+// the Active-tab-aware selectors describe block.
+export const selectActiveFilteredMessages = createSelector(
+  [
+    (state: RootState) => state.message.activeTab,
+    (state: RootState) => state.message.threadTabs,
+    (state: RootState) => state.message.filteredMessages,
+  ],
+  (activeTab, threadTabs, filteredMessages) => {
+    if (activeTab && threadTabs[activeTab]) {
+      return threadTabs[activeTab].filteredMessages;
+    }
+    return filteredMessages;
+  },
+);
 
 export const selectActiveSelectedMessages = (state: RootState) => {
   const { activeTab, threadTabs, selectedMessages } = state.message;
