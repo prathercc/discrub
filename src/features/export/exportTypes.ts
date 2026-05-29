@@ -1,15 +1,24 @@
+// #195 cluster B: MediaMaps, ExportConfig, TextFormatOptions and friends
+// were promoted to discrub-core/types/export-types since they're pure
+// emitter knobs consumed by lib-side text/html emitters. Re-exported here
+// so callers can keep their existing import paths.
+import { defaultTextFormatOptions } from 'discrub-core/types/export-types';
+export type {
+  MediaMaps,
+  ExportConfig,
+  TextAttachmentStyle,
+  TextReactionsStyle,
+  TextRepliesStyle,
+  TextBotIndicatorStyle,
+  TextFormatOptions,
+} from 'discrub-core/types/export-types';
+export { defaultTextFormatOptions };
+
 export interface MediaDownloadProgress {
   stage: 'avatars' | 'attachments' | 'emojis' | 'roles' | 'html' | 'finalizing';
   current: number;
   total: number;
   message?: string;
-}
-
-export interface MediaMaps {
-  avatarMap: Record<string, string>;
-  mediaMap: Record<string, string>;
-  emojiMap: Record<string, string>;
-  roleMap: Record<string, string>;
 }
 
 export interface MediaConfig {
@@ -21,38 +30,6 @@ export interface MediaConfig {
 
 export type ExportFormat = 'html' | 'csv' | 'json' | 'media' | 'text';
 export type ExportTemplate = 'standard' | 'discord';
-
-// Plain text emitter knobs (#184). Stay local to the consumer; the
-// canonical AppSettings shape in discrub-core does not (yet) carry
-// dedicated text-format keys, so user tweaks persist via presets and
-// per-export snapshots rather than the global settings DB.
-export type TextAttachmentStyle = 'inline' | 'sidecar' | 'skip';
-export type TextReactionsStyle = 'include' | 'skip';
-export type TextRepliesStyle = 'quote' | 'link' | 'skip';
-export type TextBotIndicatorStyle = 'include' | 'skip';
-
-export interface TextFormatOptions {
-  attachmentStyle: TextAttachmentStyle;
-  reactions: TextReactionsStyle;
-  replies: TextRepliesStyle;
-  botIndicator: TextBotIndicatorStyle;
-}
-
-export const defaultTextFormatOptions: TextFormatOptions = {
-  attachmentStyle: 'inline',
-  reactions: 'include',
-  replies: 'quote',
-  botIndicator: 'include',
-};
-
-export interface ExportConfig {
-  artistMode: boolean;
-  sortOrder: 'ascending' | 'descending';
-  previewMedia: boolean;
-  dateFormat: string;
-  timeFormat: string;
-  exportTemplate?: ExportTemplate;
-}
 
 export interface BulkContext {
   currentIndex: number;

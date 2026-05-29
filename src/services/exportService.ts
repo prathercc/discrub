@@ -68,7 +68,7 @@ import { StreamingZipService } from './streamingZipService';
 import { MediaDownloadService } from './mediaDownloadService';
 import type { MediaDownloadProgress, MediaMaps, MediaConfig, ExportConfig, TextFormatOptions } from '@features/export/exportTypes';
 import { defaultTextFormatOptions } from '@features/export/exportTypes';
-import { generateTextPage } from '@features/export/textEmitter';
+import { generateTextPage } from 'discrub-core/export-utils';
 import type { ShouldContinueFn } from './mediaDownloadService';
 import { getUserDisplayData } from '@/utils/userDisplayUtils';
 import { formatMessageTimestamp } from '@/utils/dateUtils';
