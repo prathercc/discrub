@@ -222,7 +222,12 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
     const count = channels.length;
     const userCount = effectiveTargetUserIds.length;
     if (uiMode === 'messages') {
-      return `${count} ${count === 1 ? contextLabel : contextLabelPlural} will be purged. Messages from ${userCount} user${userCount !== 1 ? 's' : ''} will be permanently deleted.`;
+      const base = `${count} ${count === 1 ? contextLabel : contextLabelPlural} will be purged. Messages from ${userCount} user${userCount !== 1 ? 's' : ''} will be permanently deleted.`;
+      const sysCount = selectedSystemGroups.length;
+      if (sysCount > 0) {
+        return `${base} The ${sysCount} selected system-message type${sysCount !== 1 ? 's' : ''} will also be deleted; all other system notices stay in place.`;
+      }
+      return base;
     }
     if (uiMode === 'attachmentsOnly') {
       return `Attachments will be stripped from messages by ${userCount} user${userCount !== 1 ? 's' : ''} across ${count} ${count === 1 ? contextLabel : contextLabelPlural}. Message text is preserved.`;
@@ -441,7 +446,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="body2">System Messages</Typography>
+                <Typography variant="body2">Also delete system messages</Typography>
                 {selectedSystemGroups.length > 0 && (
                   <Chip
                     label={selectedSystemGroups.length}

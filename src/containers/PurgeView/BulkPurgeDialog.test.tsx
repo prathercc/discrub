@@ -832,7 +832,26 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      expect(screen.getByText('System Messages')).toBeInTheDocument();
+      expect(screen.getByText('Also delete system messages')).toBeInTheDocument();
+    });
+
+    it('spells out in the summary that system messages are an addition, not the only target', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+      // With nothing selected the summary stays clean — no system clause.
+      expect(screen.queryByText(/will also be deleted/)).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByText('Also delete system messages'));
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
+
+      // Once a type is checked the summary reinforces the AND relationship.
+      expect(
+        screen.getByText(
+          /The 1 selected system-message type will also be deleted; all other system notices stay in place/,
+        ),
+      ).toBeInTheDocument();
     });
 
     it('hides the section in Attachments Only mode', () => {
@@ -841,7 +860,7 @@ describe('BulkPurgeDialog', () => {
         { preloadedState: stateWithUser },
       );
       fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
-      expect(screen.queryByText('System Messages')).not.toBeInTheDocument();
+      expect(screen.queryByText('Also delete system messages')).not.toBeInTheDocument();
     });
 
     it('hides the section in Reactions mode', () => {
@@ -850,7 +869,7 @@ describe('BulkPurgeDialog', () => {
         { preloadedState: stateWithUser },
       );
       fireEvent.click(screen.getByRole('button', { name: 'Reactions' }));
-      expect(screen.queryByText('System Messages')).not.toBeInTheDocument();
+      expect(screen.queryByText('Also delete system messages')).not.toBeInTheDocument();
     });
 
     it('threads a checked group\'s MessageType values into the dispatched config', () => {
@@ -858,7 +877,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System Messages'));
+      fireEvent.click(screen.getByText('Also delete system messages'));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
 
       fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
@@ -878,7 +897,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System Messages'));
+      fireEvent.click(screen.getByText('Also delete system messages'));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Member joins & leaves' }));
       fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
 
@@ -903,7 +922,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System Messages'));
+      fireEvent.click(screen.getByText('Also delete system messages'));
 
       // Select all → all 7 groups checked, count chip + label flips.
       fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
@@ -921,7 +940,7 @@ describe('BulkPurgeDialog', () => {
         <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
         { preloadedState: stateWithUser },
       );
-      fireEvent.click(screen.getByText('System Messages'));
+      fireEvent.click(screen.getByText('Also delete system messages'));
       fireEvent.click(screen.getByRole('button', { name: 'Select all' }));
       fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
 
