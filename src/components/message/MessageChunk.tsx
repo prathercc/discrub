@@ -66,6 +66,8 @@ const MessageChunk = memo(function MessageChunk({
         guildRoles={guildRoles}
         cachedUserMap={cachedUserMap}
         highlighted={highlightedMessageId === first.id}
+        selected={selectedIds.has(first.id)}
+        onToggleSelect={onToggleSelect}
       />
     );
   }

@@ -84,3 +84,86 @@ describe('Message Operations', () => {
     cy.contains('button', 'Edit').should('be.disabled');
   });
 });
+
+// ── System / pinned message selection (#196 Phase 3) ────────────────────────
+// SystemMessageRow used to render pin/join/boost notices without a selection
+// checkbox, so users couldn't select or delete them from the feed and Select
+// All silently skipped them in the UI. A checkbox mirroring MessageFeedRow
+// closes that gap. The default messages.json has no system messages, so these
+// tests override the feed with a normal message + a type-6 pin notification
+// authored by the current user (so it's deletable).
+describe('System / pinned message selection (#196 Phase 3)', () => {
+  const CURRENT_USER = {
+    id: '111222333444555666',
+    username: 'discrub_tester',
+    discriminator: '0',
+    avatar: 'abc123avatar',
+    global_name: 'Discrub Tester',
+  };
+
+  const normalMessage = {
+    id: '700000000000000091',
+    channel_id: '801000000000000001',
+    author: CURRENT_USER,
+    content: 'A regular message in the feed',
+    timestamp: '2026-02-01T10:00:00.000Z',
+    edited_timestamp: null,
+    tts: false,
+    mention_everyone: false,
+    mentions: [],
+    attachments: [],
+    embeds: [],
+    reactions: [],
+    pinned: false,
+    type: 0,
+  };
+
+  const pinNotification = {
+    ...normalMessage,
+    id: '700000000000000092',
+    content: '',
+    timestamp: '2026-02-01T10:05:00.000Z',
+    message_reference: { message_id: '700000000000000091', channel_id: '801000000000000001' },
+    type: 6,
+  };
+
+  beforeEach(() => {
+    cy.login();
+    cy.selectServer('Cypress Test Server');
+    cy.intercept('GET', '**/api/v10/channels/*/messages?*', {
+      statusCode: 200,
+      body: [normalMessage, pinNotification],
+    }).as('getMessages');
+    cy.selectChannel('general');
+    cy.get('[data-testid="system-message-row"][data-system-kind="pin"]').should('exist');
+  });
+
+  it('renders the pin notification as a system row', () => {
+    cy.get('[data-testid="system-message-row"]').should(
+      'contain.text',
+      'pinned a message to this channel',
+    );
+  });
+
+  it('selects a pin notification via its checkbox', () => {
+    cy.get('input[aria-label="Select system message 700000000000000092"]').click({ force: true });
+    cy.contains('1 selected').should('be.visible');
+  });
+
+  it('Select all now visibly includes the pin notification', () => {
+    cy.get('input[aria-label="Select all messages"]').click({ force: true });
+    cy.contains('2 selected').should('be.visible');
+    cy.get('input[aria-label="Select system message 700000000000000092"]').should('be.checked');
+  });
+
+  it('deletes a selected pin notification (sends DELETE for its id)', () => {
+    cy.intercept('DELETE', '**/api/v10/channels/*/messages/*', {
+      statusCode: 204,
+      body: {},
+    }).as('deletePin');
+    cy.get('input[aria-label="Select system message 700000000000000092"]').click({ force: true });
+    cy.contains('button', 'Delete').click();
+    cy.get('[role="dialog"]').contains('button', 'Delete').click();
+    cy.wait('@deletePin').its('request.url').should('include', '700000000000000092');
+  });
+});

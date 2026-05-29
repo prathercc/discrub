@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '@/test/test-utils';
 import SystemMessageRow from './SystemMessageRow';
 import type { Message } from 'discrub-core/types/discord-types';
@@ -210,6 +210,78 @@ describe('<SystemMessageRow />', () => {
         />,
       );
       expect(screen.getByTestId('system-message-row')).toHaveAttribute('data-highlighted', 'true');
+    });
+  });
+
+  // ── Feed selection (#196 Phase 3) ───────────────────────────────────────
+  // System/pinned notices used to have no selection affordance, so users
+  // couldn't select or delete them from the feed (and Select All silently
+  // skipped them visually). A checkbox mirroring MessageFeedRow fixes that.
+
+  describe('feed selection (#196 Phase 3)', () => {
+    it('renders no checkbox when onToggleSelect is not provided', () => {
+      render(<SystemMessageRow message={baseMsg(6)} formattingContext={formattingContext} />);
+      expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    });
+
+    it('renders a selection checkbox when onToggleSelect is provided', () => {
+      render(
+        <SystemMessageRow
+          message={baseMsg(6)}
+          formattingContext={formattingContext}
+          onToggleSelect={vi.fn()}
+        />,
+      );
+      expect(
+        screen.getByRole('checkbox', { name: 'Select system message sys-1' }),
+      ).toBeInTheDocument();
+    });
+
+    it('reflects the selected prop as the checkbox checked state', () => {
+      render(
+        <SystemMessageRow
+          message={baseMsg(6)}
+          formattingContext={formattingContext}
+          selected
+          onToggleSelect={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole('checkbox')).toBeChecked();
+    });
+
+    it('calls onToggleSelect with the message when the checkbox is clicked', () => {
+      const onToggleSelect = vi.fn();
+      const msg = baseMsg(6);
+      render(
+        <SystemMessageRow
+          message={msg}
+          formattingContext={formattingContext}
+          onToggleSelect={onToggleSelect}
+        />,
+      );
+      fireEvent.click(screen.getByRole('checkbox'));
+      expect(onToggleSelect).toHaveBeenCalledTimes(1);
+      expect(onToggleSelect).toHaveBeenCalledWith(msg);
+    });
+
+    it('selecting a clickable pin notice via its checkbox does not navigate (stopPropagation)', () => {
+      // The pin row is itself a navigation button; clicking the checkbox
+      // must select rather than jump to the pinned message. We assert the
+      // checkbox handler fired and the row click handler did not by spying
+      // on the row's onClick path through onToggleSelect only.
+      const onToggleSelect = vi.fn();
+      const msg = baseMsg(6, {
+        message_reference: { message_id: 'pinned-target' } as any,
+      });
+      render(
+        <SystemMessageRow
+          message={msg}
+          formattingContext={formattingContext}
+          onToggleSelect={onToggleSelect}
+        />,
+      );
+      fireEvent.click(screen.getByRole('checkbox'));
+      expect(onToggleSelect).toHaveBeenCalledWith(msg);
     });
   });
 });

@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Box, Typography, useTheme } from '@mui/material';
+import { Box, Checkbox, Typography, useTheme } from '@mui/material';
 import { format } from 'date-fns';
 import type { Message } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
@@ -22,6 +22,12 @@ interface SystemMessageRowProps {
   /** Deep-link flash (#123). Applied when this row is the navigation
    *  target (e.g. a pinned-message notice that was just clicked). */
   highlighted?: boolean;
+  /** Selection state for the feed's multi-select (#196 Phase 3). When
+   *  `onToggleSelect` is provided the row renders a checkbox mirroring
+   *  MessageFeedRow, so pinned/system notices can be selected and
+   *  deleted from the feed just like regular messages. */
+  selected?: boolean;
+  onToggleSelect?: (message: Message) => void;
 }
 
 /**
@@ -64,6 +70,8 @@ const SystemMessageRow = memo(function SystemMessageRow({
   guildRoles,
   cachedUserMap,
   highlighted = false,
+  selected = false,
+  onToggleSelect,
 }: SystemMessageRowProps) {
   const theme = useTheme();
   const dispatch = useAppDispatch();
@@ -139,6 +147,7 @@ const SystemMessageRow = memo(function SystemMessageRow({
         // the text column starts where regular-message content does.
         // Vertical padding matches the export's `.system-message` rule
         // (8px top/bottom) so both renderers feel the same.
+        position: 'relative',
         display: 'flex',
         alignItems: 'center',
         gap: 1,
@@ -150,6 +159,10 @@ const SystemMessageRow = memo(function SystemMessageRow({
         lineHeight: 1.5,
         borderRadius: 0.5,
         cursor: isClickable ? 'pointer' : 'default',
+        ...(selected && {
+          backgroundColor: 'rgba(88, 101, 242, 0.16)',
+        }),
+        '&:hover .system-row-hover-actions': { opacity: 1 },
         ...(isClickable && {
           '&:hover': { backgroundColor: 'rgba(114, 137, 218, 0.06)' },
           '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: -2 },
@@ -262,6 +275,42 @@ const SystemMessageRow = memo(function SystemMessageRow({
           />
         )}
       </Box>
+
+      {/* Selection checkbox (#196 Phase 3) — mirrors MessageFeedRow's
+          floating bar: hidden until hover or when selected. stopPropagation
+          keeps a checkbox click from triggering the row's pin/thread
+          navigation. Selection is ungated app-wide; the delete API enforces
+          who can actually remove the message. */}
+      {onToggleSelect && (
+        <Box
+          className="system-row-hover-actions"
+          sx={{
+            position: 'absolute',
+            top: 2,
+            right: 8,
+            opacity: selected ? 1 : 0,
+            transition: 'opacity 120ms ease',
+            display: 'flex',
+            alignItems: 'center',
+            bgcolor: 'background.paper',
+            border: 1,
+            borderColor: 'divider',
+            borderRadius: 1,
+            boxShadow: 1,
+            px: 0.5,
+            py: 0.25,
+          }}
+        >
+          <Checkbox
+            size="small"
+            checked={selected}
+            onChange={() => onToggleSelect(message)}
+            onClick={(e) => e.stopPropagation()}
+            inputProps={{ 'aria-label': `Select system message ${message.id}` }}
+            sx={{ p: 0.25 }}
+          />
+        </Box>
+      )}
     </Box>
   );
 });
