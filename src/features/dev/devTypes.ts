@@ -2,6 +2,7 @@ export interface SeedVarietyOptions {
   includeMentions: boolean;
   includeReactions: boolean;
   includeReplies: boolean;
+  includeForwards: boolean;
   includeEdits: boolean;
   includePins: boolean;
 }

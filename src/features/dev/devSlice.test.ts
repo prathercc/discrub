@@ -81,6 +81,7 @@ const ALL_OFF = {
   includeMentions: false,
   includeReactions: false,
   includeReplies: false,
+  includeForwards: false,
   includeEdits: false,
   includePins: false,
 };
@@ -192,6 +193,10 @@ describe('seedChannelMessages', () => {
           includeMentions: true,
           includeReactions: true,
           includeReplies: true,
+          // Forwards off here so the reaction/edit/pin assertions aren't
+          // diverted onto forward messages (which skip edits) — forward
+          // behavior is covered by its own tests below.
+          includeForwards: false,
           includeEdits: true,
           includePins: true,
         },
@@ -202,6 +207,74 @@ describe('seedChannelMessages', () => {
     expect(mockAddReaction).toHaveBeenCalled();
     expect(mockEdit).toHaveBeenCalled();
     expect(mockPin).toHaveBeenCalled();
+  });
+
+  it('posts a forward (message_reference.type 1, no content) for later messages when includeForwards is on', async () => {
+    // rng = 0.04 < 0.15 forward threshold, so every message after the
+    // first (which has no prior post to forward) becomes a forward.
+    const rng = () => 0.04;
+    mockPostMessage.mockImplementation(async () => ({
+      success: true, status: 200, data: { id: `m${mockPostMessage.mock.calls.length}` },
+    }));
+    const store = makeStore();
+    await store.dispatch(
+      seedChannelMessages({
+        channels: [{ id: 'c1', name: 'general' }],
+        countPerChannel: 3,
+        options: { ...ALL_OFF, includeForwards: true },
+        rng,
+      }),
+    );
+
+    // postMessage args are (token, channelId, body).
+    const bodies = mockPostMessage.mock.calls.map((c) => c[2]);
+    // Message 1: no prior post → plain message (has content, no reference).
+    expect(bodies[0].message_reference).toBeUndefined();
+    // Messages 2 & 3: forwards → type 1, a source message_id, no content.
+    expect(bodies[1].message_reference).toMatchObject({
+      type: 1,
+      channel_id: 'c1',
+    });
+    expect(bodies[1].message_reference.message_id).toBe('m1');
+    expect(bodies[1].content).toBeUndefined();
+  });
+
+  it('does not forward when includeForwards is off (plain messages only)', async () => {
+    const rng = () => 0.04;
+    mockPostMessage.mockImplementation(async () => ({
+      success: true, status: 200, data: { id: `m${mockPostMessage.mock.calls.length}` },
+    }));
+    const store = makeStore();
+    await store.dispatch(
+      seedChannelMessages({
+        channels: [{ id: 'c1', name: 'general' }],
+        countPerChannel: 3,
+        options: ALL_OFF,
+        rng,
+      }),
+    );
+    const bodies = mockPostMessage.mock.calls.map((c) => c[2]);
+    expect(bodies.every((b) => b.message_reference === undefined)).toBe(true);
+  });
+
+  it('forward takes precedence over reply (mutually exclusive reference)', async () => {
+    // rng = 0.04 satisfies both forward (<0.15) and reply (<0.2); forward
+    // is checked first, so the reference must be a forward, not a reply.
+    const rng = () => 0.04;
+    mockPostMessage.mockImplementation(async () => ({
+      success: true, status: 200, data: { id: `m${mockPostMessage.mock.calls.length}` },
+    }));
+    const store = makeStore();
+    await store.dispatch(
+      seedChannelMessages({
+        channels: [{ id: 'c1', name: 'general' }],
+        countPerChannel: 2,
+        options: { ...ALL_OFF, includeForwards: true, includeReplies: true },
+        rng,
+      }),
+    );
+    const secondBody = mockPostMessage.mock.calls[1][2];
+    expect(secondBody.message_reference.type).toBe(1);
   });
 
   it('counts errors when postMessage returns ok: false', async () => {

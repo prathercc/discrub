@@ -19,6 +19,11 @@ import {
 
 const HARD_CAP_PER_CHANNEL = 100;
 
+// message_reference.type for a forward. Discord uses 0 = DEFAULT (a reply)
+// and 1 = FORWARD; posting with type 1 makes Discord build the
+// message_snapshots payload server-side (exercises #197 rendering).
+const FORWARD_REFERENCE_TYPE = 1;
+
 interface SeedThunkArg {
   channels: Array<{ id: string; name: string }>;
   countPerChannel: number;
@@ -95,26 +100,52 @@ export const seedChannelMessages = createAsyncThunk<
           };
           dispatch(setSeedProgress(progress));
 
-          // Decide if this message should be a reply to a prior post
-          // in the same channel. ~20% chance once we have something
-          // to reply to.
+          // A message is either a forward, a reply, or plain text.
+          // Forwards and replies both ride on message_reference and are
+          // mutually exclusive, so forward is decided first (~15% once
+          // there's a prior post to forward), then reply (~20%). Both
+          // target an earlier post in the same channel.
+          const forwardTarget =
+            options.includeForwards && postedInChannel.length > 0 && random() < 0.15
+              ? postedInChannel[Math.floor(random() * postedInChannel.length)]
+              : null;
           const replyTarget =
-            options.includeReplies && postedInChannel.length > 0 && random() < 0.2
+            !forwardTarget &&
+            options.includeReplies &&
+            postedInChannel.length > 0 &&
+            random() < 0.2
               ? postedInChannel[Math.floor(random() * postedInChannel.length)]
               : null;
 
-          const content = generateMessageContent(
-            { includeMentions: options.includeMentions, selfUserId },
-            random,
-          );
+          // A forward carries no body content of its own — Discord
+          // assembles the message_snapshots from the source message.
+          const isForward = !!forwardTarget;
+          const content = isForward
+            ? ''
+            : generateMessageContent(
+                { includeMentions: options.includeMentions, selfUserId },
+                random,
+              );
 
-          const body: MessageCreate = { content };
-          if (replyTarget) {
-            body.message_reference = {
-              message_id: replyTarget,
-              channel_id: ch.id,
-              fail_if_not_exists: false,
+          let body: MessageCreate;
+          if (isForward) {
+            body = {
+              message_reference: {
+                type: FORWARD_REFERENCE_TYPE,
+                message_id: forwardTarget!,
+                channel_id: ch.id,
+                fail_if_not_exists: false,
+              },
             };
+          } else {
+            body = { content };
+            if (replyTarget) {
+              body.message_reference = {
+                message_id: replyTarget,
+                channel_id: ch.id,
+                fail_if_not_exists: false,
+              };
+            }
           }
 
           const result = await discordService.postMessage(token, ch.id, body);
@@ -144,7 +175,9 @@ export const seedChannelMessages = createAsyncThunk<
                 randomReactionEmoji(random),
               );
             }
-            if (options.includeEdits && random() < 0.15) {
+            // Forwards have no body text to edit, so skip the edit
+            // effect for them.
+            if (options.includeEdits && !isForward && random() < 0.15) {
               await discordService.editMessage(
                 token,
                 result.data.id,

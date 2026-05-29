@@ -58,11 +58,11 @@ describe('SeedMessagesDialog', () => {
     });
     const checkboxes = screen.getAllByRole('checkbox');
     // First N checkboxes are channel selectors (unchecked), then the
-    // five variety checkboxes (all checked). Filter to find the
+    // six variety checkboxes (all checked). Filter to find the
     // checked ones explicitly.
     const checked = checkboxes.filter((c) => (c as HTMLInputElement).checked);
-    // 5 variety options, all on by default.
-    expect(checked.length).toBe(5);
+    // 6 variety options, all on by default.
+    expect(checked.length).toBe(6);
   });
 
   it('Select all + Clear bulk-toggle the channel set', () => {

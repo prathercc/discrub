@@ -45,6 +45,7 @@ const DEFAULT_OPTIONS: SeedVarietyOptions = {
   includeMentions: true,
   includeReactions: true,
   includeReplies: true,
+  includeForwards: true,
   includeEdits: true,
   includePins: true,
 };
@@ -53,6 +54,7 @@ const VARIETY_LABELS: Array<{ key: keyof SeedVarietyOptions; label: string; hint
   { key: 'includeMentions', label: 'Self-mentions', hint: '~15% of messages' },
   { key: 'includeReactions', label: 'Self-reactions', hint: '~30% of messages, +1 API call each' },
   { key: 'includeReplies', label: 'Replies to earlier seeded messages', hint: '~20% of messages' },
+  { key: 'includeForwards', label: 'Forwards of earlier seeded messages', hint: '~15% of messages' },
   { key: 'includeEdits', label: 'Edits after post', hint: '~15% of messages, +1 API call each' },
   { key: 'includePins', label: 'Pins', hint: '~5% of messages, +1 API call each' },
 ];
