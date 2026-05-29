@@ -70,9 +70,7 @@ import type { MediaDownloadProgress, MediaMaps, MediaConfig, ExportConfig, TextF
 import { defaultTextFormatOptions } from '@features/export/exportTypes';
 import { generateTextPage } from 'discrub-core/export-utils';
 import type { ShouldContinueFn } from './mediaDownloadService';
-import { getUserDisplayData } from '@/utils/userDisplayUtils';
-import { formatMessageTimestamp } from '@/utils/dateUtils';
-import { getMessageContent } from '@/utils/messageUtils';
+import { getUserDisplayData, formatMessageTimestamp, getMessageContent } from 'discrub-core/discrub-utils';
 import { buildExportPageData, generateEmbeddedJs } from './exportHtmlJs';
 import { getUserRoleColor, getUserRoleIcon } from '@/utils/roleColorUtils';
 

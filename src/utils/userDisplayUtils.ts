@@ -3,17 +3,12 @@ import type { ExportUserMap, AppSettings } from 'discrub-core/types/discrub-type
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 
 /**
- * User display data structure
- */
-export interface UserDisplayData {
-  username: string | null;
-  displayName: string | null;
-  nickname: string | null;
-}
-
-/**
  * Get display name for a user based on priority: nickname > display name > username
- * Respects settings flags for display name and server nickname lookup
+ * Respects settings flags for display name and server nickname lookup.
+ *
+ * Settings-aware variant kept in the consumer (the lib's getUserDisplayData is
+ * raw field extraction); the rest of this file's former helpers were promoted
+ * to discrub-core/discrub-utils (#195).
  *
  * @param user - User object from message (may be undefined)
  * @param userMap - Cached user map from enrichment
@@ -65,101 +60,4 @@ export function getDisplayName(
 
   // Fallback
   return 'Unknown';
-}
-
-/**
- * Get all user display data for export purposes
- * Returns separate fields for username, display name, and nickname
- *
- * @param userId - User ID to look up
- * @param userMap - Cached user map from enrichment
- * @param guildId - Current guild ID (null for DMs)
- * @returns Object with username, displayName, and nickname fields
- */
-export function getUserDisplayData(
-  userId: string,
-  userMap: ExportUserMap,
-  guildId: string | null
-): UserDisplayData {
-  const cachedUser = userMap[userId];
-
-  const username = cachedUser?.userName || null;
-  const displayName = cachedUser?.displayName || null;
-  const nickname =
-    guildId && cachedUser?.guilds?.[guildId]?.nick
-      ? cachedUser.guilds[guildId].nick!
-      : null;
-
-  return {
-    username,
-    displayName,
-    nickname,
-  };
-}
-
-/**
- * Get formatted user data for tooltips
- * Returns multi-line string with all available user information
- *
- * @param userId - User ID to look up
- * @param userMap - Cached user map from enrichment
- * @param guildId - Current guild ID (null for DMs)
- * @returns Formatted string for tooltip display
- */
-export function getFormattedUserInfo(
-  userId: string,
-  userMap: ExportUserMap,
-  guildId: string | null
-): string {
-  const data = getUserDisplayData(userId, userMap, guildId);
-  const lines: string[] = [];
-
-  if (data.username) {
-    lines.push(`Username: ${data.username}`);
-  }
-
-  if (data.displayName) {
-    lines.push(`Display Name: ${data.displayName}`);
-  }
-
-  if (data.nickname) {
-    lines.push(`Server Nickname: ${data.nickname}`);
-  }
-
-  if (lines.length === 0) {
-    return 'User information not available';
-  }
-
-  return lines.join('\n');
-}
-
-/**
- * Check if user data exists in cache
- *
- * @param userId - User ID to check
- * @param userMap - Cached user map
- * @returns True if user has cached data
- */
-export function hasUserData(userId: string, userMap: ExportUserMap): boolean {
-  return userId in userMap;
-}
-
-/**
- * Check if user has guild-specific data in cache
- *
- * @param userId - User ID to check
- * @param guildId - Guild ID to check
- * @param userMap - Cached user map
- * @returns True if user has guild-specific data
- */
-export function hasUserGuildData(
-  userId: string,
-  guildId: string,
-  userMap: ExportUserMap
-): boolean {
-  return (
-    userId in userMap &&
-    userMap[userId].guilds !== undefined &&
-    guildId in userMap[userId].guilds
-  );
 }
