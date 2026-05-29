@@ -276,6 +276,101 @@ describe('textEmitter', () => {
     });
   });
 
+  describe('forwarded messages (#197)', () => {
+    it('emits a [Forwarded] marker followed by the snapshot content', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({
+          content: '',
+          message_reference: { type: 1, message_id: 'orig-1', channel_id: 'c1' } as any,
+          message_snapshots: [{ message: { content: 'the original forwarded text' } }] as any,
+        }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      const forwardedIdx = lines.indexOf('[Forwarded]');
+      expect(forwardedIdx).toBeGreaterThanOrEqual(0);
+      expect(lines[forwardedIdx + 1]).toBe('the original forwarded text');
+    });
+
+    it('handles multi-line snapshot content', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({
+          content: '',
+          message_snapshots: [{ message: { content: 'line 1\nline 2\nline 3' } }] as any,
+        }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      const forwardedIdx = lines.indexOf('[Forwarded]');
+      expect(lines.slice(forwardedIdx + 1, forwardedIdx + 4)).toEqual(['line 1', 'line 2', 'line 3']);
+    });
+
+    it('emits snapshot attachments as [Attachment: ...] lines', () => {
+      const att = {
+        id: 'sa1',
+        filename: 'forwarded-photo.png',
+        url: 'https://cdn.example.com/forwarded-photo.png',
+      };
+      const lines = buildTextMessageBlock(
+        makeMessage({
+          content: '',
+          message_snapshots: [{
+            message: {
+              content: 'check this out',
+              attachments: [att],
+            },
+          }] as any,
+        }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      const attachmentLine = lines.find((l) => l.startsWith('[Attachment:'));
+      expect(attachmentLine).toBeTruthy();
+      expect(attachmentLine).toContain('forwarded-photo.png');
+    });
+
+    it('does NOT emit a [Forwarded] block when message has no snapshots', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({ content: 'plain message' }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      expect(lines.includes('[Forwarded]')).toBe(false);
+    });
+
+    it('emits [Forwarded] even when snapshot content is empty (snapshot may carry only attachments)', () => {
+      const lines = buildTextMessageBlock(
+        makeMessage({
+          content: '',
+          message_snapshots: [{
+            message: {
+              content: '',
+              attachments: [{ id: 'a', filename: 'img.png', url: 'https://x/img.png' }],
+            },
+          }] as any,
+        }),
+        cachedUserMap,
+        null,
+        exportConfig,
+        null,
+        defaultTextFormatOptions,
+      );
+      expect(lines.includes('[Forwarded]')).toBe(true);
+    });
+  });
+
   describe('attachments', () => {
     const att = {
       id: 'a1',

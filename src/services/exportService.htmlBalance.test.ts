@@ -314,4 +314,48 @@ describe('HTML export div balance (#198 cascade hunt)', () => {
       warnSpy.mockRestore();
     });
   });
+
+  describe('forwarded message HTML block (#197)', () => {
+    const ctx = { userMap: {}, channelMap: {}, guildRoles: [], emojiMap: {}, sanitizedName: 'test' };
+
+    it('renders a forward-block with snapshot content and an attachment link', () => {
+      const messages = [createMockMessage({
+        id: 'fwd-1',
+        type: 0,
+        content: '',
+        message_reference: { type: 1, message_id: 'orig-99', channel_id: 'ch1' } as any,
+        message_snapshots: [{
+          message: {
+            content: 'the original forwarded content',
+            attachments: [{ id: 'a1', filename: 'orig.png', url: 'https://x/orig.png' }],
+          },
+        }] as any,
+      } as any)];
+      const html = service.generateHTMLPage(messages, 'test-channel', 1, 1, undefined, undefined, ctx);
+      expect(html).toContain('class="forward-block"');
+      expect(html).toContain('data-message-snapshot="true"');
+      expect(html).toContain('Forwarded');
+      expect(html).toContain('the original forwarded content');
+      expect(html).toContain('orig.png');
+    });
+
+    it('does NOT render a forward-block for a plain message', () => {
+      const messages = [createMockMessage({ id: 'plain-1', content: 'hi' })];
+      const html = service.generateHTMLPage(messages, 'test-channel', 1, 1, undefined, undefined, ctx);
+      expect(html).not.toContain('class="forward-block"');
+    });
+
+    it('keeps div balance after rendering a forward (cross-check with assertBalancedTags)', () => {
+      const messages = [
+        createMockMessage({
+          id: 'fwd-1',
+          message_snapshots: [{ message: { content: 'forwarded text' } }] as any,
+        } as any),
+        createMockMessage({ id: 'after-1', content: 'follow-up' }),
+      ];
+      const html = service.generateHTMLPage(messages, 'test-channel', 1, 1, undefined, undefined, ctx);
+      const balance = assertBalancedTags(html);
+      expect(balance.balanced).toBe(true);
+    });
+  });
 });

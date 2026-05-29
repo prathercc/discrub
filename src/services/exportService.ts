@@ -1059,6 +1059,40 @@ class ExportService {
           }
         }
 
+        // Forwarded message block (#197): Discord's late-2024 Forward
+        // feature attaches the original payload on message_snapshots[0].
+        // The forwarding message's own content is typically empty, so
+        // we surface the snapshot's content + attachments inline,
+        // preceded by a small "Forwarded" header. Discord strips the
+        // original author for privacy; nothing to attribute.
+        let forwardHtml = '';
+        const snapshot = Array.isArray((msg as any).message_snapshots) && (msg as any).message_snapshots.length > 0
+          ? (msg as any).message_snapshots[0]?.message ?? null
+          : null;
+        if (snapshot) {
+          const snapContent = formattingContext
+            ? formatContentAsHtml(snapshot.content || '', formattingContext)
+            : this.escapeHtml(snapshot.content || '');
+          const snapAttachmentsHtml = Array.isArray(snapshot.attachments) && snapshot.attachments.length > 0
+            ? `<div class="forward-attachments">${snapshot.attachments
+                .map((att: any) => {
+                  const filename = this.escapeHtml(att.filename || 'attachment');
+                  const url = att.url || '';
+                  return `<a class="forward-attachment" href="${url}" target="_blank" rel="noopener noreferrer">${filename}</a>`;
+                })
+                .join('')}</div>`
+            : '';
+          forwardHtml = `
+            <div class="forward-block" data-message-snapshot="true">
+              <div class="forward-header">
+                <span class="forward-icon" aria-hidden="true">&#x21AA;</span>
+                <span class="forward-label">Forwarded</span>
+              </div>
+              <div class="forward-content">${snapContent}</div>
+              ${snapAttachmentsHtml}
+            </div>`;
+        }
+
         // Thread banner (for messages that spawned a thread) — only in main channel pages
         let threadBannerHtml = '';
         const thread = (msg as any).thread;
@@ -1086,6 +1120,7 @@ class ExportService {
             </div>
             <div class="message-content">
               <div class="message-text">${content}${editedHtml}</div>
+              ${forwardHtml}
               ${attachmentsHtml}
               ${embedsHtml}
               ${reactionsHtml}
@@ -1109,6 +1144,7 @@ class ExportService {
                 <span class="timestamp">${timestamp}</span>
               </div>
               <div class="message-text">${content}${editedHtml}</div>
+              ${forwardHtml}
               ${attachmentsHtml}
               ${embedsHtml}
               ${reactionsHtml}
@@ -1934,6 +1970,59 @@ class ExportService {
       color: #72767d;
       font-size: 12px;
       font-style: italic;
+    }
+
+    /* ==== FORWARDED MESSAGES (#197) ==== */
+    .forward-block {
+      margin-top: 8px;
+      padding: 8px 12px;
+      border-left: 3px solid #4f545c;
+      background: rgba(79, 84, 92, 0.1);
+      border-radius: 0 4px 4px 0;
+    }
+
+    .forward-header {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .forward-icon {
+      color: #b9bbbe;
+      font-size: 12px;
+    }
+
+    .forward-label {
+      color: #b9bbbe;
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .forward-content {
+      color: var(--text-primary);
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .forward-attachments {
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .forward-attachment {
+      color: var(--text-link);
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .forward-attachment:hover {
+      text-decoration: underline;
     }
 
     /* ==== THREAD BANNERS ==== */

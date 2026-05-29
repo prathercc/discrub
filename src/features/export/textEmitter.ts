@@ -191,6 +191,32 @@ export function buildTextMessageBlock(
       lines.push(bodyLine);
     }
   }
+  // #197: forwarded messages carry their payload on
+  // message_snapshots[0].message. The forwarding message's own content
+  // is usually empty, so we render a "[Forwarded]" marker followed by
+  // the snapshot's content + attachments inline. Discord strips the
+  // original author for privacy, so there's no "@author" to attribute.
+  const snapshot =
+    Array.isArray(message.message_snapshots) && message.message_snapshots.length > 0
+      ? message.message_snapshots[0]?.message ?? null
+      : null;
+  if (snapshot) {
+    lines.push('[Forwarded]');
+    const forwardedBody = snapshot.content ?? '';
+    if (forwardedBody) {
+      for (const bodyLine of forwardedBody.split('\n')) {
+        lines.push(bodyLine);
+      }
+    }
+    if (Array.isArray(snapshot.attachments) && snapshot.attachments.length > 0 && options.attachmentStyle !== 'skip') {
+      for (const att of snapshot.attachments) {
+        const filename = att.filename || 'attachment';
+        const local = mediaMaps?.mediaMap?.[att.url];
+        const target = options.attachmentStyle === 'sidecar' && local ? local : att.url;
+        lines.push(`[Attachment: ${filename} — ${target}]`);
+      }
+    }
+  }
   lines.push(...buildAttachmentLines(message, mediaMaps, options));
   const reactionsLine = buildReactionsLine(message, options);
   if (reactionsLine) lines.push(reactionsLine);

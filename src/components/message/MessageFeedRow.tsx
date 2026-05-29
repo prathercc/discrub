@@ -432,6 +432,81 @@ const MessageFeedRow = memo(function MessageFeedRow({
           </Typography>
         ) : null}
 
+        {/* Forwarded message (#197). The forwarding message itself
+            typically has empty content; the payload sits on
+            message_snapshots[0].message. Discord strips the original
+            author for privacy, so there's no "@author" attribution to
+            render. */}
+        {Array.isArray((message as any).message_snapshots) &&
+          (message as any).message_snapshots.length > 0 &&
+          (() => {
+            const snapshot = (message as any).message_snapshots[0]?.message;
+            if (!snapshot) return null;
+            const snapHtml = snapshot.content
+              ? formatContentAsHtml(snapshot.content, formattingContext)
+              : '';
+            return (
+              <Box
+                sx={{
+                  mt: 1,
+                  pl: 1.5,
+                  py: 0.75,
+                  borderLeft: '3px solid',
+                  borderColor: 'text.disabled',
+                  backgroundColor: 'action.hover',
+                  borderRadius: '0 4px 4px 0',
+                }}
+                data-message-snapshot="true"
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5 }}>
+                  <ReplyIcon sx={{ fontSize: 12, transform: 'scaleX(-1)' }} />
+                  <Typography
+                    variant="caption"
+                    color="text.secondary"
+                    sx={{ fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}
+                  >
+                    Forwarded
+                  </Typography>
+                </Box>
+                {snapHtml ? (
+                  <Box
+                    sx={{
+                      fontSize: '0.9rem',
+                      lineHeight: 1.5,
+                      color: 'text.primary',
+                      wordBreak: 'break-word',
+                      ...mentionStyles,
+                    }}
+                    dangerouslySetInnerHTML={{ __html: snapHtml }}
+                  />
+                ) : null}
+                {Array.isArray(snapshot.attachments) && snapshot.attachments.length > 0 && (
+                  <Box sx={{ mt: 0.5 }}>
+                    {snapshot.attachments.map((att: any) => (
+                      <Typography
+                        key={att.id || att.url}
+                        component="a"
+                        href={att.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        variant="body2"
+                        sx={{
+                          display: 'block',
+                          color: 'primary.main',
+                          textDecoration: 'none',
+                          fontSize: '0.85rem',
+                          '&:hover': { textDecoration: 'underline' },
+                        }}
+                      >
+                        {att.filename || 'attachment'}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })()}
+
         {/* Inline attachments */}
         {message.attachments && message.attachments.length > 0 && (
           <InlineAttachments

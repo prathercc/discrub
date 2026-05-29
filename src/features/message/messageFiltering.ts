@@ -74,8 +74,14 @@ export const applyRefineCriteria = (
           case HasType.POLL:
             return !!(msg as Record<string, unknown>).poll;
           case HasType.FORWARD:
-            return msg.type === 1 ||
-              !!(msg.message_reference as Record<string, unknown>)?.type;
+            // #197: the load-bearing field is `message_snapshots`. Older
+            // code checked `msg.type === 1` (which is RECIPIENT_ADD, not
+            // a forward) plus a truthy probe of message_reference.type
+            // that worked by coincidence (FORWARD's discriminator value
+            // is 1, REPLY's is 0). Snapshot presence is the canonical
+            // check — forwards always carry a snapshot, snapshots only
+            // exist on forwards.
+            return Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0;
           default:
             return false;
         }
