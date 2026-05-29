@@ -3333,6 +3333,22 @@ class ExportService {
       parts = parts.map((p) => this.prefixRelativeMediaPaths(p, mediaPathPrefix));
     }
 
+    // Defense-in-depth (#198): dev-mode HTML balance check. If a future
+    // change to this file or to discrub-core's formatContentAsHtml introduces
+    // a path that emits an unbalanced <div>, we want to know during local
+    // testing — not from a user reporting that messages tile horizontally.
+    // Silent in production. The Vitest suite at
+    // exportService.htmlBalance.test.ts is the primary safety net; this is
+    // the late-binding catch for anything that snuck past the fuzz cases.
+    if (import.meta.env.DEV) {
+      const balance = assertBalancedTags(parts.join(''));
+      if (!balance.balanced) {
+        console.warn(
+          `[exportService] HTML balance check failed for "${channelName}" page ${pageNumber}/${totalPages}: <div> diff is ${balance.divDiff}. Possible #198 regression.`,
+        );
+      }
+    }
+
     return parts;
   }
 
@@ -3417,4 +3433,22 @@ export const getExportService = (): ExportService => {
     exportServiceInstance = new ExportService();
   }
   return exportServiceInstance;
+};
+
+/**
+ * Check that the cumulative <div> open and close counts match in an HTML
+ * string. Used as the dev-mode catch-net for the #198 cascade bug class:
+ * if a future emitter forgets a close, every message after the broken one
+ * cascades into the unclosed wrapper and tiles horizontally. The fuzz
+ * suite in exportService.htmlBalance.test.ts is the primary guard; this
+ * helper exists so the production code path can also flag a problem
+ * during local dev export runs.
+ *
+ * Returns the diff so the caller can write a useful warning. A positive
+ * diff means more opens than closes (the cascade-trigger shape).
+ */
+export const assertBalancedTags = (html: string): { balanced: boolean; divDiff: number } => {
+  const divOpens = (html.match(/<div[\s>]/g) || []).length;
+  const divCloses = (html.match(/<\/div>/g) || []).length;
+  return { balanced: divOpens === divCloses, divDiff: divOpens - divCloses };
 };
