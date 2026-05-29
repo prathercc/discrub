@@ -94,9 +94,16 @@ const MessageFeedRow = memo(function MessageFeedRow({
     (message.attachments && message.attachments.length > 0) ||
     (message.embeds && message.embeds.length > 0);
 
-  const contentHtml = rawContent
-    ? formatContentAsHtml(rawContent, formattingContext)
-    : '';
+  // #190 phase 2: cache the markdown→HTML transformation per row. Before
+  // this, formatContentAsHtml ran on every render even though the row is
+  // wrapped in React.memo at the export boundary — because the call sat
+  // outside any useMemo. With formattingContext stabilized at the
+  // ServerView level (memoized userMap/channelMap/guildRoles), this
+  // useMemo only recomputes when the actual message content changes.
+  const contentHtml = useMemo(
+    () => (rawContent ? formatContentAsHtml(rawContent, formattingContext) : ''),
+    [rawContent, formattingContext],
+  );
 
   const overflowing = useMemo(() => shouldCollapseContent(rawContent), [rawContent]);
 

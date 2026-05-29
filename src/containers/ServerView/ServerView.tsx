@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import { Box, Typography, Paper, Button, Alert, AlertTitle, Chip } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import {
@@ -539,7 +539,13 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     );
   };
 
-  const handleFetchReactingUsers = async (messageId: string, emoji: string): Promise<User[]> => {
+  // #190 phase 1: useCallback on every handler that flows down into the
+  // MessageFeed → MessageChunk → MessageFeedRow tree. Without this each
+  // ServerView render minted a fresh function ref per handler, defeating
+  // the React.memo wrappers on MessageChunk and MessageFeedRow and
+  // re-rendering every row in the visible viewport on every parent state
+  // tick (status log appends, progress counters, enrichment ticks).
+  const handleFetchReactingUsers = useCallback(async (messageId: string, emoji: string): Promise<User[]> => {
     if (!token) return [];
     const channelId = activeTab || currentContext?.id;
     if (!channelId) return [];
@@ -554,10 +560,10 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     ).unwrap();
 
     return result.users;
-  };
+  }, [token, activeTab, currentContext?.id, dispatch]);
 
   // DM context: return current user from reaction.me without API calls
-  const handleFetchReactingUsersDm = async (messageId: string, emoji: string): Promise<User[]> => {
+  const handleFetchReactingUsersDm = useCallback(async (messageId: string, emoji: string): Promise<User[]> => {
     const msg = messages.find((m) => m.id === messageId);
     if (!msg?.reactions || !currentUser) return [];
 
@@ -570,9 +576,9 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       return [currentUser as User];
     }
     return [];
-  };
+  }, [messages, currentUser]);
 
-  const handleDeleteReaction = async (messageId: string, emoji: string, userId: string) => {
+  const handleDeleteReaction = useCallback(async (messageId: string, emoji: string, userId: string) => {
     if (!token) return;
     const channelId = activeTab || currentContext?.id;
     if (!channelId) return;
@@ -586,9 +592,9 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         token,
       })
     );
-  };
+  }, [token, activeTab, currentContext?.id, dispatch]);
 
-  const handleBulkDeleteAllReactions = async (messageId: string) => {
+  const handleBulkDeleteAllReactions = useCallback(async (messageId: string) => {
     if (!token) return;
     const channelId = activeTab || currentContext?.id;
     if (!channelId) return;
@@ -596,7 +602,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     await dispatch(
       bulkDeleteAllReactions({ channelId, messageId, token })
     );
-  };
+  }, [token, activeTab, currentContext?.id, dispatch]);
 
   const handleBatchRemoveReactions = (params: {
     messages: Message[];
@@ -631,7 +637,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     );
   };
 
-  const handleBulkDeleteReactionsForEmoji = async (messageId: string, emoji: string) => {
+  const handleBulkDeleteReactionsForEmoji = useCallback(async (messageId: string, emoji: string) => {
     if (!token) return;
     const channelId = activeTab || currentContext?.id;
     if (!channelId) return;
@@ -639,9 +645,9 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     await dispatch(
       bulkDeleteReactionsForEmoji({ channelId, messageId, emoji, token })
     );
-  };
+  }, [token, activeTab, currentContext?.id, dispatch]);
 
-  const handleDeleteAttachment = async (message: Message, attachment: Attachment) => {
+  const handleDeleteAttachment = useCallback(async (message: Message, attachment: Attachment) => {
     if (!token) return;
     const channelId = activeTab || currentContext?.id;
     if (!channelId) return;
@@ -654,9 +660,9 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         token,
       })
     );
-  };
+  }, [token, activeTab, currentContext?.id, dispatch]);
 
-  const handleDeleteAllAttachments = async (message: Message) => {
+  const handleDeleteAllAttachments = useCallback(async (message: Message) => {
     if (!token) return;
     const channelId = activeTab || currentContext?.id;
     if (!channelId) return;
@@ -668,7 +674,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         token,
       })
     );
-  };
+  }, [token, activeTab, currentContext?.id, dispatch]);
 
   const handleThreadLoad = async (threadId: string) => {
     if (!token) return;
@@ -691,12 +697,21 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     }
   };
 
-  const handleOpenThread = (message: Message) => {
+  const handleOpenThread = useCallback((message: Message) => {
     if (!token || isOperationRunning) return;
     const thread = (message as any).thread;
     if (!thread) return;
     dispatch(openThreadTab({ threadId: thread.id, threadName: thread.name || `Thread`, token }));
-  };
+  }, [token, isOperationRunning, dispatch]);
+
+  // #190 phase 1: the DM-vs-guild ternary used to pick a fresh function
+  // ref on every render. Memoize the chosen handler so MessageFeed's
+  // prop reference stays stable across re-renders where isDm hasn't
+  // flipped.
+  const onFetchReactingUsers = useMemo(
+    () => (isDm ? handleFetchReactingUsersDm : handleFetchReactingUsers),
+    [isDm, handleFetchReactingUsersDm, handleFetchReactingUsers],
+  );
 
   const handleOpenForumThread = (thread: Channel) => {
     if (!token || isOperationRunning) return;
@@ -1006,7 +1021,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           fetchDelayMs={searchDelay}
           isDm={isDm}
           onBatchRemoveReactions={handleBatchRemoveReactions}
-          onFetchReactingUsers={isDm ? handleFetchReactingUsersDm : handleFetchReactingUsers}
+          onFetchReactingUsers={onFetchReactingUsers}
         />
       )}
 
@@ -1096,7 +1111,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
             formattingContext={formattingContext}
             fullUserMap={fullUserMap}
             onDeleteReaction={handleDeleteReaction}
-            onFetchReactingUsers={isDm ? handleFetchReactingUsersDm : handleFetchReactingUsers}
+            onFetchReactingUsers={onFetchReactingUsers}
             onDeleteAttachment={handleDeleteAttachment}
             onDeleteAllAttachments={handleDeleteAllAttachments}
             onOpenThread={handleOpenThread}
