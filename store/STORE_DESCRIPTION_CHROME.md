@@ -12,8 +12,8 @@ Discord Data Package
 - Mention analytics across an entire package
 
 Export
-- Formats: HTML, CSV, JSON, media-only
-- 9 built-in presets plus custom preset creation
+- Formats: HTML, CSV, JSON, plain text, media-only
+- 10 built-in presets plus custom preset creation
 - Downloads avatars, attachments, emojis, and media for offline viewing
 - Thread messages exported as separate files
 - HTML exports include search, image lightbox, system message rendering, and dark/light theme toggle
@@ -22,6 +22,7 @@ Export
 
 Message Feed
 - Discord-style chunked feed with role colors, role icons, reply indicators, and inline system messages (pins, joins, boosts, thread-created)
+- Forwarded messages render their full content (text, attachments, embeds), in the feed and in exports
 - Voice and Stage channel chat browsable alongside text channels
 - Virtualization for smooth scrolling on large channels
 - Click-to-jump on reply bars, pinned-message notices, and thread-created notices
@@ -31,10 +32,10 @@ Message Feed
 Search and Filter
 - Search hits Discord's API: filter by content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), date range with time-of-day precision, pinned status, author type
 - Lazy pagination: results stream in as you scroll, with optional Load All
-- Refine narrows already-loaded messages client-side, with no API calls
+- Refine narrows already-loaded messages client-side, with no API calls; show only or hide a chosen system-message type
 
 Purge
-- Search-based message deletion with per-user targeting
+- Search-based message deletion with per-user targeting, with an optional opt-in to also delete chosen system-message categories (pins, joins, boosts)
 - Attachments-only mode strips attachments while keeping text
 - Reactions mode removes specific users' reactions
 - Multi-channel bulk purge with filter support

@@ -43,7 +43,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Thread Discoverability** — The Load Thread modal auto-discovers active and archived threads in the current channel and renders a clickable list. Threads whose starter message has been deleted are still reachable, no thread ID hunting required.
 - **Bulk Reaction Removal** — Remove reactions across multiple messages at once with emoji picker and user targeting. Admins get one-click bulk removal.
 - **Analytics Modal** — View mention frequency, user engagement metrics, and export analytics to CSV.
-- **9 Export Presets** — Quick Text Backup, Full Archive, Data Analysis, Spreadsheet Export, Media Gallery, Lightweight Backup, Chronological Log, Images Only, Thread Archive. Plus custom preset creation.
+- **10 Export Presets** — Quick Text Backup, Full Archive, Data Analysis, Spreadsheet Export, Media Gallery, Lightweight Backup, Chronological Log, Images Only, Thread Archive, Plain Text. Plus custom preset creation.
 - **Donation Wall** — Ko-Fi supporter feed with tier system and leaderboard.
 - **Role Colors & Icons** — Author names colored by their highest role, with role icons displayed in the feed and user profiles.
 - **Reply Indicators** — Messages that are replies show the referenced message author and a preview of what they replied to. Click the reply bar to jump to the original.
