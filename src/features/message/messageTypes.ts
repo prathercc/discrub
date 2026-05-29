@@ -1,6 +1,7 @@
 import type { Message } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { SortDirection } from 'discrub-core/common-enum';
+import type { RefineCriteria } from './messageFiltering';
 
 /**
  * Types for message feature
@@ -50,8 +51,9 @@ export interface ThreadTabState {
   searchCriteria: SearchCriteria | null;
   /** Client-side refine applied on top of the raw message list. Kept here
    *  (not in a component ref) so data-arrival reducers can re-apply it
-   *  automatically when new pages stream in. */
-  refineCriteria: SearchCriteria | null;
+   *  automatically when new pages stream in. RefineCriteria extends
+   *  SearchCriteria with the client-only system-message filter (#201). */
+  refineCriteria: RefineCriteria | null;
   order: MessageOrder;
   isLoading: boolean;
   error: string | null;
@@ -65,7 +67,7 @@ export interface MessageState {
   searchCriteria: SearchCriteria | null;
   /** Client-side refine applied on top of the raw message list. See
    *  ThreadTabState.refineCriteria for rationale. */
-  refineCriteria: SearchCriteria | null;
+  refineCriteria: RefineCriteria | null;
   order: MessageOrder;
   isLoading: boolean;
   isDeleting: boolean;

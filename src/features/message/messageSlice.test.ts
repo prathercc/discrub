@@ -137,10 +137,17 @@ vi.mock('@features/status/statusSlice', () => ({
   showToast: vi.fn((payload) => ({ type: 'status/showToast', payload })),
 }));
 
-vi.mock('discrub-core/discord-enum', () => ({
-  ReactionType: { NORMAL: 0, BURST: 1 },
-  IsPinnedType: { UNSET: 0, YES: 1, NO: 2 },
-}));
+vi.mock('discrub-core/discord-enum', async (importOriginal) => {
+  // Spread the real enum so module-eval consumers (e.g. systemMessageGroups
+  // building its bucket list from MessageType) resolve, while keeping the
+  // explicit ReactionType/IsPinnedType overrides this suite relies on.
+  const actual = await importOriginal<typeof import('discrub-core/discord-enum')>();
+  return {
+    ...actual,
+    ReactionType: { NORMAL: 0, BURST: 1 },
+    IsPinnedType: { UNSET: 0, YES: 1, NO: 2 },
+  };
+});
 
 vi.mock('@services/reactionEnrichmentService', () => ({
   reactionEnrichmentService: {

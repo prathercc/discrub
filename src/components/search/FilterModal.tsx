@@ -10,6 +10,8 @@ import {
   TextField,
   Chip,
   Collapse,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -24,19 +26,21 @@ import UserPicker from '@components/ui/UserPicker';
 import TourFootnote from '@components/welcome/TourFootnote';
 import PinnedFilter from './filters/PinnedFilter';
 import AuthorTypeFilter from './filters/AuthorTypeFilter';
+import SystemMessageTypePicker from '@components/message/SystemMessageTypePicker';
 import { defaultCriteria } from './searchConstants';
 import type { AuthorType } from 'discrub-core/discord-enum';
-import { countActiveFilters, countTotalFilters } from 'discrub-core/filtering';
+import { countActiveFilters } from 'discrub-core/filtering';
+import type { RefineCriteria, SystemMessageRefineMode } from '@features/message/messageFiltering';
 
 interface FilterModalProps {
   open: boolean;
   onClose: () => void;
   onServerSearch: (criteria: SearchCriteria) => void;
-  onRefine: (criteria: SearchCriteria) => void;
+  onRefine: (criteria: RefineCriteria) => void;
   onClearSearch: () => void;
   onClearRefine: () => void;
   savedSearchCriteria?: SearchCriteria;
-  savedRefineCriteria?: SearchCriteria;
+  savedRefineCriteria?: RefineCriteria;
   cachedUserMap: ExportUserMap;
   currentUserId: string;
   // For bulk-operation callers (bulk purge / bulk export) the Refine
@@ -122,19 +126,26 @@ const FilterModal = ({
   const [searchExpanded, setSearchExpanded] = useState(true);
 
   // Refine section state
-  const [refineCriteria, setRefineCriteria] = useState<SearchCriteria>(savedRefineCriteria ?? defaultCriteria);
+  const [refineCriteria, setRefineCriteria] = useState<RefineCriteria>(savedRefineCriteria ?? defaultCriteria);
   const [refineExpanded, setRefineExpanded] = useState(true);
 
   const updateSearchCriteria = (updater: SearchCriteria | ((prev: SearchCriteria) => SearchCriteria)) => {
     setSearchCriteria((prev) => typeof updater === 'function' ? updater(prev) : updater);
   };
 
-  const updateRefineCriteria = (updater: SearchCriteria | ((prev: SearchCriteria) => SearchCriteria)) => {
+  const updateRefineCriteria = (updater: RefineCriteria | ((prev: RefineCriteria) => RefineCriteria)) => {
     setRefineCriteria((prev) => typeof updater === 'function' ? updater(prev) : updater);
   };
 
   const searchFilterCount = useMemo(() => countActiveFilters(searchCriteria), [searchCriteria]);
-  const refineFilterCount = useMemo(() => countActiveFilters(refineCriteria), [refineCriteria]);
+  // #201: the system-message refine filter isn't part of the lib SearchCriteria
+  // counters, so add it explicitly — otherwise a system-only refine would read
+  // as "0 filters" and handleRefineApply would clear instead of apply.
+  const refineFilterCount = useMemo(() => {
+    const base = countActiveFilters(refineCriteria);
+    const sys = refineCriteria.systemMessageGroups && refineCriteria.systemMessageGroups.length > 0 ? 1 : 0;
+    return base + sys;
+  }, [refineCriteria]);
 
   const searchHasChanges = JSON.stringify(searchCriteria) !== JSON.stringify(savedSearchCriteria ?? defaultCriteria);
   const refineHasChanges = JSON.stringify(refineCriteria) !== JSON.stringify(savedRefineCriteria ?? defaultCriteria);
@@ -345,6 +356,30 @@ const FilterModal = ({
               <MessageTypeFilter selectedTypes={refineCriteria.selectedHasTypes} onChange={(types) => updateRefineCriteria((p) => ({ ...p, selectedHasTypes: types }))} />
 
               <PinnedFilter value={refineCriteria.isPinned} onChange={(v) => updateRefineCriteria((p) => ({ ...p, isPinned: v }))} />
+
+              {/* #201 — system-message type filter (client-side only; the
+                  Discord search API has no MessageType param, so it lives in
+                  Refine). Reuses the same 7-bucket picker as the purge dialog. */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>System Messages</Typography>
+                  <ToggleButtonGroup
+                    exclusive
+                    size="small"
+                    value={refineCriteria.systemMessageMode ?? 'only'}
+                    onChange={(_, mode: SystemMessageRefineMode | null) => {
+                      if (mode) updateRefineCriteria((p) => ({ ...p, systemMessageMode: mode }));
+                    }}
+                  >
+                    <ToggleButton value="only" sx={{ textTransform: 'none', py: 0.25 }}>Show only</ToggleButton>
+                    <ToggleButton value="hide" sx={{ textTransform: 'none', py: 0.25 }}>Hide</ToggleButton>
+                  </ToggleButtonGroup>
+                </Box>
+                <SystemMessageTypePicker
+                  selectedGroups={refineCriteria.systemMessageGroups ?? []}
+                  onChange={(groups) => updateRefineCriteria((p) => ({ ...p, systemMessageGroups: groups }))}
+                />
+              </Box>
             </Box>
 
             {/* Sticky action bar */}

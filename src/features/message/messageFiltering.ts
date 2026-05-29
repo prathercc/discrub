@@ -1,13 +1,27 @@
 import type { Message, User, Attachment } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { AuthorType, HasType, IsPinnedType } from 'discrub-core/discord-enum';
+import { groupsToTypes } from '@/utils/systemMessageGroups';
+
+// #201 — system-message refine is CLIENT-SIDE only (Discord's search API has
+// no MessageType param). These fields ride on the refine criteria object so
+// the single applyRefineCriteria predicate handles them and every
+// filteredMessages recompute site inherits the behavior.
+export type SystemMessageRefineMode = 'only' | 'hide';
+
+export type RefineCriteria = SearchCriteria & {
+  /** Selected system-message bucket keys (see systemMessageGroups). */
+  systemMessageGroups?: string[];
+  /** 'only' → show just these types; 'hide' → drop them. Defaults to 'only'. */
+  systemMessageMode?: SystemMessageRefineMode;
+};
 
 /**
- * Whether a SearchCriteria object has any filter actually set. Used to
+ * Whether a refine criteria object has any filter actually set. Used to
  * decide whether a refine needs to be applied at all — an "empty" criteria
  * object is the default state and should be treated as no-op.
  */
-export const criteriaIsActive = (criteria: SearchCriteria | null | undefined): boolean => {
+export const criteriaIsActive = (criteria: RefineCriteria | null | undefined): boolean => {
   if (!criteria) return false;
   if (criteria.searchMessageContent) return true;
   if (criteria.searchAfterDate || criteria.searchBeforeDate) return true;
@@ -16,6 +30,7 @@ export const criteriaIsActive = (criteria: SearchCriteria | null | undefined): b
   if (criteria.mentionIds && criteria.mentionIds.length > 0) return true;
   if (criteria.isPinned !== undefined && criteria.isPinned !== IsPinnedType.UNSET) return true;
   if (criteria.authorType) return true;
+  if (criteria.systemMessageGroups && criteria.systemMessageGroups.length > 0) return true;
   return false;
 };
 
@@ -27,10 +42,17 @@ export const criteriaIsActive = (criteria: SearchCriteria | null | undefined): b
  */
 export const applyRefineCriteria = (
   messages: Message[],
-  criteria: SearchCriteria | null | undefined,
+  criteria: RefineCriteria | null | undefined,
 ): Message[] => {
   if (!criteriaIsActive(criteria)) return messages;
-  const c = criteria as SearchCriteria;
+  const c = criteria as RefineCriteria;
+
+  // #201 — precompute the selected system-message types once (enum string
+  // values → numbers, since msg.type is numeric on the wire).
+  const systemTypeSet =
+    c.systemMessageGroups && c.systemMessageGroups.length > 0
+      ? new Set(groupsToTypes(c.systemMessageGroups).map(Number))
+      : null;
 
   return messages.filter((msg) => {
     if (c.searchMessageContent) {
@@ -119,6 +141,15 @@ export const applyRefineCriteria = (
       const mentionedIds = msg.mentions?.map((u: User) => u.id) || [];
       const hasMention = c.mentionIds.some((id) => mentionedIds.includes(id));
       if (!hasMention) return false;
+    }
+
+    // #201 — system-message type filter. 'only' keeps just the selected
+    // types (drop everything else); 'hide' drops the selected types.
+    if (systemTypeSet) {
+      const isSelectedType = systemTypeSet.has(msg.type);
+      const mode = c.systemMessageMode ?? 'only';
+      if (mode === 'only' && !isSelectedType) return false;
+      if (mode === 'hide' && isSelectedType) return false;
     }
 
     return true;

@@ -127,6 +127,43 @@ describe('FilterModal', () => {
       fireEvent.keyDown(input, { key: 'Enter' });
       expect(onRefine).toHaveBeenCalled();
     });
+
+    // #201 — system-message type refine (client-side only)
+    it('renders the System Messages refine control with Show only / Hide modes', () => {
+      renderWithProviders(<FilterModal {...defaultProps} />);
+      expect(screen.getByText('System Messages')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Show only' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Hide' })).toBeInTheDocument();
+      // The picker's buckets render in the Refine section.
+      expect(screen.getByRole('checkbox', { name: 'Pin notifications' })).toBeInTheDocument();
+    });
+
+    it('threads a system-only refine into onRefine and APPLIES it (count fix #201)', () => {
+      // A system-only refine must register as an active filter — otherwise
+      // handleRefineApply would treat it as 0 filters and clear instead.
+      const onRefine = vi.fn();
+      const onClearRefine = vi.fn();
+      renderWithProviders(
+        <FilterModal {...defaultProps} onRefine={onRefine} onClearRefine={onClearRefine} />,
+      );
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Pin notifications' }));
+      fireEvent.click(screen.getByRole('button', { name: /Apply Refine/ }));
+      expect(onClearRefine).not.toHaveBeenCalled();
+      expect(onRefine).toHaveBeenCalledWith(
+        expect.objectContaining({ systemMessageGroups: ['pins'] }),
+      );
+    });
+
+    it('emits systemMessageMode=hide when Hide is selected', () => {
+      const onRefine = vi.fn();
+      renderWithProviders(<FilterModal {...defaultProps} onRefine={onRefine} />);
+      fireEvent.click(screen.getByRole('checkbox', { name: 'Boost notifications' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Hide' }));
+      fireEvent.click(screen.getByRole('button', { name: /Apply Refine/ }));
+      expect(onRefine).toHaveBeenCalledWith(
+        expect.objectContaining({ systemMessageGroups: ['boosts'], systemMessageMode: 'hide' }),
+      );
+    });
   });
 
   describe('independent state', () => {

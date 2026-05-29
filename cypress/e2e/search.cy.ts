@@ -560,6 +560,73 @@ describe('Search & Filters', () => {
     });
   });
 
+  // ── REFINE: SYSTEM MESSAGE TYPE FILTER (#201) ──────────────────────
+  // Discord's search API can't filter by MessageType, so this is a
+  // client-side Refine. Seed the feed with a normal message + a pin
+  // notification (type 6) so the filter has something to act on.
+  describe('Refine — system message type filter (#201)', () => {
+    const CURRENT_USER = {
+      id: '111222333444555666',
+      username: 'discrub_tester',
+      discriminator: '0',
+      avatar: 'abc123avatar',
+      global_name: 'Discrub Tester',
+    };
+    const mk = (id: string, type: number, content: string) => ({
+      id,
+      channel_id: '801000000000000001',
+      author: CURRENT_USER,
+      content,
+      timestamp: '2026-02-01T10:00:00.000Z',
+      edited_timestamp: null,
+      tts: false,
+      mention_everyone: false,
+      mentions: [],
+      attachments: [],
+      embeds: [],
+      reactions: [],
+      pinned: false,
+      type,
+    });
+
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.intercept('GET', `${API}/channels/*/messages?*`, {
+        statusCode: 200,
+        body: [mk('700000000000000401', 0, 'A normal feed message'), mk('700000000000000402', 6, '')],
+      }).as('getMessages');
+      cy.selectChannel('general');
+      cy.get('[data-testid="system-message-row"][data-system-kind="pin"]').should('exist');
+    });
+
+    it('"Show only" narrows the feed to the selected system type', () => {
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]')
+        .find('input[aria-label="Pin notifications"]')
+        .scrollIntoView()
+        .click({ force: true });
+      // "Show only" is the default mode.
+      cy.get('[role="dialog"]').contains('button', 'Apply Refine').click();
+
+      cy.get('[data-testid="system-message-row"][data-system-kind="pin"]').should('exist');
+      cy.contains('[data-testid="message-feed-row"]', 'A normal feed message').should('not.exist');
+    });
+
+    it('"Hide" removes the selected system type, keeping the rest', () => {
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]')
+        .find('input[aria-label="Pin notifications"]')
+        .scrollIntoView()
+        .click({ force: true });
+      cy.get('[role="dialog"]').contains('button', 'Hide').click();
+      cy.get('[role="dialog"]').contains('button', 'Apply Refine').click();
+
+      cy.get('[data-testid="system-message-row"][data-system-kind="pin"]').should('not.exist');
+      cy.contains('[data-testid="message-feed-row"]', 'A normal feed message').should('exist');
+    });
+  });
+
   // ── SEARCH → CLEAR → RESTORE FLOW ──────────────────────────────
 
   describe('Search Restore Flow', () => {

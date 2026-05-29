@@ -15,7 +15,7 @@ import { mergeCachedUserMap, addFailedUserId, saveCacheToLocalStorage } from '@f
 import { waitWhilePaused, checkCancelled, cancellableDelay, withTransientRetry, isTransientApiFailure } from '@/utils/operationLoopUtils';
 import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
 import { getEmojiKey } from '@/utils/emojiUtils';
-import { applyRefineCriteria, criteriaIsActive } from './messageFiltering';
+import { applyRefineCriteria, criteriaIsActive, type RefineCriteria } from './messageFiltering';
 import { nextMilestone } from '@utils/searchPagination';
 import { countActiveFilters } from 'discrub-core/filtering';
 
@@ -27,7 +27,7 @@ import { countActiveFilters } from 'discrub-core/filtering';
  */
 const maybeEmitPhantomLoadStatus = (
   dispatch: (action: unknown) => void,
-  refineCriteria: SearchCriteria | null,
+  refineCriteria: RefineCriteria | null,
   newPage: Message[],
 ): void => {
   if (!criteriaIsActive(refineCriteria) || newPage.length === 0) return;
@@ -2176,7 +2176,7 @@ const messageSlice = createSlice({
     setSearchCriteria: (state, action: PayloadAction<SearchCriteria | null>) => {
       state.searchCriteria = action.payload;
     },
-    setRefineCriteria: (state, action: PayloadAction<SearchCriteria | null>) => {
+    setRefineCriteria: (state, action: PayloadAction<RefineCriteria | null>) => {
       state.refineCriteria = action.payload;
       // Re-derive filteredMessages now so the UI snaps to the new refine
       // without the caller needing a second dispatch.
@@ -2188,7 +2188,7 @@ const messageSlice = createSlice({
     },
     setThreadRefineCriteria: (
       state,
-      action: PayloadAction<{ threadId: string; criteria: SearchCriteria | null }>,
+      action: PayloadAction<{ threadId: string; criteria: RefineCriteria | null }>,
     ) => {
       const tab = state.threadTabs?.[action.payload.threadId];
       if (!tab) return;
