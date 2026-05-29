@@ -347,6 +347,78 @@ describe('exportService', () => {
 
       expect(result).toContain('Unknown');
     });
+
+    // #197 — forwarded message snapshot handling.
+    it('includes a Forwarded Content column header', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const result = generateCSV([], {}, null);
+      expect(result).toContain('Content,Forwarded Content,Attachments,Embeds,Reactions');
+    });
+
+    it('surfaces the snapshot text in the Forwarded Content column for a forward', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'fwd-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: '', // forwards have no body of their own
+        author: { id: 'user-123', username: 'testuser', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        message_snapshots: [
+          { message: { content: 'the original forwarded text', attachments: [], embeds: [] } },
+        ],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, {}, null);
+      const dataRow = result.split('\n')[1];
+      // Content empty, Forwarded Content carries the snapshot text.
+      expect(dataRow).toContain('"","the original forwarded text"');
+    });
+
+    it('folds the snapshot attachment/embed counts into the totals for a forward', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'fwd-2',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: '',
+        author: { id: 'user-123', username: 'testuser', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        message_snapshots: [
+          {
+            message: {
+              content: 'forwarded with media',
+              attachments: [{ id: 'a1' }, { id: 'a2' }],
+              embeds: [{ title: 'e1' }],
+            },
+          },
+        ],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, {}, null);
+      const dataRow = result.split('\n')[1];
+      // ...,"forwarded with media",2,1,0  (2 attachments + 1 embed from the snapshot)
+      expect(dataRow).toContain('"forwarded with media",2,1,0');
+    });
+
+    it('leaves Forwarded Content empty for a normal (non-forward) message', () => {
+      const generateCSV = (service as any).generateCSV.bind(service);
+      const messages: Message[] = [{
+        id: 'normal-1',
+        timestamp: '2026-02-24T00:00:00.000Z',
+        content: 'just a normal message',
+        author: { id: 'user-123', username: 'testuser', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+      } as unknown as Message];
+
+      const result = generateCSV(messages, {}, null);
+      const dataRow = result.split('\n')[1];
+      expect(dataRow).toContain('"just a normal message","",0,0,0');
+    });
   });
 
   describe('exportToZip', () => {

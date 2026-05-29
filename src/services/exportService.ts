@@ -70,7 +70,7 @@ import type { MediaDownloadProgress, MediaMaps, MediaConfig, ExportConfig, TextF
 import { defaultTextFormatOptions } from '@features/export/exportTypes';
 import { generateTextPage } from 'discrub-core/export-utils';
 import type { ShouldContinueFn } from './mediaDownloadService';
-import { getUserDisplayData, formatMessageTimestamp, getMessageContent } from 'discrub-core/discrub-utils';
+import { getUserDisplayData, formatMessageTimestamp, getMessageContent, getForwardedSnapshot } from 'discrub-core/discrub-utils';
 import { buildExportPageData, generateEmbeddedJs } from './exportHtmlJs';
 import { getUserRoleColor, getUserRoleIcon } from '@/utils/roleColorUtils';
 
@@ -647,7 +647,7 @@ class ExportService {
    * Generate CSV content from messages
    */
   private generateCSV(messages: Message[], cachedUserMap: ExportUserMap, guildId: string | null, exportConfig?: ExportConfig): string {
-    const headers = ['ID', 'Timestamp', 'Username', 'Display Name', 'Server Nickname', 'Content', 'Attachments', 'Embeds', 'Reactions'];
+    const headers = ['ID', 'Timestamp', 'Username', 'Display Name', 'Server Nickname', 'Content', 'Forwarded Content', 'Attachments', 'Embeds', 'Reactions'];
     const rows = [headers.join(',')];
 
     messages.forEach((msg) => {
@@ -669,11 +669,19 @@ class ExportService {
       const nickname = this.escapeCSV(userData.nickname || '');
 
       const content = this.escapeCSV(getMessageContent(msg));
-      const attachments = msg.attachments?.length || 0;
-      const embeds = msg.embeds?.length || 0;
+
+      // #197 — a forwarded message carries no body of its own; the
+      // payload lives in message_snapshots. Surface its text in a
+      // dedicated column and fold the snapshot's attachment/embed
+      // counts into the totals so a forward isn't reported as empty.
+      const snapshot = getForwardedSnapshot(msg);
+      const forwardedContent = this.escapeCSV(snapshot?.content || '');
+      const attachments =
+        (msg.attachments?.length || 0) + (snapshot?.attachments?.length || 0);
+      const embeds = (msg.embeds?.length || 0) + (snapshot?.embeds?.length || 0);
       const reactions = msg.reactions?.reduce((sum, r) => sum + (r.count || 0), 0) || 0;
 
-      rows.push(`"${id}","${timestamp}","${username}","${displayName}","${nickname}","${content}",${attachments},${embeds},${reactions}`);
+      rows.push(`"${id}","${timestamp}","${username}","${displayName}","${nickname}","${content}","${forwardedContent}",${attachments},${embeds},${reactions}`);
     });
 
     return rows.join('\n');

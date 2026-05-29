@@ -119,7 +119,7 @@ describe('CSV Export', () => {
       const csv = await exportAndGetFile('csv');
       const lines = csv.split('\n');
       expect(lines[0]).toBe(
-        'ID,Timestamp,Username,Display Name,Server Nickname,Content,Attachments,Embeds,Reactions',
+        'ID,Timestamp,Username,Display Name,Server Nickname,Content,Forwarded Content,Attachments,Embeds,Reactions',
       );
     });
 
@@ -738,7 +738,7 @@ describe('Multi-Page HTML', () => {
     const page2 = getFileContent('test_channel/test_channel-page-2.csv');
     const page3 = getFileContent('test_channel/test_channel-page-3.csv');
 
-    const headerRow = 'ID,Timestamp,Username,Display Name,Server Nickname,Content,Attachments,Embeds,Reactions';
+    const headerRow = 'ID,Timestamp,Username,Display Name,Server Nickname,Content,Forwarded Content,Attachments,Embeds,Reactions';
     expect(page1.split('\n')[0]).toBe(headerRow);
     expect(page2.split('\n')[0]).toBe(headerRow);
     expect(page3.split('\n')[0]).toBe(headerRow);
