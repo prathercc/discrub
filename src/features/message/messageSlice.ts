@@ -17,7 +17,7 @@ import { addStatusEntry, showOperationTip, showToast } from '@features/status/st
 import { getEmojiKey } from '@/utils/emojiUtils';
 import { applyRefineCriteria, criteriaIsActive } from './messageFiltering';
 import { nextMilestone } from '@utils/searchPagination';
-import { countActiveFilters } from '@utils/searchCriteria';
+import { countActiveFilters } from 'discrub-core/filtering';
 
 /**
  * Emit a status-log entry when a just-loaded page produced zero matches

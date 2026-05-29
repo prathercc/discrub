@@ -17,7 +17,7 @@ import {
   selectActiveSearchCriteria,
   selectActivePagination,
 } from '@features/message/messageSlice';
-import { countActiveFilters } from '@utils/searchCriteria';
+import { countActiveFilters } from 'discrub-core/filtering';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface LoadAllDialogProps {

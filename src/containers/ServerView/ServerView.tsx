@@ -79,7 +79,8 @@ import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-t
 import { IsPinnedType } from 'discrub-core/discord-enum';
 import MessageFeed from '@components/message/MessageFeed';
 import MessageActions from '@containers/ServerView/MessageActions';
-import FilterModal, { countActiveFilters, countTotalFilters } from '@components/search/FilterModal';
+import FilterModal from '@components/search/FilterModal';
+import { countActiveFilters, countTotalFilters } from 'discrub-core/filtering';
 import ActiveFilterChips from '@components/search/ActiveFilterChips';
 import { defaultCriteria } from '@components/search/searchConstants';
 import ExportDialog from '@containers/ExportView/ExportDialog';

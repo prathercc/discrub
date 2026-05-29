@@ -26,10 +26,7 @@ import PinnedFilter from './filters/PinnedFilter';
 import AuthorTypeFilter from './filters/AuthorTypeFilter';
 import { defaultCriteria } from './searchConstants';
 import type { AuthorType } from 'discrub-core/discord-enum';
-import {
-  countActiveFilters as countActiveFiltersUtil,
-  countTotalFilters as countTotalFiltersUtil,
-} from '@utils/searchCriteria';
+import { countActiveFilters, countTotalFilters } from 'discrub-core/filtering';
 
 interface FilterModalProps {
   open: boolean;
@@ -68,8 +65,10 @@ interface FilterModalProps {
   packageMode?: boolean;
 }
 
-export const countActiveFilters = countActiveFiltersUtil;
-export const countTotalFilters = countTotalFiltersUtil;
+// #195 cluster A: countActiveFilters/countTotalFilters moved to
+// discrub-core/filtering. Transitive consumers (BulkPurgeDialog,
+// ServerView, BulkExportDialog) updated to import from the lib
+// directly; no FilterModal re-export needed.
 
 export const inferDateMode = (c?: SearchCriteria): DateFilterMode => {
   if (!c) return null;
