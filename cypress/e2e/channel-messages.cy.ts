@@ -21,6 +21,46 @@ describe('Channel Messages', () => {
     cy.contains('Discrub Tester').should('exist');
   });
 
+  // Backlog #204: a sticker-only message (empty content, no attachments or
+  // embeds) carries real payload but has no inline render section, so it used
+  // to fall through to the "(no content)" placeholder. Scoped intercept keeps
+  // the shared fixture's "13 messages" count assertions untouched.
+  it('labels a sticker-only message instead of "(no content)" (#204)', () => {
+    cy.intercept('GET', '**/api/v10/channels/*/messages?*', {
+      statusCode: 200,
+      body: [
+        {
+          id: '700000000000000999',
+          channel_id: '801000000000000001',
+          author: {
+            id: '111222333444555666',
+            username: 'discrub_tester',
+            discriminator: '0',
+            avatar: 'abc123avatar',
+            global_name: 'Discrub Tester',
+          },
+          content: '',
+          timestamp: '2026-02-24T00:00:00.000Z',
+          edited_timestamp: null,
+          tts: false,
+          mention_everyone: false,
+          mentions: [],
+          attachments: [],
+          embeds: [],
+          reactions: [],
+          pinned: false,
+          type: 0,
+          sticker_items: [{ id: 's1', name: 'wave', format_type: 1 }],
+        },
+      ],
+    }).as('getStickerMsg');
+
+    cy.contains('general').click();
+    cy.wait('@getStickerMsg');
+    cy.contains('[data-testid="message-feed-row"]', 'Sticker: wave').should('exist');
+    cy.contains('(no content)').should('not.exist');
+  });
+
   it('shows "Load All" button when there may be more messages', () => {
     // Override messages intercept to return exactly 100 messages (signals hasMore=true)
     const manyMessages = Array.from({ length: 100 }, (_, i) => ({

@@ -89,10 +89,40 @@ const MessageFeedRow = memo(function MessageFeedRow({
   const [copied, setCopied] = useState(false);
 
   const rawContent = getMessageContent(message);
-  const hasAnyBody =
-    !!rawContent ||
-    (message.attachments && message.attachments.length > 0) ||
-    (message.embeds && message.embeds.length > 0);
+
+  // Stickers and polls have no inline render section of their own, so a
+  // sticker- or poll-only message used to fall through to the "(no content)"
+  // placeholder even though it carries real payload — the #204 report. Detect
+  // them (same idiom as messageFiltering.ts) and surface a short label.
+  const hasSticker = !!message.sticker_items && message.sticker_items.length > 0;
+  const poll = (message as Record<string, unknown>).poll as
+    | { question?: { text?: string } }
+    | undefined;
+  const hasPoll = !!poll;
+  const placeholderLabel = hasSticker
+    ? `Sticker: ${message.sticker_items?.[0]?.name || 'sticker'}`
+    : hasPoll
+      ? `Poll: ${poll?.question?.text || 'poll'}`
+      : null;
+
+  // A forwarded message (#197) carries its payload in message_snapshots and
+  // renders its own "Forwarded" box lower in the row, but the outer message
+  // typically has empty content/attachments/embeds — so without counting it
+  // here a forward-only message stacks a spurious "(no content)" line above
+  // the forwarded body. Confirmed via the #204 render investigation.
+  const hasForward =
+    Array.isArray((message as { message_snapshots?: unknown[] }).message_snapshots) &&
+    (message as { message_snapshots: unknown[] }).message_snapshots.length > 0;
+
+  // Attachments, embeds, and forwarded snapshots render their own inline
+  // sections lower in the row, so an empty content area for them is expected
+  // (no placeholder needed).
+  const hasInlineBody =
+    (!!message.attachments && message.attachments.length > 0) ||
+    (!!message.embeds && message.embeds.length > 0) ||
+    hasForward;
+
+  const hasAnyBody = !!rawContent || hasInlineBody || hasSticker || hasPoll;
 
   // #190 phase 2: cache the markdown→HTML transformation per row. Before
   // this, formatContentAsHtml ran on every render even though the row is
@@ -421,6 +451,15 @@ const MessageFeedRow = memo(function MessageFeedRow({
               </Link>
             )}
           </Box>
+        ) : placeholderLabel ? (
+          <Typography
+            variant="body2"
+            color="text.disabled"
+            fontStyle="italic"
+            sx={{ fontSize: '0.85rem' }}
+          >
+            {placeholderLabel}
+          </Typography>
         ) : !hasAnyBody ? (
           <Typography
             variant="body2"

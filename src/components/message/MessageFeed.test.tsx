@@ -307,6 +307,65 @@ describe('<MessageFeed />', () => {
     expect(screen.getByText(/\(no content\)/)).toBeInTheDocument();
   });
 
+  // #204: a sticker-only message carries real payload but has no inline render
+  // section, so it must not fall through to "(no content)".
+  it('labels a sticker-only message instead of showing "(no content)" (#204)', () => {
+    const messages = [
+      createMockMessage({
+        id: 'm1',
+        content: '',
+        sticker_items: [{ id: 's1', name: 'wave', format_type: 1 }],
+      } as any),
+    ];
+    renderWithProviders(<MessageFeed {...baseProps} />, {
+      preloadedState: stateWithMessages(messages),
+    });
+
+    expect(screen.getByText(/Sticker: wave/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(no content\)/)).not.toBeInTheDocument();
+  });
+
+  // #204: a poll-only message likewise carries payload (the question) with no
+  // inline render section.
+  it('labels a poll-only message instead of showing "(no content)" (#204)', () => {
+    const messages = [
+      createMockMessage({
+        id: 'm1',
+        content: '',
+        poll: { question: { text: 'Favorite color?' }, answers: [] },
+      } as any),
+    ];
+    renderWithProviders(<MessageFeed {...baseProps} />, {
+      preloadedState: stateWithMessages(messages),
+    });
+
+    expect(screen.getByText(/Poll: Favorite color\?/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(no content\)/)).not.toBeInTheDocument();
+  });
+
+  // #204: a forwarded-only message (empty outer content/attachments/embeds,
+  // payload in message_snapshots) renders its own "Forwarded" box, so it must
+  // not also stack a spurious "(no content)" line above it.
+  it('does not show "(no content)" for a forwarded-only message (#204)', () => {
+    const messages = [
+      createMockMessage({
+        id: 'm1',
+        content: '',
+        attachments: [],
+        embeds: [],
+        message_snapshots: [
+          { message: { content: 'forwarded hello', attachments: [], embeds: [] } },
+        ],
+      } as any),
+    ];
+    renderWithProviders(<MessageFeed {...baseProps} />, {
+      preloadedState: stateWithMessages(messages),
+    });
+
+    expect(screen.getByText(/forwarded hello/)).toBeInTheDocument();
+    expect(screen.queryByText(/\(no content\)/)).not.toBeInTheDocument();
+  });
+
   it('select-all checkbox is indeterminate when some messages are selected', () => {
     const messages = [
       createMockMessage({ id: 'm1', content: 'a' }),
