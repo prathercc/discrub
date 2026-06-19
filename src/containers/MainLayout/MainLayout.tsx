@@ -28,6 +28,7 @@ import { useBeforeUnloadWarning } from '@/hooks/useBeforeUnloadWarning';
 import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
 import { useOperationStatusBroadcast } from '@/hooks/useOperationStatusBroadcast';
 import { useRestoreListener } from '@/hooks/useRestoreListener';
+import { useWakeLock } from '@/hooks/useWakeLock';
 import { useTour } from '@/hooks/useTour';
 import StatusPanel from '@components/ui/StatusPanel';
 import Toast from '@components/ui/Toast';
@@ -104,6 +105,7 @@ const MainLayout = () => {
   useGlobalErrorHandler();
   useOperationStatusBroadcast();
   useRestoreListener();
+  useWakeLock();
 
   // Wait for settings to load before checking the announcement gist —
   // otherwise the cached-rev comparison races against the IDB-backed

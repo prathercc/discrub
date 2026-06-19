@@ -475,6 +475,15 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
               {getSummaryText()}
             </Typography>
           </Alert>
+
+          {/* #206: a large purge runs for a while. Discrub now holds a screen
+              wake lock so the display won't sleep mid-run, but a wake lock
+              can't keep a backgrounded tab unthrottled — hence the focus hint. */}
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+            Large purges can run for a while. Discrub keeps your screen awake,
+            but for very long runs keep this tab in the foreground and turn off
+            your browser&rsquo;s battery-saver / tab-sleep so deletes aren&rsquo;t paused.
+          </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
