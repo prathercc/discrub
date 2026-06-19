@@ -109,6 +109,44 @@ describe('bulkEditChannels (#215)', () => {
     expect(result.skipped).toBe(1);
   });
 
+  it('buckets failed edits (service returns success: false) without aborting the run', async () => {
+    mockDiscordService.editMessage
+      .mockResolvedValueOnce({ success: true, data: { id: 'm1' } })
+      .mockResolvedValueOnce({ success: false, status: 403 })
+      .mockResolvedValueOnce({ success: true, data: { id: 'm3' } });
+    yieldPage([ownMsg('m1'), ownMsg('m2'), ownMsg('m3')]);
+
+    const result = await store.dispatch(
+      bulkEditChannels({ channels: [channel('c1', 'general')], content: 'redacted', guildId: 'g1' }),
+    ).unwrap();
+
+    expect(result.edited).toBe(2);
+    expect(result.failed).toBe(1);
+    expect(mockDiscordService.editMessage).toHaveBeenCalledTimes(3);
+  });
+
+  it('holds isEditing true during the run and clears it on completion (#215 pause/cancel surfacing)', async () => {
+    // A controllable edit promise lets us inspect state mid-flight.
+    let resolveEdit: (v: unknown) => void = () => {};
+    mockDiscordService.editMessage.mockReturnValue(
+      new Promise((res) => { resolveEdit = res; }),
+    );
+    yieldPage([ownMsg('m1')]);
+
+    const dispatched = store.dispatch(
+      bulkEditChannels({ channels: [channel('c1', 'general')], content: 'redacted', guildId: 'g1' }),
+    );
+
+    // pending reducer set the flag → the "Editing messages..." indicator +
+    // pause/cancel controls render.
+    await Promise.resolve();
+    expect(store.getState().message.isEditing).toBe(true);
+
+    resolveEdit({ success: true, data: { id: 'm1' } });
+    await dispatched;
+    expect(store.getState().message.isEditing).toBe(false);
+  });
+
   it('rejects when not authenticated', async () => {
     store = createTestStore(
       { message: messageReducer, auth: authReducer, user: userReducer, app: appReducer },

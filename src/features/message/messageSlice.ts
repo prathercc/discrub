@@ -361,14 +361,24 @@ export const bulkEditChannels = createAsyncThunk<
               }
 
               try {
-                await dispatch(editMessage({
-                  messageId: message.id,
-                  channelId: message.channel_id ?? channel.id,
-                  content,
+                // Call the service directly rather than dispatching the
+                // editMessage thunk: that thunk toggles state.isEditing off on
+                // every fulfilled, which would flicker the operation indicator
+                // and pause/cancel controls off between messages. bulkEdit holds
+                // isEditing stable across the whole run via its own reducer cases.
+                const response = await getDiscordService().editMessage(
                   token,
-                })).unwrap();
-                stats.edited++;
-                channelEdited++;
+                  message.id,
+                  { content },
+                  message.channel_id ?? channel.id,
+                );
+                if (response.success) {
+                  stats.edited++;
+                  channelEdited++;
+                } else {
+                  stats.failed++;
+                  console.error(`Bulk edit: failed to edit ${message.id} (HTTP ${response.status ?? 'unknown'})`);
+                }
               } catch (error) {
                 stats.failed++;
                 console.error(`Bulk edit: failed to edit ${message.id}:`, error);
@@ -2930,6 +2940,19 @@ const messageSlice = createSlice({
         container.selectedMessages = [];
       })
       .addCase(editMessages.rejected, (state, action) => {
+        state.isEditing = false;
+        state.error = action.payload as string;
+      })
+      // #215 multi-channel bulk edit — hold isEditing for the whole run so the
+      // "Editing messages..." indicator + pause/cancel controls stay surfaced
+      // (the per-message service calls don't touch isEditing).
+      .addCase(bulkEditChannels.pending, (state) => {
+        state.isEditing = true;
+      })
+      .addCase(bulkEditChannels.fulfilled, (state) => {
+        state.isEditing = false;
+      })
+      .addCase(bulkEditChannels.rejected, (state, action) => {
         state.isEditing = false;
         state.error = action.payload as string;
       })
