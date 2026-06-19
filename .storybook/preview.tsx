@@ -5,7 +5,7 @@ import { CssBaseline, GlobalStyles } from '@mui/material';
 import globalStyles from '../src/theme/globalStyles';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
-import theme from '../src/theme/theme';
+import { darkTheme, lightTheme } from '../src/theme/theme';
 import authReducer from '../src/features/auth/authSlice';
 import userReducer from '../src/features/user/userSlice';
 import appReducer from '../src/features/app/appSlice';
@@ -49,7 +49,26 @@ function createMockStore(preloadedState?: any) {
   });
 }
 
+// #147 Phase 3: a toolbar theme switch gives every story a light-mode view
+// without per-story light variants. Defaults to dark (the app's default).
+const globalTypes = {
+  theme: {
+    name: 'Theme',
+    description: 'App color theme',
+    defaultValue: 'dark',
+    toolbar: {
+      icon: 'paintbrush',
+      items: [
+        { value: 'dark', title: 'Dark' },
+        { value: 'light', title: 'Light' },
+      ],
+      dynamicTitle: true,
+    },
+  },
+};
+
 const preview: Preview = {
+  globalTypes,
   parameters: {
     controls: {
       matchers: {
@@ -67,14 +86,18 @@ const preview: Preview = {
     },
   },
   decorators: [
-    (Story) => {
+    (Story, context) => {
       const store = createMockStore();
+      const isLight = context.globals.theme === 'light';
+      const activeTheme = isLight ? lightTheme : darkTheme;
       return (
         <Provider store={store}>
-          <ThemeProvider theme={theme}>
+          <ThemeProvider theme={activeTheme}>
             <CssBaseline />
             <GlobalStyles styles={globalStyles} />
-            <Story />
+            <div style={{ background: activeTheme.palette.background.default, minHeight: '100vh', padding: 16 }}>
+              <Story />
+            </div>
           </ThemeProvider>
         </Provider>
       );
