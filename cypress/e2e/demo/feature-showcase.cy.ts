@@ -213,6 +213,57 @@ describe('Feature Showcase — Documentation Screenshots', () => {
     });
   });
 
+  describe('05b — Add Reactions (#202)', () => {
+    beforeEach(() => {
+      // Intercepts must be registered AFTER cy.login() (which calls
+      // interceptDiscordApi and stubs defaults) so the most-recent intercept
+      // wins — otherwise the default empty guild-emoji stub shadows ours.
+      cy.login();
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', { statusCode: 200, body: DEMO_ROLES });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', { statusCode: 200, body: DEMO_GUILD_MEMBER });
+      cy.fixture('guild-emojis.json').then((emojis) => {
+        cy.intercept('GET', '**/api/v10/guilds/*/emojis', { statusCode: 200, body: emojis }).as('getGuildEmojis');
+      });
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('add reactions modal with emoji picker', () => {
+      cy.contains('[data-testid="message-feed-row"]', 'Thanks for setting this up!').scrollIntoView().click();
+      cy.contains('button', 'Add Reactions').click();
+      cy.get('[role="dialog"]').contains('Add Reactions').should('be.visible');
+      // The unicode emoji grid renders unconditionally; server emojis are a
+      // bonus when the fetch resolves. Don't gate the shot on either.
+      cy.wait(PAUSE);
+      screenshot('reactions/add-reactions');
+    });
+  });
+
+  describe('05c — Sticker & Poll Rendering (#213)', () => {
+    beforeEach(() => {
+      // Register the sticker/poll message stub AFTER login so it wins over the
+      // default messages stub set up by interceptDiscordApi.
+      cy.login();
+      cy.intercept('GET', '**/api/v10/guilds/*/roles', { statusCode: 200, body: DEMO_ROLES });
+      cy.intercept('GET', '**/api/v10/guilds/*/members/*', { statusCode: 200, body: DEMO_GUILD_MEMBER });
+      // Alias as getMessages — selectChannel() waits on @getMessages, and this
+      // intercept (registered last) is the one that handles the request.
+      cy.fixture('sticker-poll-messages.json').then((messages) => {
+        cy.intercept('GET', '**/api/v10/channels/*/messages?*', { statusCode: 200, body: messages }).as('getMessages');
+      });
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+      hideDonationDrawer();
+    });
+
+    it('feed with a rendered sticker and poll card', () => {
+      cy.get('[data-testid="inline-poll"]', { timeout: 10000 }).should('be.visible');
+      cy.wait(PAUSE);
+      screenshot('messages/sticker-poll');
+    });
+  });
+
   describe('06 — Export', () => {
     beforeEach(() => {
       cy.intercept('GET', '**/api/v10/guilds/*/roles', {
@@ -318,6 +369,22 @@ describe('Feature Showcase — Documentation Screenshots', () => {
       cy.get('[aria-label="Purge selected channels"]').click({ force: true });
       cy.wait(PAUSE);
       screenshot('purge/purge-dialog');
+    });
+
+    // #215 — bulk edit across multi-selected channels
+    it('bulk edit dialog — multi-select channels', () => {
+      cy.get('[aria-label="Toggle multi-select"]').click();
+      cy.wait(200);
+      cy.contains('general').click();
+      cy.wait(200);
+      cy.contains('dev-chat').click();
+      cy.wait(200);
+      cy.get('[aria-label="Edit selected channels"]').click({ force: true });
+      cy.get('[role="dialog"]').should('be.visible');
+      // Type sample content so the dialog reads naturally in the shot.
+      cy.get('[role="dialog"]').find('textarea').first().type('[redacted]');
+      cy.wait(PAUSE);
+      screenshot('purge/bulk-edit-dialog');
     });
   });
 
