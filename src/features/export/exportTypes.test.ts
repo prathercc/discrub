@@ -3,7 +3,29 @@ import {
   BUILT_IN_PRESETS,
   defaultTextFormatOptions,
   initialExportState,
+  resolveMaxZipPartBytes,
+  DEFAULT_MAX_ZIP_PART_BYTES,
 } from './exportTypes';
+
+describe('resolveMaxZipPartBytes (#207 Arm A)', () => {
+  it('treats undefined as the safe default (protects pre-existing presets)', () => {
+    expect(resolveMaxZipPartBytes({})).toBe(DEFAULT_MAX_ZIP_PART_BYTES);
+    expect(resolveMaxZipPartBytes({ maxZipPartBytes: undefined })).toBe(DEFAULT_MAX_ZIP_PART_BYTES);
+  });
+
+  it('treats null as no limit (single zip)', () => {
+    expect(resolveMaxZipPartBytes({ maxZipPartBytes: null })).toBeNull();
+  });
+
+  it('passes a concrete byte value through', () => {
+    expect(resolveMaxZipPartBytes({ maxZipPartBytes: 2_000_000_000 })).toBe(2_000_000_000);
+  });
+
+  it('defaults the export state to the safe default and stays under 4 GiB', () => {
+    expect(initialExportState.maxZipPartBytes).toBe(DEFAULT_MAX_ZIP_PART_BYTES);
+    expect(DEFAULT_MAX_ZIP_PART_BYTES).toBeLessThan(0xffffffff);
+  });
+});
 
 describe('exportTypes — Plain Text (#184)', () => {
   it('exposes the four defaults that match the signed-off format', () => {

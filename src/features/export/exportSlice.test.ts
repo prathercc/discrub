@@ -12,6 +12,7 @@ import exportReducer, {
   setArtistMode,
   setSortOrder,
   setPreviewMedia,
+  setMaxZipPartBytes,
   applyPreset,
   initializeExportFromSettings,
   resetExport,
@@ -26,7 +27,7 @@ import exportReducer, {
   selectTextOptions,
 } from './exportSlice';
 import cacheReducer from '@features/cache/cacheSlice';
-import { initialExportState, MediaDownloadProgress } from './exportTypes';
+import { initialExportState, MediaDownloadProgress, DEFAULT_MAX_ZIP_PART_BYTES } from './exportTypes';
 import { createMockMessages } from '@/test/fixtures';
 import * as exportService from '@services/exportService';
 
@@ -265,6 +266,7 @@ describe('exportSlice', () => {
           replies: 'quote',
           botIndicator: 'include',
         }),
+        expect.objectContaining({ onPartStart: expect.any(Function), onOversizeFile: expect.any(Function) }), // zipOptions (#207 Arm A)
       );
 
       const state = store.getState().export;
@@ -484,6 +486,7 @@ describe('exportSlice', () => {
         undefined,
         [],
         expect.any(Object), // textOptions (#184)
+        expect.objectContaining({ onPartStart: expect.any(Function), onOversizeFile: expect.any(Function) }), // zipOptions (#207 Arm A)
       );
     });
 
@@ -525,6 +528,7 @@ describe('exportSlice', () => {
         undefined,
         [],
         expect.any(Object), // textOptions (#184)
+        expect.objectContaining({ onPartStart: expect.any(Function), onOversizeFile: expect.any(Function) }), // zipOptions (#207 Arm A)
       );
     });
   });
@@ -620,6 +624,34 @@ describe('exportSlice', () => {
       expect(state.artistMode).toBe(true);
       expect(state.sortOrder).toBe('ascending');
       expect(state.previewMedia).toBe(false);
+    });
+
+    it('setMaxZipPartBytes sets the value, including null for no limit (#207 Arm A)', () => {
+      store.dispatch(setMaxZipPartBytes(1_000_000_000));
+      expect(store.getState().export.maxZipPartBytes).toBe(1_000_000_000);
+      store.dispatch(setMaxZipPartBytes(null));
+      expect(store.getState().export.maxZipPartBytes).toBeNull();
+    });
+
+    it('applyPreset resolves an absent maxZipPartBytes to the safe default', () => {
+      store.dispatch(setMaxZipPartBytes(null)); // make sure it changes
+      store.dispatch(applyPreset({
+        format: 'json', messagesPerPage: 500, separateThreads: false, includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false, sortOrder: 'ascending', previewMedia: false,
+        // maxZipPartBytes intentionally omitted (preset saved before the field existed)
+      }));
+      expect(store.getState().export.maxZipPartBytes).toBe(DEFAULT_MAX_ZIP_PART_BYTES);
+    });
+
+    it('applyPreset honors an explicit null maxZipPartBytes (single zip)', () => {
+      store.dispatch(applyPreset({
+        format: 'json', messagesPerPage: 500, separateThreads: false, includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false, sortOrder: 'ascending', previewMedia: false,
+        maxZipPartBytes: null,
+      }));
+      expect(store.getState().export.maxZipPartBytes).toBeNull();
     });
 
     it('applyPreset with format=media does not auto-enable includeMedia', () => {

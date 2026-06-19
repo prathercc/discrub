@@ -1,10 +1,11 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import type { Message, Channel } from 'discrub-core/types/discord-types';
 import { getThreadsFromMessages } from 'discrub-core/discrub-utils';
-import { initialExportState } from './exportTypes';
+import { initialExportState, resolveMaxZipPartBytes } from './exportTypes';
 import type { ExportFormat, MediaConfig, ExportConfig, ExportProgress, MediaDownloadProgress, ExportSettingsSnapshot, RecentExport } from './exportTypes';
 import { getExportService, generateExportReadme, generatePlainTextReadme } from '@services/exportService';
 import { StreamingZipService } from '@services/streamingZipService';
+import type { StreamingZipOptions } from '@services/streamingZipService';
 import { getDiscordService } from '@services/discordService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
 import { replyEnrichmentService } from '@services/replyEnrichmentService';
@@ -220,6 +221,37 @@ function buildConfigSnapshot(state: RootState): ExportSettingsSnapshot {
     sortOrder: exp.sortOrder,
     previewMedia: exp.previewMedia,
     textOptions: { ...exp.textOptions },
+    maxZipPartBytes: exp.maxZipPartBytes,
+  };
+}
+
+/**
+ * Build the zip-splitting options for an export (#207 Arm A): the resolved
+ * per-part byte limit plus status-log hooks that announce a new part file and
+ * warn on any single file too large for a 32-bit zip.
+ */
+function buildZipOptions(
+  getState: () => RootState,
+  dispatch: ExportDispatch,
+): StreamingZipOptions {
+  return {
+    maxPartBytes: resolveMaxZipPartBytes(getState().export),
+    onPartStart: ({ partIndex, fileName }) => {
+      // The first part is the normal case; only announce continuations.
+      if (partIndex >= 2) {
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `Export reached the size limit — continuing in a new file (${fileName})`,
+        }));
+      }
+    },
+    onOversizeFile: ({ fileName, size }) => {
+      const gb = (size / 1_000_000_000).toFixed(1);
+      dispatch(addStatusEntry({
+        level: 'warning',
+        message: `${fileName} is ${gb} GB on its own — too large for one zip file and may not open correctly.`,
+      }));
+    },
   };
 }
 
@@ -303,7 +335,9 @@ export const exportMessages = createAsyncThunk<
             }
           },
           exportConfig,
-          shouldContinue
+          shouldContinue,
+          undefined, // externalZipService
+          buildZipOptions(getState, dispatch)
         );
       } else {
         // Extract thread Channel objects from messages for thread separation
@@ -374,6 +408,7 @@ export const exportMessages = createAsyncThunk<
           reactionMap,
           guildRoles,
           state.export.textOptions,
+          buildZipOptions(getState, dispatch),
         );
       }
 
@@ -751,7 +786,7 @@ export const bulkExportChannels = createAsyncThunk<
       selectedGuild = selectSelectedGuild(getState()) || null;
     } catch { /* guild slice may not be available in tests */ }
 
-    const zipService = new StreamingZipService('bulk-export');
+    const zipService = new StreamingZipService('bulk-export', buildZipOptions(getState, dispatch));
     const exportedChannels: { id: string; name: string; filename: string }[] = [];
 
     // Pre-compute unique folder names to prevent collisions
@@ -958,7 +993,7 @@ export const bulkExportDMs = createAsyncThunk<
     const delayModifier = selectDelayModifier(initialState);
     const cachedUserMap = selectCachedUserMap(initialState);
 
-    const zipService = new StreamingZipService('bulk-export');
+    const zipService = new StreamingZipService('bulk-export', buildZipOptions(getState, dispatch));
     const exportedDMs: { id: string; name: string; filename: string }[] = [];
 
     // Pre-compute unique folder names to prevent collisions
@@ -1175,6 +1210,10 @@ const exportSlice = createSlice({
     setPreviewMedia: (state, action: PayloadAction<boolean>) => {
       state.previewMedia = action.payload;
     },
+    // #207 Arm A: max bytes per zip part before splitting; null = single zip.
+    setMaxZipPartBytes: (state, action: PayloadAction<number | null>) => {
+      state.maxZipPartBytes = action.payload;
+    },
     setExportTemplate: (state, action: PayloadAction<import('./exportTypes').ExportTemplate>) => {
       state.exportTemplate = action.payload;
     },
@@ -1202,6 +1241,8 @@ const exportSlice = createSlice({
       if (preset.textOptions) {
         state.textOptions = { ...preset.textOptions };
       }
+      // #207 Arm A: undefined (preset saved before this existed) → safe default.
+      state.maxZipPartBytes = resolveMaxZipPartBytes(preset);
       // #207 Arm B: only presets explicitly saved with a date range carry one.
       // Restore it by merging the bounds into the current export criteria
       // (keeping any author/content/etc. the user already set); presets
@@ -1334,6 +1375,7 @@ export const {
   setArtistMode,
   setSortOrder,
   setPreviewMedia,
+  setMaxZipPartBytes,
   setExportTemplate,
   setTextOptions,
   setExportCriteria,

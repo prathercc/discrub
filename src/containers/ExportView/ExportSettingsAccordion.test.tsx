@@ -122,4 +122,16 @@ describe('ExportSettingsAccordion — text format (#184)', () => {
     expect(t.replies).toBe('quote');
     expect(t.botIndicator).toBe('include');
   });
+
+  it('Max zip size defaults to 4 GB and switching to "Single zip" dispatches null (#207 Arm A)', async () => {
+    const { store } = renderWithProviders(<ExportSettingsAccordion isBulk={false} />);
+    expect(store.getState().export.maxZipPartBytes).toBe(4_000_000_000);
+
+    // The select renders its current value as text; open it from there.
+    fireEvent.mouseDown(screen.getByText('4 GB (recommended)'));
+    const noLimit = await screen.findByRole('option', { name: 'Single zip (no limit)' });
+    fireEvent.click(noLimit);
+
+    expect(store.getState().export.maxZipPartBytes).toBeNull();
+  });
 });

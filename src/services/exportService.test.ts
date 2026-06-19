@@ -506,7 +506,7 @@ describe('exportService', () => {
         null
       );
 
-      expect(StreamingZipService).toHaveBeenCalledWith('test_channel');
+      expect(StreamingZipService).toHaveBeenCalledWith('test_channel', undefined);
     });
 
     it('should finalize zip on success', async () => {

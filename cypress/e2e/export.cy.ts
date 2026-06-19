@@ -43,15 +43,22 @@ describe('Export', () => {
     cy.get('[role="dialog"]').contains('Plain Text - Human-readable').should('be.visible');
   });
 
+  // #207 Arm A: zip-splitting control
+  it('shows the Max zip size control defaulting to 4 GB', () => {
+    cy.contains('button', 'Export').click();
+    cy.get('[role="dialog"]').contains('Max zip size').scrollIntoView().should('be.visible');
+    cy.get('[role="dialog"]').contains('4 GB (recommended)').should('exist');
+  });
+
   it('reveals the text-format options panel when Plain Text is selected', () => {
     cy.contains('button', 'Export').click();
     cy.get('[role="dialog"]').contains('Plain Text - Human-readable').click();
     cy.get('[role="dialog"]').find('[data-testid="text-format-options"]').should('be.visible');
     // The four gated selectors should be present.
-    cy.get('[data-testid="text-format-options"]').contains('Attachments').should('be.visible');
-    cy.get('[data-testid="text-format-options"]').contains('Reactions').should('be.visible');
-    cy.get('[data-testid="text-format-options"]').contains('Replies').should('be.visible');
-    cy.get('[data-testid="text-format-options"]').contains('Bot tag').should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Attachments').scrollIntoView().should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Reactions').scrollIntoView().should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Replies').scrollIntoView().should('be.visible');
+    cy.get('[data-testid="text-format-options"]').contains('Bot tag').scrollIntoView().should('be.visible');
   });
 
   it('hides the text-format options panel when switching back to HTML', () => {

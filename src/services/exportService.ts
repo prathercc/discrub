@@ -65,6 +65,7 @@ const getSystemMessageIconHtml = (kind: SystemMessageKind): string => {
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { format } from 'date-fns';
 import { StreamingZipService } from './streamingZipService';
+import type { StreamingZipOptions } from './streamingZipService';
 import { MediaDownloadService } from './mediaDownloadService';
 import type { MediaDownloadProgress, MediaMaps, MediaConfig, ExportConfig, TextFormatOptions } from '@features/export/exportTypes';
 import { defaultTextFormatOptions } from '@features/export/exportTypes';
@@ -199,10 +200,11 @@ class ExportService {
     onProgress?: (progress: MediaDownloadProgress | number) => void,
     exportConfig?: ExportConfig,
     shouldContinue?: ShouldContinueFn,
-    externalZipService?: StreamingZipService
+    externalZipService?: StreamingZipService,
+    zipOptions?: StreamingZipOptions
   ): Promise<void> {
     const sanitizedName = this.sanitizeFilename(channelName);
-    const zipService = externalZipService ?? new StreamingZipService(sanitizedName);
+    const zipService = externalZipService ?? new StreamingZipService(sanitizedName, zipOptions);
     const ownsZip = !externalZipService;
 
     try {
@@ -262,10 +264,11 @@ class ExportService {
     reactionMap?: import('discrub-core/types/discrub-types').ExportReactionMap,
     guildRoles?: any[],
     textOptions?: TextFormatOptions,
+    zipOptions?: StreamingZipOptions,
   ): Promise<void> {
     const textOpts: TextFormatOptions = textOptions ?? defaultTextFormatOptions;
     const sanitizedName = this.sanitizeFilename(channelName);
-    const zipService = externalZipService ?? new StreamingZipService(sanitizedName);
+    const zipService = externalZipService ?? new StreamingZipService(sanitizedName, zipOptions);
     const ownsZip = !externalZipService;
 
     // Sort messages based on exportConfig.sortOrder before pagination

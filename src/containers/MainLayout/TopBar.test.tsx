@@ -317,6 +317,7 @@ describe('TopBar', () => {
           export: {
             isExporting: true,
             exportCriteria: null,
+            maxZipPartBytes: null,
             exportProgress: null,
             exportTotal: 0,
             currentPage: 0,
@@ -349,6 +350,7 @@ describe('TopBar', () => {
           export: {
             isExporting: true,
             exportCriteria: null,
+            maxZipPartBytes: null,
             exportProgress: null,
             exportTotal: 0,
             currentPage: 0,
@@ -380,6 +382,7 @@ describe('TopBar', () => {
           export: {
             isExporting: true,
             exportCriteria: null,
+            maxZipPartBytes: null,
             exportProgress: null,
             exportTotal: 0,
             currentPage: 0,

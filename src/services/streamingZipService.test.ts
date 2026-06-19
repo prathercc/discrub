@@ -389,4 +389,97 @@ describe('streamingZipService', () => {
       );
     });
   });
+
+  describe('multi-part splitting (#207 Arm A)', () => {
+    let downloadNames: string[];
+
+    // Fresh streams per part so each part's pipe completes independently.
+    const freshStreams = () => ({
+      readable: {
+        getReader: () => ({
+          read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+          releaseLock: vi.fn(),
+        }),
+      },
+      writable: {
+        getWriter: () => ({
+          ready: Promise.resolve(),
+          write: vi.fn().mockResolvedValue(undefined),
+          close: vi.fn().mockResolvedValue(undefined),
+        }),
+      },
+    });
+
+    beforeEach(async () => {
+      const { Writer } = await import('@transcend-io/conflux');
+      vi.mocked(Writer).mockImplementation(() => freshStreams() as any);
+
+      downloadNames = [];
+      const { createStreamingDownload } = await import('drip-fs');
+      vi.mocked(createStreamingDownload).mockImplementation(async (name: string) => {
+        downloadNames.push(name);
+        return {
+          write: vi.fn().mockResolvedValue(undefined),
+          close: vi.fn().mockResolvedValue(undefined),
+          abort: vi.fn().mockResolvedValue(undefined),
+          bytesWritten: 0,
+        } as any;
+      });
+    });
+
+    const blobOf = (bytes: number) => new Blob([new Uint8Array(bytes)]);
+
+    it('keeps a single part with the plain name when under the threshold', async () => {
+      const svc = new StreamingZipService('bulk-export', { maxPartBytes: 1000 });
+      await svc.addFile(blobOf(300), 'a');
+      await svc.addFile(blobOf(300), 'b');
+      await svc.finalize();
+      expect(downloadNames).toEqual(['bulk-export.zip']);
+    });
+
+    it('rolls to a new part when a file would cross the byte threshold', async () => {
+      const svc = new StreamingZipService('bulk-export', { maxPartBytes: 1000 });
+      await svc.addFile(blobOf(600), 'a'); // part 1: 600
+      await svc.addFile(blobOf(600), 'b'); // 600+600 > 1000 → part 2
+      await svc.addFile(blobOf(100), 'c'); // part 2: 700, ok
+      await svc.finalize();
+      expect(downloadNames).toEqual(['bulk-export.zip', 'bulk-export-part2.zip']);
+    });
+
+    it('never splits when no maxPartBytes is set (legacy single archive)', async () => {
+      const svc = new StreamingZipService('bulk-export');
+      await svc.addFile(blobOf(5_000_000), 'a');
+      await svc.addFile(blobOf(5_000_000), 'b');
+      await svc.finalize();
+      expect(downloadNames).toEqual(['bulk-export.zip']);
+    });
+
+    it('keeps an oversized lone file in its own part, then rolls', async () => {
+      const svc = new StreamingZipService('bulk-export', { maxPartBytes: 1000 });
+      await svc.addFile(blobOf(5000), 'huge'); // > limit but empty part → stays in part 1
+      await svc.addFile(blobOf(100), 'next'); // part 1 already over → part 2
+      await svc.finalize();
+      expect(downloadNames).toEqual(['bulk-export.zip', 'bulk-export-part2.zip']);
+    });
+
+    it('fires onPartStart per part with a 1-based index', async () => {
+      const onPartStart = vi.fn();
+      const svc = new StreamingZipService('bulk-export', { maxPartBytes: 1000, onPartStart });
+      await svc.addFile(blobOf(600), 'a');
+      await svc.addFile(blobOf(600), 'b');
+      await svc.finalize();
+      expect(onPartStart).toHaveBeenCalledWith({ partIndex: 1, fileName: 'bulk-export.zip' });
+      expect(onPartStart).toHaveBeenCalledWith({ partIndex: 2, fileName: 'bulk-export-part2.zip' });
+    });
+
+    it('warns via onOversizeFile when a single file exceeds the 32-bit zip limit', async () => {
+      const onOversizeFile = vi.fn();
+      const svc = new StreamingZipService('bulk-export', { maxPartBytes: 1000, onOversizeFile });
+      // Fake an >4 GiB blob without allocating it (stream() is never read by the mock).
+      const huge = { size: 0xffffffff + 10 } as Blob;
+      await svc.addFile(huge, 'huge.bin');
+      await svc.finalize();
+      expect(onOversizeFile).toHaveBeenCalledWith({ fileName: 'huge.bin', size: 0xffffffff + 10 });
+    });
+  });
 });

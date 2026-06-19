@@ -79,6 +79,47 @@ export interface ExportSettingsSnapshot {
    * formatting-equality check, so it never drives the "modified" auto-clear.
    */
   dateRange?: ExportDateRange;
+  /**
+   * Max bytes of content per zip part before the export rolls into a second
+   * file (export.zip, export-part2.zip, …). @transcend-io/conflux has no zip64,
+   * so a single archive corrupts past ~4 GiB — splitting keeps each part safe
+   * (#207 Arm A). `undefined` resolves to DEFAULT_MAX_ZIP_PART_BYTES (so existing
+   * presets gain the safe default); `null` means a single zip with no split.
+   */
+  maxZipPartBytes?: number | null;
+}
+
+/**
+ * Safe default split threshold (#207 Arm A): 4 GB decimal, comfortably under
+ * the 4 GiB / 2^32 boundary where conflux's 32-bit fields overflow. Small
+ * exports never reach it, so they produce one zip exactly as before.
+ */
+export const DEFAULT_MAX_ZIP_PART_BYTES = 4_000_000_000;
+
+export interface ZipSizeOption {
+  label: string;
+  value: number | null;
+}
+
+/** Choices for the export "Max zip size" control. `null` = single zip. */
+export const ZIP_SIZE_OPTIONS: ZipSizeOption[] = [
+  { label: 'Single zip (no limit)', value: null },
+  { label: '4 GB (recommended)', value: 4_000_000_000 },
+  { label: '2 GB', value: 2_000_000_000 },
+  { label: '1 GB', value: 1_000_000_000 },
+];
+
+/**
+ * Resolve a snapshot's max-part-size to the concrete value the zip service uses.
+ * `undefined` → the safe default (protects presets saved before this existed);
+ * `null` → no limit (single zip).
+ */
+export function resolveMaxZipPartBytes(
+  source: { maxZipPartBytes?: number | null }
+): number | null {
+  return source.maxZipPartBytes === undefined
+    ? DEFAULT_MAX_ZIP_PART_BYTES
+    : source.maxZipPartBytes;
 }
 
 export type PresetCategory = 'Backup' | 'Data' | 'Media';
@@ -271,6 +312,8 @@ export interface ExportState {
   previewMedia: boolean;
   exportTemplate: ExportTemplate;
   textOptions: TextFormatOptions;
+  /** Max bytes per zip part before splitting; null = single zip (#207 Arm A). */
+  maxZipPartBytes: number | null;
   /**
    * The active export filter/date window (#207 Arm B). Lifted out of
    * BulkExportDialog's transient local state into the slice so a preset's
@@ -302,5 +345,6 @@ export const initialExportState: ExportState = {
   previewMedia: true,
   exportTemplate: 'discord',
   textOptions: { ...defaultTextFormatOptions },
+  maxZipPartBytes: DEFAULT_MAX_ZIP_PART_BYTES,
   exportCriteria: null,
 };

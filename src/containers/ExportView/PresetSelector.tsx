@@ -25,7 +25,7 @@ import {
   savePreset,
   selectUserPresets,
 } from '@features/presets/presetsSlice';
-import { BUILT_IN_PRESETS, PRESET_CATEGORIES } from '@features/export/exportTypes';
+import { BUILT_IN_PRESETS, PRESET_CATEGORIES, resolveMaxZipPartBytes } from '@features/export/exportTypes';
 import type { ExportPreset, ExportSettingsSnapshot } from '@features/export/exportTypes';
 
 function snapshotMatches(a: ExportSettingsSnapshot, b: ExportSettingsSnapshot): boolean {
@@ -40,7 +40,10 @@ function snapshotMatches(a: ExportSettingsSnapshot, b: ExportSettingsSnapshot): 
     a.mediaConfig.other === b.mediaConfig.other &&
     a.artistMode === b.artistMode &&
     a.sortOrder === b.sortOrder &&
-    a.previewMedia === b.previewMedia
+    a.previewMedia === b.previewMedia &&
+    // Compare resolved values so a preset saved before this field existed
+    // (undefined) matches the safe default and doesn't read as "modified".
+    resolveMaxZipPartBytes(a) === resolveMaxZipPartBytes(b)
   );
 }
 
@@ -54,6 +57,7 @@ function exportStateToSnapshot(state: ReturnType<typeof selectExport>): ExportSe
     artistMode: state.artistMode,
     sortOrder: state.sortOrder,
     previewMedia: state.previewMedia,
+    maxZipPartBytes: state.maxZipPartBytes,
   };
 }
 

@@ -26,10 +26,12 @@ import {
   setArtistMode,
   setSortOrder,
   setPreviewMedia,
+  setMaxZipPartBytes,
   setExportTemplate,
   setTextOptions,
   selectExport,
 } from '@features/export/exportSlice';
+import { ZIP_SIZE_OPTIONS } from '@features/export/exportTypes';
 import type {
   ExportFormat,
   ExportTemplate,
@@ -212,6 +214,27 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                 <MenuItem value="ascending">Oldest First</MenuItem>
                 <MenuItem value="descending">Newest First</MenuItem>
               </Select>
+            </FormControl>
+
+            <FormControl size="small">
+              <InputLabel>Max zip size</InputLabel>
+              <Select
+                value={exportState.maxZipPartBytes === null ? 'none' : String(exportState.maxZipPartBytes)}
+                label="Max zip size"
+                onChange={(e) => {
+                  const v = e.target.value;
+                  dispatch(setMaxZipPartBytes(v === 'none' ? null : Number(v)));
+                }}
+              >
+                {ZIP_SIZE_OPTIONS.map((opt) => (
+                  <MenuItem key={opt.label} value={opt.value === null ? 'none' : String(opt.value)}>
+                    {opt.label}
+                  </MenuItem>
+                ))}
+              </Select>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
+                Splits very large exports into multiple zip files (export.zip, export-part2.zip…) to avoid the corruption huge archives can hit. Most exports stay in a single file.
+              </Typography>
             </FormControl>
 
             {exportState.exportFormat === 'html' && (
