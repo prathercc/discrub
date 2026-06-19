@@ -18,10 +18,25 @@ import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
 import { addRecentExport } from '@features/history/historySlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
+import { IsPinnedType } from 'discrub-core/discord-enum';
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError } from '@/utils/operationLoopUtils';
 import { iterateSearchMessagesRedux, nextMilestone } from '@/utils/searchPagination';
 import { addStatusEntry, showOperationTip } from '@features/status/statusSlice';
+
+// #207 Arm B: a blank criteria so applyPreset can merge a restored date range
+// into the export window even when none was set yet.
+const EMPTY_EXPORT_CRITERIA: SearchCriteria = {
+  searchAfterDate: null,
+  searchBeforeDate: null,
+  searchMessageContent: null,
+  selectedHasTypes: [],
+  userIds: [],
+  mentionIds: [],
+  channelIds: [],
+  isPinned: IsPinnedType.UNSET,
+  authorType: null,
+};
 
 /**
  * Build a map of channel/DM IDs → unique sanitized folder names.
@@ -1169,6 +1184,11 @@ const exportSlice = createSlice({
     ) => {
       state.textOptions = { ...state.textOptions, ...action.payload };
     },
+    // #207 Arm B: the active export filter/date window, lifted from
+    // BulkExportDialog local state so a preset can restore it.
+    setExportCriteria: (state, action: PayloadAction<SearchCriteria | null>) => {
+      state.exportCriteria = action.payload;
+    },
     applyPreset: (state, action: PayloadAction<ExportSettingsSnapshot>) => {
       const preset = action.payload;
       state.exportFormat = preset.format;
@@ -1181,6 +1201,18 @@ const exportSlice = createSlice({
       state.previewMedia = preset.previewMedia;
       if (preset.textOptions) {
         state.textOptions = { ...preset.textOptions };
+      }
+      // #207 Arm B: only presets explicitly saved with a date range carry one.
+      // Restore it by merging the bounds into the current export criteria
+      // (keeping any author/content/etc. the user already set); presets
+      // without a date range leave the current window untouched.
+      if (preset.dateRange) {
+        const { after, before } = preset.dateRange;
+        state.exportCriteria = {
+          ...(state.exportCriteria ?? EMPTY_EXPORT_CRITERIA),
+          searchAfterDate: after ? new Date(after) : null,
+          searchBeforeDate: before ? new Date(before) : null,
+        };
       }
     },
     initializeExportFromSettings: (state, action: PayloadAction<Record<string, any> | null>) => {
@@ -1304,6 +1336,7 @@ export const {
   setPreviewMedia,
   setExportTemplate,
   setTextOptions,
+  setExportCriteria,
   applyPreset,
   initializeExportFromSettings,
   resetExport,
@@ -1316,5 +1349,6 @@ export const selectExportProgress = (state: RootState) => state.export.exportPro
 export const selectExportFormat = (state: RootState) => state.export.exportFormat;
 export const selectTextOptions = (state: RootState) => state.export.textOptions;
 export const selectExportError = (state: RootState) => state.export.exportError;
+export const selectExportCriteria = (state: RootState) => state.export.exportCriteria;
 
 export default exportSlice.reducer;

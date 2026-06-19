@@ -316,6 +316,7 @@ describe('TopBar', () => {
           user: { currentUser, isLoading: false, error: null },
           export: {
             isExporting: true,
+            exportCriteria: null,
             exportProgress: null,
             exportTotal: 0,
             currentPage: 0,
@@ -347,6 +348,7 @@ describe('TopBar', () => {
           user: { currentUser, isLoading: false, error: null },
           export: {
             isExporting: true,
+            exportCriteria: null,
             exportProgress: null,
             exportTotal: 0,
             currentPage: 0,
@@ -377,6 +379,7 @@ describe('TopBar', () => {
           user: { currentUser, isLoading: false, error: null },
           export: {
             isExporting: true,
+            exportCriteria: null,
             exportProgress: null,
             exportTotal: 0,
             currentPage: 0,

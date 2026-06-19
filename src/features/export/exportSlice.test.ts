@@ -16,6 +16,8 @@ import exportReducer, {
   initializeExportFromSettings,
   resetExport,
   setTextOptions,
+  setExportCriteria,
+  selectExportCriteria,
   selectExport,
   selectIsExporting,
   selectExportProgress,
@@ -789,6 +791,104 @@ describe('exportSlice', () => {
         previewMedia: false,
       }));
       expect(selectTextOptions(store.getState()).attachmentStyle).toBe('skip');
+    });
+
+    it('setExportCriteria stores and clears the export filter window (#207 Arm B)', () => {
+      const criteria = {
+        searchAfterDate: new Date('2025-01-01T00:00:00.000Z'),
+        searchBeforeDate: null,
+        searchMessageContent: null,
+        selectedHasTypes: [],
+        userIds: [],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: 0,
+        authorType: null,
+      } as any;
+      store.dispatch(setExportCriteria(criteria));
+      expect(selectExportCriteria(store.getState())?.searchAfterDate).toEqual(
+        criteria.searchAfterDate,
+      );
+      store.dispatch(setExportCriteria(null));
+      expect(selectExportCriteria(store.getState())).toBeNull();
+    });
+
+    it('applyPreset with a dateRange restores Date bounds onto the export criteria (#207 Arm B)', () => {
+      store.dispatch(applyPreset({
+        format: 'json',
+        messagesPerPage: 500,
+        separateThreads: false,
+        includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false,
+        sortOrder: 'ascending',
+        previewMedia: false,
+        dateRange: { after: '2025-03-01T00:00:00.000Z', before: '2025-03-31T00:00:00.000Z' },
+      }));
+
+      const c = selectExportCriteria(store.getState());
+      expect(c?.searchAfterDate).toBeInstanceOf(Date);
+      expect((c?.searchAfterDate as Date).toISOString()).toBe('2025-03-01T00:00:00.000Z');
+      expect((c?.searchBeforeDate as Date).toISOString()).toBe('2025-03-31T00:00:00.000Z');
+    });
+
+    it('applyPreset without a dateRange leaves the current export criteria untouched (#207 Arm B)', () => {
+      const existing = {
+        searchAfterDate: new Date('2024-12-25T00:00:00.000Z'),
+        searchBeforeDate: null,
+        searchMessageContent: null,
+        selectedHasTypes: [],
+        userIds: [],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: 0,
+        authorType: null,
+      } as any;
+      store.dispatch(setExportCriteria(existing));
+      store.dispatch(applyPreset({
+        format: 'csv',
+        messagesPerPage: 100,
+        separateThreads: false,
+        includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false,
+        sortOrder: 'ascending',
+        previewMedia: false,
+      }));
+      // Formatting-only preset must not wipe the user's active date window.
+      expect(selectExportCriteria(store.getState())?.searchAfterDate).toEqual(
+        existing.searchAfterDate,
+      );
+    });
+
+    it('applyPreset dateRange merges onto existing non-date criteria fields (#207 Arm B)', () => {
+      store.dispatch(setExportCriteria({
+        searchAfterDate: null,
+        searchBeforeDate: null,
+        searchMessageContent: 'hello',
+        selectedHasTypes: [],
+        userIds: ['user-1'],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: 0,
+        authorType: null,
+      } as any));
+      store.dispatch(applyPreset({
+        format: 'json',
+        messagesPerPage: 100,
+        separateThreads: false,
+        includeMedia: false,
+        mediaConfig: { images: false, videos: false, audio: false, other: false },
+        artistMode: false,
+        sortOrder: 'ascending',
+        previewMedia: false,
+        dateRange: { after: '2025-05-01T00:00:00.000Z', before: null },
+      }));
+      const c = selectExportCriteria(store.getState());
+      expect(c?.searchMessageContent).toBe('hello');
+      expect(c?.userIds).toEqual(['user-1']);
+      expect((c?.searchAfterDate as Date).toISOString()).toBe('2025-05-01T00:00:00.000Z');
+      expect(c?.searchBeforeDate).toBeNull();
     });
 
     it('resetExport only clears operation state', () => {

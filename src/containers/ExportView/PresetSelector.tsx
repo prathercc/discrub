@@ -12,12 +12,14 @@ import {
   TextField,
   Typography,
   ListSubheader,
+  Checkbox,
+  FormControlLabel,
 } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import TourFootnote from '@components/welcome/TourFootnote';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
-import { applyPreset, selectExport } from '@features/export/exportSlice';
+import { applyPreset, selectExport, selectExportCriteria } from '@features/export/exportSlice';
 import {
   removePreset,
   savePreset,
@@ -107,6 +109,20 @@ const PresetSelector = () => {
   const [selectedPresetId, setSelectedPresetId] = useState<string>('');
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState('');
+  // #207 Arm B: opt-in capture of the active export date window into the preset.
+  const [includeDateRange, setIncludeDateRange] = useState(false);
+  const exportCriteria = useAppSelector(selectExportCriteria);
+  const activeDateRange =
+    exportCriteria && (exportCriteria.searchAfterDate || exportCriteria.searchBeforeDate)
+      ? {
+          after: exportCriteria.searchAfterDate
+            ? new Date(exportCriteria.searchAfterDate).toISOString()
+            : null,
+          before: exportCriteria.searchBeforeDate
+            ? new Date(exportCriteria.searchBeforeDate).toISOString()
+            : null,
+        }
+      : null;
 
   const userPresets = useAppSelector(selectUserPresets);
 
@@ -150,6 +166,9 @@ const PresetSelector = () => {
       name: presetName.trim(),
       isBuiltIn: false,
       ...exportStateToSnapshot(exportState),
+      // #207 Arm B: only attach the date range when the user opted in AND one
+      // is actually active, so most presets stay formatting-only.
+      ...(includeDateRange && activeDateRange ? { dateRange: activeDateRange } : {}),
     };
 
     dispatch(savePreset(newPreset));
@@ -158,6 +177,7 @@ const PresetSelector = () => {
     // It'll reset back to '' next open, consistent with built-ins.
     setSelectedPresetId(newPreset.id);
     setPresetName('');
+    setIncludeDateRange(false);
     setNameDialogOpen(false);
   };
 
@@ -309,6 +329,24 @@ const PresetSelector = () => {
             }}
             sx={{ mt: 1 }}
           />
+          {/* #207 Arm B: only offered when a date window is actually set. */}
+          {activeDateRange && (
+            <FormControlLabel
+              sx={{ mt: 1, display: 'block' }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={includeDateRange}
+                  onChange={(e) => setIncludeDateRange(e.target.checked)}
+                />
+              }
+              label={
+                <Typography variant="body2" color="text.secondary">
+                  Also save the current date range
+                </Typography>
+              }
+            />
+          )}
         </DialogContent>
         <DialogActions>
           <Button variant="outlined" onClick={() => setNameDialogOpen(false)}>Cancel</Button>

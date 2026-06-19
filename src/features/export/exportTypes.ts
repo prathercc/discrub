@@ -3,6 +3,12 @@
 // emitter knobs consumed by lib-side text/html emitters. Re-exported here
 // so callers can keep their existing import paths.
 import { defaultTextFormatOptions } from 'discrub-core/types/export-types';
+// `export type { ... } from` re-exports without creating a local binding, so
+// TextFormatOptions wasn't usable as a type annotation in this file (TS2304).
+// Import it locally for the annotations below; the re-export still serves
+// downstream callers.
+import type { TextFormatOptions } from 'discrub-core/types/export-types';
+import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 export type {
   MediaMaps,
   ExportConfig,
@@ -42,6 +48,17 @@ export interface ExportProgress extends MediaDownloadProgress {
 }
 
 /**
+ * A persisted export date window (#207 Arm B). Stored as ISO strings so the
+ * snapshot stays serializable in preset/history storage; converted back to
+ * Date bounds on the export criteria when a preset is applied. `null` on a
+ * side means that bound is open.
+ */
+export interface ExportDateRange {
+  after: string | null;
+  before: string | null;
+}
+
+/**
  * Snapshot of export settings — used by presets and recent export history
  */
 export interface ExportSettingsSnapshot {
@@ -54,6 +71,14 @@ export interface ExportSettingsSnapshot {
   sortOrder: 'ascending' | 'descending';
   previewMedia: boolean;
   textOptions?: TextFormatOptions;
+  /**
+   * Optional, opt-in (#207 Arm B). When a preset is saved with "include the
+   * current date range" checked, the active export date window is captured
+   * here so re-applying the preset restores it. Most presets omit this — they
+   * reuse formatting without locking a date window. Not part of the
+   * formatting-equality check, so it never drives the "modified" auto-clear.
+   */
+  dateRange?: ExportDateRange;
 }
 
 export type PresetCategory = 'Backup' | 'Data' | 'Media';
@@ -246,6 +271,13 @@ export interface ExportState {
   previewMedia: boolean;
   exportTemplate: ExportTemplate;
   textOptions: TextFormatOptions;
+  /**
+   * The active export filter/date window (#207 Arm B). Lifted out of
+   * BulkExportDialog's transient local state into the slice so a preset's
+   * saved date range can be restored into it on apply. Holds Date bounds like
+   * message.searchCriteria; the path is serializability-ignored in the store.
+   */
+  exportCriteria: SearchCriteria | null;
 }
 
 export const initialExportState: ExportState = {
@@ -270,4 +302,5 @@ export const initialExportState: ExportState = {
   previewMedia: true,
   exportTemplate: 'discord',
   textOptions: { ...defaultTextFormatOptions },
+  exportCriteria: null,
 };

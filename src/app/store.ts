@@ -47,8 +47,10 @@ export const store = configureStore({
       serializableCheck: {
         // Ignore these paths in the state for serializability checks
         // This is useful for storing Date objects or other non-serializable data
-        ignoredActions: ['auth/setToken'],
-        ignoredPaths: ['auth.token'],
+        // export.exportCriteria holds Date bounds (#207 Arm B), like search
+        // criteria elsewhere; exclude it from the dev-only serializability check.
+        ignoredActions: ['auth/setToken', 'export/setExportCriteria', 'export/applyPreset'],
+        ignoredPaths: ['auth.token', 'export.exportCriteria'],
       },
     }).concat(settingsChangeMiddleware, errorLoggingMiddleware),
 });

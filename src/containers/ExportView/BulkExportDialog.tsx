@@ -20,10 +20,11 @@ import {
   resetExport,
   initializeExportFromSettings,
   selectExport,
+  selectExportCriteria,
+  setExportCriteria,
 } from '@features/export/exportSlice';
 import type { ExportConfig } from '@features/export/exportTypes';
 import type { Channel } from 'discrub-core/types/discord-types';
-import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSettings } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
@@ -80,7 +81,9 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
     }
   }, [open, dispatch]);
 
-  const [filterCriteria, setFilterCriteria] = useState<SearchCriteria | null>(null);
+  // #207 Arm B: the export filter/date window now lives in the export slice
+  // (selectExportCriteria) so a preset can restore a saved date range into it.
+  const filterCriteria = useAppSelector(selectExportCriteria);
   const [filterModalOpen, setFilterModalOpen] = useState(false);
   // Bumped each time we open the filter modal. Forces FilterModal to
   // remount so its internal useState seeds from the current
@@ -92,10 +95,10 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
   // session starts from an unfiltered state by default.
   useEffect(() => {
     if (open) {
-      setFilterCriteria(null);
+      dispatch(setExportCriteria(null));
       setFilterModalOpen(false);
     }
-  }, [open]);
+  }, [open, dispatch]);
 
   const filterCount = filterCriteria ? countActiveFilters(filterCriteria) : 0;
 
@@ -212,12 +215,12 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
         open={filterModalOpen}
         onClose={() => setFilterModalOpen(false)}
         onServerSearch={(criteria) => {
-          setFilterCriteria(criteria);
+          dispatch(setExportCriteria(criteria));
           setFilterModalOpen(false);
         }}
         onRefine={() => { /* bulk export has no client-side refine */ }}
         onClearSearch={() => {
-          setFilterCriteria(null);
+          dispatch(setExportCriteria(null));
           setFilterModalOpen(false);
         }}
         onClearRefine={() => { /* no-op */ }}

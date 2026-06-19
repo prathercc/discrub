@@ -4,6 +4,7 @@ import PresetSelector from './PresetSelector';
 import { createBaseState } from '@/test/state-factories';
 import { defaultSettings } from '@features/app/appSlice';
 import { BUILT_IN_PRESETS } from '@features/export/exportTypes';
+import { setExportCriteria } from '@features/export/exportSlice';
 
 vi.mock('@/extension/storage', () => {
   function makeAdapter() {
@@ -260,5 +261,82 @@ describe('PresetSelector', () => {
 
     // Selection should be cleared to placeholder
     expect(screen.getByText('Choose...')).toBeInTheDocument();
+  });
+
+  // #207 Arm B — opt-in date-range capture
+  const openSaveDialog = async () => {
+    const combobox = screen.getByRole('combobox');
+    await act(async () => { fireEvent.mouseDown(combobox); });
+    const saveOpts = screen.getAllByText('Save as Preset...');
+    await act(async () => { fireEvent.click(saveOpts[saveOpts.length - 1]); });
+  };
+
+  it('does not offer the date-range checkbox when no date window is active (#207)', async () => {
+    renderSelector();
+    await openSaveDialog();
+    expect(screen.getByText('Save as Preset')).toBeInTheDocument(); // dialog open
+    expect(screen.queryByText('Also save the current date range')).not.toBeInTheDocument();
+  });
+
+  it('captures the active date range into the saved preset when opted in (#207)', async () => {
+    const { store } = renderSelector();
+    await act(async () => {
+      store.dispatch(setExportCriteria({
+        searchAfterDate: new Date('2025-02-01T00:00:00.000Z'),
+        searchBeforeDate: null,
+        searchMessageContent: null,
+        selectedHasTypes: [],
+        userIds: [],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: 0,
+        authorType: null,
+      } as any));
+    });
+
+    await openSaveDialog();
+
+    // The opt-in now appears because a date window is active.
+    const checkbox = screen.getByRole('checkbox');
+    expect(screen.getByText('Also save the current date range')).toBeInTheDocument();
+    await act(async () => { fireEvent.click(checkbox); });
+
+    const nameField = screen.getByLabelText('Preset name');
+    await act(async () => { fireEvent.change(nameField, { target: { value: 'Feb backup' } }); });
+    await act(async () => { fireEvent.click(screen.getByText('Save')); });
+
+    const saved = Object.values(store.getState().presets.presets).find(
+      (p: any) => p.name === 'Feb backup',
+    ) as any;
+    expect(saved).toBeTruthy();
+    expect(saved.dateRange).toEqual({ after: '2025-02-01T00:00:00.000Z', before: null });
+  });
+
+  it('omits the date range from the preset when the opt-in is left unchecked (#207)', async () => {
+    const { store } = renderSelector();
+    await act(async () => {
+      store.dispatch(setExportCriteria({
+        searchAfterDate: new Date('2025-02-01T00:00:00.000Z'),
+        searchBeforeDate: null,
+        searchMessageContent: null,
+        selectedHasTypes: [],
+        userIds: [],
+        mentionIds: [],
+        channelIds: [],
+        isPinned: 0,
+        authorType: null,
+      } as any));
+    });
+
+    await openSaveDialog();
+    const nameField = screen.getByLabelText('Preset name');
+    await act(async () => { fireEvent.change(nameField, { target: { value: 'No dates' } }); });
+    await act(async () => { fireEvent.click(screen.getByText('Save')); });
+
+    const saved = Object.values(store.getState().presets.presets).find(
+      (p: any) => p.name === 'No dates',
+    ) as any;
+    expect(saved).toBeTruthy();
+    expect(saved.dateRange).toBeUndefined();
   });
 });
