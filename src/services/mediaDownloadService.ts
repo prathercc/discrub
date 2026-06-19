@@ -258,10 +258,10 @@ export class MediaDownloadService {
       // real payload — including attachments and embedded media — inside
       // message_snapshots[].message, NOT on the top-level message. Without
       // this pass that media is rendered in the feed/HTML but never downloaded,
-      // leaving dead CDN links offline.
-      msg.message_snapshots?.forEach((snap) => {
-        collectMedia(snap?.message, authorName, index);
-      });
+      // leaving dead CDN links offline. Only snapshot[0] is collected: both the
+      // feed and the HTML emitter render only message_snapshots[0], so deeper
+      // snapshots would download orphaned files that are never linked.
+      collectMedia(msg.message_snapshots?.[0]?.message, authorName, index);
     });
 
     // Report progress even if there are no attachments

@@ -687,8 +687,13 @@ export function generateEmbeddedJs(): string {
 
   function openLightbox(el) {
     collectLightboxImages();
-    var idx = parseInt(el.getAttribute('data-img-index') || '0', 10);
-    lightboxIndex = idx;
+    // Index by the element's DOM position, not its data-img-index attribute:
+    // some blocks (e.g. forwarded snapshots, #214) are emitted in a different
+    // source order than their DOM placement, so the attribute can diverge from
+    // the DOM-ordered lightboxImages array and open the wrong image.
+    var imgs = document.querySelectorAll('[data-action="open-lightbox"]');
+    var idx = Array.prototype.indexOf.call(imgs, el);
+    lightboxIndex = idx >= 0 ? idx : parseInt(el.getAttribute('data-img-index') || '0', 10);
     showLightboxImage();
   }
 
