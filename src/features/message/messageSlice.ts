@@ -20,6 +20,16 @@ import { nextMilestone } from '@utils/searchPagination';
 import { countActiveFilters } from 'discrub-core/filtering';
 
 /**
+ * Append the HTTP status discrub-core already returns (`DiscordApiResponse
+ * .status`) to a generic write-failure message, so a failed Discord write is
+ * self-diagnosing without the user opening devtools — 403 = permission/token,
+ * 404 = already gone, 429 = rate-limited. Filed as #212 to unblock the #199
+ * DM-self-delete reports, which are stuck on not knowing the failing status.
+ */
+const withHttpStatus = (message: string, status?: number): string =>
+  `${message} (HTTP ${status ?? 'unknown'})`;
+
+/**
  * Emit a status-log entry when a just-loaded page produced zero matches
  * against the currently-active refine. Gives the user an explicit signal
  * that the fetch succeeded — important because otherwise the UI looks
@@ -68,7 +78,7 @@ export const deleteMessage = createAsyncThunk(
       const response = await discordService.deleteMessage(token, messageId, channelId);
 
       if (!response.success) {
-        return rejectWithValue('Failed to delete message');
+        return rejectWithValue(withHttpStatus('Failed to delete message', response.status));
       }
 
       return messageId;
@@ -125,7 +135,15 @@ export const deleteMessages = createAsyncThunk(
             if (wasCancelled) break;
           }
         } catch (error) {
+          // #212: surface the failure (now carrying the HTTP status) in the
+          // status log, not just the console — a status-log entry is what a
+          // user can screenshot, which is exactly what #199 has been missing.
+          const reason = error instanceof Error ? error.message : String(error);
           console.error(`Failed to delete message ${message.id}:`, error);
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `Couldn't delete message ${message.id}: ${reason}`,
+          }));
         }
       }
 
@@ -170,7 +188,7 @@ export const editMessage = createAsyncThunk(
       );
 
       if (!response.success || !response.data) {
-        return rejectWithValue('Failed to edit message');
+        return rejectWithValue(withHttpStatus('Failed to edit message', response.status));
       }
 
       return response.data as Message;
@@ -329,7 +347,7 @@ export const deleteReaction = createAsyncThunk(
       );
 
       if (!response.success) {
-        return rejectWithValue('Failed to delete reaction');
+        return rejectWithValue(withHttpStatus('Failed to delete reaction', response.status));
       }
 
       dispatch(addStatusEntry({ level: 'info', message: `Removed reaction ${emoji} from message ${messageId}` }));
@@ -426,7 +444,7 @@ export const bulkDeleteAllReactions = createAsyncThunk(
       );
 
       if (!response.success) {
-        return rejectWithValue('Failed to delete all reactions');
+        return rejectWithValue(withHttpStatus('Failed to delete all reactions', response.status));
       }
 
       dispatch(addStatusEntry({ level: 'success', message: `Removed all reactions from message` }));
@@ -469,7 +487,7 @@ export const bulkDeleteReactionsForEmoji = createAsyncThunk(
       );
 
       if (!response.success) {
-        return rejectWithValue('Failed to delete reactions for emoji');
+        return rejectWithValue(withHttpStatus('Failed to delete reactions for emoji', response.status));
       }
 
       dispatch(addStatusEntry({ level: 'success', message: `Removed all ${emoji} reactions from message` }));
@@ -627,7 +645,7 @@ export const deleteAttachment = createAsyncThunk(
       if (remainingAttachments.length === 0 && !freshMessage.content?.trim()) {
         const deleteResponse = await discordService.deleteMessage(token, message.id, channelId);
         if (!deleteResponse.success) {
-          return rejectWithValue('Failed to delete message');
+          return rejectWithValue(withHttpStatus('Failed to delete message', deleteResponse.status));
         }
         dispatch(addStatusEntry({ level: 'info', message: `Deleted message ${message.id} (last attachment removed)` }));
         return { messageId: message.id, deleted: true };
@@ -642,7 +660,7 @@ export const deleteAttachment = createAsyncThunk(
       );
 
       if (!editResponse.success || !editResponse.data) {
-        return rejectWithValue('Failed to remove attachment');
+        return rejectWithValue(withHttpStatus('Failed to remove attachment', editResponse.status));
       }
 
       dispatch(addStatusEntry({ level: 'info', message: `Removed attachment ${attachment.filename} from message ${message.id}` }));
@@ -679,7 +697,7 @@ export const deleteAllAttachments = createAsyncThunk(
       if (!message.content?.trim()) {
         const deleteResponse = await discordService.deleteMessage(token, message.id, channelId);
         if (!deleteResponse.success) {
-          return rejectWithValue('Failed to delete message');
+          return rejectWithValue(withHttpStatus('Failed to delete message', deleteResponse.status));
         }
         dispatch(addStatusEntry({ level: 'info', message: `Deleted message ${message.id} (all attachments removed)` }));
         return { messageId: message.id, deleted: true };
@@ -694,7 +712,7 @@ export const deleteAllAttachments = createAsyncThunk(
       );
 
       if (!editResponse.success || !editResponse.data) {
-        return rejectWithValue('Failed to remove attachments');
+        return rejectWithValue(withHttpStatus('Failed to remove attachments', editResponse.status));
       }
 
       dispatch(addStatusEntry({ level: 'info', message: `Removed all attachments from message ${message.id}` }));

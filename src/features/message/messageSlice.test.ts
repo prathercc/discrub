@@ -470,6 +470,33 @@ describe('messageSlice', () => {
       expect(result.type).toBe('message/deleteMessage/rejected');
     });
 
+    it('surfaces the HTTP status from a failed delete in the rejected value (#212)', async () => {
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: false, status: 403 }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const result = await store.dispatch(
+        deleteMessage({ messageId: 'msg-1', channelId: 'channel-1', token: 'token' })
+      );
+
+      expect(result.type).toBe('message/deleteMessage/rejected');
+      expect(result.payload).toBe('Failed to delete message (HTTP 403)');
+    });
+
+    it('falls back to "(HTTP unknown)" when the failure carries no status (#212)', async () => {
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: false }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const result = await store.dispatch(
+        deleteMessage({ messageId: 'msg-1', channelId: 'channel-1', token: 'token' })
+      );
+
+      expect(result.payload).toBe('Failed to delete message (HTTP unknown)');
+    });
+
     it('should handle network error', async () => {
       const mockDiscordService = {
         deleteMessage: vi.fn().mockRejectedValue(new Error('Network error')),
@@ -570,6 +597,32 @@ describe('messageSlice', () => {
       );
 
       expect(showOperationTip).toHaveBeenCalled();
+    });
+
+    it('logs a per-message warning with the HTTP status when a bulk delete fails (#212)', async () => {
+      vi.mocked(addStatusEntry).mockClear();
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: false, status: 404 }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = [createMockMessage({ id: 'msg-1' })];
+      const appStore = await createStoreWithApp({
+        ...initialMessageState,
+        messages,
+        selectedMessages: messages,
+      });
+
+      await appStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+
+      // The individual failure (previously only console.error'd) must now land
+      // in the status log a user can screenshot, carrying the HTTP status.
+      const warning = vi.mocked(addStatusEntry).mock.calls.find(
+        ([p]) => p.level === 'warning' && /Couldn't delete message msg-1.*HTTP 404/.test(p.message),
+      );
+      expect(warning).toBeTruthy();
     });
   });
 
