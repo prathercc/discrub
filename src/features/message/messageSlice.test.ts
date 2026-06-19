@@ -1647,9 +1647,9 @@ describe('messageSlice', () => {
       expect(state.filteredMessages[0].content).toBe('edited');
     });
 
-    it('should handle edit failure', async () => {
+    it('should handle edit failure and surface the HTTP status (#212)', async () => {
       const mockDiscordService = {
-        editMessage: vi.fn().mockResolvedValue({ success: false, data: null }),
+        editMessage: vi.fn().mockResolvedValue({ success: false, data: null, status: 403 }),
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
@@ -1658,6 +1658,7 @@ describe('messageSlice', () => {
       );
 
       expect(result.type).toBe('message/editMessage/rejected');
+      expect(result.payload).toBe('Failed to edit message (HTTP 403)');
     });
 
     it('should handle network error', async () => {
@@ -1911,9 +1912,9 @@ describe('messageSlice', () => {
       expect(state.messages[0].reactions).toHaveLength(0);
     });
 
-    it('should handle delete reaction failure', async () => {
+    it('should handle delete reaction failure and surface the HTTP status (#212)', async () => {
       const mockDiscordService = {
-        deleteReaction: vi.fn().mockResolvedValue({ success: false }),
+        deleteReaction: vi.fn().mockResolvedValue({ success: false, status: 429 }),
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
@@ -1922,6 +1923,7 @@ describe('messageSlice', () => {
       );
 
       expect(result.type).toBe('message/deleteReaction/rejected');
+      expect(result.payload).toBe('Failed to delete reaction (HTTP 429)');
     });
   });
 
@@ -2107,9 +2109,9 @@ describe('messageSlice', () => {
       expect(state.messages[0].reactions![0].emoji.name).toBe('❤️');
     });
 
-    it('should reject on API failure', async () => {
+    it('should reject on API failure and surface the HTTP status (#212)', async () => {
       const mockDiscordService = {
-        deleteAllReactionsForEmoji: vi.fn().mockResolvedValue({ success: false }),
+        deleteAllReactionsForEmoji: vi.fn().mockResolvedValue({ success: false, status: 403 }),
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
@@ -2118,6 +2120,7 @@ describe('messageSlice', () => {
       );
 
       expect(result.type).toBe('message/bulkDeleteReactionsForEmoji/rejected');
+      expect(result.payload).toBe('Failed to delete reactions for emoji (HTTP 403)');
     });
   });
 

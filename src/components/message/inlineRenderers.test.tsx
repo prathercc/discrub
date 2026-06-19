@@ -103,6 +103,22 @@ describe('InlineSticker (#213)', () => {
     const { container } = render(<InlineSticker stickers={[]} />);
     expect(container).toBeEmptyDOMElement();
   });
+
+  it('renders every sticker when a message carries multiple', () => {
+    render(
+      <InlineSticker
+        stickers={[
+          { id: '1', name: 'wave', format_type: 1 },
+          { id: '2', name: 'dance', format_type: 4 },
+          { id: '3', name: 'sparkle', format_type: 3 },
+        ]}
+      />,
+    );
+    // Raster stickers render as <img>; the Lottie one degrades to a label.
+    expect((screen.getByAltText('wave') as HTMLImageElement).src).toContain('/stickers/1.png');
+    expect((screen.getByAltText('dance') as HTMLImageElement).src).toContain('/stickers/2.gif');
+    expect(screen.getByText('sparkle')).toBeInTheDocument();
+  });
 });
 
 describe('InlinePoll (#213)', () => {
