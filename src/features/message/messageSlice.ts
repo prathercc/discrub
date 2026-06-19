@@ -809,8 +809,6 @@ export const fetchMoreMessages = createAsyncThunk(
   }
 );
 
-const SEARCH_PAGE_SIZE = 25;
-
 /**
  * Search messages using Discord Search API — fetches page 1 only.
  *
@@ -915,12 +913,14 @@ export const searchMessages = createAsyncThunk(
       return {
         messages,
         totalResults,
-        // Next page starts after the results we just got. If the page returned
-        // fewer than the page size, Discord has no more for us — hasMore false.
-        // Also guard against the (unusual) case where messages.length >= total.
+        // Next page starts after the results we just got. #208: do NOT gate
+        // hasMore on the page being exactly full — Discord's /messages/search
+        // returns spuriously short pages mid-stream (index lag), and the old
+        // `=== SEARCH_PAGE_SIZE` check hid "Load More" with results remaining.
+        // A non-empty page with offset still below total means keep going;
+        // only a genuinely empty page (or reaching total) ends pagination.
         nextOffset: messages.length,
-        hasMore:
-          messages.length === SEARCH_PAGE_SIZE && messages.length < totalResults,
+        hasMore: messages.length > 0 && messages.length < totalResults,
         // Persist the criteria so fetchNextSearchPage / loadAllSearchResults
         // know which search they're paginating without the caller having to
         // dispatch setSearchCriteria separately.
@@ -1023,8 +1023,9 @@ export const fetchNextSearchPage = createAsyncThunk(
         messages,
         totalResults,
         newOffset,
-        hasMore:
-          messages.length === SEARCH_PAGE_SIZE && newOffset < totalResults,
+        // #208: a short page mid-stream is not "the end" — keep "Load More"
+        // available while the page returned results and offset is below total.
+        hasMore: messages.length > 0 && newOffset < totalResults,
       };
     } catch (error) {
       return rejectWithValue(
@@ -1065,13 +1066,24 @@ export const loadAllSearchResults = createAsyncThunk(
     const discordService = getDiscordService();
     const searchDelay = selectSearchDelay(initial);
     const delayModifier = selectDelayModifier(initial);
-    const MAX_PER_QUERY = 5000;
 
     const aggregated: Message[] = [...initial.message.messages];
-    let currentCriteria = { ...initialCriteria };
-    let offset = initial.message.pagination.searchOffset;
-    let totalForCurrentQuery = initial.message.pagination.totalCount ?? 0;
+    const seenIds = new Set(aggregated.map((m) => m.id));
     let milestoneBoundary = nextMilestone(aggregated.length);
+
+    // #208: pagination is delegated to the lib's iterateSearchResults, which
+    // walks newest→oldest by tightening searchBeforeDate to the oldest message
+    // seen (always-cap-shift, the #188 fix this read path never got). Seed the
+    // resume frontier from the oldest message the initial search already
+    // loaded so we don't refetch the top — and so a transient-failure restart
+    // resumes from progress rather than from scratch.
+    let resumeBeforeDate: Date | undefined;
+    for (const m of aggregated) {
+      if (m.timestamp) {
+        const t = new Date(m.timestamp);
+        if (!resumeBeforeDate || t < resumeBeforeDate) resumeBeforeDate = t;
+      }
+    }
 
     const filterCount = countActiveFilters(initialCriteria);
     const isFiltered = filterCount > 0;
@@ -1147,145 +1159,190 @@ export const loadAllSearchResults = createAsyncThunk(
     };
 
     try {
-      while (!signal.aborted) {
-        await waitWhilePaused(getState as () => RootState);
-        if (checkCancelled(getState as () => RootState)) {
+      let transientRetries = 0;
+
+      // Outer restart loop. The lib iterator handles offset pagination, the
+      // 5000-match cap-shift, total_results reshuffles, 202 index-lag retry,
+      // and two-empty-page termination — the convergence logic the old
+      // hand-rolled short-page break (#208) got wrong. It only retries 202
+      // internally and THROWS on a transient network/5xx failure, so we wrap
+      // it to preserve #185 Bug A: retry, then pause + Resume from progress.
+      // Because it cap-shifts by searchBeforeDate, recreating it from the
+      // oldest message loaded resumes exactly where it stopped.
+      restart: while (true) {
+        if (signal.aborted) {
           return rejectWithValue('Load all cancelled');
         }
 
-        // #185 Bug A: retry transient failures; pause + ask the user to
-        // fix their network on exhaustion. Offset is preserved across
-        // retries, so partial progress survives a network dropout.
-        const response = await withTransientRetry(
-          () =>
-            discordService.fetchSearchMessageData(
-              token,
-              offset,
-              channelId || null,
-              guildId || null,
-              currentCriteria
-            ),
-          {
-            getState: getState as () => RootState,
-            signal,
-            onRetry: (attempt, delayMs) => {
+        const iterator = discordService.iterateSearchResults({
+          token,
+          channelId: channelId || null,
+          guildId: guildId || null,
+          criteria: resumeBeforeDate
+            ? { ...initialCriteria, searchBeforeDate: resumeBeforeDate }
+            : { ...initialCriteria },
+          shouldStop: async () => {
+            await waitWhilePaused(getState as () => RootState);
+            return checkCancelled(getState as () => RootState);
+          },
+          onBetweenPages: async () => {
+            const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+            // Resolves true on Pause-cancel/cancel mid-wait → stops the
+            // iterator; we surface that as a cancel after the loop.
+            return await cancellableDelay(
+              delayCalc.delayMs,
+              getState as () => RootState
+            );
+          },
+        });
+
+        // Drive the iterator by hand so a fetch/transient throw (from
+        // .next()) is separable from a body throw (enrichment) — the former
+        // retries, the latter is a hard failure routed to the outer catch.
+        while (true) {
+          let result: Awaited<ReturnType<typeof iterator.next>>;
+          try {
+            result = await iterator.next();
+          } catch (err) {
+            const status = (err as { status?: number } | null)?.status;
+            if (isTransientApiFailure({ success: false, status })) {
+              transientRetries += 1;
+              if (transientRetries <= 5) {
+                const delayMs = Math.min(
+                  1000 * Math.pow(2, transientRetries - 1),
+                  30000
+                );
+                dispatch(addStatusEntry({
+                  level: 'warning',
+                  message: `Search Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${transientRetries}/5)`,
+                }));
+                const cancelled = await cancellableDelay(
+                  delayMs,
+                  getState as () => RootState,
+                  signal
+                );
+                if (cancelled) return rejectWithValue('Load all cancelled');
+                continue restart;
+              }
+              // Exhausted retries — pause and let the user fix their network,
+              // then Resume to continue from progress (#185 Bug A).
+              dispatch(setDiscrubPaused(true));
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Search Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+                message: `Search Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${aggregated.length} messages loaded.`,
               }));
-            },
-          },
-        );
+              await waitWhilePaused(getState as () => RootState);
+              if (checkCancelled(getState as () => RootState)) {
+                return rejectWithValue('Load all cancelled');
+              }
+              transientRetries = 0;
+              continue restart;
+            }
+            return rejectWithValue('Failed while loading all search results');
+          }
 
-        if (!response.success || !response.data) {
-          if (isTransientApiFailure(response)) {
-            dispatch(setDiscrubPaused(true));
+          if (result.done) {
+            // Iterator finished (exhausted) or stopped via shouldStop/
+            // onBetweenPages. A stop triggered by cancel must reject.
+            if (signal.aborted || checkCancelled(getState as () => RootState)) {
+              return rejectWithValue('Load all cancelled');
+            }
+            break restart;
+          }
+
+          const pageResult = result.value;
+          if (checkCancelled(getState as () => RootState)) {
+            return rejectWithValue('Load all cancelled');
+          }
+
+          // #169-style honesty: the iterator emits a synthetic final page
+          // with incomplete=true when it gives up below total_results
+          // (Discord stopped serving matches — search-index churn). Surface
+          // the shortfall instead of silently reporting success.
+          if (pageResult.incomplete) {
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Search Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${aggregated.length} messages loaded.`,
+              message: `Search Load All stopped at ${aggregated.length} of ${pageResult.totalResults} matches — Discord stopped serving new results before the reported total, so some matches may be missing.`,
             }));
             continue;
           }
-          return rejectWithValue('Failed while loading all search results');
-        }
 
-        const rawPage = response.data.messages
-          ? response.data.messages.flatMap((group) => group)
-          : [];
-        const pageTotal = response.data.total_results ?? rawPage.length;
-        totalForCurrentQuery = pageTotal;
+          // The iterator cap-shifts on an inclusive max_id boundary and does
+          // not dedup internally, so the boundary message can reappear; a
+          // transient restart also re-walks the frontier. Dedup here and
+          // advance the resume frontier to the oldest message seen.
+          const fresh = pageResult.messages.filter((m) => !seenIds.has(m.id));
+          for (const m of fresh) {
+            seenIds.add(m.id);
+            if (m.timestamp) {
+              const t = new Date(m.timestamp);
+              if (!resumeBeforeDate || t < resumeBeforeDate) resumeBeforeDate = t;
+            }
+          }
+          transientRetries = 0; // a page arrived — reset the retry budget
+          if (fresh.length === 0) continue;
 
-        if (rawPage.length === 0) break;
+          const pageTotal = pageResult.totalResults;
 
-        // Pass 1 reaction enrichment (#163) — per-page so cancellation
-        // partway through a multi-page load preserves enriched messages
-        // for pages that finished before the cancel.
-        const settings = selectSettings(getState() as RootState);
-        const reactionEnriched = await reactionEnrichmentService.enrichMessages(
-          rawPage,
-          token,
-          settings,
-          {
-            shouldStop: async () => {
-              await waitWhilePaused(getState as () => RootState);
-              return checkCancelled(getState as () => RootState);
+          // Pass 1 reaction enrichment (#163) — per-page so a mid-load cancel
+          // preserves messages enriched before the cancel.
+          const settings = selectSettings(getState() as RootState);
+          const reactionEnriched = await reactionEnrichmentService.enrichMessages(
+            fresh,
+            token,
+            settings,
+            {
+              shouldStop: async () => {
+                await waitWhilePaused(getState as () => RootState);
+                return checkCancelled(getState as () => RootState);
+              },
+              onWillEnrich: emitReactionStatus,
             },
-            onWillEnrich: emitReactionStatus,
-          },
-        );
-        // Pass 2 reply parent enrichment (#194) — also per-page.
-        const page = await replyEnrichmentService.enrichMessages(
-          reactionEnriched,
-          token,
-          settings,
-          {
-            shouldStop: async () => {
-              await waitWhilePaused(getState as () => RootState);
-              return checkCancelled(getState as () => RootState);
+          );
+          // Pass 2 reply parent enrichment (#194) — also per-page.
+          const page = await replyEnrichmentService.enrichMessages(
+            reactionEnriched,
+            token,
+            settings,
+            {
+              shouldStop: async () => {
+                await waitWhilePaused(getState as () => RootState);
+                return checkCancelled(getState as () => RootState);
+              },
+              onWillEnrich: emitReplyStatus,
             },
-            onWillEnrich: emitReplyStatus,
-          },
-        );
+          );
 
-        aggregated.push(...page);
-        offset += page.length;
+          aggregated.push(...page);
 
-        // #181: append this page to state.messages live so the table
-        // grows as Load All walks pages, instead of staying frozen until
-        // fulfilled. Dedupes + re-sorts under the active order; the
-        // fulfilled handler does one final canonical sort over the same
-        // set.
-        dispatch(
-          messageSlice.actions.appendLoadAllPage({
-            messages: page,
-            totalCount: pageTotal,
-            searchOffset: offset,
-          })
-        );
-
-        dispatch(
-          updateLoadAllProgress({
-            current: aggregated.length,
-            total: pageTotal,
-            message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
-          })
-        );
-
-        if (aggregated.length >= milestoneBoundary) {
+          // #181: append live so the table grows as Load All walks pages.
+          // The reducer dedupes + re-sorts under the active order.
           dispatch(
-            addStatusEntry({
-              level: 'info',
+            messageSlice.actions.appendLoadAllPage({
+              messages: page,
+              totalCount: pageTotal,
+              searchOffset: aggregated.length,
+            })
+          );
+
+          dispatch(
+            updateLoadAllProgress({
+              current: aggregated.length,
+              total: pageTotal,
               message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
             })
           );
-          milestoneBoundary = nextMilestone(aggregated.length);
-        }
 
-        // End of this query's results
-        if (page.length < SEARCH_PAGE_SIZE || offset >= totalForCurrentQuery) {
-          // If we hit the 5000-match cap exactly, continue past it by
-          // tightening searchBeforeDate (max_id) to the oldest message in
-          // this batch — matches Classic's pattern and the rewritten
-          // discrub-core iterator. Walks newest→oldest within the user's
-          // search window; never widens user-supplied bounds.
-          if (offset >= MAX_PER_QUERY) {
-            const last = page[page.length - 1];
-            currentCriteria = {
-              ...currentCriteria,
-              searchBeforeDate: new Date(last.timestamp),
-            };
-            offset = 0;
-          } else {
-            break;
+          if (aggregated.length >= milestoneBoundary) {
+            dispatch(
+              addStatusEntry({
+                level: 'info',
+                message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
+              })
+            );
+            milestoneBoundary = nextMilestone(aggregated.length);
           }
         }
-
-        const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
-        const wasCancelled = await cancellableDelay(
-          delayCalc.delayMs,
-          getState as () => RootState
-        );
-        if (wasCancelled) return rejectWithValue('Load all cancelled');
       }
 
       if (signal.aborted) {

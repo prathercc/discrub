@@ -75,6 +75,7 @@ import messageReducer, {
 } from './messageSlice';
 import { initialMessageState } from './messageTypes';
 import * as discordService from '@services/discordService';
+import { DiscordService } from 'discrub-core/discord-service';
 import { createMockMessages, createMockMessage, createMockAttachment, createMockReaction, createMockUser } from '@/test/fixtures';
 import type { Message } from 'discrub-core/types/discord-types';
 import { SortDirection } from 'discrub-core/common-enum';
@@ -154,6 +155,18 @@ vi.mock('@services/reactionEnrichmentService', () => ({
     enrichMessages: vi.fn().mockImplementation(async (messages) => messages),
   },
 }));
+
+// #208: loadAllSearchResults now delegates pagination to the lib's real
+// `iterateSearchResults` generator (always-cap-shift convergence) instead of
+// hand-rolling offset pagination. These tests still want to drive behavior by
+// mocking the low-level `fetchSearchMessageData`, so build a REAL DiscordService
+// instance and override only that method — the genuine generator then runs over
+// the mocked fetch, exercising the actual convergence logic in-process.
+const makeSearchService = (overrides: Record<string, unknown>) => {
+  const svc = new DiscordService();
+  Object.assign(svc, overrides);
+  return svc as unknown as ReturnType<typeof discordService.getDiscordService>;
+};
 
 describe('messageSlice', () => {
   let store: TestStore;
@@ -988,6 +1001,33 @@ describe('messageSlice', () => {
       const state = testStore.getState().message;
       expect(state.pagination.hasMore).toBe(false);
       expect(state.pagination.totalCount).toBe(7);
+    });
+
+    it('keeps hasMore=true on a short (<25) page when results remain (#208 sibling)', async () => {
+      const testStore = await createStoreWithApp();
+
+      // Discord returns a spuriously short page (20 < 25) mid-stream, but
+      // total_results says there are far more. The old `=== SEARCH_PAGE_SIZE`
+      // gate hid "Load More" here; hasMore must stay true.
+      const mockDiscordService = {
+        fetchSearchMessageData: vi.fn().mockResolvedValue({
+          success: true,
+          data: { messages: [createMockMessages(20)], total_results: 200 },
+        }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      await testStore.dispatch(
+        searchMessages({
+          channelId: 'channel-1',
+          token: 'token',
+          searchCriteria: { searchContent: 'test' } as any,
+        })
+      );
+
+      const state = testStore.getState().message;
+      expect(state.pagination.hasMore).toBe(true);
+      expect(state.pagination.totalCount).toBe(200);
     });
   });
 
@@ -4402,71 +4442,29 @@ describe('messageSlice', () => {
   });
 
   // ── #148: cap-shift uses searchBeforeDate (max_id), NOT searchAfterDate ──
-  describe('loadAllSearchResults cap-shift (#148)', () => {
-    it('tightens searchBeforeDate (max_id) when offset crosses 5000 cap, never searchAfterDate', async () => {
-      // Seed initial state with searchOffset=4975 so a single 25-result
-      // page pushes offset to 5000 — the natural cap-shift boundary.
-      // Then a short page triggers the "end of query" branch which
-      // checks offset>=MAX_PER_QUERY and cap-shifts.
-      const oldestTs = '2025-01-15T00:00:00.000Z';
-      const fullPage = Array.from({ length: 25 }, (_, i) => ({
-        id: `m${i}`,
-        timestamp: oldestTs,
-      }));
-      const shortPage = Array.from({ length: 5 }, (_, i) => ({
-        id: `s${i}`,
-        timestamp: oldestTs,
-      }));
+  describe('loadAllSearchResults always-cap-shift (#148/#208)', () => {
+    // #208: pagination now runs through the lib's real iterateSearchResults
+    // generator (built via makeSearchService over a mocked fetch), so these
+    // assert the consumer-visible convergence guarantees end-to-end.
+    const baseCriteria = {
+      searchAfterDate: null,
+      searchBeforeDate: null,
+      searchMessageContent: 'foo',
+      selectedHasTypes: [],
+      userIds: [],
+      mentionIds: [],
+      channelIds: [],
+      isPinned: 0,
+      authorType: null,
+    };
 
-      const criteriaCalls: any[] = [];
-      const mockDiscordService = {
-        fetchSearchMessageData: vi
-          .fn()
-          .mockImplementation(
-            (
-              _token: string,
-              _offset: number,
-              _channelId: string | null,
-              _guildId: string | null,
-              criteria: any,
-            ) => {
-              criteriaCalls.push({ ...criteria });
-              if (criteriaCalls.length === 1) {
-                // offset=4975 → +25 → offset=5000 (boundary, but page is full
-                // so end-of-query check is false)
-                return Promise.resolve({
-                  success: true,
-                  data: { messages: fullPage.map((m) => [m]), total_results: 6000 },
-                });
-              }
-              if (criteriaCalls.length === 2) {
-                // offset=5000 → +5 → offset=5005, page<SEARCH_PAGE_SIZE
-                // → end-of-query → offset>=MAX_PER_QUERY → cap-shift
-                return Promise.resolve({
-                  success: true,
-                  data: { messages: shortPage.map((m) => [m]), total_results: 6000 },
-                });
-              }
-              if (criteriaCalls.length === 3) {
-                // Cap-shifted query — should run with searchBeforeDate
-                // set to oldestTs and offset=0.
-                return Promise.resolve({
-                  success: true,
-                  data: { messages: [], total_results: 0 },
-                });
-              }
-              return Promise.resolve({
-                success: true,
-                data: { messages: [], total_results: 0 },
-              });
-            },
-          ),
-      };
-      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+    const mkPage = (prefix: string, n: number, ts: string) =>
+      Array.from({ length: n }, (_, i) => ({ id: `${prefix}${i}`, timestamp: ts }));
 
+    const makeStore = async (searchCriteria: any, messages: any[] = []) => {
       const appReducer = (await import('@features/app/appSlice')).default;
       const { defaultSettings } = await import('@features/app/appSlice');
-      const testStore: any = createTestStore(
+      return createTestStore(
         { message: messageReducer, app: appReducer },
         {
           app: {
@@ -4480,155 +4478,74 @@ describe('messageSlice', () => {
           } as any,
           message: {
             ...initialMessageState,
-            messages: [],
-            searchCriteria: {
-              searchAfterDate: null,
-              searchBeforeDate: null,
-              searchMessageContent: 'foo',
-              selectedHasTypes: [],
-              userIds: [],
-              mentionIds: [],
-              channelIds: [],
-              isPinned: 0,
-              authorType: null,
-            } as any,
+            messages,
+            searchCriteria,
             pagination: {
               ...initialMessageState.pagination,
               mode: 'search' as const,
-              searchOffset: 4975,
-              totalCount: 6000,
+              searchOffset: 0,
+              totalCount: 100,
             },
           },
         },
+      ) as any;
+    };
+
+    it('continues past a short (<25) page mid-stream instead of stopping early (#208)', async () => {
+      const page1 = mkPage('a', 25, '2025-03-01T00:00:00.000Z');
+      const page2 = mkPage('b', 5, '2025-02-01T00:00:00.000Z'); // short page MID-stream
+      const page3 = mkPage('c', 25, '2025-01-01T00:00:00.000Z');
+      let call = 0;
+      const fetchMock = vi.fn().mockImplementation(async () => {
+        call += 1;
+        if (call === 1) return { success: true, data: { messages: page1.map((m) => [m]), total_results: 55 } };
+        if (call === 2) return { success: true, data: { messages: page2.map((m) => [m]), total_results: 55 } };
+        if (call === 3) return { success: true, data: { messages: page3.map((m) => [m]), total_results: 55 } };
+        return { success: true, data: { messages: [], total_results: 55 } };
+      });
+      vi.mocked(discordService.getDiscordService).mockReturnValue(
+        makeSearchService({ fetchSearchMessageData: fetchMock }),
       );
 
-      await testStore.dispatch(
+      const testStore = await makeStore({ ...baseCriteria });
+      const result: any = await testStore.dispatch(
         loadAllSearchResults({ channelId: 'ch1', token: 'token' }),
       );
 
-      // First two calls: criteria has neither bound set.
-      expect(criteriaCalls[0].searchBeforeDate).toBeNull();
-      expect(criteriaCalls[0].searchAfterDate).toBeNull();
-      expect(criteriaCalls[1].searchBeforeDate).toBeNull();
-      expect(criteriaCalls[1].searchAfterDate).toBeNull();
-
-      // Third call: cap-shifted. searchBeforeDate must be set to the
-      // oldest-seen timestamp; searchAfterDate must NOT be mutated.
-      expect(criteriaCalls[2].searchBeforeDate).toBeInstanceOf(Date);
-      expect(
-        (criteriaCalls[2].searchBeforeDate as Date).toISOString(),
-      ).toBe(oldestTs);
-      // Pre-#148 the bug set searchAfterDate (= min_id) here. Verify
-      // that's NOT what's happening anymore.
-      expect(criteriaCalls[2].searchAfterDate).toBeNull();
+      expect(result.type).toBe('message/loadAllSearchResults/fulfilled');
+      // The 5-message short page in the MIDDLE must not have terminated the
+      // walk — the exact #208 bug. All three pages aggregate to 55.
+      expect(result.payload.messages).toHaveLength(55);
     });
 
-    it('preserves user-supplied searchBeforeDate by narrowing it further (never widening)', async () => {
-      // User starts with searchBeforeDate set; cap-shift must replace it
-      // with the OLDER timestamp of the page's last message. Since
-      // descending search returns newest→oldest, the cap-shift always
-      // narrows to an older boundary inside the user's window.
+    it('cap-shifts searchBeforeDate to the oldest seen each page, narrowing not widening, never touching searchAfterDate (#148)', async () => {
       const userBefore = new Date('2025-12-31T00:00:00.000Z');
-      const oldestTsInPage = '2025-06-15T00:00:00.000Z';
-      const fullPage = Array.from({ length: 25 }, (_, i) => ({
-        id: `m${i}`,
-        timestamp: oldestTsInPage,
-      }));
-      const shortPage = Array.from({ length: 5 }, (_, i) => ({
-        id: `s${i}`,
-        timestamp: oldestTsInPage,
-      }));
-
+      const page1 = mkPage('a', 25, '2025-06-15T00:00:00.000Z');
+      const page2 = mkPage('b', 25, '2025-03-15T00:00:00.000Z');
       const criteriaCalls: any[] = [];
-      const mockDiscordService = {
-        fetchSearchMessageData: vi
-          .fn()
-          .mockImplementation(
-            (
-              _token: string,
-              _offset: number,
-              _channelId: string | null,
-              _guildId: string | null,
-              criteria: any,
-            ) => {
-              criteriaCalls.push({ ...criteria });
-              if (criteriaCalls.length === 1) {
-                return Promise.resolve({
-                  success: true,
-                  data: { messages: fullPage.map((m) => [m]), total_results: 6000 },
-                });
-              }
-              if (criteriaCalls.length === 2) {
-                return Promise.resolve({
-                  success: true,
-                  data: { messages: shortPage.map((m) => [m]), total_results: 6000 },
-                });
-              }
-              return Promise.resolve({
-                success: true,
-                data: { messages: [], total_results: 0 },
-              });
-            },
-          ),
-      };
-      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
-
-      const appReducer = (await import('@features/app/appSlice')).default;
-      const { defaultSettings } = await import('@features/app/appSlice');
-      const testStore: any = createTestStore(
-        { message: messageReducer, app: appReducer },
-        {
-          app: {
-            discrubPaused: false,
-            discrubCancelled: false,
-            isMinimized: false,
-            focusedView: false,
-            sidebarView: 'server' as const,
-            task: { status: 'idle' as const, message: '' },
-            settings: defaultSettings,
-          } as any,
-          message: {
-            ...initialMessageState,
-            messages: [],
-            searchCriteria: {
-              searchAfterDate: null,
-              searchBeforeDate: userBefore,
-              searchMessageContent: 'foo',
-              selectedHasTypes: [],
-              userIds: [],
-              mentionIds: [],
-              channelIds: [],
-              isPinned: 0,
-              authorType: null,
-            } as any,
-            pagination: {
-              ...initialMessageState.pagination,
-              mode: 'search' as const,
-              searchOffset: 4975,
-              totalCount: 6000,
-            },
-          },
+      const fetchMock = vi.fn().mockImplementation(
+        (_t: string, _o: number, _c: string | null, _g: string | null, criteria: any) => {
+          criteriaCalls.push({ ...criteria });
+          if (criteriaCalls.length === 1) return Promise.resolve({ success: true, data: { messages: page1.map((m) => [m]), total_results: 50 } });
+          if (criteriaCalls.length === 2) return Promise.resolve({ success: true, data: { messages: page2.map((m) => [m]), total_results: 50 } });
+          return Promise.resolve({ success: true, data: { messages: [], total_results: 50 } });
         },
       );
-
-      await testStore.dispatch(
-        loadAllSearchResults({ channelId: 'ch1', token: 'token' }),
+      vi.mocked(discordService.getDiscordService).mockReturnValue(
+        makeSearchService({ fetchSearchMessageData: fetchMock }),
       );
 
-      // First two calls carry the user's bound unchanged.
-      expect((criteriaCalls[0].searchBeforeDate as Date).toISOString()).toBe(
-        userBefore.toISOString(),
-      );
-      expect((criteriaCalls[1].searchBeforeDate as Date).toISOString()).toBe(
-        userBefore.toISOString(),
-      );
-      // Cap-shift narrows to the older oldestTsInPage. NEVER widens past
-      // the user's original bound.
-      expect((criteriaCalls[2].searchBeforeDate as Date).toISOString()).toBe(
-        oldestTsInPage,
-      );
-      const newBefore = (criteriaCalls[2].searchBeforeDate as Date).getTime();
-      expect(newBefore).toBeLessThan(userBefore.getTime());
+      const testStore = await makeStore({ ...baseCriteria, searchBeforeDate: userBefore });
+      await testStore.dispatch(loadAllSearchResults({ channelId: 'ch1', token: 'token' }));
+
+      // First fetch carries the user's bound unchanged.
+      expect((criteriaCalls[0].searchBeforeDate as Date).toISOString()).toBe(userBefore.toISOString());
+      // Second fetch is cap-shifted to the oldest message from page 1 —
+      // strictly older than the user's bound (narrows, never widens).
+      expect((criteriaCalls[1].searchBeforeDate as Date).toISOString()).toBe('2025-06-15T00:00:00.000Z');
+      expect((criteriaCalls[1].searchBeforeDate as Date).getTime()).toBeLessThan(userBefore.getTime());
+      // searchAfterDate (min_id) must never be mutated by cap-shift.
+      expect(criteriaCalls.every((c) => c.searchAfterDate === null)).toBe(true);
     });
   });
 
@@ -4838,7 +4755,7 @@ describe('messageSlice', () => {
 
         // Two pages then end-of-results.
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call === 1) {
@@ -4846,7 +4763,7 @@ describe('messageSlice', () => {
             }
             return { success: true, data: { messages: [[]], total_results: 25 } };
           }),
-        } as any);
+        } as any));
 
         await testStore.dispatch(
           loadAllSearchResults({ channelId: 'ch-1', token: 'token' })
@@ -4864,7 +4781,7 @@ describe('messageSlice', () => {
         const testStore = await buildStoreWithReactions(false, seedSearchActive());
 
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call === 1) {
@@ -4872,7 +4789,7 @@ describe('messageSlice', () => {
             }
             return { success: true, data: { messages: [[]], total_results: 25 } };
           }),
-        } as any);
+        } as any));
 
         await testStore.dispatch(
           loadAllSearchResults({ channelId: 'ch-1', token: 'token' })
@@ -4983,7 +4900,7 @@ describe('messageSlice', () => {
 
       const mockTwoPageThenEmpty = (perPage: number) => {
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call === 1) {
@@ -4994,7 +4911,7 @@ describe('messageSlice', () => {
             }
             return { success: true, data: { messages: [[]], total_results: perPage } };
           }),
-        } as any);
+        } as any));
       };
 
       it('emits an unfiltered opening status entry when searchCriteria has no active filters', async () => {
@@ -5081,7 +4998,7 @@ describe('messageSlice', () => {
         // crossings emit.
         const totalPages = 6;
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call <= totalPages) {
@@ -5095,7 +5012,7 @@ describe('messageSlice', () => {
             }
             return { success: true, data: { messages: [[]], total_results: totalPages * 25 } };
           }),
-        } as any);
+        } as any));
         vi.mocked(addStatusEntry).mockClear();
 
         await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
@@ -5250,7 +5167,7 @@ describe('messageSlice', () => {
         const page2 = searchShapedMessages(25).map((m, i) => ({ ...m, id: `p2-${i}` }));
         const snapshots: number[] = [];
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             // Capture state's message count BEFORE returning the next page.
             // After page 1 the snapshot should already be 25 — proving
@@ -5265,7 +5182,7 @@ describe('messageSlice', () => {
             }
             return { success: true, data: { messages: [[]], total_results: 50 } };
           }),
-        } as any);
+        } as any));
 
         await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
 
@@ -5288,14 +5205,14 @@ describe('messageSlice', () => {
           })),
         ];
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call === 1) return { success: true, data: { messages: [page1], total_results: 48 } };
             if (call === 2) return { success: true, data: { messages: [page2], total_results: 48 } };
             return { success: true, data: { messages: [[]], total_results: 48 } };
           }),
-        } as any);
+        } as any));
 
         await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
 
@@ -5316,14 +5233,14 @@ describe('messageSlice', () => {
         );
         const snapshots: number[] = [];
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchMessageData: vi.fn().mockImplementation(async () => {
             snapshots.push(testStore.getState().message.messages.length);
             call += 1;
             if (call === 1) return { success: true, data: batch1 };
             return { success: true, data: batch2 };
           }),
-        } as any);
+        } as any));
 
         await testStore.dispatch(fetchAllMessages({ channelId: 'ch-1', token: 'token' }));
 
@@ -5338,13 +5255,13 @@ describe('messageSlice', () => {
 
         const page = searchShapedMessages(25);
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call === 1) return { success: true, data: { messages: [page], total_results: 25 } };
             return { success: true, data: { messages: [[]], total_results: 25 } };
           }),
-        } as any);
+        } as any));
 
         vi.mocked(getSortedMessages).mockClear();
         await testStore.dispatch(loadAllSearchResults({ channelId: 'ch-1', token: 'token' }));
@@ -5509,13 +5426,13 @@ describe('messageSlice', () => {
     describe('loadAllSearchResults (Site 2)', () => {
       it('retries transient failures then completes with all messages', async () => {
         const page = createMockMessages(25);
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi
             .fn()
             .mockResolvedValueOnce({ success: false, status: 502 })
             .mockResolvedValueOnce({ success: true, data: { messages: [page], total_results: 25 } })
             .mockResolvedValue({ success: true, data: { messages: [[]], total_results: 25 } }),
-        } as any);
+        } as any));
         vi.mocked(addStatusEntry).mockClear();
 
         const { store } = await buildStore(seedSearchActive());
@@ -5546,7 +5463,7 @@ describe('messageSlice', () => {
 
         const page = createMockMessages(25);
         let call = 0;
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             call += 1;
             if (call === 1) {
@@ -5554,7 +5471,7 @@ describe('messageSlice', () => {
             }
             return { success: false, status: undefined };
           }),
-        } as any);
+        } as any));
         vi.mocked(addStatusEntry).mockClear();
 
         const { store, setDiscrubCancelled } = await buildStore(seedSearchActive());
@@ -5591,9 +5508,9 @@ describe('messageSlice', () => {
         const fetchSpy = vi
           .fn()
           .mockResolvedValue({ success: false, status: 401 });
-        vi.mocked(discordService.getDiscordService).mockReturnValue({
+        vi.mocked(discordService.getDiscordService).mockReturnValue(makeSearchService({
           fetchSearchMessageData: fetchSpy,
-        } as any);
+        } as any));
         vi.mocked(addStatusEntry).mockClear();
 
         const { store } = await buildStore(seedSearchActive());
