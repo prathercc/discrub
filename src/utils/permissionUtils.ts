@@ -23,6 +23,7 @@ function computeChannelPermissions(
   userRoleIds: string[],
   channel: Channel,
   guildId: string,
+  currentUserId?: string,
 ): { permissions: bigint; isAdmin: boolean; hasData: boolean } {
   if (!guildPermissions) return { permissions: 0n, isAdmin: false, hasData: false };
 
@@ -58,6 +59,21 @@ function computeChannelPermissions(
   permissions &= ~roleDeny;
   permissions |= roleAllow;
 
+  // Step 3: Apply the member-specific overwrite (type === 1). Discord applies
+  // this last, at the highest precedence — it's the canonical way to grant a
+  // single user access to one channel (often layered over an @everyone deny).
+  // Without it, a per-member VIEW_CHANNEL grant never lands and the channel
+  // greys out for a user who was explicitly given access. See backlog #205.
+  if (currentUserId) {
+    const memberOverwrite = overwrites.find(
+      (ow) => ow.type === 1 && ow.id === currentUserId,
+    );
+    if (memberOverwrite) {
+      permissions &= ~BigInt(memberOverwrite.deny);
+      permissions |= BigInt(memberOverwrite.allow);
+    }
+  }
+
   return { permissions, isAdmin: false, hasData: true };
 }
 
@@ -69,9 +85,10 @@ export function canAccessChannel(
   userRoleIds: string[],
   channel: Channel,
   guildId: string,
+  currentUserId?: string,
 ): boolean {
   const { permissions, isAdmin, hasData } = computeChannelPermissions(
-    guildPermissions, userRoleIds, channel, guildId,
+    guildPermissions, userRoleIds, channel, guildId, currentUserId,
   );
   if (!hasData) return true; // No permission data — assume accessible
   if (isAdmin) return true;
@@ -87,9 +104,10 @@ export function canManageMessages(
   userRoleIds: string[],
   channel: Channel,
   guildId: string,
+  currentUserId?: string,
 ): boolean {
   const { permissions, isAdmin, hasData } = computeChannelPermissions(
-    guildPermissions, userRoleIds, channel, guildId,
+    guildPermissions, userRoleIds, channel, guildId, currentUserId,
   );
   if (!hasData) return false; // No permission data — assume no elevated permissions
   if (isAdmin) return true;

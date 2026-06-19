@@ -97,5 +97,30 @@
         "deny": "1024"
       }
     ]
+  },
+  {
+    "id": "801000000000000009",
+    "type": 0,
+    "guild_id": "901000000000000001",
+    "position": 8,
+    "name": "member-granted",
+    "topic": "Denied to @everyone, granted to the current user via a member overwrite (#205)",
+    "nsfw": false,
+    "last_message_id": null,
+    "parent_id": "801000000000000005",
+    "permission_overwrites": [
+      {
+        "id": "901000000000000001",
+        "type": 0,
+        "allow": "0",
+        "deny": "1024"
+      },
+      {
+        "id": "111222333444555666",
+        "type": 1,
+        "allow": "1024",
+        "deny": "0"
+      }
+    ]
   }
 ]

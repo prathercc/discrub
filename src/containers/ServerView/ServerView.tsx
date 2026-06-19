@@ -287,8 +287,8 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const contextLabel = isDm ? 'conversation' : 'channel';
   const hasManageMessages = useMemo(() => {
     if (!selectedGuild?.id || !currentContext) return false;
-    return canManageMessages(selectedGuild.permissions, memberRoles, currentContext, selectedGuild.id);
-  }, [selectedGuild?.id, selectedGuild?.permissions, memberRoles, currentContext]);
+    return canManageMessages(selectedGuild.permissions, memberRoles, currentContext, selectedGuild.id, currentUser?.id);
+  }, [selectedGuild?.id, selectedGuild?.permissions, memberRoles, currentContext, currentUser?.id]);
 
   // Resolve active context name (thread name when on thread tab, channel/DM name otherwise)
   const activeContextName = activeTab && threadTabs[activeTab]

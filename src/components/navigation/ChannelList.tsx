@@ -39,6 +39,7 @@ import {
 import { selectSelectedGuild, selectCurrentMemberRoles } from '@features/guild/guildSlice';
 import { canAccessChannel, canManageMessages } from '@/utils/permissionUtils';
 import { selectAuthToken } from '@features/auth/authSlice';
+import { selectCurrentUser } from '@features/user/userSlice';
 import { fetchMessages, clearMessages } from '@features/message/messageSlice';
 import { addStatusEntry, showToast } from '@features/status/statusSlice';
 import { setSelectedDm } from '@features/dm/dmSlice';
@@ -61,6 +62,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   const selectedChannels = useAppSelector(selectSelectedChannels);
   const selectedGuild = useAppSelector(selectSelectedGuild);
   const memberRoles = useAppSelector(selectCurrentMemberRoles);
+  const currentUserId = useAppSelector(selectCurrentUser)?.id;
   const isLoading = useAppSelector(selectChannelLoading);
   const token = useAppSelector(selectAuthToken);
   const guildPermissions = selectedGuild?.permissions;
@@ -190,9 +192,9 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   // permission gate as text channels (#160).
   const accessibleChannels = useMemo(() => {
     return filteredChannels.filter((ch) =>
-      canAccessChannel(guildPermissions, memberRoles, ch, selectedGuild?.id || ''),
+      canAccessChannel(guildPermissions, memberRoles, ch, selectedGuild?.id || '', currentUserId),
     );
-  }, [filteredChannels, guildPermissions, memberRoles, selectedGuild?.id]);
+  }, [filteredChannels, guildPermissions, memberRoles, selectedGuild?.id, currentUserId]);
 
   // Build category map from all channels (including type 4 categories)
   const categoryMap = useMemo(() => {
@@ -383,6 +385,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
                   memberRoles,
                   channel,
                   selectedGuild?.id || '',
+                  currentUserId,
                 );
 
                 return (

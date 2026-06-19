@@ -167,6 +167,17 @@ describe('Server Browsing', () => {
       cy.contains('general').closest('[role="button"]').should('not.have.class', 'Mui-disabled');
     });
 
+    // Backlog #205: a channel denied to @everyone but granted to the
+    // current user through a member-specific overwrite (type 1) must be
+    // clickable. computeChannelPermissions previously stopped at role
+    // overwrites and dropped the member grant, greying out a channel the
+    // user was explicitly given access to.
+    it('shows member-granted channel as enabled (#205 — member overwrite applied)', () => {
+      cy.selectServer('Cypress Test Server');
+      cy.contains('member-granted').should('be.visible');
+      cy.contains('member-granted').closest('[role="button"]').should('not.have.class', 'Mui-disabled');
+    });
+
     // Backlog #160: voice + stage channels carry text chat under the
     // same channel ID since Discord's 2021 Voice Channel Messages
     // rollout. The fix landed in commit b0d2bc1 — voice channels are

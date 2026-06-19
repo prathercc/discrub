@@ -84,13 +84,43 @@ describe('canAccessChannel', () => {
     expect(canAccessChannel(perms, [], channel, GUILD_ID)).toBe(true);
   });
 
-  it('ignores member-type overwrites (type 1)', () => {
+  it('ignores member overwrites that target a different user', () => {
     const perms = (VIEW_CHANNEL | SEND_MESSAGES).toString();
     const channel = makeChannel([
       { id: 'user-123', type: 1, allow: '0', deny: VIEW_CHANNEL.toString() },
     ]);
-    // Member overwrite for a different user — should not affect
-    expect(canAccessChannel(perms, [], channel, GUILD_ID)).toBe(true);
+    // Member overwrite denies user-123, but the current user is user-self —
+    // the deny must not apply to them.
+    expect(canAccessChannel(perms, [], channel, GUILD_ID, 'user-self')).toBe(true);
+  });
+
+  it('applies a member overwrite to grant VIEW_CHANNEL to the current user (#205)', () => {
+    const perms = SEND_MESSAGES.toString(); // no VIEW_CHANNEL at guild level
+    const channel = makeChannel([
+      { id: GUILD_ID, type: 0, allow: '0', deny: VIEW_CHANNEL.toString() }, // @everyone denies
+      { id: 'user-self', type: 1, allow: VIEW_CHANNEL.toString(), deny: '0' }, // single-user grant
+    ]);
+    // Without the member-overwrite pass this channel greyed out — the exact #205 bug.
+    expect(canAccessChannel(perms, [], channel, GUILD_ID, 'user-self')).toBe(true);
+  });
+
+  it('member overwrite deny takes precedence over a role allow (#205)', () => {
+    const perms = SEND_MESSAGES.toString();
+    const channel = makeChannel([
+      { id: 'role-mod', type: 0, allow: VIEW_CHANNEL.toString(), deny: '0' }, // role grants
+      { id: 'user-self', type: 1, allow: '0', deny: VIEW_CHANNEL.toString() }, // member denies, applied last
+    ]);
+    expect(canAccessChannel(perms, ['role-mod'], channel, GUILD_ID, 'user-self')).toBe(false);
+  });
+
+  it('does not apply member overwrites when no currentUserId is provided', () => {
+    const perms = SEND_MESSAGES.toString();
+    const channel = makeChannel([
+      { id: GUILD_ID, type: 0, allow: '0', deny: VIEW_CHANNEL.toString() },
+      { id: 'user-self', type: 1, allow: VIEW_CHANNEL.toString(), deny: '0' },
+    ]);
+    // Guild-level/anonymous checks (no member id) stay conservative.
+    expect(canAccessChannel(perms, [], channel, GUILD_ID)).toBe(false);
   });
 });
 
@@ -146,5 +176,13 @@ describe('canManageMessages', () => {
     ]);
     // User does NOT have role-mod
     expect(canManageMessages(perms, [], channel, GUILD_ID)).toBe(false);
+  });
+
+  it('applies a member overwrite to grant MANAGE_MESSAGES to the current user (#205)', () => {
+    const perms = VIEW_CHANNEL.toString(); // no MANAGE_MESSAGES
+    const channel = makeChannel([
+      { id: 'user-self', type: 1, allow: MANAGE_MESSAGES.toString(), deny: '0' },
+    ]);
+    expect(canManageMessages(perms, [], channel, GUILD_ID, 'user-self')).toBe(true);
   });
 });
