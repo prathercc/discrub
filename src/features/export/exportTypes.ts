@@ -21,7 +21,7 @@ export type {
 export { defaultTextFormatOptions };
 
 export interface MediaDownloadProgress {
-  stage: 'avatars' | 'attachments' | 'emojis' | 'roles' | 'html' | 'finalizing';
+  stage: 'avatars' | 'attachments' | 'emojis' | 'stickers' | 'roles' | 'html' | 'finalizing';
   current: number;
   total: number;
   message?: string;

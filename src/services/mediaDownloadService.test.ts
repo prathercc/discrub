@@ -1505,4 +1505,33 @@ describe('mediaDownloadService', () => {
       expect(Object.keys(maps.avatarMap).length).toBeGreaterThan(0);
     });
   });
+
+  describe('downloadStickers (#213)', () => {
+    it('downloads raster stickers to stickers/{id}.{ext} and skips Lottie', async () => {
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          sticker_items: [
+            { id: 's-png', name: 'wave', format_type: 1 },
+            { id: 's-gif', name: 'dance', format_type: 4 },
+            { id: 's-lottie', name: 'sparkle', format_type: 3 },
+          ],
+        } as any,
+      ];
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/png' }),
+      });
+
+      await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+      const stickerPaths = (mockZipService.addFile as any).mock.calls
+        .map((c: any[]) => c[1])
+        .filter((p: string) => p.includes('/stickers/'));
+      expect(stickerPaths).toContain('test-channel/stickers/s-png.png');
+      expect(stickerPaths).toContain('test-channel/stickers/s-gif.gif');
+      // Lottie is never downloaded (can't be rasterized).
+      expect(stickerPaths.some((p: string) => p.includes('s-lottie'))).toBe(false);
+    });
+  });
 });

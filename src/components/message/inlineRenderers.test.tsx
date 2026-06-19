@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import type { Mock } from 'vitest';
 import type { Attachment, Embed } from 'discrub-core/types/discord-types';
-import { InlineAttachments, InlineEmbeds } from './inlineRenderers';
+import { InlineAttachments, InlineEmbeds, InlineSticker, InlinePoll } from './inlineRenderers';
 import { reserveMediaBox } from '@/utils/reserveMediaBox';
 
 // Wrap the real helper in a spy so we can assert each media site reserves
@@ -77,5 +77,73 @@ describe('InlineEmbeds media reservation (#190)', () => {
     } as unknown as Embed;
     render(<InlineEmbeds embeds={[embed]} />);
     expect(reserveSpy).toHaveBeenCalledWith(expect.objectContaining({ width: 200, height: 200 }), 240);
+  });
+});
+
+describe('InlineSticker (#213)', () => {
+  it('renders a PNG sticker as a CDN image', () => {
+    render(<InlineSticker stickers={[{ id: '123', name: 'wave', format_type: 1 }]} />);
+    const img = screen.getByAltText('wave') as HTMLImageElement;
+    expect(img.src).toBe('https://media.discordapp.net/stickers/123.png');
+  });
+
+  it('uses the .gif variant for GIF stickers (format_type 4)', () => {
+    render(<InlineSticker stickers={[{ id: '456', name: 'dance', format_type: 4 }]} />);
+    const img = screen.getByAltText('dance') as HTMLImageElement;
+    expect(img.src).toBe('https://media.discordapp.net/stickers/456.gif');
+  });
+
+  it('falls back to a labeled placeholder for Lottie stickers (format_type 3)', () => {
+    render(<InlineSticker stickers={[{ id: '789', name: 'sparkle', format_type: 3 }]} />);
+    expect(screen.queryByAltText('sparkle')).toBeNull(); // no <img>
+    expect(screen.getByText('sparkle')).toBeInTheDocument();
+  });
+
+  it('renders nothing when there are no stickers', () => {
+    const { container } = render(<InlineSticker stickers={[]} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+});
+
+describe('InlinePoll (#213)', () => {
+  const poll = {
+    question: { text: 'Best language?' },
+    answers: [
+      { answer_id: 1, poll_media: { text: 'TypeScript' } },
+      { answer_id: 2, poll_media: { text: 'Rust' } },
+    ],
+  };
+
+  it('renders the question and answer options', () => {
+    render(<InlinePoll poll={poll} />);
+    expect(screen.getByTestId('inline-poll')).toBeInTheDocument();
+    expect(screen.getByText('Best language?')).toBeInTheDocument();
+    expect(screen.getByText('TypeScript')).toBeInTheDocument();
+    expect(screen.getByText('Rust')).toBeInTheDocument();
+  });
+
+  it('shows percentages and total votes when results are present', () => {
+    render(
+      <InlinePoll
+        poll={{
+          ...poll,
+          results: { answer_counts: [{ id: 1, count: 3 }, { id: 2, count: 1 }] },
+        }}
+      />
+    );
+    expect(screen.getByText('75%')).toBeInTheDocument(); // 3 of 4
+    expect(screen.getByText('25%')).toBeInTheDocument(); // 1 of 4
+    expect(screen.getByText('4 votes')).toBeInTheDocument();
+  });
+
+  it('degrades to plain options when results are absent (no fabricated counts)', () => {
+    render(<InlinePoll poll={poll} />);
+    expect(screen.queryByText(/%$/)).toBeNull();
+    expect(screen.queryByText(/votes?$/)).toBeNull();
+  });
+
+  it('renders nothing for a null poll', () => {
+    const { container } = render(<InlinePoll poll={null} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });

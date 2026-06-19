@@ -1042,6 +1042,48 @@ class ExportService {
              </div>`
           : '';
 
+        // Stickers (#213). Raster stickers point at the downloaded local copy
+        // (stickers/{id}.{ext}); Lottie (format_type 3) can't be an <img>, so it
+        // degrades to a labeled placeholder.
+        const stickerItems = (msg as { sticker_items?: Array<{ id: string; name: string; format_type: number }> }).sticker_items;
+        const stickersHtml = stickerItems && stickerItems.length > 0
+          ? `<div class="stickers">
+               ${stickerItems.map((s) => {
+                 const name = this.escapeHtml(s.name || 'sticker');
+                 if (s.format_type === 3) {
+                   return `<div class="sticker-placeholder" title="${name}"><span class="sticker-placeholder-icon">🏷️</span><span class="sticker-placeholder-name">${name}</span></div>`;
+                 }
+                 const ext = s.format_type === 4 ? 'gif' : 'png';
+                 return `<img class="sticker-img" src="stickers/${s.id}.${ext}" alt="${name}" title="${name}" loading="lazy">`;
+               }).join('')}
+             </div>`
+          : '';
+
+        // Poll card (#213). Vote bars/percentages only render when poll.results
+        // is present (fetched/closed polls); otherwise plain options.
+        const poll = (msg as { poll?: {
+          question?: { text?: string | null } | null;
+          answers?: Array<{ answer_id: number; poll_media?: { text?: string | null } | null }> | null;
+          results?: { answer_counts?: Array<{ id: number; count: number }> | null } | null;
+        } | null }).poll;
+        let pollHtml = '';
+        if (poll) {
+          const question = this.escapeHtml(poll.question?.text || 'Poll');
+          const answers = poll.answers ?? [];
+          const counts = poll.results?.answer_counts ?? null;
+          const totalVotes = counts ? counts.reduce((sum, c) => sum + (c.count || 0), 0) : 0;
+          const rows = answers.map((a) => {
+            const count = counts?.find((c) => c.id === a.answer_id)?.count;
+            const pct = totalVotes > 0 && count != null ? Math.round((count / totalVotes) * 100) : null;
+            const text = this.escapeHtml(a.poll_media?.text || '');
+            const pctLabel = pct != null ? `<span class="poll-pct">${pct}%</span>` : '';
+            const bar = pct != null ? `<div class="poll-bar"><div class="poll-bar-fill" style="width:${pct}%"></div></div>` : '';
+            return `<div class="poll-answer"><div class="poll-answer-row"><span class="poll-answer-text">${text}</span>${pctLabel}</div>${bar}</div>`;
+          }).join('');
+          const totalLabel = totalVotes > 0 ? `<div class="poll-total">${totalVotes} ${totalVotes === 1 ? 'vote' : 'votes'}</div>` : '';
+          pollHtml = `<div class="poll"><div class="poll-question">${question}</div>${rows}${totalLabel}</div>`;
+        }
+
         const userId = msg.author?.id || '';
 
         // Reply preview bar (for type 19 reply messages)
@@ -1132,6 +1174,8 @@ class ExportService {
               ${forwardHtml}
               ${attachmentsHtml}
               ${embedsHtml}
+              ${stickersHtml}
+              ${pollHtml}
               ${reactionsHtml}
               ${threadBannerHtml}
             </div>
@@ -1156,6 +1200,8 @@ class ExportService {
               ${forwardHtml}
               ${attachmentsHtml}
               ${embedsHtml}
+              ${stickersHtml}
+              ${pollHtml}
               ${reactionsHtml}
               ${threadBannerHtml}
             </div>
@@ -1649,6 +1695,61 @@ class ExportService {
       flex-direction: column;
       gap: 12px;
     }
+
+    /* Stickers (#213) */
+    .stickers {
+      margin-top: 8px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .sticker-img {
+      width: 160px;
+      height: 160px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+    .sticker-placeholder {
+      width: 160px;
+      height: 160px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px dashed rgba(255, 255, 255, 0.2);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      color: #b9bbbe;
+      text-align: center;
+      padding: 8px;
+    }
+    .sticker-placeholder-icon { font-size: 28px; }
+    .sticker-placeholder-name { font-size: 12px; word-break: break-word; }
+
+    /* Poll card (#213) */
+    .poll {
+      margin-top: 8px;
+      max-width: 400px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.03);
+      padding: 12px;
+    }
+    .poll-question { font-weight: 600; margin-bottom: 8px; }
+    .poll-answer { margin-bottom: 6px; }
+    .poll-answer-row { display: flex; align-items: center; gap: 8px; }
+    .poll-answer-text { flex-grow: 1; }
+    .poll-pct { color: #b9bbbe; font-size: 12px; }
+    .poll-bar {
+      margin-top: 3px;
+      height: 4px;
+      border-radius: 2px;
+      background: rgba(255, 255, 255, 0.1);
+      overflow: hidden;
+    }
+    .poll-bar-fill { height: 100%; background: #5865f2; }
+    .poll-total { margin-top: 8px; color: #b9bbbe; font-size: 12px; }
 
     .embed {
       background: rgba(47, 49, 54, 0.4);
@@ -3456,9 +3557,9 @@ class ExportService {
    */
   private prefixRelativeMediaPaths(html: string, prefix: string): string {
     // Match src="..." and href="..." attributes containing relative media paths
-    // Media directories: avatars/, media/, emojis/, roles/
+    // Media directories: avatars/, media/, emojis/, roles/, stickers/
     return html.replace(
-      /((?:src|href)=")(?=(?:avatars|media|emojis|roles)\/)/g,
+      /((?:src|href)=")(?=(?:avatars|media|emojis|roles|stickers)\/)/g,
       `$1${prefix}`
     );
   }

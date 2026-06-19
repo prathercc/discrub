@@ -23,6 +23,9 @@ import {
   InlineAttachments,
   InlineEmbeds,
   InlineReactions,
+  InlineSticker,
+  InlinePoll,
+  type InlinePollData,
 } from './inlineRenderers';
 
 /** Collapse content bodies past this pixel height behind a "Show more" toggle. */
@@ -90,20 +93,12 @@ const MessageFeedRow = memo(function MessageFeedRow({
 
   const rawContent = getMessageContent(message);
 
-  // Stickers and polls have no inline render section of their own, so a
-  // sticker- or poll-only message used to fall through to the "(no content)"
-  // placeholder even though it carries real payload — the #204 report. Detect
-  // them (same idiom as messageFiltering.ts) and surface a short label.
+  // Stickers and polls render their own inline sections lower in the row
+  // (#213, replacing the #204 plain-text labels). Detecting them here keeps
+  // a sticker/poll-only message from falling through to "(no content)".
   const hasSticker = !!message.sticker_items && message.sticker_items.length > 0;
-  const poll = (message as Record<string, unknown>).poll as
-    | { question?: { text?: string } }
-    | undefined;
+  const poll = (message as Record<string, unknown>).poll as InlinePollData | undefined;
   const hasPoll = !!poll;
-  const placeholderLabel = hasSticker
-    ? `Sticker: ${message.sticker_items?.[0]?.name || 'sticker'}`
-    : hasPoll
-      ? `Poll: ${poll?.question?.text || 'poll'}`
-      : null;
 
   // A forwarded message (#197) carries its payload in message_snapshots and
   // renders its own "Forwarded" box lower in the row, but the outer message
@@ -451,15 +446,6 @@ const MessageFeedRow = memo(function MessageFeedRow({
               </Link>
             )}
           </Box>
-        ) : placeholderLabel ? (
-          <Typography
-            variant="body2"
-            color="text.disabled"
-            fontStyle="italic"
-            sx={{ fontSize: '0.85rem' }}
-          >
-            {placeholderLabel}
-          </Typography>
         ) : !hasAnyBody ? (
           <Typography
             variant="body2"
@@ -558,6 +544,12 @@ const MessageFeedRow = memo(function MessageFeedRow({
         {message.embeds && message.embeds.length > 0 && (
           <InlineEmbeds embeds={message.embeds} formattingContext={formattingContext} />
         )}
+
+        {/* Inline stickers (#213) */}
+        {hasSticker && <InlineSticker stickers={message.sticker_items} />}
+
+        {/* Inline poll (#213) */}
+        {hasPoll && <InlinePoll poll={poll} />}
 
         {/* Inline reactions */}
         {message.reactions && message.reactions.length > 0 && (

@@ -21,11 +21,10 @@ describe('Channel Messages', () => {
     cy.contains('Discrub Tester').should('exist');
   });
 
-  // Backlog #204: a sticker-only message (empty content, no attachments or
-  // embeds) carries real payload but has no inline render section, so it used
-  // to fall through to the "(no content)" placeholder. Scoped intercept keeps
-  // the shared fixture's "13 messages" count assertions untouched.
-  it('labels a sticker-only message instead of "(no content)" (#204)', () => {
+  // Backlog #204/#213: a sticker-only message (empty content) carries real
+  // payload — it now renders the sticker image (#213), never "(no content)".
+  // Scoped intercept keeps the shared fixture's count assertions untouched.
+  it('renders a sticker-only message as an image, not "(no content)" (#213)', () => {
     cy.intercept('GET', '**/api/v10/channels/*/messages?*', {
       statusCode: 200,
       body: [
@@ -57,7 +56,8 @@ describe('Channel Messages', () => {
 
     cy.contains('general').click();
     cy.wait('@getStickerMsg');
-    cy.contains('[data-testid="message-feed-row"]', 'Sticker: wave').should('exist');
+    cy.get('img[alt="wave"]').should('exist');
+    cy.contains('Sticker: wave').should('not.exist');
     cy.contains('(no content)').should('not.exist');
   });
 

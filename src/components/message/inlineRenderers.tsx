@@ -14,8 +14,10 @@ import {
   Download as DownloadIcon,
   PlayArrow as PlayIcon,
   VolumeUp as AudioIcon,
+  EmojiEmotions as StickerIcon,
+  BarChart as PollIcon,
 } from '@mui/icons-material';
-import type { Message, Attachment, Embed } from 'discrub-core/types/discord-types';
+import type { Message, Attachment, Embed, StickerItemObject } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { formatEmbedContent } from '@/utils/messageLightFormatting';
 import { reserveMediaBox } from '@/utils/reserveMediaBox';
@@ -456,5 +458,176 @@ export const InlineReactions = memo(function InlineReactions({
         );
       })}
     </Stack>
+  );
+});
+
+// Discord sticker CDN. format_type: 1=PNG, 2=APNG, 3=Lottie, 4=GIF.
+// Lottie is a JSON animation and can't be shown as an <img>, so it falls back
+// to a labeled placeholder (#213).
+const STICKER_CDN = 'https://media.discordapp.net/stickers';
+const STICKER_SIZE = 160;
+const LOTTIE_FORMAT = 3;
+
+/** Renders a labeled placeholder for a sticker we can't show as an image. */
+function StickerPlaceholder({ name }: { name: string }) {
+  return (
+    <Box
+      title={name}
+      sx={{
+        width: STICKER_SIZE,
+        height: STICKER_SIZE,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 0.5,
+        borderRadius: 1.5,
+        border: '1px dashed',
+        borderColor: 'divider',
+        backgroundColor: 'action.hover',
+        color: 'text.secondary',
+        p: 1,
+      }}
+    >
+      <StickerIcon fontSize="large" />
+      <Typography variant="caption" sx={{ textAlign: 'center', wordBreak: 'break-word' }}>
+        {name}
+      </Typography>
+    </Box>
+  );
+}
+
+export const InlineSticker = memo(function InlineSticker({
+  stickers,
+}: {
+  stickers?: StickerItemObject[];
+}) {
+  const [imgFailed, setImgFailed] = useState<Record<string, boolean>>({});
+  if (!stickers?.length) return null;
+
+  return (
+    <Stack direction="row" spacing={0.75} sx={{ mt: 0.75, flexWrap: 'wrap', gap: 0.75 }}>
+      {stickers.map((s) => {
+        const name = s.name || 'sticker';
+        // Lottie can't be <img>'d; a failed raster load also falls back.
+        if (s.format_type === LOTTIE_FORMAT || imgFailed[s.id]) {
+          return <StickerPlaceholder key={s.id} name={name} />;
+        }
+        const ext = s.format_type === 4 ? 'gif' : 'png';
+        return (
+          <Box
+            component="img"
+            key={s.id}
+            src={`${STICKER_CDN}/${s.id}.${ext}`}
+            alt={name}
+            title={name}
+            loading="lazy"
+            onError={() => setImgFailed((m) => ({ ...m, [s.id]: true }))}
+            sx={{
+              width: STICKER_SIZE,
+              height: STICKER_SIZE,
+              objectFit: 'contain',
+              borderRadius: 1.5,
+            }}
+          />
+        );
+      })}
+    </Stack>
+  );
+});
+
+// Discord's poll payload is untyped on the discrub-core Message; describe just
+// the parts we render (#213). `results` only exists on fetched/closed polls.
+export interface InlinePollData {
+  question?: { text?: string | null } | null;
+  answers?: Array<{
+    answer_id: number;
+    poll_media?: {
+      text?: string | null;
+      emoji?: { id?: string | null; name?: string | null; animated?: boolean | null } | null;
+    } | null;
+  }> | null;
+  results?: {
+    answer_counts?: Array<{ id: number; count: number; me_voted?: boolean }> | null;
+  } | null;
+}
+
+export const InlinePoll = memo(function InlinePoll({ poll }: { poll?: InlinePollData | null }) {
+  if (!poll) return null;
+
+  const question = poll.question?.text || 'Poll';
+  const answers = poll.answers ?? [];
+  const counts = poll.results?.answer_counts ?? null;
+  const totalVotes = counts ? counts.reduce((sum, c) => sum + (c.count || 0), 0) : 0;
+
+  return (
+    <Box
+      data-testid="inline-poll"
+      sx={{
+        mt: 0.75,
+        maxWidth: 400,
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 2,
+        backgroundColor: 'action.hover',
+        p: 1.5,
+      }}
+    >
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 1 }}>
+        <PollIcon fontSize="small" color="action" />
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+          {question}
+        </Typography>
+      </Box>
+      <Stack spacing={0.75}>
+        {answers.map((a) => {
+          const count = counts?.find((c) => c.id === a.answer_id)?.count;
+          const pct = totalVotes > 0 && count != null ? Math.round((count / totalVotes) * 100) : null;
+          const emoji = a.poll_media?.emoji;
+          return (
+            <Box key={a.answer_id}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                {emoji?.id ? (
+                  <Box
+                    component="img"
+                    src={`https://cdn.discordapp.com/emojis/${emoji.id}.${emoji.animated ? 'gif' : 'webp'}?size=32`}
+                    alt={emoji.name ?? ''}
+                    sx={{ width: 16, height: 16 }}
+                  />
+                ) : emoji?.name ? (
+                  <span>{emoji.name}</span>
+                ) : null}
+                <Typography variant="body2" sx={{ flexGrow: 1 }}>
+                  {a.poll_media?.text || ''}
+                </Typography>
+                {pct != null && (
+                  <Typography variant="caption" color="text.secondary">
+                    {pct}%
+                  </Typography>
+                )}
+              </Box>
+              {pct != null && (
+                <Box
+                  sx={{
+                    mt: 0.25,
+                    height: 4,
+                    borderRadius: 2,
+                    backgroundColor: 'action.selected',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <Box sx={{ width: `${pct}%`, height: '100%', backgroundColor: 'primary.main' }} />
+                </Box>
+              )}
+            </Box>
+          );
+        })}
+      </Stack>
+      {totalVotes > 0 && (
+        <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+          {totalVotes} {totalVotes === 1 ? 'vote' : 'votes'}
+        </Typography>
+      )}
+    </Box>
   );
 });

@@ -77,7 +77,10 @@ export class MediaDownloadService {
     // 3. Download custom emojis
     await this.downloadEmojis(messages, entityName, zipService, onProgress, shouldContinue);
 
-    // 4. Download role icons (if guild export)
+    // 4. Download stickers (#213)
+    await this.downloadStickers(messages, entityName, zipService, onProgress, shouldContinue);
+
+    // 5. Download role icons (if guild export)
     if (guild) {
       await this.downloadRoleIcons(guild, entityName, zipService, onProgress, shouldContinue);
     }
@@ -371,6 +374,54 @@ export class MediaDownloadService {
         current: downloaded,
         total: emojis.length,
         message: `Downloading emoji ${downloaded}/${emojis.length}`,
+      });
+    }
+  }
+
+  /**
+   * Download message stickers into the offline bundle (#213). Raster stickers
+   * (PNG/APNG/GIF) become stickers/{id}.{ext}; Lottie (format_type 3) is skipped
+   * — it can't be an <img>, so the emitter renders a placeholder instead. The
+   * file path is deterministic and matches the exportService sticker emitter.
+   */
+  private async downloadStickers(
+    messages: Message[],
+    entityName: string,
+    zipService: StreamingZipService,
+    onProgress: (progress: MediaDownloadProgress) => void,
+    shouldContinue?: ShouldContinueFn
+  ): Promise<void> {
+    const stickers = new Map<string, { id: string; format_type: number }>();
+    messages.forEach((msg) => {
+      (msg as { sticker_items?: Array<{ id: string; format_type: number }> }).sticker_items?.forEach((s) => {
+        if (s.format_type !== 3) stickers.set(s.id, s); // skip Lottie
+      });
+    });
+
+    const items = Array.from(stickers.values());
+    if (items.length === 0) {
+      onProgress({ stage: 'stickers', current: 0, total: 0, message: 'No stickers to download' });
+      return;
+    }
+
+    let downloaded = 0;
+    for (const s of items) {
+      if (shouldContinue) await shouldContinue();
+      const ext = s.format_type === 4 ? 'gif' : 'png';
+      const cdnUrl = `https://media.discordapp.net/stickers/${s.id}.${ext}`;
+      const filePath = `${entityName}/stickers/${s.id}.${ext}`;
+      const blob = await this.downloadWithTimeout(cdnUrl);
+      if (blob) {
+        await zipService.addFile(blob, filePath);
+      } else {
+        console.warn(`Failed to download sticker: ${cdnUrl}`);
+      }
+      downloaded++;
+      onProgress({
+        stage: 'stickers',
+        current: downloaded,
+        total: items.length,
+        message: `Downloading sticker ${downloaded}/${items.length}`,
       });
     }
   }

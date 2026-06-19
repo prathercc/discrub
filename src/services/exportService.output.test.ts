@@ -2761,3 +2761,77 @@ describe('Phase 10: Final Polish', () => {
     });
   });
 });
+
+describe('Stickers & Polls HTML export (#213)', () => {
+  const baseMsg = (over: Record<string, unknown>): Message =>
+    ({
+      id: 'm1',
+      type: 0,
+      content: '',
+      timestamp: '2026-06-15T12:00:00.000Z',
+      author: { id: 'u1', username: 'alice' },
+      attachments: [],
+      embeds: [],
+      reactions: [],
+      ...over,
+    } as unknown as Message);
+
+  it('renders a PNG sticker as a local image', async () => {
+    const html = await exportAndGetFile('html', {
+      messages: [baseMsg({ sticker_items: [{ id: 's1', name: 'wave', format_type: 1 }] })],
+    });
+    expect(html).toContain('class="sticker-img"');
+    expect(html).toContain('stickers/s1.png');
+    expect(html).toContain('alt="wave"');
+  });
+
+  it('renders a Lottie sticker as a placeholder, not an image', async () => {
+    const html = await exportAndGetFile('html', {
+      messages: [baseMsg({ sticker_items: [{ id: 's2', name: 'sparkle', format_type: 3 }] })],
+    });
+    expect(html).toContain('sticker-placeholder');
+    expect(html).toContain('sparkle');
+    expect(html).not.toContain('stickers/s2');
+  });
+
+  it('renders a poll card with question + options', async () => {
+    const html = await exportAndGetFile('html', {
+      messages: [
+        baseMsg({
+          poll: {
+            question: { text: 'Best?' },
+            answers: [
+              { answer_id: 1, poll_media: { text: 'Apples' } },
+              { answer_id: 2, poll_media: { text: 'Oranges' } },
+            ],
+          },
+        }),
+      ],
+    });
+    expect(html).toContain('class="poll"');
+    expect(html).toContain('Best?');
+    expect(html).toContain('Apples');
+    expect(html).toContain('Oranges');
+  });
+
+  it('renders poll vote bars + total when results are present', async () => {
+    const html = await exportAndGetFile('html', {
+      messages: [
+        baseMsg({
+          poll: {
+            question: { text: 'Best?' },
+            answers: [
+              { answer_id: 1, poll_media: { text: 'Apples' } },
+              { answer_id: 2, poll_media: { text: 'Oranges' } },
+            ],
+            results: { answer_counts: [{ id: 1, count: 3 }, { id: 2, count: 1 }] },
+          },
+        }),
+      ],
+    });
+    expect(html).toContain('75%');
+    expect(html).toContain('25%');
+    expect(html).toContain('4 votes');
+    expect(html).toContain('poll-bar-fill');
+  });
+});

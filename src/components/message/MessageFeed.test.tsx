@@ -307,9 +307,9 @@ describe('<MessageFeed />', () => {
     expect(screen.getByText(/\(no content\)/)).toBeInTheDocument();
   });
 
-  // #204: a sticker-only message carries real payload but has no inline render
-  // section, so it must not fall through to "(no content)".
-  it('labels a sticker-only message instead of showing "(no content)" (#204)', () => {
+  // #204/#213: a sticker-only message carries real payload — it renders the
+  // sticker image (not a text label), and never falls through to "(no content)".
+  it('renders a sticker-only message as an image, not "(no content)" (#213)', () => {
     const messages = [
       createMockMessage({
         id: 'm1',
@@ -321,13 +321,12 @@ describe('<MessageFeed />', () => {
       preloadedState: stateWithMessages(messages),
     });
 
-    expect(screen.getByText(/Sticker: wave/)).toBeInTheDocument();
+    expect(screen.getByAltText('wave')).toBeInTheDocument();
     expect(screen.queryByText(/\(no content\)/)).not.toBeInTheDocument();
   });
 
-  // #204: a poll-only message likewise carries payload (the question) with no
-  // inline render section.
-  it('labels a poll-only message instead of showing "(no content)" (#204)', () => {
+  // #204/#213: a poll-only message renders a poll card with the question.
+  it('renders a poll-only message as a poll card, not "(no content)" (#213)', () => {
     const messages = [
       createMockMessage({
         id: 'm1',
@@ -339,7 +338,8 @@ describe('<MessageFeed />', () => {
       preloadedState: stateWithMessages(messages),
     });
 
-    expect(screen.getByText(/Poll: Favorite color\?/)).toBeInTheDocument();
+    expect(screen.getByTestId('inline-poll')).toBeInTheDocument();
+    expect(screen.getByText('Favorite color?')).toBeInTheDocument();
     expect(screen.queryByText(/\(no content\)/)).not.toBeInTheDocument();
   });
 
