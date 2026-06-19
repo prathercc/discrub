@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, createSelector, PayloadAction } from '@reduxjs/toolkit';
-import type { Message, Attachment, User } from 'discrub-core/types/discord-types';
+import type { Message, Attachment, User, Channel } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { getSortedMessages } from 'discrub-core/discrub-utils';
 import { ReactionType, IsPinnedType } from 'discrub-core/discord-enum';
@@ -16,7 +16,9 @@ import { waitWhilePaused, checkCancelled, cancellableDelay, withTransientRetry, 
 import { addStatusEntry, showOperationTip, showToast } from '@features/status/statusSlice';
 import { getEmojiKey } from '@/utils/emojiUtils';
 import { applyRefineCriteria, criteriaIsActive, type RefineCriteria } from './messageFiltering';
-import { nextMilestone } from '@utils/searchPagination';
+import { nextMilestone, iterateSearchMessagesRedux } from '@utils/searchPagination';
+import { selectCurrentUser } from '@features/user/userSlice';
+import { selectAuthToken } from '@features/auth/authSlice';
 import { countActiveFilters } from 'discrub-core/filtering';
 
 /**
@@ -252,6 +254,156 @@ export const editMessages = createAsyncThunk(
     } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : 'Failed to edit messages'
+      );
+    }
+  }
+);
+
+/**
+ * Backlog #215 — bulk-edit messages across multiple selected channels.
+ *
+ * The per-channel `editMessages` thunk above operates on an already-loaded
+ * message list in the open channel. This thunk extends the same "overwrite
+ * content before deleting" workflow to the multi-select channel scaffold:
+ * for each selected channel it streams the CURRENT USER's own messages via
+ * the shared search iterator (Discord only permits editing your own
+ * messages, so scoping the search to the current user is both the correct
+ * behavior and a safety gate) and PATCHes each to `content`. Modeled on
+ * `bulkPurgeChannels` — outer channel loop, per-channel search, pause/cancel
+ * guards, paced delay, per-channel + summary status entries.
+ */
+export const bulkEditChannels = createAsyncThunk<
+  { edited: number; skipped: number; failed: number },
+  {
+    channels: Channel[];
+    content: string;
+    guildId?: string | null;
+    searchCriteria?: SearchCriteria | null;
+  },
+  { state: RootState; rejectValue: string }
+>(
+  'message/bulkEditChannels',
+  async (
+    { channels, content, guildId, searchCriteria },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    dispatch(showOperationTip('Edit Operation Queued'));
+
+    const initialState = getState() as RootState;
+    const token = selectAuthToken(initialState);
+    if (!token) return rejectWithValue('Not authenticated');
+
+    const currentUser = selectCurrentUser(initialState);
+    if (!currentUser?.id) return rejectWithValue('No current user');
+    const currentUserId = currentUser.id;
+
+    const deleteDelay = selectDeleteDelay(initialState);
+    const delayModifier = selectDelayModifier(initialState);
+
+    const isDm = !guildId;
+    const stats = { edited: 0, skipped: 0, failed: 0 };
+
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `Bulk edit: Starting across ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}`,
+    }));
+
+    try {
+      for (let i = 0; i < channels.length; i++) {
+        await waitWhilePaused(getState as () => RootState);
+        if (checkCancelled(getState as () => RootState)) break;
+
+        const channel = channels[i];
+        const channelName = channel.name || channel.id;
+
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `Bulk edit: Starting ${isDm ? '' : '#'}${channelName} (${i + 1} of ${channels.length})`,
+        }));
+
+        // Only the current user's own messages can be edited (Discord 403s
+        // on others'). Force the author filter to the current user; allow an
+        // optional date-range/content scope to flow through from the dialog.
+        const criteria: SearchCriteria = {
+          searchBeforeDate: searchCriteria?.searchBeforeDate ?? null,
+          searchAfterDate: searchCriteria?.searchAfterDate ?? null,
+          searchMessageContent: searchCriteria?.searchMessageContent ?? null,
+          selectedHasTypes: searchCriteria?.selectedHasTypes ?? [],
+          userIds: [currentUserId],
+          mentionIds: searchCriteria?.mentionIds ?? [],
+          channelIds: [],
+          isPinned: searchCriteria?.isPinned ?? IsPinnedType.UNSET,
+        };
+
+        let channelEdited = 0;
+        let cancelled = false;
+
+        try {
+          for await (const page of iterateSearchMessagesRedux({
+            token,
+            channelId: channel.id,
+            guildId: guildId ?? null,
+            criteria,
+            getState: getState as () => RootState,
+          })) {
+            await waitWhilePaused(getState as () => RootState);
+            if (checkCancelled(getState as () => RootState)) { cancelled = true; break; }
+
+            for (const message of page.messages) {
+              await waitWhilePaused(getState as () => RootState);
+              if (checkCancelled(getState as () => RootState)) { cancelled = true; break; }
+
+              // Defensive: the search is author-scoped, but never attempt to
+              // edit a message that isn't the current user's.
+              if (message.author?.id && message.author.id !== currentUserId) {
+                stats.skipped++;
+                continue;
+              }
+
+              try {
+                await dispatch(editMessage({
+                  messageId: message.id,
+                  channelId: message.channel_id ?? channel.id,
+                  content,
+                  token,
+                })).unwrap();
+                stats.edited++;
+                channelEdited++;
+              } catch (error) {
+                stats.failed++;
+                console.error(`Bulk edit: failed to edit ${message.id}:`, error);
+              }
+
+              const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
+              const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+              if (wasCancelled) { cancelled = true; break; }
+            }
+
+            if (cancelled) break;
+          }
+        } catch (error) {
+          dispatch(addStatusEntry({
+            level: 'error',
+            message: `Bulk edit: ${isDm ? '' : '#'}${channelName} — ${error instanceof Error ? error.message : 'failed'}`,
+          }));
+        }
+
+        dispatch(addStatusEntry({
+          level: 'success',
+          message: `Bulk edit: Completed ${isDm ? '' : '#'}${channelName} — ${channelEdited} edited`,
+        }));
+
+        if (cancelled) break;
+      }
+
+      dispatch(addStatusEntry({
+        level: 'success',
+        message: `Bulk edit complete — ${stats.edited} edited${stats.skipped > 0 ? `, ${stats.skipped} skipped` : ''}${stats.failed > 0 ? `, ${stats.failed} failed` : ''}`,
+      }));
+      return stats;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Bulk edit failed'
       );
     }
   }

@@ -3,6 +3,7 @@ import {
   Download as DownloadIcon,
   DeleteSweep as PurgeIcon,
   ContentCopy as CopyIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 
 export interface MultiSelectControlsProps {
@@ -20,6 +21,8 @@ export interface MultiSelectControlsProps {
   onExport?: () => void;
   /** Open the bulk-purge dialog. Omit to hide the Purge button (e.g. ServerList v1). */
   onPurge?: () => void;
+  /** Open the bulk-edit dialog (#215). Omit to hide the Edit button (e.g. ServerList / DMList). */
+  onEdit?: () => void;
   /** Copy the names of currently-selected items to the clipboard. */
   onCopyNames: () => void;
   /** Plural noun for aria labels — e.g. "channels", "conversations". */
@@ -45,6 +48,7 @@ const MultiSelectControls = ({
   onToggleAll,
   onExport,
   onPurge,
+  onEdit,
   onCopyNames,
   noun,
 }: MultiSelectControlsProps) => {
@@ -96,6 +100,20 @@ const MultiSelectControls = ({
                 sx={{ textTransform: 'none' }}
               >
                 Export
+              </Button>
+            )}
+            {onEdit && (
+              <Button
+                size="small"
+                variant="contained"
+                color="primary"
+                startIcon={<EditIcon fontSize="small" />}
+                onClick={onEdit}
+                aria-label={`Edit selected ${noun}`}
+                data-testid="multi-select-edit"
+                sx={{ textTransform: 'none' }}
+              >
+                Edit
               </Button>
             )}
             {onPurge && (

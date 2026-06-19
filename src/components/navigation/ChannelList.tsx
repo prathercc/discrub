@@ -47,6 +47,7 @@ import ListSkeleton from '@components/ui/ListSkeleton';
 import EmptyState from '@components/ui/EmptyState';
 import BulkExportDialog from '@containers/ExportView/BulkExportDialog';
 import BulkPurgeDialog from '@containers/PurgeView/BulkPurgeDialog';
+import BulkEditDialog from '@containers/PurgeView/BulkEditDialog';
 
 interface ChannelListProps {
   filterText?: string;
@@ -77,6 +78,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [bulkExportOpen, setBulkExportOpen] = useState(false);
   const [bulkPurgeOpen, setBulkPurgeOpen] = useState(false);
+  const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
 
   const handleChannelClick = async (channel: Channel) => {
@@ -338,6 +340,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
         }
         onExport={() => setBulkExportOpen(true)}
         onPurge={() => setBulkPurgeOpen(true)}
+        onEdit={() => setBulkEditOpen(true)}
         onCopyNames={handleCopySelectedNames}
         noun="channels"
       />
@@ -442,6 +445,14 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
         mode="channels"
         guildId={selectedGuild.id}
         canManageMessages={hasManageMessages}
+      />
+
+      <BulkEditDialog
+        open={bulkEditOpen}
+        onClose={() => setBulkEditOpen(false)}
+        channels={selectedChannels}
+        mode="channels"
+        guildId={selectedGuild.id}
       />
 
     </Box>

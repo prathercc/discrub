@@ -87,6 +87,21 @@ describe('MultiSelectControls (Backlog #135)', () => {
     expect(onCopyNames).toHaveBeenCalledTimes(1);
   });
 
+  // Backlog #215 — bulk edit across multi-selected channels/DMs.
+  it('renders the Edit button only when onEdit is provided', () => {
+    const { rerender } = render(<MultiSelectControls {...baseProps} active selectedCount={3} />);
+    expect(screen.queryByTestId('multi-select-edit')).toBeNull();
+    rerender(<MultiSelectControls {...baseProps} active selectedCount={3} onEdit={() => {}} />);
+    expect(screen.getByTestId('multi-select-edit')).toBeInTheDocument();
+  });
+
+  it('calls onEdit when Edit is clicked', () => {
+    const onEdit = vi.fn();
+    render(<MultiSelectControls {...baseProps} active selectedCount={3} onEdit={onEdit} />);
+    fireEvent.click(screen.getByTestId('multi-select-edit'));
+    expect(onEdit).toHaveBeenCalledTimes(1);
+  });
+
   // Backlog #155: ServerList renders MultiSelectControls Copy-only for v1.
   describe('optional Export/Purge handlers (Backlog #155)', () => {
     const copyOnlyProps = {
