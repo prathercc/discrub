@@ -35,7 +35,7 @@
  * package is detectable on next boot (no meta key → cleanup partial state).
  */
 
-import { unzip, strFromU8 } from 'fflate';
+import { unzipSync, strFromU8 } from 'fflate';
 import { storage } from '@/extension/storage';
 import { countCsvRows, parseMessagesCsv } from '@/utils/csvParser';
 import { countJsonMessages, parseMessagesJson, parseSnowflakeJson } from '@/utils/jsonParser';
@@ -105,12 +105,17 @@ export class PackageStreamCancelledError extends Error {
  * commit marker; it's written last.
  */
 export async function streamPackageToStorage(
-  file: File | Blob,
+  input: File | Blob | ArrayBuffer,
   opts: StreamOptions = {},
 ): Promise<ParsedPackage> {
   const { onProgress, shouldStop } = opts;
 
-  const totalCompressed = 'size' in file ? file.size : 0;
+  const totalCompressed =
+    input instanceof ArrayBuffer
+      ? input.byteLength
+      : 'size' in input
+        ? input.size
+        : 0;
   if (totalCompressed > SOFT_COMPRESSED_WARN_BYTES) {
     // Single source of telemetry-of-sorts for "we're approaching the
     // option-A → option-B threshold." Compressed sizes near 1.5GB
@@ -125,8 +130,12 @@ export async function streamPackageToStorage(
   // We use the `filter` callback to short-circuit decompression at the
   // entry level — the body of those entries is never inflated and never
   // enters our address space.
-  const buffer = await readBlobAsArrayBuffer(file);
-  const filesByPath = await unzipFiltered(new Uint8Array(buffer), shouldStop);
+  // #203: when the caller already read the bytes (ImportDialog reads the File
+  // the instant it's selected, while the descriptor is fresh), use them
+  // directly. Otherwise read here, retrying a transient NotReadableError.
+  const buffer =
+    input instanceof ArrayBuffer ? input : await readBlobWithRetry(input);
+  const filesByPath = unzipFiltered(new Uint8Array(buffer));
 
   if (await shouldHalt(shouldStop)) {
     throw new PackageStreamCancelledError();
@@ -317,42 +326,39 @@ export async function hasStoredPackage(userId: string): Promise<boolean> {
 
 /* ────────── internal helpers ────────── */
 
-function unzipFiltered(
-  bytes: Uint8Array,
-  shouldStop: StreamOptions['shouldStop'],
-): Promise<Record<string, Uint8Array>> {
-  return new Promise((resolve, reject) => {
-    unzip(
-      bytes,
-      {
-        filter: (entry) => {
-          // Drop directory entries and OS junk before we even decide
-          // whether to decompress.
-          if (entry.name.endsWith('/')) return false;
-          if (isJunkPath(entry.name)) return false;
-          // Drop top-level skip dirs by suffix-matching after the
-          // optional wrapper directory. We match "{anything}/{skipDir}/..."
-          // and "{skipDir}/..." both, lower-cased.
-          const lower = entry.name.toLowerCase();
-          for (const dir of SKIPPED_TOP_DIRS) {
-            if (lower.startsWith(`${dir}/`) || lower.includes(`/${dir}/`)) return false;
-          }
-          return true;
-        },
-      },
-      (err, files) => {
-        if (err) {
-          reject(new PackageParseError(`Failed to read package archive: ${err.message}`));
-          return;
+function unzipFiltered(bytes: Uint8Array): Record<string, Uint8Array> {
+  // #210: use the SYNCHRONOUS unzipSync, NOT fflate's async `unzip`. The async
+  // API offloads decompression to a Web Worker and structured-clones each
+  // filtered compressed entry across the worker boundary via postMessage —
+  // that clone allocation throws "Failed to execute 'postMessage' on 'Worker':
+  // Data cannot be cloned, out of memory" on memory-constrained devices (the
+  // dollifiedgirl report). #162's `filter` already drops the Activity dirs at
+  // decompress time, so the post-filter decompressed footprint stays well under
+  // V8's single-allocation cap; running on the main thread is safe and removes
+  // the worker/postMessage boundary — and the clone OOM — entirely.
+  try {
+    const files = unzipSync(bytes, {
+      filter: (entry) => {
+        // Drop directory entries and OS junk before we even decide
+        // whether to decompress.
+        if (entry.name.endsWith('/')) return false;
+        if (isJunkPath(entry.name)) return false;
+        // Drop top-level skip dirs by suffix-matching after the optional
+        // wrapper directory. We match "{anything}/{skipDir}/..." and
+        // "{skipDir}/..." both, lower-cased.
+        const lower = entry.name.toLowerCase();
+        for (const dir of SKIPPED_TOP_DIRS) {
+          if (lower.startsWith(`${dir}/`) || lower.includes(`/${dir}/`)) return false;
         }
-        // Honor cancellation racing with decompress; we still resolve
-        // with whatever we got because the next step in the parent
-        // will short-circuit cleanly via the `shouldStop` recheck.
-        void shouldStop;
-        resolve(files ?? {});
+        return true;
       },
+    });
+    return files ?? {};
+  } catch (err) {
+    throw new PackageParseError(
+      `Failed to read package archive: ${err instanceof Error ? err.message : String(err)}`,
     );
-  });
+  }
 }
 
 function isJunkPath(path: string): boolean {
@@ -662,6 +668,29 @@ async function persistChannel(
     },
     format: resolved.messagesFormat,
   };
+}
+
+/**
+ * Read a Blob/File into an ArrayBuffer, retrying a transient NotReadableError.
+ * That DOMException ("the requested file could not be read… permission problems
+ * after a reference to a file was acquired") is often transient — an antivirus
+ * scan or a cloud-synced folder briefly relocking the file. A short backoff and
+ * re-read usually clears it. Non-NotReadableError failures throw immediately.
+ * See backlog #203.
+ */
+async function readBlobWithRetry(blob: Blob, attempts = 2): Promise<ArrayBuffer> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await readBlobAsArrayBuffer(blob);
+    } catch (err) {
+      lastErr = err;
+      const name = (err as { name?: string })?.name;
+      if (name !== 'NotReadableError' || i === attempts - 1) throw err;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+  throw lastErr;
 }
 
 function readBlobAsArrayBuffer(blob: Blob): Promise<ArrayBuffer> {

@@ -98,6 +98,65 @@ describe('streamPackageToStorage', () => {
     });
   });
 
+  describe('input handling (#210/#203)', () => {
+    // jsdom's Blob lacks `.arrayBuffer()`; mirror the production FileReader
+    // fallback to extract the bytes for these tests.
+    const readBlobBytes = (b: Blob): Promise<ArrayBuffer> =>
+      new Promise((resolve, reject) => {
+        const r = new FileReader();
+        r.onload = () => resolve(r.result as ArrayBuffer);
+        r.onerror = () => reject(r.error ?? new Error('read failed'));
+        r.readAsArrayBuffer(b);
+      });
+
+    it('accepts a pre-read ArrayBuffer and parses it identically (#203 eager-read path)', async () => {
+      const blob = await buildFixturePackage();
+      const buffer = await readBlobBytes(blob);
+      const parsed = await streamPackageToStorage(buffer);
+
+      expect(parsed.user.id).toBe('253286221395001345');
+      expect(parsed.user.username).toBe('prathercc');
+    });
+
+    it('retries a transient NotReadableError on the initial read then succeeds (#203)', async () => {
+      const blob = await buildFixturePackage();
+      const realBuffer = await readBlobBytes(blob);
+
+      // Fake a File whose first read throws NotReadableError (transient AV /
+      // synced-folder relock) and whose second read succeeds.
+      let reads = 0;
+      const flakyFile = {
+        size: realBuffer.byteLength,
+        arrayBuffer: vi.fn(async () => {
+          reads += 1;
+          if (reads === 1) {
+            const err = new Error('The requested file could not be read');
+            err.name = 'NotReadableError';
+            throw err;
+          }
+          return realBuffer;
+        }),
+      } as unknown as Blob;
+
+      const parsed = await streamPackageToStorage(flakyFile);
+
+      expect(flakyFile.arrayBuffer).toHaveBeenCalledTimes(2);
+      expect(parsed.user.id).toBe('253286221395001345');
+    });
+
+    it('does not retry a non-NotReadableError read failure (#203)', async () => {
+      const boom = {
+        size: 10,
+        arrayBuffer: vi.fn(async () => {
+          throw new Error('some other failure');
+        }),
+      } as unknown as Blob;
+
+      await expect(streamPackageToStorage(boom)).rejects.toThrow('some other failure');
+      expect(boom.arrayBuffer).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('progress reporting', () => {
     it('fires onProgress at least once per channel + once for avatar + once for meta', async () => {
       const blob = await buildFixturePackage();

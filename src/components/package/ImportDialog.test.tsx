@@ -1,7 +1,28 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderWithProviders, screen, waitFor, fireEvent } from '@/test/test-utils';
-import ImportDialog from './ImportDialog';
+import ImportDialog, { friendlyImportError } from './ImportDialog';
 import { buildFixturePackage } from '@/test/package-fixtures';
+
+describe('friendlyImportError', () => {
+  it('maps the worker-clone / out-of-memory family to actionable copy (#210)', () => {
+    const raw = "Failed to execute 'postMessage' on 'Worker': Data cannot be cloned, out of memory.";
+    expect(friendlyImportError(raw)).toMatch(/ran out of memory/i);
+    expect(friendlyImportError('Array buffer allocation failed')).toMatch(/ran out of memory/i);
+  });
+
+  it('maps the NotReadableError family to actionable copy (#203)', () => {
+    const raw = 'The requested file could not be read, typically due to permission problems that have occurred after a reference to a file was acquired.';
+    const out = friendlyImportError(raw);
+    expect(out).toMatch(/Couldn’t read the ZIP file/i);
+    expect(out).toMatch(/cloud-synced folder/i);
+  });
+
+  it('passes through an unrecognized message unchanged', () => {
+    expect(friendlyImportError('Package is missing account/user.json')).toBe(
+      'Package is missing account/user.json',
+    );
+  });
+});
 
 describe('<ImportDialog />', () => {
   it('renders upload prompt when open', () => {

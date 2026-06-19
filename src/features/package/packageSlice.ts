@@ -328,14 +328,15 @@ export const clearPackageDeletedCache = createAsyncThunk<
 /** Parse a Discord data package file and validate it against the current auth. */
 export const importPackage = createAsyncThunk<
   { parsed: ParsedPackage; validation: PackageValidationResult },
-  File | Blob,
+  File | Blob | ArrayBuffer,
   { state: RootState; rejectValue: string }
->('package/import', async (file, { getState, dispatch, rejectWithValue }) => {
+>('package/import', async (input, { getState, dispatch, rejectWithValue }) => {
   try {
     // Stream once into IndexedDB (#162). After this returns, every
     // subsequent channel/avatar read is an O(1) IDB lookup; the
-    // original File handle is no longer needed.
-    const parsed = await streamPackageToStorage(file);
+    // original File handle is no longer needed. #203: `input` may already
+    // be the eagerly-read bytes (read while the File reference was fresh).
+    const parsed = await streamPackageToStorage(input);
     const state = getState();
     const authedUserId = state.user?.currentUser?.id ?? null;
     const validation = validatePackage(parsed, authedUserId);

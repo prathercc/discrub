@@ -28,6 +28,33 @@ interface ImportDialogProps {
   onImported?: () => void;
 }
 
+/**
+ * Translate the raw browser/parse error into plain language. Casual reporters
+ * (#203 dokahime, #210 dollifiedgirl) hit opaque DOMException text and asked
+ * "what does this mean?" — map the two known import failure families to
+ * actionable copy and pass anything else through unchanged.
+ */
+export function friendlyImportError(raw: string): string {
+  const lower = raw.toLowerCase();
+  if (
+    lower.includes('out of memory') ||
+    lower.includes('cannot be cloned') ||
+    lower.includes('allocation failed')
+  ) {
+    // #210: the worker-clone / V8-allocation OOM family.
+    return 'Your browser ran out of memory while reading the package. Close other tabs and try again, or open Discrub in a desktop browser with more available memory.';
+  }
+  if (
+    lower.includes('could not be read') ||
+    lower.includes('notreadable') ||
+    lower.includes('permission problems')
+  ) {
+    // #203: stale/locked file-descriptor read failure.
+    return 'Couldn’t read the ZIP file. Make sure it isn’t open in another program, then try again. If it’s very large or kept in a cloud-synced folder (OneDrive, iCloud, Dropbox), copy it to your Desktop first.';
+  }
+  return raw;
+}
+
 const ImportDialog = ({ open, onClose, onImported }: ImportDialogProps) => {
   const dispatch = useAppDispatch();
   const status = useAppSelector(selectPackageStatus);
@@ -39,7 +66,19 @@ const ImportDialog = ({ open, onClose, onImported }: ImportDialogProps) => {
 
   const handleFile = useCallback(
     async (file: File) => {
-      const result = await dispatch(importPackage(file));
+      // #203: read the bytes the instant the file is selected, while the OS
+      // file descriptor is still fresh, instead of several async hops later
+      // inside the parse pipeline (where a synced/locked/large-file handle can
+      // go stale → NotReadableError). Best-effort: if the eager read itself
+      // throws, fall back to passing the File so the pipeline's retrying read
+      // gets a shot and surfaces any error through the normal channel.
+      let payload: File | ArrayBuffer = file;
+      try {
+        payload = await file.arrayBuffer();
+      } catch {
+        payload = file;
+      }
+      const result = await dispatch(importPackage(payload));
       if (importPackage.fulfilled.match(result)) {
         onImported?.();
         onClose();
@@ -138,7 +177,7 @@ const ImportDialog = ({ open, onClose, onImported }: ImportDialogProps) => {
 
         {error && (
           <Alert severity="error" sx={{ mt: 2 }}>
-            {error}
+            {friendlyImportError(error)}
           </Alert>
         )}
       </DialogContent>
