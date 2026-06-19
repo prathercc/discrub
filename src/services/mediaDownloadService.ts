@@ -188,10 +188,19 @@ export class MediaDownloadService {
       authorName: string;
     }> = [];
 
-    messages.forEach((msg, index) => {
-      const authorName = msg.author?.username || 'unknown';
-      const attachments = msg.attachments || [];
-      const useProxyUrl = !isExtensionMode();
+    const useProxyUrl = !isExtensionMode();
+
+    // Collect attachment + embed media from a single message-like source.
+    // Used for the top-level message AND for each forwarded snapshot's
+    // payload (#214) so forwarded attachments/embedded images are downloaded
+    // and URL-rewritten exactly like top-level media.
+    const collectMedia = (
+      source: Pick<Message, 'attachments' | 'embeds'> | Partial<Message> | null | undefined,
+      authorName: string,
+      index: number
+    ) => {
+      if (!source) return;
+      const attachments = source.attachments || [];
       attachments.forEach((att) => {
         if (att.url && this.shouldDownloadFile(att.filename || 'unknown', mediaConfig)) {
           attachmentUrls.push({
@@ -206,7 +215,7 @@ export class MediaDownloadService {
       });
 
       // Also get media from embeds
-      const embeds = msg.embeds || [];
+      const embeds = source.embeds || [];
       embeds.forEach((embed) => {
         if (embed.image?.url) {
           attachmentUrls.push({
@@ -238,6 +247,20 @@ export class MediaDownloadService {
             authorName,
           });
         }
+      });
+    };
+
+    messages.forEach((msg, index) => {
+      const authorName = msg.author?.username || 'unknown';
+      collectMedia(msg, authorName, index);
+
+      // #214: forwarded messages (message_reference.type === 1) carry their
+      // real payload — including attachments and embedded media — inside
+      // message_snapshots[].message, NOT on the top-level message. Without
+      // this pass that media is rendered in the feed/HTML but never downloaded,
+      // leaving dead CDN links offline.
+      msg.message_snapshots?.forEach((snap) => {
+        collectMedia(snap?.message, authorName, index);
       });
     });
 

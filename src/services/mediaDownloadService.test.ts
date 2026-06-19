@@ -818,6 +818,101 @@ describe('mediaDownloadService', () => {
         total: 2,
       });
     });
+
+    // #214: forwarded messages carry their real media inside
+    // message_snapshots[].message — those attachments/embeds must be
+    // downloaded and URL-mapped exactly like top-level media.
+    it('downloads attachments from a forwarded message snapshot', async () => {
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          content: '',
+          attachments: [],
+          embeds: [],
+          message_snapshots: [
+            {
+              message: {
+                content: '',
+                attachments: [
+                  {
+                    id: 'snap-att-1',
+                    url: 'https://cdn.discordapp.com/snap-file.png',
+                    proxy_url: 'https://media.discordapp.net/snap-file.png',
+                    filename: 'snap-file.png',
+                  },
+                ],
+                embeds: [],
+              },
+            },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/png' }),
+      });
+
+      const maps = await service.downloadAllMedia(
+        messages,
+        null,
+        'test-channel',
+        mockZipService,
+        mockOnProgress
+      );
+
+      expect(mockDiscordService.downloadFile).toHaveBeenCalledWith(
+        'https://media.discordapp.net/snap-file.png'
+      );
+      // The original CDN URL becomes a key in the media map so the HTML
+      // emitter can rewrite the forwarded link to the local copy.
+      expect(maps.mediaMap['https://cdn.discordapp.com/snap-file.png']).toBeDefined();
+    });
+
+    it('downloads embed images from a forwarded message snapshot', async () => {
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          content: '',
+          attachments: [],
+          embeds: [],
+          message_snapshots: [
+            {
+              message: {
+                content: '',
+                attachments: [],
+                embeds: [
+                  {
+                    image: {
+                      url: 'https://cdn.discordapp.com/snap-embed.png',
+                      proxy_url: 'https://media.discordapp.net/snap-embed.png',
+                    },
+                  },
+                ],
+              },
+            },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/png' }),
+      });
+
+      const maps = await service.downloadAllMedia(
+        messages,
+        null,
+        'test-channel',
+        mockZipService,
+        mockOnProgress
+      );
+
+      expect(mockDiscordService.downloadFile).toHaveBeenCalledWith(
+        'https://media.discordapp.net/snap-embed.png'
+      );
+      expect(maps.mediaMap['https://cdn.discordapp.com/snap-embed.png']).toBeDefined();
+    });
   });
 
   describe('downloadEmojis', () => {

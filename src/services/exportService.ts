@@ -1124,13 +1124,36 @@ class ExportService {
           const snapContent = formattingContext
             ? formatContentAsHtml(snapshot.content || '', formattingContext)
             : this.escapeHtml(snapshot.content || '');
+          // #214: rewrite snapshot attachment URLs to the downloaded local
+          // copy (mirrors the top-level attachment rewrite at ~:976) and
+          // inline-preview images so forwarded media displays offline instead
+          // of being a dead CDN link / blank.
           const snapAttachmentsHtml = Array.isArray(snapshot.attachments) && snapshot.attachments.length > 0
             ? `<div class="forward-attachments">${snapshot.attachments
                 .map((att: any) => {
                   const filename = this.escapeHtml(att.filename || 'attachment');
-                  const url = att.url || '';
-                  return `<a class="forward-attachment" href="${url}" target="_blank" rel="noopener noreferrer">${filename}</a>`;
+                  const localPath = mediaMaps?.mediaMap?.[att.url];
+                  const href = localPath || att.url || '';
+                  const isLocal = Boolean(localPath);
+                  const ext = (att.filename?.split('.').pop() || '').toLowerCase();
+                  const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext);
+                  const preview = previewMedia && isImage && href
+                    ? `<img class="attachment-preview attachment-preview-img" src="${href}" alt="${filename}" loading="lazy" data-action="open-lightbox" data-img-index="${imageIndex++}" style="cursor:pointer">`
+                    : '';
+                  return `${preview}<a class="forward-attachment" href="${href}" ${isLocal ? '' : 'target="_blank" rel="noopener noreferrer"'}>${filename}</a>`;
                 })
+                .join('')}</div>`
+            : '';
+          // #214: forwarded embeds (embedded images / link previews) live on
+          // the snapshot too — render them through the shared embed emitter so
+          // their media is resolved against the local media map.
+          const snapEmbedsHtml = Array.isArray(snapshot.embeds) && snapshot.embeds.length > 0
+            ? `<div class="embeds">${snapshot.embeds
+                .map((embed: any) => renderEmbedAsHtml(embed, {
+                  includeImages: true,
+                  includeVideos: true,
+                  mediaMap: mediaMaps?.mediaMap,
+                }))
                 .join('')}</div>`
             : '';
           forwardHtml = `
@@ -1141,6 +1164,7 @@ class ExportService {
               </div>
               <div class="forward-content">${snapContent}</div>
               ${snapAttachmentsHtml}
+              ${snapEmbedsHtml}
             </div>`;
         }
 

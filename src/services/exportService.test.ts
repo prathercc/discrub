@@ -947,6 +947,52 @@ describe('exportService', () => {
 
       expect(html).toContain('.attachment-preview-img');
     });
+
+    // #214: forwarded media must be downloaded AND its link rewritten to the
+    // local copy, otherwise the export shows a dead CDN link offline.
+    it('rewrites a forwarded snapshot attachment to its local media path', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'u1', username: 'testuser', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        message_snapshots: [
+          {
+            message: {
+              content: '',
+              attachments: [
+                { id: 'snap-att-1', url: 'https://cdn.discordapp.com/snap.png', filename: 'snap.png', size: 1024 },
+              ],
+              embeds: [],
+            },
+          },
+        ],
+      } as any];
+
+      const mediaMaps = {
+        avatarMap: {},
+        mediaMap: { 'https://cdn.discordapp.com/snap.png': 'media/attachments/0_local.png' },
+        emojiMap: {},
+        roleMap: {},
+      };
+
+      const html = generateHTML(messages, 'test-channel', 1, 1, mediaMaps, 'test_channel', undefined, {
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: true,
+        dateFormat: 'MM/dd/yyyy',
+        timeFormat: 'h:mm aa',
+      });
+
+      // The forwarded link points at the downloaded local copy, not the CDN.
+      expect(html).toContain('href="media/attachments/0_local.png"');
+      // And an image preview is emitted for the forwarded image.
+      expect(html).toContain('src="media/attachments/0_local.png"');
+    });
   });
 
   describe('system message rendering in HTML export', () => {
