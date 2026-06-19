@@ -1045,7 +1045,7 @@ class ExportService {
         // Stickers (#213). Raster stickers point at the downloaded local copy
         // (stickers/{id}.{ext}); Lottie (format_type 3) can't be an <img>, so it
         // degrades to a labeled placeholder.
-        const stickerItems = (msg as { sticker_items?: Array<{ id: string; name: string; format_type: number }> }).sticker_items;
+        const stickerItems = msg.sticker_items;
         const stickersHtml = stickerItems && stickerItems.length > 0
           ? `<div class="stickers">
                ${stickerItems.map((s) => {
@@ -1061,11 +1061,8 @@ class ExportService {
 
         // Poll card (#213). Vote bars/percentages only render when poll.results
         // is present (fetched/closed polls); otherwise plain options.
-        const poll = (msg as { poll?: {
-          question?: { text?: string | null } | null;
-          answers?: Array<{ answer_id: number; poll_media?: { text?: string | null } | null }> | null;
-          results?: { answer_counts?: Array<{ id: number; count: number }> | null } | null;
-        } | null }).poll;
+        // poll is typed on the lib Message as PollObject (#214 review cleanup).
+        const poll = msg.poll;
         let pollHtml = '';
         if (poll) {
           const question = this.escapeHtml(poll.question?.text || 'Poll');

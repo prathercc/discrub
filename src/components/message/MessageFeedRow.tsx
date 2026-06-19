@@ -25,7 +25,6 @@ import {
   InlineReactions,
   InlineSticker,
   InlinePoll,
-  type InlinePollData,
 } from './inlineRenderers';
 
 /** Collapse content bodies past this pixel height behind a "Show more" toggle. */
@@ -97,7 +96,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
   // (#213, replacing the #204 plain-text labels). Detecting them here keeps
   // a sticker/poll-only message from falling through to "(no content)".
   const hasSticker = !!message.sticker_items && message.sticker_items.length > 0;
-  const poll = (message as Record<string, unknown>).poll as InlinePollData | undefined;
+  const poll = message.poll;
   const hasPoll = !!poll;
 
   // A forwarded message (#197) carries its payload in message_snapshots and

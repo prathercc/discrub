@@ -17,7 +17,7 @@ import {
   EmojiEmotions as StickerIcon,
   BarChart as PollIcon,
 } from '@mui/icons-material';
-import type { Message, Attachment, Embed, StickerItemObject } from 'discrub-core/types/discord-types';
+import type { Message, Attachment, Embed, StickerItemObject, PollObject } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { formatEmbedContent } from '@/utils/messageLightFormatting';
 import { reserveMediaBox } from '@/utils/reserveMediaBox';
@@ -536,21 +536,10 @@ export const InlineSticker = memo(function InlineSticker({
   );
 });
 
-// Discord's poll payload is untyped on the discrub-core Message; describe just
-// the parts we render (#213). `results` only exists on fetched/closed polls.
-export interface InlinePollData {
-  question?: { text?: string | null } | null;
-  answers?: Array<{
-    answer_id: number;
-    poll_media?: {
-      text?: string | null;
-      emoji?: { id?: string | null; name?: string | null; animated?: boolean | null } | null;
-    } | null;
-  }> | null;
-  results?: {
-    answer_counts?: Array<{ id: number; count: number; me_voted?: boolean }> | null;
-  } | null;
-}
+// The poll shape now lives on the discrub-core Message as PollObject (#214
+// review cleanup). Kept as a local alias so existing imports stay stable.
+// `results` only exists on fetched/closed polls.
+export type InlinePollData = PollObject;
 
 export const InlinePoll = memo(function InlinePoll({ poll }: { poll?: InlinePollData | null }) {
   if (!poll) return null;
