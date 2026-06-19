@@ -21,6 +21,7 @@ import messageReducer, {
   bulkDeleteAllReactions,
   bulkDeleteReactionsForEmoji,
   batchRemoveReactions,
+  batchAddReactions,
   deleteAttachment,
   deleteAllAttachments,
   fetchMessages,
@@ -2497,6 +2498,154 @@ describe('messageSlice', () => {
 
       // Delay called between msg-1 and msg-2 (not after last message)
       expect(cancellableDelay).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('batchAddReactions async thunk (Backlog #202)', () => {
+    const createStoreWithApp = async (messageState = initialMessageState) => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      return configureStore({
+        reducer: { message: messageReducer, app: appReducer },
+        preloadedState: {
+          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle' as const, message: '' }, settings: defaultSettings },
+          message: messageState,
+        },
+      });
+    };
+
+    it('fans out one addReaction per (message × emoji) pair', async () => {
+      const mockDiscordService = {
+        addReaction: vi.fn().mockResolvedValue({ success: true, status: 204 }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = [{ id: 'msg-1' }, { id: 'msg-2' }, { id: 'msg-3' }];
+      const emojis = [{ name: '👍' }, { id: '123', name: 'pepe', animated: false }];
+
+      const testStore = await createStoreWithApp();
+      const result = await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages, emojis, token: 'tok' })
+      );
+
+      expect(result.type).toBe('message/batchAddReactions/fulfilled');
+      // 3 messages × 2 emojis = 6 calls
+      expect(mockDiscordService.addReaction).toHaveBeenCalledTimes(6);
+      // Unicode emoji passed raw, custom emoji passed as name:id
+      expect(mockDiscordService.addReaction).toHaveBeenCalledWith('tok', 'ch-1', 'msg-1', '👍');
+      expect(mockDiscordService.addReaction).toHaveBeenCalledWith('tok', 'ch-1', 'msg-1', 'pepe:123');
+      expect((result.payload as any).added).toBe(6);
+    });
+
+    it('buckets failures by HTTP status without aborting the run', async () => {
+      const mockDiscordService = {
+        addReaction: vi
+          .fn()
+          .mockResolvedValueOnce({ success: true, status: 204 }) // added
+          .mockResolvedValueOnce({ success: false, status: 403 }) // no permission
+          .mockResolvedValueOnce({ success: false, status: 400 }) // emoji rejected
+          .mockResolvedValueOnce({ success: false, status: 404 }) // message gone
+          .mockResolvedValueOnce({ success: false, status: 500 }), // failed
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }, { id: 'm4' }, { id: 'm5' }];
+      const testStore = await createStoreWithApp();
+      const result = await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages, emojis: [{ name: '👍' }], token: 'tok' })
+      );
+
+      expect(mockDiscordService.addReaction).toHaveBeenCalledTimes(5);
+      expect((result.payload as any).added).toBe(1);
+      // Plain-language summary names each non-zero bucket
+      expect(vi.mocked(addStatusEntry)).toHaveBeenCalledWith(
+        expect.objectContaining({
+          level: 'warning',
+          message: expect.stringContaining('no permission'),
+        })
+      );
+    });
+
+    it('optimistically merges added reactions into the feed', async () => {
+      const msg = createMockMessage({ id: 'msg-1', reactions: [] });
+      const mockDiscordService = {
+        addReaction: vi.fn().mockResolvedValue({ success: true, status: 204 }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const testStore = await createStoreWithApp({
+        ...initialMessageState,
+        messages: [msg],
+        filteredMessages: [msg],
+      });
+      await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages: [{ id: 'msg-1' }], emojis: [{ name: '🔥' }], token: 'tok' })
+      );
+
+      const state = testStore.getState().message;
+      expect(state.messages[0].reactions).toHaveLength(1);
+      expect(state.messages[0].reactions![0].emoji.name).toBe('🔥');
+      expect(state.messages[0].reactions![0].count).toBe(1);
+      expect(state.messages[0].reactions![0].me).toBe(true);
+    });
+
+    it('bumps the count of an existing reaction (idempotent on me)', async () => {
+      const existing = createMockReaction({ count: 2, me: false, emoji: { id: null, name: '🔥' } });
+      const msg = createMockMessage({ id: 'msg-1', reactions: [existing] });
+      const mockDiscordService = {
+        addReaction: vi.fn().mockResolvedValue({ success: true, status: 204 }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const testStore = await createStoreWithApp({
+        ...initialMessageState,
+        messages: [msg],
+      });
+      await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages: [{ id: 'msg-1' }], emojis: [{ name: '🔥' }], token: 'tok' })
+      );
+
+      const state = testStore.getState().message;
+      expect(state.messages[0].reactions).toHaveLength(1);
+      expect(state.messages[0].reactions![0].count).toBe(3);
+      expect(state.messages[0].reactions![0].me).toBe(true);
+    });
+
+    it('no-ops with a status entry when nothing is selected', async () => {
+      const mockDiscordService = { addReaction: vi.fn() };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const testStore = await createStoreWithApp();
+      await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages: [], emojis: [{ name: '👍' }], token: 'tok' })
+      );
+      expect(mockDiscordService.addReaction).not.toHaveBeenCalled();
+
+      await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages: [{ id: 'm1' }], emojis: [], token: 'tok' })
+      );
+      expect(mockDiscordService.addReaction).not.toHaveBeenCalled();
+    });
+
+    it('stops mid-run when cancelled', async () => {
+      const { checkCancelled } = await import('@/utils/operationLoopUtils');
+      // Allow the first call, cancel before the second.
+      vi.mocked(checkCancelled).mockReturnValueOnce(false).mockReturnValueOnce(true);
+
+      const mockDiscordService = {
+        addReaction: vi.fn().mockResolvedValue({ success: true, status: 204 }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = [{ id: 'm1' }, { id: 'm2' }, { id: 'm3' }];
+      const testStore = await createStoreWithApp();
+      await testStore.dispatch(
+        batchAddReactions({ channelId: 'ch-1', messages, emojis: [{ name: '👍' }], token: 'tok' })
+      );
+
+      expect(mockDiscordService.addReaction).toHaveBeenCalledTimes(1);
+      vi.mocked(checkCancelled).mockReturnValue(false);
     });
   });
 

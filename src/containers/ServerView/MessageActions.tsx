@@ -5,14 +5,17 @@ import {
   Edit as EditIcon,
   Code as CodeIcon,
   DeleteSweep as ReactionRemoveIcon,
+  AddReaction as ReactionAddIcon,
 } from '@mui/icons-material';
-import type { Message, User } from 'discrub-core/types/discord-types';
+import type { Emoji, Message, User } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { isSystemMessageType } from 'discrub-core/system-messages';
+import type { SelectableEmoji } from '@/utils/emojiDataset';
 import DeleteConfirmModal from '@components/modals/DeleteConfirmModal';
 import EditMessageModal from '@components/modals/EditMessageModal';
 import EmbedModal from '@components/modals/EmbedModal';
 import ReactionRemovalModal from '@components/modals/ReactionRemovalModal';
+import AddReactionsModal from '@components/modals/AddReactionsModal';
 
 interface MessageActionsProps {
   selectedMessages: Message[];
@@ -32,6 +35,8 @@ interface MessageActionsProps {
     emojis?: string[];
     userId?: string;
   }) => void;
+  onBatchAddReactions?: (params: { messages: Message[]; emojis: SelectableEmoji[] }) => void;
+  guildEmojis?: Emoji[];
   onFetchReactingUsers?: (messageId: string, emoji: string) => Promise<User[]>;
 }
 
@@ -51,12 +56,15 @@ const MessageActions = ({
   fetchDelayMs,
   isDm = false,
   onBatchRemoveReactions,
+  onBatchAddReactions,
+  guildEmojis,
   onFetchReactingUsers,
 }: MessageActionsProps) => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [embedModalOpen, setEmbedModalOpen] = useState(false);
   const [reactionRemovalOpen, setReactionRemovalOpen] = useState(false);
+  const [addReactionsOpen, setAddReactionsOpen] = useState(false);
 
   const selectedCount = selectedMessages.length;
   const singleMessage = selectedCount === 1 ? selectedMessages[0] : null;
@@ -146,6 +154,21 @@ const MessageActions = ({
             </Button>
           )}
 
+          {onBatchAddReactions && (
+            <Button
+              variant="outlined"
+              size="small"
+              color="primary"
+              startIcon={<ReactionAddIcon />}
+              // Adding your own reaction only needs Add Reactions perm, which
+              // Discord enforces per message — no manage-messages gate here.
+              disabled={selectedCount === 0 || isOperationRunning}
+              onClick={() => setAddReactionsOpen(true)}
+            >
+              Add Reactions
+            </Button>
+          )}
+
           {onBatchRemoveReactions && (
             <Button
               variant="outlined"
@@ -197,6 +220,16 @@ const MessageActions = ({
           fetchDelayMs={fetchDelayMs}
           onConfirm={onBatchRemoveReactions}
           onFetchReactingUsers={onFetchReactingUsers}
+        />
+      )}
+
+      {onBatchAddReactions && (
+        <AddReactionsModal
+          open={addReactionsOpen}
+          onClose={() => setAddReactionsOpen(false)}
+          selectedMessages={selectedMessages}
+          guildEmojis={guildEmojis}
+          onConfirm={onBatchAddReactions}
         />
       )}
     </>

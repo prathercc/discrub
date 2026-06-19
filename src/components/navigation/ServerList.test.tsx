@@ -59,7 +59,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: true, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: true, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.queryByText('Loading servers...')).not.toBeInTheDocument();
@@ -73,7 +73,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('No servers found')).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="nonexistent" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText(/No servers matching "nonexistent"/)).toBeInTheDocument();
@@ -95,7 +95,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -107,7 +107,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('Servers')).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       const avatarImg = screen.getAllByRole('img')[0];
@@ -130,7 +130,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="Alpha" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -142,7 +142,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="beta" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('Beta Server')).toBeInTheDocument();
@@ -152,7 +152,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="" />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -164,7 +164,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList filterText="   " />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       expect(screen.getByText('Alpha Server')).toBeInTheDocument();
@@ -181,6 +181,8 @@ describe('ServerList', () => {
       error: null,
       currentMemberRoles: [],
       memberRolesCache: {},
+      guildEmojis: [],
+      guildEmojisCache: {},
     };
 
     it('renders the Multi-select toggle in the header', () => {
@@ -291,7 +293,7 @@ describe('ServerList', () => {
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       fireEvent.click(screen.getByText('Beta Server'));
@@ -303,7 +305,7 @@ describe('ServerList', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-          guild: { guilds, selectedGuild: guilds[1], selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {} },
+          guild: { guilds, selectedGuild: guilds[1], selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
       const betaButton = screen.getByText('Beta Server').closest('[role="button"]');

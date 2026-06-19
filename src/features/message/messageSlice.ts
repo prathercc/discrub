@@ -611,6 +611,145 @@ export const batchRemoveReactions = createAsyncThunk(
   }
 );
 
+type SelectableEmojiInput = {
+  id?: string | null;
+  name?: string | null;
+  animated?: boolean | null;
+};
+
+/**
+ * Bulk-add one or more reactions to many messages at once (Backlog #202).
+ *
+ * Additive mirror of batchRemoveReactions: a paced, pausable, cancellable fan-out of
+ * PUT /channels/{id}/messages/{id}/reactions/{emoji}/@me over every (message × emoji)
+ * pair. addReaction does not throw — it returns { success, status } — so failures are
+ * bucketed by HTTP status (403 = no permission / unusable emoji, 400 = emoji rejected
+ * by Discord, 404 = message gone, else = failed). 429s are retried inside the lib.
+ * Re-adding an existing @me reaction is idempotent (counts as added).
+ */
+export const batchAddReactions = createAsyncThunk(
+  'message/batchAddReactions',
+  async (
+    {
+      channelId,
+      messages,
+      emojis,
+      token,
+    }: {
+      channelId: string;
+      messages: { id: string }[];
+      emojis: SelectableEmojiInput[];
+      token: string;
+    },
+    { dispatch, getState, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as RootState;
+      const deleteDelay = selectDeleteDelay(state);
+      const delayModifier = selectDelayModifier(state);
+      const discordService = getDiscordService();
+
+      const totalMessages = messages.length;
+      const emojiCount = emojis.length;
+
+      if (totalMessages === 0 || emojiCount === 0) {
+        dispatch(addStatusEntry({ level: 'info', message: 'No messages or emojis selected to react to' }));
+        return { successfulAdds: [] as { messageId: string; emojis: SelectableEmojiInput[] }[], added: 0 };
+      }
+
+      let added = 0;
+      let notAllowed = 0;
+      let invalidEmoji = 0;
+      let messageGone = 0;
+      let failed = 0;
+      let processedMessages = 0;
+      const successfulAdds: { messageId: string; emojis: SelectableEmojiInput[] }[] = [];
+
+      const totalCalls = totalMessages * emojiCount;
+      let callIndex = 0;
+      let cancelled = false;
+
+      dispatch(addStatusEntry({
+        level: 'info',
+        message: `Adding ${emojiCount} reaction${emojiCount !== 1 ? 's' : ''} to ${totalMessages} message${totalMessages !== 1 ? 's' : ''}...`,
+      }));
+
+      for (const msg of messages) {
+        if (cancelled) break;
+        const addedForMsg: SelectableEmojiInput[] = [];
+
+        for (const emoji of emojis) {
+          await waitWhilePaused(getState as () => RootState);
+          if (checkCancelled(getState as () => RootState)) {
+            cancelled = true;
+            break;
+          }
+
+          const emojiKey = getEmojiKey(emoji);
+          const response = await discordService.addReaction(token, channelId, msg.id, emojiKey);
+          callIndex++;
+
+          if (response.success) {
+            added++;
+            addedForMsg.push(emoji);
+          } else if (response.status === 403) {
+            notAllowed++;
+          } else if (response.status === 400) {
+            invalidEmoji++;
+          } else if (response.status === 404) {
+            messageGone++;
+          } else {
+            failed++;
+          }
+
+          if (callIndex < totalCalls) {
+            const { delayMs } = calculateRandomDelay(deleteDelay, delayModifier);
+            const wasCancelled = await cancellableDelay(delayMs, getState as () => RootState);
+            if (wasCancelled) {
+              cancelled = true;
+              break;
+            }
+          }
+        }
+
+        if (addedForMsg.length > 0) {
+          successfulAdds.push({ messageId: msg.id, emojis: addedForMsg });
+        }
+        processedMessages++;
+
+        if (processedMessages % 10 === 0 || processedMessages === totalMessages) {
+          dispatch(addStatusEntry({ level: 'info', message: `Added reactions to ${processedMessages} of ${totalMessages} messages` }));
+        }
+      }
+
+      // Plain-language summary — suppress zero buckets (#161 tone).
+      const skips: string[] = [];
+      if (notAllowed > 0) skips.push(`${notAllowed} skipped (no permission to react)`);
+      if (invalidEmoji > 0) skips.push(`${invalidEmoji} skipped (emoji not accepted by Discord)`);
+      if (messageGone > 0) skips.push(`${messageGone} skipped (message no longer exists)`);
+      if (failed > 0) skips.push(`${failed} failed`);
+
+      if (added > 0) {
+        const tail = skips.length ? ` — ${skips.join(', ')}` : '';
+        dispatch(addStatusEntry({
+          level: skips.length ? 'warning' : 'success',
+          message: `Added ${added} reaction${added !== 1 ? 's' : ''}${tail}`,
+        }));
+      } else if (skips.length) {
+        dispatch(addStatusEntry({ level: 'warning', message: `No reactions added — ${skips.join(', ')}` }));
+      } else {
+        dispatch(addStatusEntry({ level: 'info', message: 'No reactions added' }));
+      }
+
+      return { successfulAdds, added };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to add reactions'
+      );
+    }
+  }
+);
+
 /**
  * Delete a single attachment from a message
  * If message has multiple attachments, edits message to remove the attachment.
@@ -2827,6 +2966,60 @@ const messageSlice = createSlice({
                 .filter((r) => r.count > 0),
             };
           });
+        container.messages = update(container.messages);
+        container.filteredMessages = update(container.filteredMessages);
+        container.selectedMessages = update(container.selectedMessages);
+      })
+      // Batch add reactions across multiple messages (Backlog #202)
+      .addCase(batchAddReactions.pending, (state) => {
+        state.isAddingReactions = true;
+      })
+      .addCase(batchAddReactions.rejected, (state) => {
+        state.isAddingReactions = false;
+      })
+      .addCase(batchAddReactions.fulfilled, (state, action) => {
+        state.isAddingReactions = false;
+        const { successfulAdds } = action.payload;
+        if (!successfulAdds.length) return;
+        const byId = new Map(successfulAdds.map((s) => [s.messageId, s.emojis]));
+        const container = getActiveContainer(state);
+        // Optimistically merge the added reactions so the feed reflects them without a refetch.
+        const mergeReactions = (m: Message): Message => {
+          const toAdd = byId.get(m.id);
+          if (!toAdd) return m;
+          let reactions = [...(m.reactions || [])];
+          for (const emoji of toAdd) {
+            const key = getEmojiKey(emoji);
+            const idx = reactions.findIndex((r) => getEmojiKey(r.emoji) === key);
+            if (idx >= 0) {
+              const r = reactions[idx];
+              // Idempotent: only bump count if this @me reaction wasn't already present.
+              if (!r.me) {
+                reactions = reactions.map((rx, i) =>
+                  i === idx ? { ...rx, count: (rx.count || 0) + 1, me: true } : rx
+                );
+              }
+            } else {
+              reactions = [
+                ...reactions,
+                {
+                  count: 1,
+                  count_details: { burst: 0, normal: 1 },
+                  me: true,
+                  me_burst: false,
+                  emoji: {
+                    id: emoji.id ?? undefined,
+                    name: emoji.name ?? undefined,
+                    animated: emoji.animated ?? undefined,
+                  },
+                  burst_colors: [],
+                },
+              ];
+            }
+          }
+          return { ...m, reactions };
+        };
+        const update = (arr: Message[]) => arr.map(mergeReactions);
         container.messages = update(container.messages);
         container.filteredMessages = update(container.filteredMessages);
         container.selectedMessages = update(container.selectedMessages);

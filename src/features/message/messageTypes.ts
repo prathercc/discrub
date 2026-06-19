@@ -74,6 +74,7 @@ export interface MessageState {
   isEditing: boolean;
   isEnriching: boolean;
   isRemovingReactions: boolean;
+  isAddingReactions: boolean;
   error: string | null;
   pagination: PaginationState;
   activeTab: string | null;
@@ -113,6 +114,7 @@ export const initialMessageState: MessageState = {
   isEditing: false,
   isEnriching: false,
   isRemovingReactions: false,
+  isAddingReactions: false,
   error: null,
   pagination: initialPaginationState,
   activeTab: null,

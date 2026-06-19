@@ -25,7 +25,8 @@ import ChannelAvatar from '@components/ui/ChannelAvatar';
 import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 import { selectSelectedChannel, selectChannels, fetchChannelById } from '@features/channel/channelSlice';
 import { selectSelectedDm } from '@features/dm/dmSlice';
-import { selectSelectedGuild, selectRoles, selectCurrentMemberRoles } from '@features/guild/guildSlice';
+import { selectSelectedGuild, selectRoles, selectCurrentMemberRoles, selectGuildEmojis, fetchGuildEmojis } from '@features/guild/guildSlice';
+import type { SelectableEmoji } from '@/utils/emojiDataset';
 import { selectAuthToken } from '@features/auth/authSlice';
 import {
   selectSettings,
@@ -58,6 +59,7 @@ import {
   bulkDeleteAllReactions,
   bulkDeleteReactionsForEmoji,
   batchRemoveReactions,
+  batchAddReactions,
   deleteAttachment,
   deleteAllAttachments,
   fetchAllMessages,
@@ -120,6 +122,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const selectedChannel = useAppSelector(selectSelectedChannel);
   const selectedDm = useAppSelector(selectSelectedDm);
   const selectedGuild = useAppSelector(selectSelectedGuild);
+  const guildEmojis = useAppSelector(selectGuildEmojis);
   const mainMessages = useAppSelector(selectMessages);
   const allMessages = useAppSelector(selectActiveMessages);
   const messages = useAppSelector(selectActiveFilteredMessages);
@@ -395,6 +398,14 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     }
   }, [mainMessages.length, token, settings, selectedGuild?.id, dispatch]);
 
+  // Fetch the guild's custom emojis for the bulk-add-reactions picker (#202).
+  // The thunk caches per guild, so re-dispatch on guild switch is cheap.
+  useEffect(() => {
+    if (selectedGuild?.id && token) {
+      dispatch(fetchGuildEmojis({ guildId: selectedGuild.id, token }));
+    }
+  }, [selectedGuild?.id, token, dispatch]);
+
   // Local refine filter logic moved to `src/features/message/messageFiltering.ts`
   // (`applyRefineCriteria`) so the message slice can re-apply it as new pages
   // arrive. This component dispatches setRefineCriteria/setThreadRefineCriteria;
@@ -633,6 +644,22 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         mode: params.mode,
         emojis: params.emojis,
         userId: params.userId,
+        token,
+      })
+    );
+  };
+
+  const handleBatchAddReactions = (params: { messages: Message[]; emojis: SelectableEmoji[] }) => {
+    if (!token) return;
+    const channelId = activeTab || currentContext?.id;
+    if (!channelId) return;
+
+    // The add thunk only needs message ids; strip to avoid Date serialization warnings.
+    dispatch(
+      batchAddReactions({
+        channelId,
+        messages: params.messages.map((m) => ({ id: m.id })),
+        emojis: params.emojis,
         token,
       })
     );
@@ -1022,6 +1049,8 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           fetchDelayMs={searchDelay}
           isDm={isDm}
           onBatchRemoveReactions={handleBatchRemoveReactions}
+          onBatchAddReactions={handleBatchAddReactions}
+          guildEmojis={guildEmojis}
           onFetchReactingUsers={onFetchReactingUsers}
         />
       )}

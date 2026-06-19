@@ -1,0 +1,4 @@
+[
+  { "id": "900000000000000001", "name": "pepe", "animated": false, "available": true },
+  { "id": "900000000000000002", "name": "catjam", "animated": true, "available": true }
+]

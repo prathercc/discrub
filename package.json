@@ -47,6 +47,8 @@
     "date-fns-tz": "^3.2.0",
     "discrub-core": "^1.0.4",
     "drip-fs": "^1.0.0",
+    "emojibase": "^17.0.0",
+    "emojibase-data": "^17.0.0",
     "fflate": "^0.8.2",
     "file-saver": "^2.0.5",
     "filenamify": "^6.0.0",

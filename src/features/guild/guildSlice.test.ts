@@ -5,6 +5,8 @@ import guildReducer, {
   clearGuilds,
   fetchGuilds,
   fetchRoles,
+  fetchGuildEmojis,
+  selectGuildEmojis,
   selectGuild,
   selectGuilds,
   selectSelectedGuild,
@@ -435,6 +437,85 @@ describe('guildSlice', () => {
       const state = store.getState().guild;
       expect(state.roles).toEqual(newRoles);
       expect(state.roles).not.toContain(mockRoles[0]);
+    });
+  });
+
+  describe('fetchGuildEmojis async thunk (Backlog #202)', () => {
+    const mockEmojis = [
+      { id: 'e1', name: 'pepe', animated: false, available: true },
+      { id: 'e2', name: 'catjam', animated: true, available: true },
+    ];
+
+    it('fetches emojis and stores them on selectedGuild match + caches by id', async () => {
+      const mockDiscordService = {
+        fetchGuildEmojis: vi.fn().mockResolvedValue({ success: true, data: mockEmojis }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      store.dispatch(setSelectedGuild(mockGuilds[0]));
+      await store.dispatch(fetchGuildEmojis({ guildId: 'guild-1', token: 'tok' }));
+
+      const state = store.getState().guild;
+      expect(state.guildEmojis).toEqual(mockEmojis);
+      expect(state.guildEmojisCache['guild-1']).toEqual(mockEmojis);
+      expect(mockDiscordService.fetchGuildEmojis).toHaveBeenCalledWith('guild-1', 'tok');
+      expect(selectGuildEmojis(store.getState())).toEqual(mockEmojis);
+    });
+
+    it('serves cached emojis without a second network call', async () => {
+      const fetchSpy = vi.fn().mockResolvedValue({ success: true, data: mockEmojis });
+      vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchGuildEmojis: fetchSpy } as any);
+
+      store.dispatch(setSelectedGuild(mockGuilds[0]));
+      await store.dispatch(fetchGuildEmojis({ guildId: 'guild-1', token: 'tok' }));
+      await store.dispatch(fetchGuildEmojis({ guildId: 'guild-1', token: 'tok' }));
+
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      expect(store.getState().guild.guildEmojis).toEqual(mockEmojis);
+    });
+
+    it('does not overwrite guildEmojis if the user switched guilds mid-fetch', async () => {
+      const mockDiscordService = {
+        fetchGuildEmojis: vi.fn().mockResolvedValue({ success: true, data: mockEmojis }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      store.dispatch(setSelectedGuild(mockGuilds[1])); // guild-2 is selected
+      await store.dispatch(fetchGuildEmojis({ guildId: 'guild-1', token: 'tok' }));
+
+      const state = store.getState().guild;
+      expect(state.guildEmojis).toEqual([]); // stale result for guild-1 ignored
+      expect(state.guildEmojisCache['guild-1']).toEqual(mockEmojis); // still cached
+    });
+
+    it('reflects cached emojis immediately on setSelectedGuild and clears on switch', async () => {
+      const mockDiscordService = {
+        fetchGuildEmojis: vi.fn().mockResolvedValue({ success: true, data: mockEmojis }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      store.dispatch(setSelectedGuild(mockGuilds[0]));
+      await store.dispatch(fetchGuildEmojis({ guildId: 'guild-1', token: 'tok' }));
+      // Switch away — stale emojis cleared
+      store.dispatch(setSelectedGuild(mockGuilds[1]));
+      expect(store.getState().guild.guildEmojis).toEqual([]);
+      // Switch back — cached emojis restored instantly (no fetch needed)
+      store.dispatch(setSelectedGuild(mockGuilds[0]));
+      expect(store.getState().guild.guildEmojis).toEqual(mockEmojis);
+    });
+
+    it('degrades gracefully on failure: no global error, no emojis', async () => {
+      const mockDiscordService = {
+        fetchGuildEmojis: vi.fn().mockResolvedValue({ success: false, data: null }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      store.dispatch(setSelectedGuild(mockGuilds[0]));
+      await store.dispatch(fetchGuildEmojis({ guildId: 'guild-1', token: 'tok' }));
+
+      const state = store.getState().guild;
+      expect(state.guildEmojis).toEqual([]);
+      expect(state.error).toBeNull();
     });
   });
 

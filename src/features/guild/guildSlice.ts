@@ -1,5 +1,5 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { Guild, Role } from 'discrub-core/types/discord-types';
+import type { Emoji, Guild, Role } from 'discrub-core/types/discord-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { isUserDataStale } from 'discrub-core/discrub-utils';
 import { initialGuildState } from './guildTypes';
@@ -97,18 +97,59 @@ export const fetchCurrentMember = createAsyncThunk(
   }
 );
 
+/**
+ * Fetch the custom emoji set for a guild (for the reaction picker's server-emoji grid).
+ * The guild-list endpoint omits emojis, so they must be fetched per guild. Cached per
+ * guild ID; a fetch failure degrades gracefully (no server emojis) without a global error.
+ */
+export const fetchGuildEmojis = createAsyncThunk(
+  'guild/fetchGuildEmojis',
+  async (
+    { guildId, token }: { guildId: string; token: string },
+    { getState, rejectWithValue }
+  ) => {
+    try {
+      const state = getState() as RootState;
+      const cached = state.guild.guildEmojisCache?.[guildId];
+      if (cached) {
+        return { guildId, emojis: cached, fromCache: true };
+      }
+
+      const discordService = getDiscordService();
+      const response = await discordService.fetchGuildEmojis(guildId, token);
+
+      if (!response.success || !response.data) {
+        return rejectWithValue('Failed to fetch server emojis');
+      }
+
+      return { guildId, emojis: response.data as Emoji[], fromCache: false };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to fetch server emojis'
+      );
+    }
+  }
+);
+
 const guildSlice = createSlice({
   name: 'guild',
   initialState: initialGuildState,
   reducers: {
     setSelectedGuild: (state, action: PayloadAction<Guild | null>) => {
       state.selectedGuild = action.payload;
+      // Reflect any cached emojis for the new guild immediately; clear stale ones
+      // from the previous guild. A fresh fetch repopulates the cache.
+      state.guildEmojis = action.payload
+        ? (state.guildEmojisCache[action.payload.id] ?? [])
+        : [];
     },
     clearGuilds: (state) => {
       state.guilds = [];
       state.selectedGuild = null;
       state.selectedGuilds = [];
       state.roles = [];
+      state.guildEmojis = [];
+      state.guildEmojisCache = {};
       state.currentMemberRoles = [];
     },
     toggleGuildSelection: (state, action: PayloadAction<Guild>) => {
@@ -167,6 +208,17 @@ const guildSlice = createSlice({
       })
       .addCase(fetchCurrentMember.rejected, (state) => {
         state.currentMemberRoles = [];
+      })
+      // Fetch guild emojis (no global loading/error — secondary, degrades gracefully)
+      .addCase(fetchGuildEmojis.fulfilled, (state, action) => {
+        const { guildId, emojis, fromCache } = action.payload;
+        // Guard against a stale resolve after the user switched guilds.
+        if (!state.selectedGuild || state.selectedGuild.id === guildId) {
+          state.guildEmojis = emojis;
+        }
+        if (!fromCache) {
+          state.guildEmojisCache[guildId] = emojis;
+        }
       });
   },
 });
@@ -185,6 +237,7 @@ export const selectGuilds = (state: RootState) => state.guild.guilds;
 export const selectSelectedGuild = (state: RootState) => state.guild.selectedGuild;
 export const selectSelectedGuilds = (state: RootState) => state.guild.selectedGuilds ?? [];
 export const selectRoles = (state: RootState) => state.guild.roles;
+export const selectGuildEmojis = (state: RootState) => state.guild.guildEmojis ?? [];
 export const selectGuildLoading = (state: RootState) => state.guild.isLoading;
 export const selectGuildError = (state: RootState) => state.guild.error;
 export const selectCurrentMemberRoles = (state: RootState) => state.guild.currentMemberRoles ?? [];

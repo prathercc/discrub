@@ -45,6 +45,13 @@ Cypress.Commands.add('interceptDiscordApi', () => {
     body: [],
   }).as('getRoles');
 
+  // Guild emojis endpoint (#202 reaction picker). Default empty; specs that
+  // exercise server emojis override this with a fixture.
+  cy.intercept('GET', `${API}/guilds/*/emojis`, {
+    statusCode: 200,
+    body: [],
+  }).as('getGuildEmojis');
+
   cy.fixture('channels.json').then((channels) => {
     cy.intercept('GET', `${API}/guilds/*/channels`, {
       statusCode: 200,

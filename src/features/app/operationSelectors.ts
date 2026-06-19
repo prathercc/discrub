@@ -117,6 +117,11 @@ export const selectOperationSummary = createSelector(
       return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Removing reactions' : 'Removing reactions...' };
     }
 
+    // Adding reactions (heavy — bulk PUT fan-out, supports pause/cancel; Backlog #202)
+    if (messageState.isAddingReactions) {
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Adding reactions' : 'Adding reactions...' };
+    }
+
     // Loading all messages (heavy — long-running, many API calls)
     const threadTabValues = Object.values(messageState.threadTabs ?? {});
     const threadLoadingAll = threadTabValues.some((tab) => tab.pagination.isLoadingAll);

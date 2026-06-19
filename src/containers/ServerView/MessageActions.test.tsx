@@ -3,6 +3,12 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import MessageActions from './MessageActions';
 import { createMockMessage, createMockEmbed } from '../../test/fixtures';
 
+// Stub the add-reactions modal so this gating test doesn't load the emoji dataset.
+vi.mock('@components/modals/AddReactionsModal', () => ({
+  default: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="add-reactions-modal" /> : null,
+}));
+
 describe('MessageActions', () => {
   const defaultProps = {
     selectedMessages: [] as any[],
@@ -327,6 +333,56 @@ describe('MessageActions', () => {
       });
       // Clean up the pending promise
       await act(async () => { resolveEdit!(); });
+    });
+  });
+
+  describe('Add Reactions button (Backlog #202)', () => {
+    it('is not rendered without an onBatchAddReactions handler', () => {
+      render(<MessageActions {...defaultProps} selectedMessages={[createMockMessage()]} />);
+      expect(screen.queryByRole('button', { name: 'Add Reactions' })).toBeNull();
+    });
+
+    it('is disabled with no selection and enabled with a selection', () => {
+      const onBatchAddReactions = vi.fn();
+      const { rerender } = render(
+        <MessageActions {...defaultProps} onBatchAddReactions={onBatchAddReactions} />
+      );
+      expect(screen.getByRole('button', { name: 'Add Reactions' })).toBeDisabled();
+
+      rerender(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[createMockMessage()]}
+          onBatchAddReactions={onBatchAddReactions}
+        />
+      );
+      expect(screen.getByRole('button', { name: 'Add Reactions' })).toBeEnabled();
+    });
+
+    it('is disabled while another operation is running', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[createMockMessage()]}
+          onBatchAddReactions={vi.fn()}
+          isOperationRunning
+        />
+      );
+      expect(screen.getByRole('button', { name: 'Add Reactions' })).toBeDisabled();
+    });
+
+    it('opens the add-reactions modal on click (no manage-messages gate)', () => {
+      render(
+        <MessageActions
+          {...defaultProps}
+          selectedMessages={[createMockMessage()]}
+          onBatchAddReactions={vi.fn()}
+          canManageMessages={false}
+        />
+      );
+      expect(screen.queryByTestId('add-reactions-modal')).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Add Reactions' }));
+      expect(screen.getByTestId('add-reactions-modal')).toBeInTheDocument();
     });
   });
 });
