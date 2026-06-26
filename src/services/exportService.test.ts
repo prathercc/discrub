@@ -993,6 +993,61 @@ describe('exportService', () => {
       // And an image preview is emitted for the forwarded image.
       expect(html).toContain('src="media/attachments/0_local.png"');
     });
+
+    // #214: a forwarded snapshot's EMBED image (not a direct attachment) must
+    // also resolve to the downloaded local copy. The snapshot embeds run
+    // through the shared renderEmbedAsHtml with mediaMap (exportService.ts:1149),
+    // and mediaMap is keyed by image.url. Without the rewrite, offline exports
+    // of forwarded embedded images show a dead CDN link.
+    it('rewrites a forwarded snapshot embed image to its local media path', () => {
+      const generateHTML = (service as any).generateHTMLPage.bind(service);
+      const messages: Message[] = [{
+        id: 'msg-1',
+        timestamp: '2026-06-15T14:30:00.000Z',
+        content: '',
+        author: { id: 'u1', username: 'testuser', discriminator: '0001' },
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        message_snapshots: [
+          {
+            message: {
+              content: '',
+              attachments: [],
+              embeds: [
+                {
+                  image: {
+                    url: 'https://cdn.discordapp.com/snap-embed.png',
+                    proxy_url: 'https://media.discordapp.net/snap-embed.png',
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      } as any];
+
+      const mediaMaps = {
+        avatarMap: {},
+        mediaMap: { 'https://cdn.discordapp.com/snap-embed.png': 'media/embed-images/0_local.png' },
+        emojiMap: {},
+        roleMap: {},
+      };
+
+      const html = generateHTML(messages, 'test-channel', 1, 1, mediaMaps, 'test_channel', undefined, {
+        artistMode: false,
+        sortOrder: 'descending',
+        previewMedia: true,
+        dateFormat: 'MM/dd/yyyy',
+        timeFormat: 'h:mm aa',
+      });
+
+      // The local path only exists in mediaMap, so its presence proves the
+      // snapshot embed image was resolved against the local copy...
+      expect(html).toContain('media/embed-images/0_local.png');
+      // ...and it lives inside the forwarded-content block.
+      expect(html).toContain('data-message-snapshot="true"');
+    });
   });
 
   describe('system message rendering in HTML export', () => {

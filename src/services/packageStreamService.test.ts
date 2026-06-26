@@ -11,6 +11,18 @@ import {
 import { PackageParseError } from './packageParseService';
 import { storage } from '@/extension/storage';
 import { buildFixturePackage } from '@/test/package-fixtures';
+import * as fflate from 'fflate';
+
+// #210 regression guard: wrap fflate's unzip entry points in pass-through
+// spies (behaviour preserved via `...actual`) so a test can assert the import
+// path decompresses with the SYNCHRONOUS `unzipSync` and never fflate's
+// worker-backed async `unzip` — the latter structured-clones each entry across
+// postMessage and OOMs ("Data cannot be cloned" / "Array buffer allocation
+// failed") on multi-GB packages. See backlog #210/#203/#162.
+vi.mock('fflate', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('fflate')>();
+  return { ...actual, unzipSync: vi.fn(actual.unzipSync), unzip: vi.fn(actual.unzip) };
+});
 
 // jsdom does not implement URL.createObjectURL. Stub it with a counter-keyed
 // fake so tests can assert the streamer produced a blob URL string and that
@@ -42,6 +54,16 @@ describe('streamPackageToStorage', () => {
       expect(parsed.guilds).toEqual([{ id: '100', name: 'Test Guild' }]);
       expect(parsed.channels).toHaveLength(2);
       expect(parsed.totalMessages).toBe(4);
+    });
+
+    it('decompresses with synchronous unzipSync, never the worker-backed async unzip (#210 OOM guard)', async () => {
+      const blob = await buildFixturePackage();
+      await streamPackageToStorage(blob);
+
+      expect(vi.mocked(fflate.unzipSync)).toHaveBeenCalled();
+      // The async API is worker-backed and OOMs on large archives — it must
+      // stay out of the import path so the #210 fix can't silently regress.
+      expect(vi.mocked(fflate.unzip)).not.toHaveBeenCalled();
     });
 
     it('writes pkg:meta:{userId} as the commit marker, last', async () => {
