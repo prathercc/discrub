@@ -745,6 +745,31 @@ describe('BulkPurgeDialog', () => {
       expect(screen.getByRole('button', { name: 'Add filters' })).toBeInTheDocument();
     });
 
+    // #205/#217: a channel where the user holds Manage Messages ONLY via a
+    // member-specific overwrite (type 1) — e.g. a Ticket Tool channel — must
+    // NOT be flagged as blocked. Regression guard for threading currentUserId
+    // through guildPermissionAudit (BulkPurgeDialog.tsx:155). The guild here
+    // lacks MANAGE, so the member grant is the sole source of the permission:
+    // without the currentUserId arg the channel falsely reads as blocked.
+    it('does not lock a channel granted MANAGE via a member overwrite (#205/#217)', () => {
+      const memberGranted: Channel = {
+        id: '105',
+        name: 'ticket-1234',
+        type: ChannelType.GUILD_TEXT,
+        permission_overwrites: [
+          { id: 'guild-123', type: 0, allow: '0', deny: denyManage }, // @everyone deny
+          { id: '999', type: 1, allow: denyManage, deny: '0' },        // member grant to current user (id 999)
+        ],
+      } as unknown as Channel;
+      renderWithProviders(
+        <BulkPurgeDialog open channels={[memberGranted]} onClose={vi.fn()} mode="channels" guildId="guild-123" />,
+        { preloadedState: stateWithUserNoManage },
+      );
+      expect(screen.queryByText(/Manage Messages missing/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/without Manage Messages permission/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Add filters' })).toBeInTheDocument();
+    });
+
     it('hides FilterModal author surface when locked by permission', () => {
       renderWithProviders(
         <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="guild-123" />,

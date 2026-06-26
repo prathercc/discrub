@@ -152,14 +152,14 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       return { blockedChannels: [] as Channel[], allBlocked: false, someBlocked: false };
     }
     const blocked = channels.filter(
-      (ch) => !channelCanManageMessages(guildPermissions, memberRoles, ch, guildId),
+      (ch) => !channelCanManageMessages(guildPermissions, memberRoles, ch, guildId, currentUserId),
     );
     return {
       blockedChannels: blocked,
       allBlocked: channels.length > 0 && blocked.length === channels.length,
       someBlocked: blocked.length > 0,
     };
-  }, [isDmMode, guildId, guildPermissions, memberRoles, channels]);
+  }, [isDmMode, guildId, guildPermissions, memberRoles, channels, currentUserId]);
 
   const { blockedChannels, allBlocked, someBlocked } = guildPermissionAudit;
 
