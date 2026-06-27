@@ -822,6 +822,63 @@ describe('exportService', () => {
         const filenames = mockAddFile.mock.calls.map((c: any[]) => c[1] as string);
         expect(filenames.some((p) => p.endsWith('shell.html'))).toBe(false);
       });
+
+      // #222: an exported thread's page exists, so its shell sidebar entry must
+      // be clickable — not the greyed-out `disabled` state (opacity 0.4,
+      // pointer-events:none). Pre-fix the caller passed exportedChannelIds with
+      // only the main channel, disabling every thread link.
+      it('marks exported threads as clickable (not disabled) in the Discord shell (#222)', async () => {
+        const exportDataMod = await import('discrub-core/export-data-service');
+        vi.mocked(exportDataMod.prepareExportData).mockReturnValueOnce({
+          mainPages: [{ messages: mockMessages, pageNumber: 1, filePath: '' }],
+          threadExports: [
+            {
+              thread: { id: 't-1', name: 'My Thread' },
+              pages: [{ messages: [], pageNumber: 1, filePath: '' }],
+              threadNumber: 1,
+              totalThreads: 1,
+            },
+          ],
+          totalPages: 1,
+        } as any);
+
+        const { StreamingZipService } = await import('./streamingZipService');
+        const mockAddFile = vi.fn().mockResolvedValue(undefined);
+        (StreamingZipService as any).mockImplementation(() => ({
+          addFile: mockAddFile,
+          finalize: vi.fn().mockResolvedValue(undefined),
+          cancel: vi.fn(),
+        }));
+
+        await service.exportToZip(
+          mockMessages,
+          'test-channel',
+          'html',
+          100,
+          false,
+          null,
+          {},
+          null,
+          undefined,
+          undefined,
+          { artistMode: false, sortOrder: 'descending', previewMedia: false, dateFormat: 'yyyy-MM-dd', timeFormat: 'HH:mm:ss', exportTemplate: 'discord' },
+        );
+
+        const shellCall = mockAddFile.mock.calls.find((c: any[]) => String(c[1]).endsWith('shell.html'));
+        expect(shellCall).toBeDefined();
+        // jsdom's Blob lacks .text(); read via FileReader like the other export tests.
+        const shellHtml: string = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsText(shellCall![0] as Blob);
+        });
+
+        // The thread is present in the sidebar...
+        expect(shellHtml).toContain('data-channel-id="my_thread_t-1"');
+        // ...and it is NOT disabled (its page was exported).
+        expect(shellHtml).not.toContain('class="channel-item disabled" data-channel-id="my_thread_t-1"');
+      });
     });
   });
 

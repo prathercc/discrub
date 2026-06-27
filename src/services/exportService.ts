@@ -578,7 +578,11 @@ class ExportService {
           activeChannelId: sanitizedName,
           isDM: !guildId,
           exportDate: format(new Date(), 'MMMM d, yyyy'),
-          exportedChannelIds: [sanitizedName],
+          // #222: every entry in shellChannels has an actually-written page
+          // (the main channel + each exported thread). Marking only the main
+          // channel as "exported" greyed out + disabled the thread sidebar
+          // links even though threads/<name>.html exists. List them all.
+          exportedChannelIds: shellChannels.map((c) => c.id),
         };
 
         // For single-channel: read the first page content and wrap it
