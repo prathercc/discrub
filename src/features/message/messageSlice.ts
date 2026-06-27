@@ -1390,6 +1390,16 @@ export const loadAllSearchResults = createAsyncThunk(
     const seenIds = new Set(aggregated.map((m) => m.id));
     let milestoneBoundary = nextMilestone(aggregated.length);
 
+    // #221: freeze the grand total used for the "X of Y matches loaded
+    // (Z remaining)" header + status-log denominators. The lib iterator
+    // cap-shifts max_id every page (#188/#208), so Discord returns
+    // total_results for the SHRINKING [min_id, max_id] window — it counts
+    // DOWN as we walk newest→oldest. Using each page's total made "loaded"
+    // overtake "total" (e.g. "5250 of 188") and "remaining" go negative.
+    // Anchor to the initial search's full-window total and never let it drop
+    // below what we've actually loaded.
+    let grandTotal = initial.message.pagination.totalCount ?? aggregated.length;
+
     // #208: pagination is delegated to the lib's iterateSearchResults, which
     // walks newest→oldest by tightening searchBeforeDate to the oldest message
     // seen (always-cap-shift, the #188 fix this read path never got). Seed the
@@ -1601,7 +1611,10 @@ export const loadAllSearchResults = createAsyncThunk(
           transientRetries = 0; // a page arrived — reset the retry budget
           if (fresh.length === 0) continue;
 
-          const pageTotal = pageResult.totalResults;
+          // #221: keep the displayed total anchored to the full-window total.
+          // pageResult.totalResults only shrinks under cap-shift, so Math.max
+          // pins it to the initial total.
+          grandTotal = Math.max(grandTotal, pageResult.totalResults);
 
           // Pass 1 reaction enrichment (#163) — per-page so a mid-load cancel
           // preserves messages enriched before the cancel.
@@ -1634,12 +1647,16 @@ export const loadAllSearchResults = createAsyncThunk(
 
           aggregated.push(...page);
 
+          // #221: defensive — never show fewer total than we've loaded, even
+          // if Discord under-reported total_results for the first window.
+          grandTotal = Math.max(grandTotal, aggregated.length);
+
           // #181: append live so the table grows as Load All walks pages.
           // The reducer dedupes + re-sorts under the active order.
           dispatch(
             messageSlice.actions.appendLoadAllPage({
               messages: page,
-              totalCount: pageTotal,
+              totalCount: grandTotal,
               searchOffset: aggregated.length,
             })
           );
@@ -1647,8 +1664,8 @@ export const loadAllSearchResults = createAsyncThunk(
           dispatch(
             updateLoadAllProgress({
               current: aggregated.length,
-              total: pageTotal,
-              message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
+              total: grandTotal,
+              message: `Search: fetched ${aggregated.length} of ${grandTotal} results`,
             })
           );
 
@@ -1656,7 +1673,7 @@ export const loadAllSearchResults = createAsyncThunk(
             dispatch(
               addStatusEntry({
                 level: 'info',
-                message: `Search: fetched ${aggregated.length} of ${pageTotal} results`,
+                message: `Search: fetched ${aggregated.length} of ${grandTotal} results`,
               })
             );
             milestoneBoundary = nextMilestone(aggregated.length);

@@ -842,14 +842,20 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                   const isRefined = visible !== loaded;
 
                   if (pagination.mode === 'search' && total !== null) {
+                    // #221: defensive clamp. The Load All denominator is frozen
+                    // upstream (messageSlice), but never let the header show
+                    // loaded > total or a negative remaining if any path leaves
+                    // totalCount as a shrunk cap-shift window total.
+                    const displayTotal = Math.max(total, loaded);
+                    const remaining = Math.max(0, displayTotal - loaded);
                     if (isRefined) {
                       return pagination.hasMore
-                        ? `${visible} visible · ${loaded} of ${total} matches loaded`
-                        : `${visible} visible · ${total} matches loaded`;
+                        ? `${visible} visible · ${loaded} of ${displayTotal} matches loaded`
+                        : `${visible} visible · ${displayTotal} matches loaded`;
                     }
                     return pagination.hasMore
-                      ? `${loaded} of ${total} matches loaded (${total - loaded} remaining)`
-                      : `${total} match${total !== 1 ? 'es' : ''}`;
+                      ? `${loaded} of ${displayTotal} matches loaded (${remaining} remaining)`
+                      : `${displayTotal} match${displayTotal !== 1 ? 'es' : ''}`;
                   }
 
                   // Paginated (no server search). Channel total is unknown,

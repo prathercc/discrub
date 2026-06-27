@@ -4723,6 +4723,55 @@ describe('messageSlice', () => {
       expect(result.payload.messages).toHaveLength(55);
     });
 
+    it('freezes the live progress total at the initial total as cap-shift windows shrink (#221)', async () => {
+      // 25 already loaded by the initial search, which reported total 100.
+      const initialMsgs = mkPage('init', 25, '2025-12-01T00:00:00.000Z');
+      const page1 = mkPage('a', 25, '2025-09-01T00:00:00.000Z');
+      const page2 = mkPage('b', 25, '2025-06-01T00:00:00.000Z');
+      const page3 = mkPage('c', 25, '2025-03-01T00:00:00.000Z');
+
+      // Capture the live progress denominator the moment before each fetch —
+      // by then the prior page's updateLoadAllProgress has run. (Same
+      // mid-walk snapshot trick the #181 append test uses.)
+      const progress: Array<{ current: number; total: number }> = [];
+      let testStore: any;
+      let call = 0;
+      const fetchMock = vi.fn().mockImplementation(async () => {
+        const p = testStore.getState().message.pagination.loadAllProgress;
+        if (p) progress.push({ current: p.current, total: p.total });
+        call += 1;
+        // total_results counts DOWN as the iterator cap-shifts max_id: the
+        // window [min,max] shrinks (75 → 50 → 25), falling below both the
+        // initial total (100) and what we ultimately load (100).
+        if (call === 1) return { success: true, data: { messages: page1.map((m) => [m]), total_results: 75 } };
+        if (call === 2) return { success: true, data: { messages: page2.map((m) => [m]), total_results: 50 } };
+        if (call === 3) return { success: true, data: { messages: page3.map((m) => [m]), total_results: 25 } };
+        return { success: true, data: { messages: [], total_results: 25 } };
+      });
+      vi.mocked(discordService.getDiscordService).mockReturnValue(
+        makeSearchService({ fetchSearchMessageData: fetchMock }),
+      );
+
+      testStore = await makeStore({ ...baseCriteria }, initialMsgs);
+      const result: any = await testStore.dispatch(
+        loadAllSearchResults({ channelId: 'ch1', token: 'token' }),
+      );
+
+      expect(result.type).toBe('message/loadAllSearchResults/fulfilled');
+      expect(result.payload.messages).toHaveLength(100); // 25 initial + 75 fresh
+
+      // Every live progress reading must keep the total frozen at 100 (never
+      // the shrinking 75/50/25) so "loaded" never overtakes "total" and the
+      // header's "(total - loaded) remaining" can't go negative — the #221 bug.
+      expect(progress.length).toBeGreaterThan(1);
+      for (const p of progress) {
+        expect(p.total).toBe(100);
+        expect(p.total).toBeGreaterThanOrEqual(p.current);
+      }
+      // And the deepest walk point really did pass the shrunk windows:
+      expect(Math.max(...progress.map((p) => p.current))).toBeGreaterThan(25);
+    });
+
     it('cap-shifts searchBeforeDate to the oldest seen each page, narrowing not widening, never touching searchAfterDate (#148)', async () => {
       const userBefore = new Date('2025-12-31T00:00:00.000Z');
       const page1 = mkPage('a', 25, '2025-06-15T00:00:00.000Z');
