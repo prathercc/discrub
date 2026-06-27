@@ -42,7 +42,7 @@ Available as a **web app** (manual token entry) and a **Chrome/Firefox extension
 
 ### Browse Servers, Channels & DMs
 
-Navigate your Discord servers with full channel category support, permission-based visibility (locked channels shown with lock icons), and direct message browsing with display names. Voice and Stage channels are first-class clickable rows since Discord rolled out persistent text chat in voice channels: select one to read its embedded message history just like any text channel.
+Navigate your Discord servers with full channel category support, permission-based visibility (locked channels shown with lock icons; channels you can reach only through a member-specific permission grant, such as ticket channels, are correctly shown as open), and direct message browsing with display names. Voice and Stage channels are first-class clickable rows since Discord rolled out persistent text chat in voice channels: select one to read its embedded message history just like any text channel.
 
 Multi-select mode is available across the Server, Channel, and DM lists, with a styled Copy button for quickly grabbing names or IDs. Server multi-select lays groundwork for future cross-server bulk operations.
 
@@ -51,7 +51,7 @@ Multi-select mode is available across the Server, Channel, and DM lists, with a 
 
 ### Message Feed, Search & Filters
 
-A Discord-style chunked feed with inline message rendering, role-colored author names, role icons, reply indicators, hover-only gutter timestamps, virtualization for smooth scroll on huge channels, and system messages (pins, joins, boosts, thread-created) rendered as compact native-looking notices. Forwarded messages render their full snapshot content (text, attachments, embeds), and system and pinned messages are selectable for bulk actions.
+A Discord-style chunked feed with inline message rendering, role-colored author names, role icons, reply indicators, hover-only gutter timestamps, virtualization for smooth scroll on huge channels, and system messages (pins, joins, boosts, thread-created) rendered as compact native-looking notices. Stickers render as images and polls as vote-bar cards. Forwarded messages render their full snapshot content (text, attachments, embeds), and system and pinned messages are selectable for bulk actions.
 
 **Filters** uses a two-layer model in one modal:
 
@@ -118,13 +118,18 @@ Export messages in five formats with granular control:
 - Custom preset creation and management
 - Per-type media selection (images, videos, audio)
 - Configurable messages per page
-- Thread/forum post separation into individual files, with automatic name-collision dedupe so threads that share a title don't overwrite each other
+- Thread/forum post separation into individual files, with automatic name-collision dedupe so threads that share a title don't overwrite each other (and the Discord Layout sidebar keeps those thread links clickable)
+- Forwarded-message media (attachments and embedded images) is downloaded and rewritten to local copies, so forwarded content shows up offline instead of as blank links
+- Stickers and polls render in HTML exports (sticker images, poll cards)
 - Detailed reaction user data in HTML exports
 - Media breakdown bar showing file counts and sizes
 - Artist mode (organize media by author)
 - Sort order (oldest/newest first)
 - README.html (HTML/CSV/JSON/Media exports) or README.txt (Plain Text exports) bundled with every export explaining how to navigate the files
 - Large HTML exports stream each page as separate chunks so multi-thousand-message channels no longer hit the V8 string-size cap mid-run
+- Oversized exports split into multiple zip parts (`export.zip`, `export-part2.zip`, ...) under a safe size, so a single archive can't corrupt past the 4 GB / 65,535-entry limit
+- Saved presets can remember an optional date range, so a recurring export doesn't need the dates re-entered each time
+- A screen wake lock is held during long exports and purges, so the run doesn't stall when your display sleeps
 
 ![Export Dialog](docs/screenshots/export/export-dialog.png)
 ![Media Settings](docs/screenshots/export/media-settings.png)
@@ -154,6 +159,7 @@ View who reacted to any message, with per-user reaction management:
 - Remove individual reactions (own reactions, or any with Manage Messages permission)
 - Admin bulk removal — remove all reactions or all of a specific emoji in one API call
 - Batch removal across selected messages with Discord-style emoji picker and user selection
+- Batch **addition** across selected messages — pick one or more emoji (server custom emoji plus the full unicode set, or paste an emoji/shortcode) and apply them to every selected message, with a live "messages × emoji" count and paced, cancelable execution that buckets any failures (no permission, rate limited, message gone)
 - `reaction.me` optimization — skips unnecessary API calls for emojis the user hasn't reacted to
 
 ![Reaction Modal](docs/screenshots/reactions/reaction-modal.png)
@@ -161,7 +167,7 @@ View who reacted to any message, with per-user reaction management:
 ### Message Operations
 
 - **Delete** — single or bulk message deletion with confirmation
-- **Edit** — single or bulk message editing
+- **Edit** — single or bulk message editing, including across multiple selected channels or DMs at once (your own messages only), with pause/cancel and per-channel progress
 - **Attachment Management** — delete individual attachments or all from a message
 - **Strip Attachments Only** — keep the message text but remove its attachments (own messages only — Discord API limitation)
 - **Remove Reactions** — batch removal from toolbar with emoji/user selection

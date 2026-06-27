@@ -41,7 +41,9 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Forum Channel Support** — Full support for Discord forum and media channels. Browse active and archived threads, load thread messages, and export them individually.
 - **Voice and Stage Channel Chat** — The persistent text chat embedded in voice and stage channels (rolled out by Discord in 2021) is now browsable, exportable, and purgeable just like any text channel.
 - **Thread Discoverability** — The Load Thread modal auto-discovers active and archived threads in the current channel and renders a clickable list. Threads whose starter message has been deleted are still reachable, no thread ID hunting required.
-- **Bulk Reaction Removal** — Remove reactions across multiple messages at once with emoji picker and user targeting. Admins get one-click bulk removal.
+- **Bulk Reaction Removal & Addition** — Remove reactions across multiple messages at once with emoji picker and user targeting (admins get one-click bulk removal), or **add** one or more emoji to every selected message in a single paced, cancelable run.
+- **Bulk Edit Across Channels** — Overwrite your own messages across multiple selected channels or DMs at once (handy for scrubbing content before a delete), with pause/cancel and per-channel progress.
+- **Rich Stickers & Polls** — Sticker-only and poll-only messages render as their actual sticker image and a poll vote-bar card, in both the feed and HTML exports, instead of showing "(no content)".
 - **Analytics Modal** — View mention frequency, user engagement metrics, and export analytics to CSV.
 - **10 Export Presets** — Quick Text Backup, Full Archive, Data Analysis, Spreadsheet Export, Media Gallery, Lightweight Backup, Chronological Log, Images Only, Thread Archive, Plain Text. Plus custom preset creation.
 - **Donation Wall** — Ko-Fi supporter feed with tier system and leaderboard.
@@ -67,6 +69,10 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Formats | HTML | HTML, Plain Text, CSV, JSON, Media Only |
 | Plain Text Knobs | No | Configurable attachment style, reactions, replies, and bot indicator |
 | Large HTML Exports | Could crash at ~thousands of messages | Streamed in chunks so multi-thousand-message channels finish reliably |
+| Oversized Exports | Single archive, could corrupt past 4 GB | Auto-split into `export.zip`, `export-part2.zip`, ... under a safe size |
+| Forwarded Media | Not exported (blank links offline) | Forwarded attachments and embedded images downloaded and rewritten to local copies |
+| Stickers & Polls | Not rendered | Sticker images and poll cards rendered in HTML exports |
+| Preset Date Range | Re-enter each time | Saved presets can remember an optional date range |
 | Thread Filenames | Last write wins on collision | Auto dedupe (`_<threadId>` suffix) so duplicate-named threads keep separate files |
 | Media Breakdown | None | Per-type counts and sizes with preview |
 | README in Export | No | Yes. Bundled guide explaining file structure |
