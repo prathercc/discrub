@@ -390,6 +390,79 @@ describe('streamingZipService', () => {
     });
   });
 
+  describe('duplicate path handling (#224)', () => {
+    it('returns the requested path when it is unique', async () => {
+      const svc = new StreamingZipService('test-export');
+      const stored = await svc.addFile(new Blob(['a']), 'folder/file.txt');
+      expect(stored).toBe('folder/file.txt');
+    });
+
+    it('renames a duplicate with a -2 suffix before the extension instead of throwing', async () => {
+      const svc = new StreamingZipService('test-export');
+      await svc.addFile(new Blob(['a']), 'folder/file.txt');
+      const stored = await svc.addFile(new Blob(['b']), 'folder/file.txt');
+
+      expect(stored).toBe('folder/file-2.txt');
+      expect(mockWriter.write).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'folder/file-2.txt' })
+      );
+    });
+
+    it('keeps escalating the suffix for further duplicates (-2, -3, …)', async () => {
+      const svc = new StreamingZipService('test-export');
+      await svc.addFile(new Blob(['a']), 'file.txt');
+      await svc.addFile(new Blob(['b']), 'file.txt');
+      const third = await svc.addFile(new Blob(['c']), 'file.txt');
+      expect(third).toBe('file-3.txt');
+    });
+
+    it('skips a suffixed name that is already taken', async () => {
+      const svc = new StreamingZipService('test-export');
+      await svc.addFile(new Blob(['a']), 'file-2.txt');
+      await svc.addFile(new Blob(['b']), 'file.txt');
+      const renamed = await svc.addFile(new Blob(['c']), 'file.txt');
+      expect(renamed).toBe('file-3.txt');
+    });
+
+    it('suffixes extensionless paths at the end', async () => {
+      const svc = new StreamingZipService('test-export');
+      await svc.addFile(new Blob(['a']), 'folder/README');
+      const stored = await svc.addFile(new Blob(['b']), 'folder/README');
+      expect(stored).toBe('folder/README-2');
+    });
+
+    it('does not treat a dot inside a folder name as an extension', async () => {
+      const svc = new StreamingZipService('test-export');
+      await svc.addFile(new Blob(['a']), 'my.folder/name');
+      const stored = await svc.addFile(new Blob(['b']), 'my.folder/name');
+      expect(stored).toBe('my.folder/name-2');
+    });
+
+    it('fires onPathCollision with the requested and final paths', async () => {
+      const onPathCollision = vi.fn();
+      const svc = new StreamingZipService('test-export', { onPathCollision });
+
+      await svc.addFile(new Blob(['a']), 'folder/file.txt');
+      expect(onPathCollision).not.toHaveBeenCalled();
+
+      await svc.addFile(new Blob(['b']), 'folder/file.txt');
+      expect(onPathCollision).toHaveBeenCalledWith({
+        requestedPath: 'folder/file.txt',
+        finalPath: 'folder/file-2.txt',
+      });
+    });
+
+    it('never hands conflux a duplicate entry name', async () => {
+      const svc = new StreamingZipService('test-export');
+      await svc.addFile(new Blob(['a']), 'dup.txt');
+      await svc.addFile(new Blob(['b']), 'dup.txt');
+      await svc.addFile(new Blob(['c']), 'dup.txt');
+
+      const names = mockWriter.write.mock.calls.map((c: any[]) => c[0].name);
+      expect(new Set(names).size).toBe(names.length);
+    });
+  });
+
   describe('multi-part splitting (#207 Arm A)', () => {
     let downloadNames: string[];
 
@@ -470,6 +543,16 @@ describe('streamingZipService', () => {
       await svc.finalize();
       expect(onPartStart).toHaveBeenCalledWith({ partIndex: 1, fileName: 'bulk-export.zip' });
       expect(onPartStart).toHaveBeenCalledWith({ partIndex: 2, fileName: 'bulk-export-part2.zip' });
+    });
+
+    it('tracks used paths across parts so co-extracted parts cannot overwrite (#224)', async () => {
+      const svc = new StreamingZipService('bulk-export', { maxPartBytes: 1000 });
+      const first = await svc.addFile(blobOf(600), 'file.bin');
+      const second = await svc.addFile(blobOf(600), 'file.bin'); // rolls to part 2
+      await svc.finalize();
+      expect(downloadNames).toEqual(['bulk-export.zip', 'bulk-export-part2.zip']);
+      expect(first).toBe('file.bin');
+      expect(second).toBe('file-2.bin');
     });
 
     it('warns via onOversizeFile when a single file exceeds the 32-bit zip limit', async () => {

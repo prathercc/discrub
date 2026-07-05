@@ -1587,4 +1587,73 @@ describe('exportSlice', () => {
       expect(heartbeats).toHaveLength(0);
     });
   });
+
+  describe('zip path collision warning (#224)', () => {
+    // A duplicate in-zip path used to error conflux's whole stream and
+    // abort the export ("Unhandled: File already exists."). The rename
+    // now happens inside StreamingZipService; buildZipOptions wires its
+    // onPathCollision callback to a plain-language warning entry.
+
+    it('passes an onPathCollision handler that logs a warning status entry', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+
+      let capturedZipOptions: any;
+      const mockExportService = {
+        exportToZip: vi.fn().mockImplementation(async (...args: any[]) => {
+          capturedZipOptions = args[args.length - 1];
+        }),
+      };
+      vi.mocked(exportService.getExportService).mockReturnValue(mockExportService as any);
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        exportMessages({
+          messages: createMockMessages(2),
+          channelName: 'test-channel',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+        }) as any,
+      );
+
+      expect(capturedZipOptions?.onPathCollision).toBeTypeOf('function');
+      capturedZipOptions.onPathCollision({
+        requestedPath: 'test-channel/media/attachments/1_2.png',
+        finalPath: 'test-channel/media/attachments/1_2-2.png',
+      });
+
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const warning = entries.find((e) => e.message.includes('1_2-2.png'));
+      expect(warning).toBeDefined();
+      expect(warning?.level).toBe('warning');
+      expect(warning?.message).toContain('kept going');
+    });
+  });
 });

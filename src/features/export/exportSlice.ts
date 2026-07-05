@@ -252,6 +252,12 @@ function buildZipOptions(
         message: `${fileName} is ${gb} GB on its own — too large for one zip file and may not open correctly.`,
       }));
     },
+    onPathCollision: ({ requestedPath, finalPath }) => {
+      dispatch(addStatusEntry({
+        level: 'warning',
+        message: `Two files wanted the name ${requestedPath} — saved the second as ${finalPath} and kept going.`,
+      }));
+    },
   };
 }
 

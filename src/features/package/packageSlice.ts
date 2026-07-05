@@ -737,6 +737,17 @@ export const exportPackageChannel = createAsyncThunk<
       }
     };
 
+    // Surface zip-path renames in the status log (#224) — the rename itself
+    // happens inside StreamingZipService regardless of this wiring.
+    const zipOptions = {
+      onPathCollision: ({ requestedPath, finalPath }: { requestedPath: string; finalPath: string }) => {
+        dispatch(addStatusEntry({
+          level: 'warning',
+          message: `Two files wanted the name ${requestedPath} — saved the second as ${finalPath} and kept going.`,
+        }));
+      },
+    };
+
     try {
       if (format === 'media') {
         await exportService.exportMediaOnly(
@@ -746,6 +757,8 @@ export const exportPackageChannel = createAsyncThunk<
           onProgress,
           exportConfig,
           shouldContinue,
+          undefined,   // externalZipService
+          zipOptions,
         );
       } else {
         await exportService.exportToZip(
@@ -767,6 +780,7 @@ export const exportPackageChannel = createAsyncThunk<
           undefined,                   // reactionMap
           undefined,                   // guildRoles
           state.export?.textOptions,   // #184: thread text-format options (optional — fall back to defaults inside exportToZip when absent)
+          zipOptions,
         );
       }
 

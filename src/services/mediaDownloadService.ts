@@ -22,6 +22,14 @@ export class MediaDownloadService {
   };
 
   /**
+   * Per-instance sequence appended to attachment/embed filenames. Two
+   * attachments on the same message download within the same millisecond,
+   * so `${messageIndex}_${Date.now()}` alone can collide — which used to
+   * kill the whole export at the zip writer (#224).
+   */
+  private mediaFileSeq = 0;
+
+  /**
    * Download a file with a 10-second timeout, returning the blob or null on failure
    */
   private async downloadWithTimeout(url: string): Promise<Blob | null> {
@@ -149,8 +157,9 @@ export class MediaDownloadService {
         if (blob) {
           const ext = this.getFileExtension(blob) || 'webp';
           const filePath = `${entityName}/avatars/${userId}/${avatarHash}.${ext}`;
-          await zipService.addFile(blob, filePath);
-          this.maps.avatarMap[idAndAvatar] = filePath;
+          // Record the path the zip actually stored — addFile renames on
+          // collision (#224), and the map must point at the real entry.
+          this.maps.avatarMap[idAndAvatar] = await zipService.addFile(blob, filePath);
         } else {
           console.warn(`Failed to download avatar: ${cdnUrl}`);
         }
@@ -293,7 +302,7 @@ export class MediaDownloadService {
         }
         if (blob) {
           const ext = this.getFileExtension(blob) || this.getExtensionFromFilename(filename);
-          const sanitizedFilename = filenamify(`${messageIndex}_${Date.now()}.${ext}`, {
+          const sanitizedFilename = filenamify(`${messageIndex}_${Date.now()}_${this.mediaFileSeq++}.${ext}`, {
             replacement: '_',
           });
 
@@ -309,8 +318,13 @@ export class MediaDownloadService {
             relativePath = `media/${typeFolder}/${sanitizedFilename}`;
           }
 
-          await zipService.addFile(blob, filePath);
-          this.maps.mediaMap[url] = relativePath;
+          const storedPath = await zipService.addFile(blob, filePath);
+          // Re-derive the relative path from the stored path in case the
+          // zip renamed a colliding entry (#224); renames only touch the
+          // basename, so stripping the entity prefix stays valid.
+          this.maps.mediaMap[url] = storedPath.startsWith(`${entityName}/`)
+            ? storedPath.slice(entityName.length + 1)
+            : relativePath;
         } else {
           console.warn(
             `[mediaDownloadService] Failed to download ${type}`,
@@ -384,8 +398,7 @@ export class MediaDownloadService {
         if (blob) {
           const ext = this.getFileExtension(blob) || 'webp';
           const filePath = `${entityName}/emojis/${emojiId}.${ext}`;
-          await zipService.addFile(blob, filePath);
-          this.maps.emojiMap[emojiId] = filePath;
+          this.maps.emojiMap[emojiId] = await zipService.addFile(blob, filePath);
         } else {
           console.warn(`Failed to download emoji: ${cdnUrl}`);
         }
@@ -489,8 +502,7 @@ export class MediaDownloadService {
           const ext = this.getFileExtension(blob) || 'webp';
           const fileName = filenamify(`${role.name}_${role.id}.${ext}`, { replacement: '_' });
           const filePath = `${entityName}/roles/${fileName}`;
-          await zipService.addFile(blob, filePath);
-          this.maps.roleMap[cdnUrl] = filePath;
+          this.maps.roleMap[cdnUrl] = await zipService.addFile(blob, filePath);
         } else {
           console.warn(`Failed to download role icon: ${cdnUrl}`);
         }

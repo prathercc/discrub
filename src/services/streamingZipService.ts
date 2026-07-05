@@ -22,6 +22,8 @@ export interface StreamingZipOptions {
   onPartStart?: (info: { partIndex: number; fileName: string }) => void;
   /** Invoked when a single file exceeds the 32-bit limit (cannot be split, will corrupt). */
   onOversizeFile?: (info: { fileName: string; size: number }) => void;
+  /** Invoked when a duplicate path had to be renamed to keep the archive writable (#224). */
+  onPathCollision?: (info: { requestedPath: string; finalPath: string }) => void;
 }
 
 /**
@@ -40,6 +42,16 @@ export class StreamingZipService {
   private readonly maxPartBytes: number; // 0 = no limit
   private readonly onPartStart?: StreamingZipOptions['onPartStart'];
   private readonly onOversizeFile?: StreamingZipOptions['onOversizeFile'];
+  private readonly onPathCollision?: StreamingZipOptions['onPathCollision'];
+
+  /**
+   * Every path ever written across ALL parts. Conflux's Writer errors its
+   * entire stream on a repeated entry name ("File already exists."), which
+   * poisons the part and aborts the download — a duplicate must never reach
+   * it. Tracking across parts also prevents silent overwrites when multiple
+   * part files are extracted into the same directory. (#224)
+   */
+  private readonly usedPaths = new Set<string>();
 
   private partIndex = 0; // 0 until the first part's download opens
   private partBytes = 0;
@@ -50,6 +62,7 @@ export class StreamingZipService {
       options.maxPartBytes && options.maxPartBytes > 0 ? options.maxPartBytes : 0;
     this.onPartStart = options.onPartStart;
     this.onOversizeFile = options.onOversizeFile;
+    this.onPathCollision = options.onPathCollision;
     this.initWriter();
   }
 
@@ -65,17 +78,41 @@ export class StreamingZipService {
     return index <= 1 ? `${this.zipName}.zip` : `${this.zipName}-part${index}.zip`;
   }
 
+  /** Reserve a unique in-archive path, renaming with a `-2`/`-3`… suffix on duplicates. */
+  private allocatePath(filePath: string): string {
+    if (!this.usedPaths.has(filePath)) {
+      this.usedPaths.add(filePath);
+      return filePath;
+    }
+    const slash = filePath.lastIndexOf('/');
+    const dot = filePath.lastIndexOf('.');
+    const hasExt = dot > slash + 1;
+    const stem = hasExt ? filePath.slice(0, dot) : filePath;
+    const ext = hasExt ? filePath.slice(dot) : '';
+    let candidate: string;
+    let n = 2;
+    do {
+      candidate = `${stem}-${n}${ext}`;
+      n += 1;
+    } while (this.usedPaths.has(candidate));
+    this.usedPaths.add(candidate);
+    this.onPathCollision?.({ requestedPath: filePath, finalPath: candidate });
+    return candidate;
+  }
+
   /**
    * Add a file to the archive, rolling to a new part first if this file would
-   * push the current part past the byte or entry limit.
+   * push the current part past the byte or entry limit. Returns the path the
+   * file was actually stored under (renamed if it collided, #224).
    */
-  async addFile(blob: Blob, filePath: string, lastModified?: Date): Promise<void> {
+  async addFile(blob: Blob, filePath: string, lastModified?: Date): Promise<string> {
+    const finalPath = this.allocatePath(filePath);
     const size = blob.size;
 
     if (this.maxPartBytes && size > HARD_ZIP_LIMIT) {
       // A single file larger than 4 GiB can't be split into parts and will
       // exceed conflux's 32-bit fields — warn rather than silently corrupt.
-      this.onOversizeFile?.({ fileName: filePath, size });
+      this.onOversizeFile?.({ fileName: finalPath, size });
     }
 
     // Roll to a new part if the current one is non-empty and this file would
@@ -105,13 +142,14 @@ export class StreamingZipService {
 
     await this.writer!.ready;
     await this.writer!.write({
-      name: filePath,
+      name: finalPath,
       lastModified: lastModified || new Date(),
       stream: () => new Response(blob).body,
     });
 
     this.partBytes += size;
     this.partFiles += 1;
+    return finalPath;
   }
 
   /** Finalize the archive (closing the final part) and complete its download. */

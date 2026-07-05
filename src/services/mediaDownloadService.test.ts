@@ -27,9 +27,9 @@ describe('mediaDownloadService', () => {
     service = new MediaDownloadService();
     vi.clearAllMocks();
 
-    // Mock zip service
+    // Mock zip service — addFile echoes the stored path like the real one (#224)
     mockZipService = {
-      addFile: vi.fn().mockResolvedValue(undefined),
+      addFile: vi.fn().mockImplementation(async (_blob: Blob, filePath: string) => filePath),
     } as any;
 
     // Mock Discord service
@@ -525,6 +525,63 @@ describe('mediaDownloadService', () => {
       expect(mockDiscordService.downloadFile).toHaveBeenCalledWith(
         'https://media.discordapp.net/file2.jpg'
       );
+    });
+
+    it('gives same-message attachments unique zip paths even in the same millisecond (#224)', async () => {
+      const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(1234567890);
+      try {
+        const messages: Message[] = [
+          {
+            ...createMockMessage(),
+            attachments: [
+              { id: 'att-1', url: 'https://cdn.discordapp.com/a.png', filename: 'a.png' },
+              { id: 'att-2', url: 'https://cdn.discordapp.com/b.png', filename: 'b.png' },
+            ],
+          } as any,
+        ];
+
+        mockDiscordService.downloadFile.mockResolvedValue({
+          success: true,
+          data: new Blob(['data'], { type: 'image/png' }),
+        });
+
+        await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+        const attachmentPaths = (mockZipService.addFile as any).mock.calls
+          .map((c: any[]) => c[1])
+          .filter((p: string) => p.includes('/media/'));
+        expect(attachmentPaths).toHaveLength(2);
+        expect(new Set(attachmentPaths).size).toBe(2);
+      } finally {
+        nowSpy.mockRestore();
+      }
+    });
+
+    it('records the path the zip actually stored when a colliding entry was renamed (#224)', async () => {
+      (mockZipService.addFile as any).mockImplementation(async (_blob: Blob, filePath: string) =>
+        filePath.includes('/media/') ? filePath.replace(/(\.[^./]+)$/, '-2$1') : filePath
+      );
+
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          attachments: [
+            { id: 'att-1', url: 'https://cdn.discordapp.com/a.png', filename: 'a.png' },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/png' }),
+      });
+
+      await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+      const { mediaMap } = service.getMaps();
+      const recorded = Object.values(mediaMap);
+      expect(recorded).toHaveLength(1);
+      expect(recorded[0]).toMatch(/^media\/attachments\/.*-2\.png$/);
     });
 
     it('should fall back to url when proxy_url is not available', async () => {
