@@ -37,6 +37,14 @@ docs/visual-audit/
 store/*
 # Description source files are tracked (read by prepare-store-release.js)
 !store/STORE_DESCRIPTION_*.md
+# Integrity checksums are tracked so users can verify downloads (#225)
+!store/SHA256SUMS.txt
+!store/chrome/
+store/chrome/*
+!store/chrome/hashes.json
+!store/firefox/
+store/firefox/*
+!store/firefox/hashes.json
 
 # Storybook build
 storybook-static/

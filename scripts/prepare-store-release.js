@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
+import { hashFile, hashDirectory, formatShaSums } from './checksum-utils.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,6 +99,43 @@ fs.rmSync(firefoxZip);
 console.log('\nPackages moved to:');
 console.log('  store/chrome/discrub-chrome.zip');
 console.log('  store/firefox/discrub-firefox.zip');
+
+// --- Integrity checksums (#225) -------------------------------------------
+// SHA256SUMS.txt covers the exact artifacts uploaded to the stores;
+// hashes.json is the per-file manifest scripts/verify-extension.mjs compares
+// a downloaded (AMO-re-signed) .xpi against with META-INF/ ignored.
+// Both are tracked in git so users can verify without trusting a mirror.
+const appVersion = JSON.parse(fs.readFileSync(path.join(rootDir, 'package.json'), 'utf8')).version;
+const sumEntries = [
+  { hash: hashFile(path.join(CHROME_DIR, 'discrub-chrome.zip')), name: 'chrome/discrub-chrome.zip' },
+  { hash: hashFile(path.join(FIREFOX_DIR, 'discrub-firefox.zip')), name: 'firefox/discrub-firefox.zip' },
+];
+const firefoxSourceZip = path.join(FIREFOX_DIR, 'discrub-firefox-source.zip');
+if (fs.existsSync(firefoxSourceZip)) {
+  sumEntries.push({ hash: hashFile(firefoxSourceZip), name: 'firefox/discrub-firefox-source.zip' });
+}
+fs.writeFileSync(
+  path.join(rootDir, 'store', 'SHA256SUMS.txt'),
+  `# Discrub v${appVersion} — SHA-256 checksums of the store upload artifacts\n` +
+  `# Verify: shasum -a 256 <file>  (Windows: certutil -hashfile <file> SHA256)\n` +
+  formatShaSums(sumEntries),
+);
+
+for (const browser of ['chrome', 'firefox']) {
+  const distDir = path.join(rootDir, `dist-extension-${browser}`);
+  if (!fs.existsSync(distDir)) {
+    console.warn(`  Warning: ${distDir} missing — skipped store/${browser}/hashes.json (run build:extension:${browser} to regenerate)`);
+    continue;
+  }
+  fs.writeFileSync(
+    path.join(rootDir, 'store', browser, 'hashes.json'),
+    JSON.stringify({ name: 'discrub', version: appVersion, algorithm: 'sha256', files: hashDirectory(distDir) }, null, 2) + '\n',
+  );
+}
+console.log('\nIntegrity checksums written (#225):');
+console.log('  store/SHA256SUMS.txt');
+console.log('  store/chrome/hashes.json');
+console.log('  store/firefox/hashes.json');
 
 // Read store descriptions from tracked source files
 function readDescription(filePath, label) {

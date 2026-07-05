@@ -35,6 +35,7 @@ Available as a **web app** (manual token entry) and a **Chrome/Firefox extension
 - [Development](#development)
 - [FAQ](#faq)
 - [Tech Stack](#tech-stack)
+- [Security](#security)
 
 ---
 
@@ -510,6 +511,15 @@ Discrub displays author names in the color of their highest-position role that h
 - **Vitest** for unit testing (3000+ tests)
 - **Cypress** for E2E testing (600+ tests across 34 specs)
 - **Storybook** for component development (35 stories)
+
+---
+
+## Security
+
+Worried your copy was tampered with, or found something to report? See
+[SECURITY.md](SECURITY.md) — it lists the only official store URLs, the extension's
+full permission set, and step-by-step recipes to verify a downloaded package against
+published SHA-256 checksums (`store/SHA256SUMS.txt`, `scripts/verify-extension.mjs`).
 
 ---
 
