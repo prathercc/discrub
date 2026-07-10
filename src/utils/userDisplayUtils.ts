@@ -3,6 +3,28 @@ import type { ExportUserMap, AppSettings } from 'discrub-core/types/discrub-type
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 
 /**
+ * Whether a cached user entry belongs to a DELETED Discord account (#223).
+ *
+ * Discord keeps a placeholder user object for deleted accounts: post-pomelo
+ * the username is `deleted_user_<hash>`; older placeholders carried the
+ * literal "Deleted User" display name. Detection matters because Discord's
+ * `author_id` search returns NOTHING for deleted accounts (owner-reproduced
+ * 2026-07-08) even though the messages still exist — callers route those
+ * targets through client-side history scanning instead.
+ *
+ * Heuristic, not load-bearing: when it misses, purge simply finds 0 via
+ * search and reports honestly, same as before.
+ */
+export function isDeletedUserEntry(
+  entry: ExportUserMap[string] | undefined,
+): boolean {
+  if (!entry) return false;
+  const userName = (entry.userName ?? '').toLowerCase();
+  const displayName = (entry.displayName ?? '').toLowerCase();
+  return userName.startsWith('deleted_user_') || displayName === 'deleted user';
+}
+
+/**
  * Get display name for a user based on priority: nickname > display name > username
  * Respects settings flags for display name and server nickname lookup.
  *

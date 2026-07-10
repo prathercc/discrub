@@ -85,6 +85,7 @@ import FilterModal from '@components/search/FilterModal';
 import { countActiveFilters, countTotalFilters } from 'discrub-core/filtering';
 import ActiveFilterChips from '@components/search/ActiveFilterChips';
 import { defaultCriteria } from '@components/search/searchConstants';
+import { isDeletedUserEntry } from '@utils/userDisplayUtils';
 import ExportDialog from '@containers/ExportView/ExportDialog';
 import BulkExportDialog from '@containers/ExportView/BulkExportDialog';
 import LoadAllDialog from '@components/message/LoadAllDialog';
@@ -1054,6 +1055,27 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           For complete results, use server search or click "Load All" first.
         </Alert>
       )}
+
+      {/* #223: Discord's author search returns nothing for DELETED accounts
+          even though the messages still exist. When an author-filtered
+          search comes back empty and a target is a deleted-account
+          placeholder, explain the situation and teach the path that works. */}
+      {!isForumChannel &&
+        pagination.mode === 'search' &&
+        !isLoading &&
+        messages.length === 0 &&
+        (currentSearchCriteria.userIds ?? []).some((id) =>
+          isDeletedUserEntry(cachedUserMap[id]),
+        ) && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            <AlertTitle>This account was deleted</AlertTitle>
+            Discord's search can't find messages from deleted accounts, even
+            though the messages still exist. To find them: clear the user
+            filter, click "Load All" to load this {contextLabel}'s full
+            history, then use the filter's Refine tab with the user's ID.
+            Purge handles deleted accounts automatically.
+          </Alert>
+        )}
 
       <ThreadTabBar channelName={currentContext?.name || 'Direct Message'} />
 

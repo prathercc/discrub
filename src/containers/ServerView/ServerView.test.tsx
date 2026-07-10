@@ -22,9 +22,13 @@ vi.mock('@/utils/messageLightFormatting', () => ({
   formatMessageContentLight: vi.fn((content: string) => content || '(no content)'),
 }));
 
-vi.mock('@/utils/userDisplayUtils', () => ({
-  getDisplayName: vi.fn(() => 'testuser'),
-}));
+vi.mock('@/utils/userDisplayUtils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/utils/userDisplayUtils')>();
+  return {
+    ...actual,
+    getDisplayName: vi.fn(() => 'testuser'),
+  };
+});
 
 const mockFetchChannel = vi.fn().mockResolvedValue({ success: true, data: createMockChannel({ id: 'thread-1', name: 'loaded-thread' }) });
 
@@ -293,6 +297,47 @@ describe('ServerView', () => {
       await waitFor(() =>
         expect(screen.queryByText('content: hello')).not.toBeInTheDocument(),
       );
+    });
+  });
+
+  // #223: an author-filtered search that returns nothing for a DELETED
+  // account explains itself instead of a bare empty feed.
+  describe('Deleted-account empty-search callout (#223)', () => {
+    it('shows the deleted-account explanation when an author search returns empty', async () => {
+      const preloaded = createBaseState({
+        auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+        guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
+        channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
+      });
+      preloaded.message = {
+        ...preloaded.message,
+        messages: [],
+        filteredMessages: [],
+        pagination: { ...preloaded.message.pagination, mode: 'search' as const },
+      };
+      preloaded.cache = {
+        ...preloaded.cache,
+        userMap: {
+          'deleted-1': {
+            userName: 'deleted_user_a1b2c3d4',
+            displayName: null,
+            avatar: null,
+            guilds: {},
+            timestamp: 1,
+          },
+        },
+      };
+      renderWithProviders(<ServerView />, { preloadedState: preloaded });
+
+      // Select the deleted user in the search-section From picker, then Search.
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+      const pickers = await screen.findAllByPlaceholderText('Type to search or paste a User ID');
+      await userEvent.type(pickers[0], 'deleted');
+      await userEvent.click(await screen.findByText('deleted_user_a1b2c3d4'));
+      await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+
+      expect(await screen.findByText('This account was deleted')).toBeInTheDocument();
+      expect(screen.getByText(/Purge handles deleted accounts automatically/)).toBeInTheDocument();
     });
   });
 

@@ -17,6 +17,7 @@ import userReducer from '@features/user/userSlice';
 import appReducer from '@features/app/appSlice';
 import statusReducer from '@features/status/statusSlice';
 import channelReducer from '@features/channel/channelSlice';
+import cacheReducer from '@features/cache/cacheSlice';
 
 // ─── Mocks ───────────────────────────────────────────────────────────────────
 
@@ -1235,6 +1236,141 @@ describe('purgeSlice thunks', () => {
   // actually got purged. The fix at purgeSlice:582 catches pinned
   // messages client-side using `message.pinned` (a required boolean
   // on every Discord Message object) before any destructive call.
+
+  describe('bulkPurgeChannels — deleted-account scan fallback (#223)', () => {
+    const DELETED_ID = 'deleted-user-1';
+    const DELETED_USER = { id: DELETED_ID, username: 'deleted_user_a1b2c3d4' } as User;
+    const deletedEntry = {
+      userName: 'deleted_user_a1b2c3d4',
+      displayName: null,
+      avatar: null,
+      guilds: {},
+      timestamp: 1,
+    };
+    const liveEntry = {
+      userName: 'livemember',
+      displayName: 'Live Member',
+      avatar: null,
+      guilds: {},
+      timestamp: 1,
+    };
+
+    const storeWithCache = (
+      userMap: Record<
+        string,
+        { userName: string | null; displayName: string | null; avatar: null; guilds: object; timestamp: number }
+      >,
+    ) =>
+      createTestStore(
+        {
+          purge: purgeReducer,
+          auth: authReducer,
+          user: userReducer,
+          app: appReducer,
+          status: statusReducer,
+          channel: channelReducer,
+          cache: cacheReducer,
+        },
+        {
+          auth: { token: TOKEN, isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          user: { currentUser: CURRENT_USER, isLoading: false, error: null },
+          cache: { userMap, failedUserIds: [], isLoaded: true },
+        },
+      );
+
+    it('routes a deleted-account target through the history scan instead of search', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const mDeleted = { ...mockMessage('m1', 0, [], DELETED_USER) } as Message;
+      const mOther = { ...mockMessage('m2') } as Message; // authored by CURRENT_USER
+      setupFetchMessages([[mDeleted, mOther]]);
+
+      const result = await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      // Search endpoint never consulted for a deleted target.
+      expect(mockFetchSearchMessageData).not.toHaveBeenCalled();
+      // Scan found the deleted user's message and only that one was deleted.
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]);
+      expect(deletedIds).toEqual(['m1']);
+    });
+
+    it('announces the scan with a deleted-account warning', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      setupFetchMessages([[{ ...mockMessage('m1', 0, [], DELETED_USER) } as Message]]);
+
+      await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      const entries = cacheStore
+        .getState()
+        .status.entries.map((e: { message: string }) => e.message);
+      expect(entries.some((m: string) => m.includes('account is deleted'))).toBe(true);
+    });
+
+    it('keeps the fast search path for a live cached target', async () => {
+      const cacheStore = storeWithCache({ [CURRENT_USER.id]: liveEntry });
+      setupSearchResults([[mockMessage('m1')]]);
+
+      await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockFetchSearchMessageData).toHaveBeenCalled();
+      expect(mockFetchMessageData).not.toHaveBeenCalled();
+    });
+
+    it('applies filter overrides client-side during the scan (date window early exit)', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const inWindow = {
+        ...mockMessage('m-new', 0, [], DELETED_USER),
+        timestamp: '2026-06-15T12:00:00.000Z',
+      } as Message;
+      const outOfWindow = {
+        ...mockMessage('m-old', 0, [], DELETED_USER),
+        timestamp: '2026-01-01T12:00:00.000Z',
+      } as Message;
+      // One page containing both — the out-of-window tail must stop the walk.
+      setupFetchMessages([[inWindow, outOfWindow]]);
+
+      await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+          searchCriteria: {
+            searchBeforeDate: null,
+            searchAfterDate: new Date('2026-06-01T00:00:00.000Z'),
+            searchMessageContent: '',
+            selectedHasTypes: [],
+            userIds: [],
+            mentionIds: [],
+            channelIds: [],
+            isPinned: IsPinnedType.UNSET,
+          } as unknown as SearchCriteria,
+        }),
+      );
+
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]);
+      expect(deletedIds).toEqual(['m-new']);
+      // Early exit: the walk stopped after the page that crossed the window.
+      expect(mockFetchMessageData).toHaveBeenCalledTimes(1);
+    });
+  });
 
   describe('bulkPurgeChannels — preserve pinned (Backlog #156)', () => {
     const pinnedCriteria = (): SearchCriteria => ({

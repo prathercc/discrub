@@ -21,6 +21,7 @@ import { calculateRandomDelay } from '@utils/delayUtils';
 import { iterateSearchMessagesRedux } from '@utils/searchPagination';
 import { applyRefineCriteria, criteriaIsActive } from '@features/message/messageFiltering';
 import { nextMilestone } from '@utils/searchPagination';
+import { isDeletedUserEntry } from '@utils/userDisplayUtils';
 
 /** Progress throttle — dispatch progress every N messages in messages mode */
 const PROGRESS_THROTTLE_MESSAGES = 10;
@@ -282,6 +283,114 @@ async function* iterateReactionPurgeMessages(
   }
 }
 
+// ─── Deleted-account scan fallback (#223) ────────────────────────────────────
+
+/** Oldest snowflake whose creation time is >= the given date. */
+const snowflakeFromDate = (date: Date): string =>
+  ((BigInt(date.getTime() - 1420070400000) << 22n)).toString();
+
+/**
+ * Yield pages of a channel's history filtered client-side to one author,
+ * shaped like `SearchIterationPage` so `purgeChannelMessages` can consume
+ * either source with the same processing loop.
+ *
+ * Exists because Discord's `author_id` search returns NOTHING for DELETED
+ * accounts (owner-reproduced 2026-07-08) while the messages remain in the
+ * channel and remain deletable. The plain list endpoint has no author
+ * filter at all, so this walks every message (parent channel + each
+ * thread) and filters on `author.id` via `applyRefineCriteria` — the same
+ * merged criteria a search run would have used, so content/date/has-type
+ * narrowing still applies.
+ *
+ * Cost is O(channel history), not O(target's messages) — inherent, and why
+ * this path only runs for detected-deleted targets. A `searchBeforeDate`
+ * seeds the cursor and a `searchAfterDate` stops the walk, so date-windowed
+ * purges skip the history outside the window.
+ */
+async function* iterateDeletedUserScan(
+  channelId: string,
+  threadIds: string[] | undefined,
+  userId: string,
+  filterOverrides: SearchCriteria | null | undefined,
+  token: string,
+  getState: () => RootState,
+  dispatch: (action: any) => void,
+  searchDelay: number,
+  delayModifier: number,
+  channelLabel: string,
+): AsyncGenerator<{ messages: Message[]; totalResults: number; pageIndex: number; aggregatedCount: number }> {
+  const discordService = getDiscordService();
+  const matchCriteria = buildSearchCriteria([userId], filterOverrides);
+  const afterDate = filterOverrides?.searchAfterDate ?? null;
+  const beforeDate = filterOverrides?.searchBeforeDate ?? null;
+
+  let pageIndex = 0;
+  let aggregatedCount = 0;
+  let scannedTotal = 0;
+  let nextScanMilestone = 500;
+
+  const channelsToScan = [channelId, ...(threadIds ?? [])];
+  for (const scanChannelId of channelsToScan) {
+    // Seed the before-cursor inside the date window when one is set —
+    // the list endpoint walks newest→oldest from this point.
+    let lastId: string = beforeDate ? snowflakeFromDate(beforeDate) : '';
+    let hasMore = true;
+
+    while (hasMore) {
+      await waitWhilePaused(getState);
+      if (checkCancelled(getState)) return;
+
+      const response = await discordService.fetchMessageData(token, lastId, scanChannelId);
+      if (!response.success || !response.data) break;
+
+      let messages = response.data;
+      hasMore = messages.length >= 100;
+      if (messages.length === 0) break;
+      lastId = messages[messages.length - 1].id;
+      scannedTotal += messages.length;
+
+      // Early exit: once the page reaches past the window's start, drop
+      // the out-of-window tail and stop walking this channel.
+      if (afterDate) {
+        const oldest = messages[messages.length - 1];
+        const inWindow = messages.filter(
+          (m) => !m.timestamp || new Date(m.timestamp) >= afterDate,
+        );
+        if (inWindow.length < messages.length ||
+            (oldest.timestamp && new Date(oldest.timestamp) < afterDate)) {
+          hasMore = false;
+        }
+        messages = inWindow;
+      }
+
+      const matched = applyRefineCriteria(messages, matchCriteria);
+      if (matched.length > 0) {
+        aggregatedCount += matched.length;
+        yield { messages: matched, totalResults: 0, pageIndex: pageIndex++, aggregatedCount };
+      }
+
+      if (scannedTotal >= nextScanMilestone) {
+        nextScanMilestone += 500;
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `Scanned ${scannedTotal.toLocaleString()} messages in ${channelLabel} — ${aggregatedCount.toLocaleString()} from this user so far`,
+        }));
+      }
+
+      if (hasMore) {
+        const { delayMs } = calculateRandomDelay(searchDelay, delayModifier);
+        const wasCancelled = await cancellableDelay(delayMs, getState);
+        if (wasCancelled) return;
+      }
+    }
+  }
+
+  dispatch(addStatusEntry({
+    level: 'info',
+    message: `Scan of ${channelLabel} complete: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user`,
+  }));
+}
+
 // ─── Thread Discovery ─────────────────────────────────────────────────────────
 
 /**
@@ -525,21 +634,51 @@ async function purgeChannelMessages(
         : threadIds;
     }
 
-    dispatch(addStatusEntry({
-      level: 'info',
-      message: `Searching ${label} for matching messages…`,
-    }));
+    // #223: Discord's author_id search returns nothing for DELETED accounts
+    // even though their messages remain (and remain deletable). When the
+    // target's cached user object is a deleted-account placeholder, swap the
+    // search iterator for a full history scan filtered client-side. Slow but
+    // works beats fast but returns nothing; current members keep the fast
+    // search path untouched.
+    const targetIsDeleted = isDeletedUserEntry(getState().cache?.userMap?.[userId]);
+
+    if (targetIsDeleted) {
+      dispatch(addStatusEntry({
+        level: 'warning',
+        message: `This user's account is deleted, so Discord's search can't find their messages — scanning the full history of ${label} instead (this takes longer)…`,
+      }));
+    } else {
+      dispatch(addStatusEntry({
+        level: 'info',
+        message: `Searching ${label} for matching messages…`,
+      }));
+    }
 
     let totalForThisUser = 0;
     let announcedTotal = false;
 
-    for await (const page of iterateSearchMessagesRedux({
-      token,
-      channelId,
-      guildId,
-      criteria: searchCriteria,
-      getState,
-    })) {
+    const pageSource = targetIsDeleted
+      ? iterateDeletedUserScan(
+          channelId,
+          threadIds,
+          userId,
+          filterOverrides,
+          token,
+          getState,
+          dispatch,
+          selectSearchDelay(getState()),
+          delayModifier,
+          label,
+        )
+      : iterateSearchMessagesRedux({
+          token,
+          channelId,
+          guildId,
+          criteria: searchCriteria,
+          getState,
+        });
+
+    for await (const page of pageSource) {
       await waitWhilePaused(getState);
       if (checkCancelled(getState)) throw new CancelledError(partialMessages());
 

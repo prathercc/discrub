@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { User } from 'discrub-core/types/discord-types';
 import type { ExportUserMap, AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
-import { getDisplayName } from './userDisplayUtils';
+import { getDisplayName, isDeletedUserEntry } from './userDisplayUtils';
 
 describe('userDisplayUtils', () => {
   const mockUser: User = {
@@ -123,5 +123,40 @@ describe('userDisplayUtils', () => {
       const result = getDisplayName(userWithoutGlobalName, {}, null, mockSettings);
       expect(result).toBe('testuser');
     });
+  });
+});
+
+describe('isDeletedUserEntry (#223)', () => {
+  const entry = (userName: string | null, displayName: string | null = null): ExportUserMap[string] => ({
+    userName,
+    displayName,
+    avatar: null,
+    guilds: {},
+    timestamp: 1,
+  });
+
+  it('detects a post-pomelo deleted-account placeholder username', () => {
+    expect(isDeletedUserEntry(entry('deleted_user_a1b2c3d4'))).toBe(true);
+  });
+
+  it('detects the legacy "Deleted User" display name', () => {
+    expect(isDeletedUserEntry(entry(null, 'Deleted User'))).toBe(true);
+  });
+
+  it('is case-insensitive', () => {
+    expect(isDeletedUserEntry(entry('Deleted_User_ABC123'))).toBe(true);
+  });
+
+  it('does not flag ordinary users', () => {
+    expect(isDeletedUserEntry(entry('livemember', 'Live Member'))).toBe(false);
+  });
+
+  it('does not flag users whose name merely contains "deleted"', () => {
+    expect(isDeletedUserEntry(entry('not_deleted_user'))).toBe(false);
+    expect(isDeletedUserEntry(entry('deleteduser'))).toBe(false);
+  });
+
+  it('returns false for a missing cache entry', () => {
+    expect(isDeletedUserEntry(undefined)).toBe(false);
   });
 });
