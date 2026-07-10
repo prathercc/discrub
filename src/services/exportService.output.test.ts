@@ -550,10 +550,19 @@ describe('HTML Export', () => {
 
     it('renders a bare image embed as the media alone, without card chrome', () => {
       const html = renderPage([bareImageMessage]);
-      expect(html).toContain('class="embed-image"');
+      expect(html).toContain('class="embed-image bare-embed-image"');
       expect(html).toContain('src="https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp"');
       // No embed card for this message's embeds block.
       expect(html).not.toContain('class="embed" style');
+    });
+
+    it('carries natural dimensions so the export stylesheet cannot upscale it', () => {
+      // The card class alone gets width:100%/max-width:400px, which blew a
+      // 128px emote up to a blurry 400px; the bare class + attributes pin
+      // it at natural size.
+      const html = renderPage([bareImageMessage]);
+      expect(html).toContain('width="128" height="128"');
+      expect(html).toContain('.bare-embed-image');
     });
 
     it('hides the raw URL text when the content is exactly the bare embed URL', () => {

@@ -1881,6 +1881,15 @@ class ExportService {
       display: block;
     }
 
+    /* Bare image/GIF unfurls (#219) render at natural size like Discord;
+       the width attributes from the renderer carry the (capped) natural
+       dimensions, so width:100% here would upscale small emotes. */
+    .bare-embed-image {
+      width: auto;
+      max-width: min(100%, 400px);
+      margin-top: 4px;
+    }
+
     .embed-video {
       max-width: 400px;
       width: 100%;
