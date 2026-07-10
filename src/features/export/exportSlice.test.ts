@@ -68,6 +68,11 @@ vi.mock('@services/streamingZipService', () => ({
   },
 }));
 
+vi.mock('@services/exportDiscordShell', () => ({
+  generateDiscordShellBulk: vi.fn(() => '<html></html>'),
+  generateDiscordShellSingle: vi.fn(() => '<html></html>'),
+}));
+
 vi.mock('@services/discordService', () => ({
   getDiscordService: vi.fn(() => ({
     fetchMessageData: vi.fn(),
@@ -1654,6 +1659,137 @@ describe('exportSlice', () => {
       expect(warning).toBeDefined();
       expect(warning?.level).toBe('warning');
       expect(warning?.message).toContain('kept going');
+    });
+  });
+
+  describe('bulk export shell channel categories', () => {
+    // The shell generator has grouped-by-category rendering, but the bulk
+    // thunk never populated `category`, so exported shell.html always showed
+    // one flat channel list. The thunk now derives categories from the
+    // channel slice (type-4 parents), ordering categories by position and
+    // channels by position within each, uncategorized first.
+
+    async function dispatchBulkShellExport(channelSliceChannels: any[], exportChannels: any[]) {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const channelReducer = (await import('@features/channel/channelSlice')).default;
+      const guildReducer = (await import('@features/guild/guildSlice')).default;
+      const { getDiscordService } = await import('@services/discordService');
+
+      // One short page per channel terminates the unfiltered history walk.
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchMessageData: vi.fn().mockResolvedValue({
+          success: true,
+          data: [{
+            id: 'm-1',
+            channel_id: 'ch',
+            timestamp: '2026-01-01T00:00:00.000Z',
+            author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+            content: 'hi',
+            mentions: [],
+            attachments: [],
+            embeds: [],
+            pinned: false,
+            type: 0,
+            mention_everyone: false,
+            edited_timestamp: null,
+            tts: false,
+          }],
+        }),
+      } as any);
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+          channel: channelReducer,
+          guild: guildReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+          channel: { channels: channelSliceChannels },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: exportChannels,
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          exportConfig: { exportTemplate: 'discord' } as any,
+        }) as any,
+      );
+
+      const { generateDiscordShellBulk } = await import('@services/exportDiscordShell');
+      return vi.mocked(generateDiscordShellBulk).mock.calls;
+    }
+
+    it('groups shell sidebar channels under categories in Discord order', async () => {
+      const calls = await dispatchBulkShellExport(
+        [
+          // Positions deliberately invert the alphabetical/dispatch order.
+          { id: 'cat-a', name: 'Alpha', type: 4, position: 1 },
+          { id: 'cat-b', name: 'Beta', type: 4, position: 0 },
+        ],
+        [
+          { id: 'ch-a1', name: 'alpha-chat', parent_id: 'cat-a', position: 3 } as any,
+          { id: 'ch-general', name: 'general' } as any,
+          { id: 'ch-b2', name: 'beta-late', parent_id: 'cat-b', position: 9 } as any,
+          { id: 'ch-b1', name: 'beta-chat', parent_id: 'cat-b', position: 2 } as any,
+        ],
+      );
+
+      expect(calls.length).toBe(1);
+      const options = calls[0][0];
+      // Uncategorized first, then Beta (position 0) with its channels in
+      // position order, then Alpha (position 1).
+      expect(options.channels.map((c: any) => c.id)).toEqual([
+        'ch-general', 'ch-b1', 'ch-b2', 'ch-a1',
+      ]);
+      expect(options.channels.map((c: any) => c.category)).toEqual([
+        undefined, 'Beta', 'Beta', 'Alpha',
+      ]);
+      // The initially loaded channel matches the top of the sidebar.
+      expect(options.activeChannelId).toBe('ch-general');
+      expect(options.exportedChannelIds).toEqual(['ch-general', 'ch-b1', 'ch-b2', 'ch-a1']);
+    });
+
+    it('falls back to a flat list when the channel slice has no categories', async () => {
+      const calls = await dispatchBulkShellExport(
+        [],
+        [
+          { id: 'ch-2', name: 'two', parent_id: 'cat-missing', position: 5 } as any,
+          { id: 'ch-1', name: 'one', position: 1 } as any,
+        ],
+      );
+
+      expect(calls.length).toBe(1);
+      const options = calls[0][0];
+      // No category data: nothing gains a category label; order follows
+      // channel position with no category tiers.
+      expect(options.channels.every((c: any) => c.category === undefined)).toBe(true);
+      expect(options.channels.map((c: any) => c.id)).toEqual(['ch-1', 'ch-2']);
     });
   });
 });

@@ -19,7 +19,7 @@ import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
 import { addRecentExport } from '@features/history/historySlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
-import { IsPinnedType } from 'discrub-core/discord-enum';
+import { IsPinnedType, ChannelType } from 'discrub-core/discord-enum';
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError } from '@/utils/operationLoopUtils';
 import { iterateSearchMessagesRedux, nextMilestone } from '@/utils/searchPagination';
@@ -793,7 +793,7 @@ export const bulkExportChannels = createAsyncThunk<
     } catch { /* guild slice may not be available in tests */ }
 
     const zipService = new StreamingZipService('bulk-export', buildZipOptions(getState, dispatch));
-    const exportedChannels: { id: string; name: string; filename: string }[] = [];
+    const exportedChannels: { id: string; name: string; filename: string; category?: string }[] = [];
 
     // Pre-compute unique folder names to prevent collisions
     const folderNames = buildUniqueFolderNames(
@@ -925,14 +925,43 @@ export const bulkExportChannels = createAsyncThunk<
         const { format: formatDate } = await import('date-fns');
         const { selectSelectedGuild } = await import('@features/guild/guildSlice');
         const selectedGuild = selectSelectedGuild(getState());
+
+        // Group the shell sidebar under Discord categories, mirroring the
+        // live channel list: categories ordered by position, channels by
+        // position within each, uncategorized entries first. Falls back to
+        // the flat list when no category data is in the channel slice.
+        let sidebarChannels = exportedChannels;
+        try {
+          const { selectChannels } = await import('@features/channel/channelSlice');
+          const allChannels = selectChannels(getState()) || [];
+          const categoryById = new Map(
+            allChannels
+              .filter((ch) => ch.type === ChannelType.GUILD_CATEGORY)
+              .map((ch) => [ch.id, { name: ch.name || 'Unknown Category', position: ch.position ?? 0 }]),
+          );
+          const sourceById = new Map(channels.map((ch) => [ch.id, ch]));
+          const decorated = exportedChannels.map((entry) => {
+            const source = sourceById.get(entry.id);
+            const parent = source ? categoryById.get((source as any).parent_id) : undefined;
+            return {
+              entry: parent ? { ...entry, category: parent.name } : entry,
+              categoryPosition: parent ? parent.position : -1,
+              channelPosition: source?.position ?? 0,
+            };
+          });
+          decorated.sort((a, b) =>
+            a.categoryPosition - b.categoryPosition || a.channelPosition - b.channelPosition);
+          sidebarChannels = decorated.map((d) => d.entry);
+        } catch { /* channel slice may not be available in tests */ }
+
         const shellHtml = generateDiscordShellBulk({
           serverName: selectedGuild?.name || 'Server',
           serverIcon: selectedGuild?.icon && guildId ? `https://cdn.discordapp.com/icons/${guildId}/${selectedGuild.icon}.png` : undefined,
-          channels: exportedChannels,
-          activeChannelId: exportedChannels[0].id,
+          channels: sidebarChannels,
+          activeChannelId: sidebarChannels[0].id,
           isDM: false,
           exportDate: formatDate(new Date(), 'MMMM d, yyyy'),
-          exportedChannelIds: exportedChannels.map((c) => c.id),
+          exportedChannelIds: sidebarChannels.map((c) => c.id),
         });
         const shellBlob = new Blob([shellHtml], { type: 'text/html' });
         await zipService.addFile(shellBlob, 'shell.html');
