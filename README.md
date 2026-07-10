@@ -4,6 +4,11 @@ A powerful Discord data management tool for exporting, searching, and managing y
 
 Available as a **web app** (manual token entry) and a **Chrome/Firefox extension** (auto-authentication on Discord).
 
+**Official extension listings** (fake replicas exist on extension stores; these two URLs are the only genuine distributions, also listed in [SECURITY.md](SECURITY.md)):
+
+- Chrome Web Store: <https://chromewebstore.google.com/detail/plhdclenpaecffbcefjmpkkbdpkmhhbj>
+- Firefox Add-ons: <https://addons.mozilla.org/firefox/addon/discrub/>
+
 ![Message Table](docs/screenshots/messages/message-table.png)
 
 ---
@@ -298,7 +303,7 @@ Both versions use the same codebase and make identical API calls from your brows
 
 ### Extension (Chrome)
 
-1. Install from the Chrome Web Store (or [load manually](#still-prefer-discrub-classic))
+1. Install from the [official Chrome Web Store listing](https://chromewebstore.google.com/detail/plhdclenpaecffbcefjmpkkbdpkmhhbj) (or [load manually](#still-prefer-discrub-classic))
 2. Navigate to [discord.com](https://discord.com)
 3. Click the Discrub icon on the page — a launcher splash screen appears
 4. Choose **Discrub 2.0** (modern interface) or **Discrub Classic** (original interface)
@@ -306,7 +311,7 @@ Both versions use the same codebase and make identical API calls from your brows
 
 ### Extension (Firefox)
 
-1. Install from Firefox Add-ons (or [load manually](#still-prefer-discrub-classic))
+1. Install from the [official Firefox Add-ons listing](https://addons.mozilla.org/firefox/addon/discrub/) (or [load manually](#still-prefer-discrub-classic))
 2. Navigate to [discord.com](https://discord.com)
 3. Same launcher and auto-authentication as Chrome
 
