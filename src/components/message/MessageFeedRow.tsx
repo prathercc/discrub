@@ -22,6 +22,7 @@ import { navigateToMessage } from '@features/message/messageSlice';
 import {
   InlineAttachments,
   InlineEmbeds,
+  isBareMediaEmbed,
   InlineReactions,
   InlineSticker,
   InlinePoll,
@@ -128,6 +129,17 @@ const MessageFeedRow = memo(function MessageFeedRow({
     () => (rawContent ? formatContentAsHtml(rawContent, formattingContext) : ''),
     [rawContent, formattingContext],
   );
+
+  // #219: a bare image/GIF URL that Discord unfurled into its embed is not
+  // shown as text by Discord's client — the media IS the message. Hide the
+  // duplicate blue link when the entire content is exactly the single
+  // embed's source URL. Any additional text (or multiple embeds) keeps the
+  // content visible.
+  const contentIsBareEmbedUrl = useMemo(() => {
+    if (!rawContent || message.embeds?.length !== 1) return false;
+    const embed = message.embeds[0];
+    return isBareMediaEmbed(embed) && embed.url === rawContent.trim();
+  }, [rawContent, message.embeds]);
 
   const overflowing = useMemo(() => shouldCollapseContent(rawContent), [rawContent]);
 
@@ -400,7 +412,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
           )}
 
         {/* Content body */}
-        {contentHtml ? (
+        {contentHtml && !contentIsBareEmbedUrl ? (
           <Box sx={{ position: 'relative' }}>
             <Box
               onClick={handleContentClick}
@@ -526,6 +538,12 @@ const MessageFeedRow = memo(function MessageFeedRow({
                       </Typography>
                     ))}
                   </Box>
+                )}
+                {/* #219 sweep: HTML exports render forwarded embeds (#214);
+                    the feed's forward box previously dropped them, so a
+                    forwarded GIF or image link showed nothing visual. */}
+                {Array.isArray(snapshot.embeds) && snapshot.embeds.length > 0 && (
+                  <InlineEmbeds embeds={snapshot.embeds} formattingContext={formattingContext} />
                 )}
               </Box>
             );

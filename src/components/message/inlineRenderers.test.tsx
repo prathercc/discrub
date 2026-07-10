@@ -70,13 +70,106 @@ describe('InlineEmbeds media reservation (#190)', () => {
     expect(reserveSpy).toHaveBeenCalledWith(expect.objectContaining({ width: 1000, height: 500 }), 300);
   });
 
-  it('reserves the box for a standalone embed thumbnail with the 240 height cap', () => {
+  it('renders a card embed thumbnail as the fixed 64px corner thumb (#219 sweep)', () => {
     const embed = {
       type: 'link',
+      title: 'Some page',
       thumbnail: { url: 'https://example.com/t.png', width: 200, height: 200 },
     } as unknown as Embed;
-    render(<InlineEmbeds embeds={[embed]} />);
-    expect(reserveSpy).toHaveBeenCalledWith(expect.objectContaining({ width: 200, height: 200 }), 240);
+    const { container } = render(<InlineEmbeds embeds={[embed]} />);
+    // Corner thumbs are fixed-size; no layout reservation call for them.
+    expect(reserveSpy).not.toHaveBeenCalled();
+    const img = container.querySelector('img');
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute('src', 'https://example.com/t.png');
+  });
+});
+
+describe('InlineEmbeds bare media embeds (#219)', () => {
+  // Shapes taken from the live capture (tooling/captures/219-embeds.json).
+  const bareImageEmbed = {
+    type: 'image',
+    url: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+    thumbnail: {
+      url: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+      proxy_url: 'https://images-ext-1.discordapp.net/external/x/https/cdn.7tv.app/emote/4x.webp',
+      width: 128,
+      height: 128,
+      content_type: 'image/webp',
+    },
+  } as unknown as Embed;
+
+  const gifvEmbed = {
+    type: 'gifv',
+    url: 'https://tenor.com/view/tackle-mascot-gif-10629045',
+    title: 'Tackle Mascot GIF - Tackle Mascot - Discover & Share GIFs',
+    provider: { name: 'Tenor', url: 'https://tenor.co' },
+    thumbnail: {
+      url: 'https://media1.tenor.com/m/x/tackle-mascot.gif',
+      width: 444,
+      height: 250,
+    },
+    video: {
+      url: 'https://media.tenor.com/x/tackle-mascot.mp4',
+      proxy_url: 'https://images-ext-1.discordapp.net/external/x/tackle-mascot.mp4',
+      width: 444,
+      height: 250,
+    },
+  } as unknown as Embed;
+
+  it('renders a bare image embed as primary inline media, no card chrome', () => {
+    const { container } = render(<InlineEmbeds embeds={[bareImageEmbed]} />);
+    const img = container.querySelector('img');
+    expect(img).toBeInTheDocument();
+    expect(img).toHaveAttribute('src', bareImageEmbed.thumbnail!.proxy_url);
+    // Same size treatment as inline attachments (300 height / 400 width cap).
+    expect(reserveSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ width: 128, height: 128 }),
+      300,
+      400,
+    );
+    // No embed card: no MUI Card, no color stripe wrapper.
+    expect(container.querySelector('.MuiCard-root')).not.toBeInTheDocument();
+  });
+
+  it('links the bare image to its source URL', () => {
+    const { container } = render(<InlineEmbeds embeds={[bareImageEmbed]} />);
+    const link = container.querySelector('a');
+    expect(link).toHaveAttribute('href', bareImageEmbed.url);
+  });
+
+  it('renders a gifv embed as a muted looping video, ignoring its provider title', () => {
+    const { container } = render(<InlineEmbeds embeds={[gifvEmbed]} />);
+    const video = container.querySelector('video');
+    expect(video).toBeInTheDocument();
+    expect(video).toHaveAttribute('loop');
+    expect(video).toHaveProperty('muted', true);
+    expect(video).toHaveAttribute('autoplay');
+    expect(video).toHaveAttribute('playsinline');
+    expect(video).toHaveAttribute('src', gifvEmbed.video!.proxy_url);
+    // Tenor's card-ish title/provider must NOT produce a card.
+    expect(container.querySelector('.MuiCard-root')).not.toBeInTheDocument();
+    expect(container.textContent).not.toContain('Tackle Mascot GIF');
+  });
+
+  it('falls back to the thumbnail (an actual .gif) when the gifv video is not directly playable', () => {
+    const embed = {
+      ...gifvEmbed,
+      video: { url: 'https://tenor.com/embed/player/10629045', width: 444, height: 250 },
+    } as unknown as Embed;
+    const { container } = render(<InlineEmbeds embeds={[embed]} />);
+    expect(container.querySelector('video')).not.toBeInTheDocument();
+    expect(container.querySelector('img')).toHaveAttribute('src', gifvEmbed.thumbnail!.url);
+  });
+
+  it('keeps the card for an image-typed embed that carries real card content', () => {
+    const embed = {
+      ...bareImageEmbed,
+      title: 'A bot made this',
+      description: 'with actual card content',
+    } as unknown as Embed;
+    const { container } = render(<InlineEmbeds embeds={[embed]} />);
+    expect(container.querySelector('.MuiCard-root')).toBeInTheDocument();
   });
 });
 

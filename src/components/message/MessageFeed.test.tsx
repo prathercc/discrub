@@ -366,6 +366,39 @@ describe('<MessageFeed />', () => {
     expect(screen.queryByText(/\(no content\)/)).not.toBeInTheDocument();
   });
 
+  // #219 sweep: forwarded snapshots can carry embeds (a forwarded GIF or
+  // image link); the export renders them (#214) and the feed must too.
+  it('renders embeds inside a forwarded snapshot (#219)', () => {
+    const messages = [
+      createMockMessage({
+        id: 'm1',
+        content: '',
+        attachments: [],
+        embeds: [],
+        message_snapshots: [
+          {
+            message: {
+              content: '',
+              attachments: [],
+              embeds: [
+                {
+                  type: 'image',
+                  url: 'https://cdn.7tv.app/emote/x/4x.webp',
+                  thumbnail: { url: 'https://cdn.7tv.app/emote/x/4x.webp', width: 128, height: 128 },
+                },
+              ],
+            },
+          },
+        ],
+      } as any),
+    ];
+    renderWithProviders(<MessageFeed {...baseProps} />, {
+      preloadedState: stateWithMessages(messages),
+    });
+
+    expect(document.querySelector('img[src*="7tv.app"]')).toBeInTheDocument();
+  });
+
   it('select-all checkbox is indeterminate when some messages are selected', () => {
     const messages = [
       createMockMessage({ id: 'm1', content: 'a' }),
@@ -404,6 +437,61 @@ describe('<MessageFeed />', () => {
   });
 
   // ── #191: every thread starter in a chunk gets its own link ──────
+  describe('Bare embed URL dedupe (#219)', () => {
+    const bareEmbed = {
+      type: 'image',
+      url: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+      thumbnail: {
+        url: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+        width: 128,
+        height: 128,
+      },
+    };
+
+    it('hides the raw URL text when the content is exactly the bare embed URL', () => {
+      const msg = createMockMessage({
+        content: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+        embeds: [bareEmbed],
+      } as any);
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages([msg]),
+      });
+      // The media renders; the duplicate blue link does not.
+      expect(document.querySelector('img[src*="7tv.app"]')).toBeInTheDocument();
+      expect(
+        screen.queryByText('https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps the content text when the message has more than just the URL', () => {
+      const msg = createMockMessage({
+        content: 'look at this https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+        embeds: [bareEmbed],
+      } as any);
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages([msg]),
+      });
+      expect(screen.getByText(/look at this/)).toBeInTheDocument();
+    });
+
+    it('keeps the content text for a card embed even when content equals its URL', () => {
+      const cardEmbed = {
+        type: 'link',
+        url: 'https://example.com/article',
+        title: 'An article',
+        thumbnail: { url: 'https://example.com/t.png', width: 200, height: 200 },
+      };
+      const msg = createMockMessage({
+        content: 'https://example.com/article',
+        embeds: [cardEmbed],
+      } as any);
+      renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages([msg]),
+      });
+      expect(screen.getByText('https://example.com/article')).toBeInTheDocument();
+    });
+  });
+
   describe('Open Thread links for adjacent starters (#191)', () => {
     it('renders an Open Thread button for each starter in a multi-thread chunk', () => {
       const alice = createMockUser({ id: 'alice', username: 'alice' });

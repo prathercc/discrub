@@ -524,6 +524,71 @@ describe('HTML Export', () => {
     });
   });
 
+  describe('Bare media embeds (#219)', () => {
+    const bareImageMessage = {
+      ...EXPORT_MESSAGES[0],
+      id: 'msg-bare-embed',
+      content: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+      attachments: [],
+      embeds: [{
+        type: 'image',
+        url: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+        thumbnail: {
+          url: 'https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp',
+          width: 128,
+          height: 128,
+        },
+      }],
+    };
+
+    const renderPage = (messages: unknown[]) => {
+      const service = getExportService();
+      return service.generateHTMLPage(
+        messages as any, 'test', 1, 1, null, 'test', undefined, DEFAULT_EXPORT_CONFIG,
+      );
+    };
+
+    it('renders a bare image embed as the media alone, without card chrome', () => {
+      const html = renderPage([bareImageMessage]);
+      expect(html).toContain('class="embed-image"');
+      expect(html).toContain('src="https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp"');
+      // No embed card for this message's embeds block.
+      expect(html).not.toContain('class="embed" style');
+    });
+
+    it('hides the raw URL text when the content is exactly the bare embed URL', () => {
+      const html = renderPage([bareImageMessage]);
+      const textMatch = html.match(/<div class="message-text">(.*?)<\/div>/s);
+      expect(textMatch).not.toBeNull();
+      expect(textMatch![1]).not.toContain('cdn.7tv.app');
+    });
+
+    it('keeps the content text when the message has more than just the URL', () => {
+      const html = renderPage([
+        { ...bareImageMessage, content: 'look https://cdn.7tv.app/emote/01FCY771D800007PQ2DF3GDTN6/4x.webp' },
+      ]);
+      const textMatch = html.match(/<div class="message-text">(.*?)<\/div>/s);
+      expect(textMatch![1]).toContain('look');
+    });
+
+    it('renders a gifv embed as a muted autoplay loop without the provider title', () => {
+      const html = renderPage([{
+        ...bareImageMessage,
+        content: 'https://tenor.com/view/tackle-mascot-gif-10629045',
+        embeds: [{
+          type: 'gifv',
+          url: 'https://tenor.com/view/tackle-mascot-gif-10629045',
+          title: 'Tackle Mascot GIF - Discover & Share GIFs',
+          provider: { name: 'Tenor' },
+          thumbnail: { url: 'https://media1.tenor.com/m/x/tackle.gif', width: 444, height: 250 },
+          video: { url: 'https://media.tenor.com/x/tackle.mp4', width: 444, height: 250 },
+        }],
+      }]);
+      expect(html).toContain('autoplay loop muted playsinline');
+      expect(html).not.toContain('Tackle Mascot GIF');
+    });
+  });
+
   describe('Attachment Rendering', () => {
     it('should render attachment card with filename and size', async () => {
       const html = await exportAndGetFile('html');

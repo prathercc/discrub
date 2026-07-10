@@ -19,6 +19,8 @@ import {
 } from '@mui/icons-material';
 import type { Message, Attachment, Embed, StickerItemObject, PollObject } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
+import { EmbedType } from 'discrub-core/discord-enum';
+import { isBareMediaEmbed } from 'discrub-core/html-formatting-utils';
 import { formatEmbedContent } from '@/utils/messageLightFormatting';
 import { reserveMediaBox } from '@/utils/reserveMediaBox';
 
@@ -179,6 +181,68 @@ export const InlineAttachments = memo(function InlineAttachments({
 
 /* ───────────────────────── Inline embeds ───────────────────────── */
 
+const isDirectlyPlayable = (url: string): boolean =>
+  url.includes('.mp4') || url.includes('.webm');
+
+// #219: single source of truth for "this embed renders as bare inline media"
+// lives in discrub-core next to renderEmbedAsHtml, so the feed and the HTML
+// export can never disagree about which embeds are cards.
+export { isBareMediaEmbed };
+
+/**
+ * #219: bare image/gifv embed → the media IS the message. Renders at the
+ * same size caps as inline attachments, with no Card wrapper, color stripe,
+ * or padding. GIFV plays like a GIF (muted autoplay loop); a non-playable
+ * gifv video URL falls back to the thumbnail, which GIF services serve as an
+ * actual .gif.
+ */
+const BareMediaEmbed = ({ embed }: { embed: Embed }) => {
+  const video = embed.video;
+  if (
+    embed.type === EmbedType.GIFV &&
+    video?.url &&
+    isDirectlyPlayable(video.url)
+  ) {
+    return (
+      <Box
+        component="video"
+        autoPlay
+        loop
+        muted
+        playsInline
+        poster={embed.thumbnail?.proxy_url || embed.thumbnail?.url}
+        src={video.proxy_url || video.url}
+        sx={{
+          ...reserveMediaBox(video, 300, 400),
+          borderRadius: 0.5,
+          display: 'block',
+        }}
+      />
+    );
+  }
+  const thumb = embed.thumbnail;
+  if (!thumb?.url) return null;
+  const img = (
+    <Box
+      component="img"
+      src={thumb.proxy_url || thumb.url}
+      alt=""
+      sx={{
+        ...reserveMediaBox(thumb, 300, 400),
+        borderRadius: 0.5,
+        display: 'block',
+      }}
+    />
+  );
+  return embed.url ? (
+    <Link href={embed.url} target="_blank" rel="noopener noreferrer" sx={{ display: 'block', width: 'fit-content' }}>
+      {img}
+    </Link>
+  ) : (
+    img
+  );
+};
+
 interface InlineEmbedsProps {
   embeds: Embed[];
   formattingContext?: HtmlFormattingContext;
@@ -232,7 +296,12 @@ export const InlineEmbeds = memo(function InlineEmbeds({
 
   return (
     <Stack spacing={0.75} sx={{ mt: 0.75 }}>
-      {embeds.map((embed, index) => (
+      {embeds.map((embed, index) => {
+        // #219: bare image/gifv unfurls skip the card entirely.
+        if (isBareMediaEmbed(embed)) {
+          return <BareMediaEmbed key={index} embed={embed} />;
+        }
+        return (
         <Card
           key={index}
           variant="outlined"
@@ -304,7 +373,10 @@ export const InlineEmbeds = memo(function InlineEmbeds({
                   </Box>
                 )}
               </Box>
-              {embed.thumbnail?.url && (embed.image?.url || embed.fields?.length) && (
+              {/* #219 sweep: card embeds always render the thumbnail as
+                  Discord's corner thumb — presence of image/fields no longer
+                  decides its size. Bare image embeds never reach this path. */}
+              {embed.thumbnail?.url && (
                 <Box
                   component="img"
                   src={embed.thumbnail.proxy_url || embed.thumbnail.url}
@@ -332,21 +404,8 @@ export const InlineEmbeds = memo(function InlineEmbeds({
                 }}
               />
             )}
-            {embed.thumbnail?.url && !embed.image?.url && !embed.video?.url && !embed.fields?.length && (
-              <Box
-                component="img"
-                src={embed.thumbnail.proxy_url || embed.thumbnail.url}
-                alt=""
-                sx={{
-                  ...reserveMediaBox(embed.thumbnail, 240),
-                  borderRadius: 0.5,
-                  display: 'block',
-                  mt: 1,
-                }}
-              />
-            )}
             {embed.video?.url && (
-              (embed.video.url.includes('.mp4') || embed.video.url.includes('.webm')) ? (
+              isDirectlyPlayable(embed.video.url) ? (
                 <Box
                   component="video"
                   controls
@@ -380,7 +439,8 @@ export const InlineEmbeds = memo(function InlineEmbeds({
             )}
           </CardContent>
         </Card>
-      ))}
+        );
+      })}
     </Stack>
   );
 });

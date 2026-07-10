@@ -2,7 +2,7 @@ import { prepareExportData } from 'discrub-core/export-data-service';
 import type { Message, Guild, Channel } from 'discrub-core/types/discord-types';
 import type { ExportUserMap } from 'discrub-core/types/discrub-types';
 import { renderEmojiAsHtml } from 'discrub-core/export-utils';
-import { formatContentAsHtml, renderEmbedAsHtml } from 'discrub-core/html-formatting-utils';
+import { formatContentAsHtml, renderEmbedAsHtml, isBareMediaEmbed } from 'discrub-core/html-formatting-utils';
 import {
   formatSystemMessage,
   SystemMessageKind,
@@ -962,11 +962,23 @@ class ExportService {
           }
         }
 
-        // Format content with full Discord markdown and mentions
-        const rawContent = getMessageContent(msg) || '(no content)';
-        const content = formattingContext
-          ? formatContentAsHtml(rawContent, formattingContext)
-          : this.escapeHtml(rawContent);
+        // Format content with full Discord markdown and mentions.
+        // #219: when the entire message is a bare image/GIF URL that Discord
+        // unfurled into its embed, Discord's client hides the raw link text —
+        // the media is the message. Mirror that here so exports don't stack a
+        // blue link above the image.
+        const actualContent = getMessageContent(msg);
+        const contentIsBareEmbedUrl =
+          !!actualContent &&
+          msg.embeds?.length === 1 &&
+          isBareMediaEmbed(msg.embeds[0]) &&
+          msg.embeds[0].url === actualContent.trim();
+        const rawContent = actualContent || '(no content)';
+        const content = contentIsBareEmbedUrl
+          ? ''
+          : formattingContext
+            ? formatContentAsHtml(rawContent, formattingContext)
+            : this.escapeHtml(rawContent);
 
         // Edited indicator
         const editedHtml = msg.edited_timestamp
@@ -1876,6 +1888,17 @@ class ExportService {
       border-radius: 4px;
       margin-top: 12px;
       display: block;
+    }
+
+    .embed-video-link {
+      display: inline-block;
+      margin-top: 8px;
+      color: #00b0f4;
+      text-decoration: none;
+    }
+
+    .embed-video-link:hover {
+      text-decoration: underline;
     }
 
     .embed-footer {
