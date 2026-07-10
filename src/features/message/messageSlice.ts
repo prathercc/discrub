@@ -2609,6 +2609,11 @@ const messageSlice = createSlice({
       state.filteredMessages = [];
       state.selectedMessages = [];
       state.searchCriteria = null;
+      // #226: refine must not survive navigation — every data-arrival
+      // reducer re-applies state.refineCriteria to incoming pages, so a
+      // lingering refine would silently hide messages in the next
+      // channel/DM the user opens.
+      state.refineCriteria = null;
       // Reset pagination state and cancel any ongoing operations
       state.pagination = initialMessageState.pagination;
       state.isLoading = false;

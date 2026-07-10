@@ -299,6 +299,22 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     : currentContext?.name || 'Direct Message';
 
 
+  // #226: search criteria are per-conversation UI state, but this component
+  // stays mounted across selection changes — without this reset, the 'main'
+  // ref entry survives a channel/DM switch and keeps rendering the previous
+  // conversation's filter chips (and pre-filling FilterModal), even though
+  // clearMessages already wiped the real Redux criteria. Keyed on ids so
+  // it fires for channel→channel, channel→DM, and guild switches alike.
+  useEffect(() => {
+    delete tabSearchCriteriaRef.current['main'];
+    setPartialResultsWarnings((prev) => {
+      if (!('main' in prev)) return prev;
+      const next = { ...prev };
+      delete next['main'];
+      return next;
+    });
+  }, [selectedChannel?.id, selectedDm?.id]);
+
   // Clean up saved search criteria for closed thread tabs.
   // Refine criteria is now per-tab in Redux and cleaned up automatically
   // when removeThreadTab fires, so it doesn't need a sweep here.

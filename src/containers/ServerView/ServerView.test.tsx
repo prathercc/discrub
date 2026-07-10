@@ -42,6 +42,16 @@ vi.mock('@services/discordService', () => ({
   })),
 }));
 
+// #226 test: the search thunk runs reaction/reply enrichment after the
+// (mocked) search resolves; without these mocks the enrichment wrappers hit
+// the real network through discrub-core.
+vi.mock('@services/reactionEnrichmentService', () => ({
+  reactionEnrichmentService: { enrichMessages: vi.fn(async (msgs: unknown) => msgs) },
+}));
+vi.mock('@services/replyEnrichmentService', () => ({
+  replyEnrichmentService: { enrichMessages: vi.fn(async (msgs: unknown) => msgs) },
+}));
+
 vi.mock('@/extension/storage', () => {
   function makeAdapter() {
     return {
@@ -249,6 +259,40 @@ describe('ServerView', () => {
         }),
       });
       expect(screen.queryByRole('button', { name: /Load All/ })).toBeNull();
+    });
+  });
+
+  // #226: ServerView stays mounted across selection changes, and its saved
+  // search criteria previously survived a channel switch — stale chips kept
+  // rendering (and FilterModal kept pre-filling) for the OLD conversation
+  // even though Redux criteria were already cleared.
+  describe('Search criteria reset on conversation switch (#226)', () => {
+    it('clears the saved search chips when the selected channel changes', async () => {
+      const channelB = createMockChannel({ id: 'ch2', name: 'other-channel' });
+      const { store } = renderWithProviders(<ServerView />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
+          channel: { channels: [channel, channelB], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
+        }),
+      });
+
+      // Apply a server-side content search through the FilterModal.
+      // Exact name — the adjacent TourButton is "Help: Filters".
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+      await userEvent.type(
+        await screen.findByPlaceholderText('Search message content...'),
+        'hello',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+      expect(await screen.findByText('content: hello')).toBeInTheDocument();
+
+      // Switch to another channel — the chip must not survive.
+      const { setSelectedChannel } = await import('@/features/channel/channelSlice');
+      store.dispatch(setSelectedChannel(channelB));
+      await waitFor(() =>
+        expect(screen.queryByText('content: hello')).not.toBeInTheDocument(),
+      );
     });
   });
 

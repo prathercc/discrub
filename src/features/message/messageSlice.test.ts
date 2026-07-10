@@ -403,6 +403,25 @@ describe('messageSlice', () => {
         expect(state.activeTab).toBeNull();
         expect(state.threadTabs).toEqual({});
       });
+
+      // #226: a refine surviving navigation silently filters the NEXT
+      // channel's messages (every data-arrival reducer re-applies
+      // state.refineCriteria), so clearMessages must drop it.
+      it('should clear refine criteria so it cannot filter the next channel (#226)', async () => {
+        const { setRefineCriteria } = await import('./messageSlice');
+        store.dispatch(setMessages(mockMessages));
+        store.dispatch(setRefineCriteria({ userIds: ['user-1'] } as any));
+        expect(store.getState().message.refineCriteria).not.toBeNull();
+
+        store.dispatch(clearMessages());
+
+        const state = store.getState().message;
+        expect(state.refineCriteria).toBeNull();
+
+        // New pages arriving after the switch must not be refine-filtered.
+        store.dispatch(setMessages(mockMessages));
+        expect(store.getState().message.filteredMessages).toHaveLength(mockMessages.length);
+      });
     });
 
     describe('resetPagination', () => {
