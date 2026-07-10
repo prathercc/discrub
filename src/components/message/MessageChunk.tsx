@@ -28,7 +28,7 @@ interface MessageChunkProps {
   /** #220: drag-select — pointer went down on this row's checkbox. */
   onSelectDragStart?: (message: Message) => void;
   /** #220: drag-select — pointer entered this row mid-drag. */
-  onSelectDragEnter?: (message: Message) => void;
+  onSelectDragEnter?: (message: Message, e?: React.MouseEvent) => void;
   onAuthorClick: (user: User) => void;
   onMentionClick: (user: User) => void;
   onOpenAttachments: (message: Message) => void;

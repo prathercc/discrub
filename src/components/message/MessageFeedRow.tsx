@@ -66,7 +66,7 @@ interface MessageFeedRowProps {
   /** #220: drag-select — pointer went down on this row's checkbox. */
   onSelectDragStart?: (message: Message) => void;
   /** #220: drag-select — pointer entered this row mid-drag. */
-  onSelectDragEnter?: (message: Message) => void;
+  onSelectDragEnter?: (message: Message, e?: React.MouseEvent) => void;
   onMentionClick: (user: User) => void;
   onOpenAttachments: (message: Message) => void;
   onOpenReactions: (message: Message) => void;
@@ -282,7 +282,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
       onClick={handleRowClick}
       // #220: extend an in-flight drag-select over this row. No-op unless a
       // drag started on some row's checkbox (MessageFeed gates on its ref).
-      onMouseEnter={() => onSelectDragEnter?.(message)}
+      onMouseEnter={(e) => onSelectDragEnter?.(message, e)}
       sx={{
         position: 'relative',
         display: 'block',

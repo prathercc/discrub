@@ -501,12 +501,16 @@ describe('<MessageFeed />', () => {
     const checkboxFor = (id: string) =>
       screen.getByLabelText(`Select message ${id}`);
 
+    // Mid-drag row entries carry the pressed primary button — entries with
+    // buttons: 0 mean the mouseup escaped the page (see the disarm test).
+    const dragOver = (id: string) => fireEvent.mouseEnter(rowEl(id), { buttons: 1 });
+
     it('selects the range crossed by a checkbox drag', () => {
       const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
         preloadedState: stateWithMessages(dragMessages),
       });
       fireEvent.mouseDown(checkboxFor('m1'));
-      fireEvent.mouseEnter(rowEl('m3'));
+      dragOver('m3');
       fireEvent.mouseUp(window);
       const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
       expect(ids).toEqual(['m1', 'm2', 'm3']);
@@ -517,11 +521,23 @@ describe('<MessageFeed />', () => {
         preloadedState: stateWithMessages(dragMessages),
       });
       fireEvent.mouseDown(checkboxFor('m1'));
-      fireEvent.mouseEnter(rowEl('m4'));
-      fireEvent.mouseEnter(rowEl('m2'));
+      dragOver('m4');
+      dragOver('m2');
       fireEvent.mouseUp(window);
       const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
       expect(ids).toEqual(['m1', 'm2']);
+    });
+
+    it('shrinks all the way back to just the anchor', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      dragOver('m3');
+      dragOver('m1');
+      fireEvent.mouseUp(window);
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id);
+      expect(ids).toEqual(['m1']);
     });
 
     it('unions the drag range with the pre-drag selection', () => {
@@ -531,10 +547,69 @@ describe('<MessageFeed />', () => {
         preloadedState: state,
       });
       fireEvent.mouseDown(checkboxFor('m1'));
-      fireEvent.mouseEnter(rowEl('m2'));
+      dragOver('m2');
       fireEvent.mouseUp(window);
       const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
       expect(ids).toEqual(['m1', 'm2', 'm4']);
+    });
+
+    it('keeps selections hidden by an active refine filter through a drag', () => {
+      // m4 is selected but refine-hidden (not in filteredMessages); a drag
+      // over visible rows must not silently drop it from the selection.
+      const state = stateWithMessages(dragMessages);
+      state.message.selectedMessages = [dragMessages[3]];
+      state.message.filteredMessages = dragMessages.slice(0, 3); // m4 hidden
+      state.message.refineCriteria = { searchMessageContent: 'msg' } as any;
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: state,
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      dragOver('m2');
+      fireEvent.mouseUp(window);
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
+      expect(ids).toEqual(['m1', 'm2', 'm4']);
+    });
+
+    it('swallows the trailing click a completed drag fires on the release row', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      dragOver('m3');
+      fireEvent.mouseUp(window);
+      // The browser fires a click right after mouseup; without suppression
+      // this would toggle the release row straight back out.
+      fireEvent.click(checkboxFor('m3'));
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
+      expect(ids).toEqual(['m1', 'm2', 'm3']);
+    });
+
+    it('lets the next real click through after the trailing-click window', async () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      dragOver('m3');
+      fireEvent.mouseUp(window);
+      fireEvent.click(checkboxFor('m3')); // trailing click, swallowed
+      await new Promise((r) => setTimeout(r, 0)); // suppression window ends
+      fireEvent.click(checkboxFor('m3')); // real user click
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
+      expect(ids).toEqual(['m1', 'm2']);
+    });
+
+    it('disarms the drag when the mouse button is no longer down on row entry', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      // Mouseup happened where the page couldn't see it (devtools, another
+      // window): the next hover arrives with no button pressed and must
+      // not mutate the selection — now or on any later hover.
+      fireEvent.mouseEnter(rowEl('m3'), { buttons: 0 });
+      expect(store.getState().message.selectedMessages).toHaveLength(0);
+      fireEvent.mouseEnter(rowEl('m4'), { buttons: 1 });
+      expect(store.getState().message.selectedMessages).toHaveLength(0);
     });
 
     it('does not extend selection from hover after the drag ended', () => {
@@ -543,7 +618,7 @@ describe('<MessageFeed />', () => {
       });
       fireEvent.mouseDown(checkboxFor('m1'));
       fireEvent.mouseUp(window);
-      fireEvent.mouseEnter(rowEl('m4'));
+      dragOver('m4');
       // Selection untouched: the mousedown+mouseup pair without an
       // intervening row-enter selects nothing by itself (the click event,
       // suppressed in this simulation, is what toggles).
@@ -554,6 +629,19 @@ describe('<MessageFeed />', () => {
       const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
         preloadedState: stateWithMessages(dragMessages),
       });
+      fireEvent.click(checkboxFor('m2'));
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id);
+      expect(ids).toEqual(['m2']);
+    });
+
+    it('a click right after a no-movement mousedown still toggles (no false suppression)', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      // A plain click is mousedown → mouseup → click with no row entries;
+      // the suppression gate must not eat it.
+      fireEvent.mouseDown(checkboxFor('m2'));
+      fireEvent.mouseUp(window);
       fireEvent.click(checkboxFor('m2'));
       const ids = store.getState().message.selectedMessages.map((m: any) => m.id);
       expect(ids).toEqual(['m2']);

@@ -179,8 +179,19 @@ const MessageFeed = ({
 
   // ────────── Callbacks ──────────
 
+  // Set by the drag-select mouseup handler below to swallow the trailing
+  // click a completed drag produces on the release row.
+  const suppressToggleRef = useRef(false);
+
   const handleToggleSelect = useCallback(
     (message: Message) => {
+      // A completed drag ends with the browser firing a click on whatever
+      // row the mouse was released over; without this gate that click
+      // toggles the release row right back out of the drag's selection.
+      if (suppressToggleRef.current) {
+        suppressToggleRef.current = false;
+        return;
+      }
       if (activeTab) {
         dispatch(toggleThreadMessageSelection({ threadId: activeTab, message }));
       } else {
@@ -199,29 +210,47 @@ const MessageFeed = ({
   // range without losing the pre-drag selection. Ranges are computed over
   // the `messages` array (display order), not the DOM, so virtualization
   // unmounting offscreen rows doesn't matter.
-  const dragStateRef = useRef<{ anchorId: string; baseIds: Set<string> } | null>(null);
+  const dragStateRef = useRef<{ anchorId: string; baseMessages: Message[] } | null>(null);
+  const dragMovedRef = useRef(false);
 
   const handleSelectDragStart = useCallback(
     (message: Message) => {
       dragStateRef.current = {
         anchorId: message.id,
-        baseIds: new Set(selectedMessages.map((m) => m.id)),
+        // Full message objects, not just ids: refine can hide selected
+        // messages from `messages`, and the union below must carry them
+        // through instead of silently dropping them.
+        baseMessages: selectedMessages,
       };
+      dragMovedRef.current = false;
     },
     [selectedMessages],
   );
 
   const handleSelectDragEnter = useCallback(
-    (message: Message) => {
+    (message: Message, e?: React.MouseEvent) => {
       const drag = dragStateRef.current;
-      if (!drag || message.id === drag.anchorId) return;
+      if (!drag) return;
+      // If the primary button is no longer down, the mouseup happened where
+      // the page couldn't see it (released over devtools, another window);
+      // disarm instead of turning plain hovering into selection changes.
+      if (e && (e.buttons & 1) === 0) {
+        dragStateRef.current = null;
+        return;
+      }
       const a = messages.findIndex((m) => m.id === drag.anchorId);
       const b = messages.findIndex((m) => m.id === message.id);
       if (a === -1 || b === -1) return;
       const [from, to] = a <= b ? [a, b] : [b, a];
-      const union = messages.filter(
-        (m, i) => drag.baseIds.has(m.id) || (i >= from && i <= to),
-      );
+      const baseIds = new Set(drag.baseMessages.map((m) => m.id));
+      const visibleIds = new Set(messages.map((m) => m.id));
+      const union = [
+        // Visible portion in display order: pre-drag selection ∪ range.
+        ...messages.filter((m, i) => baseIds.has(m.id) || (i >= from && i <= to)),
+        // Pre-drag selections hidden by an active refine filter survive.
+        ...drag.baseMessages.filter((m) => !visibleIds.has(m.id)),
+      ];
+      dragMovedRef.current = true;
       if (activeTab) {
         dispatch(setThreadSelectedMessages({ threadId: activeTab, messages: union }));
       } else {
@@ -233,10 +262,20 @@ const MessageFeed = ({
 
   // End the drag on ANY mouseup, wherever it lands (row, gutter, outside
   // the window). Listener is cheap and permanent; the ref gate makes
-  // non-drag mouseups no-ops.
+  // non-drag mouseups no-ops. When a drag actually changed the selection,
+  // swallow the click that the same mouseup is about to produce (it fires
+  // synchronously after mouseup, so the timeout clears the gate right
+  // after) — otherwise releasing over a checkbox would toggle that row.
   useEffect(() => {
     const endDrag = () => {
+      if (dragStateRef.current && dragMovedRef.current) {
+        suppressToggleRef.current = true;
+        setTimeout(() => {
+          suppressToggleRef.current = false;
+        }, 0);
+      }
       dragStateRef.current = null;
+      dragMovedRef.current = false;
     };
     window.addEventListener('mouseup', endDrag);
     return () => window.removeEventListener('mouseup', endDrag);
