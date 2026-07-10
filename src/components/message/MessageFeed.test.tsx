@@ -492,6 +492,74 @@ describe('<MessageFeed />', () => {
     });
   });
 
+  describe('Drag-select (#220)', () => {
+    const dragMessages = ['m1', 'm2', 'm3', 'm4'].map((id, i) =>
+      createMockMessage({ id, content: `msg ${i + 1}` }),
+    );
+    const rowEl = (id: string) =>
+      document.querySelector(`[data-message-id="${id}"]`) as HTMLElement;
+    const checkboxFor = (id: string) =>
+      screen.getByLabelText(`Select message ${id}`);
+
+    it('selects the range crossed by a checkbox drag', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      fireEvent.mouseEnter(rowEl('m3'));
+      fireEvent.mouseUp(window);
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
+      expect(ids).toEqual(['m1', 'm2', 'm3']);
+    });
+
+    it('shrinks the live range when dragging back toward the anchor', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      fireEvent.mouseEnter(rowEl('m4'));
+      fireEvent.mouseEnter(rowEl('m2'));
+      fireEvent.mouseUp(window);
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
+      expect(ids).toEqual(['m1', 'm2']);
+    });
+
+    it('unions the drag range with the pre-drag selection', () => {
+      const state = stateWithMessages(dragMessages);
+      state.message.selectedMessages = [dragMessages[3]]; // m4 already selected
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: state,
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      fireEvent.mouseEnter(rowEl('m2'));
+      fireEvent.mouseUp(window);
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id).sort();
+      expect(ids).toEqual(['m1', 'm2', 'm4']);
+    });
+
+    it('does not extend selection from hover after the drag ended', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.mouseDown(checkboxFor('m1'));
+      fireEvent.mouseUp(window);
+      fireEvent.mouseEnter(rowEl('m4'));
+      // Selection untouched: the mousedown+mouseup pair without an
+      // intervening row-enter selects nothing by itself (the click event,
+      // suppressed in this simulation, is what toggles).
+      expect(store.getState().message.selectedMessages).toHaveLength(0);
+    });
+
+    it('plain checkbox click still toggles a single message', () => {
+      const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
+        preloadedState: stateWithMessages(dragMessages),
+      });
+      fireEvent.click(checkboxFor('m2'));
+      const ids = store.getState().message.selectedMessages.map((m: any) => m.id);
+      expect(ids).toEqual(['m2']);
+    });
+  });
+
   describe('Open Thread links for adjacent starters (#191)', () => {
     it('renders an Open Thread button for each starter in a multi-thread chunk', () => {
       const alice = createMockUser({ id: 'alice', username: 'alice' });

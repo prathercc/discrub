@@ -207,6 +207,44 @@ describe('DMList', () => {
     });
   });
 
+  describe('Shift+Click range select (#218)', () => {
+    const mkDm = (id: string, name: string) =>
+      ({
+        id,
+        type: 1,
+        last_message_id: null,
+        recipients: [createMockUser({ id: `u-${id}`, username: name, avatar: null })],
+      }) as any;
+    const dms = [mkDm('d1', 'alice'), mkDm('d2', 'bella'), mkDm('d3', 'carol'), mkDm('d4', 'dana')];
+
+    const renderInMultiSelect = () => {
+      const utils = renderWithProviders(<DMList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          dm: { dms, selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      return utils;
+    };
+
+    it('selects the whole range between the anchor and a shift-clicked row', () => {
+      const { store } = renderInMultiSelect();
+      fireEvent.click(screen.getByText('alice'));
+      fireEvent.click(screen.getByText('dana'), { shiftKey: true });
+      const ids = store.getState().dm.selectedDms.map((d: any) => d.id).sort();
+      expect(ids).toEqual(['d1', 'd2', 'd3', 'd4']);
+    });
+
+    it('selects a backwards range and unions with the existing selection', () => {
+      const { store } = renderInMultiSelect();
+      fireEvent.click(screen.getByText('dana'));   // toggle + anchor
+      fireEvent.click(screen.getByText('bella'), { shiftKey: true }); // range b→d
+      const ids = store.getState().dm.selectedDms.map((d: any) => d.id).sort();
+      expect(ids).toEqual(['d2', 'd3', 'd4']);
+    });
+  });
+
   describe('Copy Names (multi-select toolbar)', () => {
     it('does not render the Copy button when nothing is selected', () => {
       renderWithProviders(<DMList />, {

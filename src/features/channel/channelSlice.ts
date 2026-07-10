@@ -358,6 +358,17 @@ const channelSlice = createSlice({
     deselectAllChannels: (state) => {
       state.selectedChannels = [];
     },
+    // #218: Shift+Click range select — ADDS the range to the current
+    // selection (union, never deselects), matching the familiar
+    // file-explorer convention.
+    selectChannelsInRange: (state, action: PayloadAction<Channel[]>) => {
+      const existing = new Set(state.selectedChannels.map((c: Channel) => c.id));
+      for (const channel of action.payload) {
+        if (!existing.has(channel.id)) {
+          state.selectedChannels.push(channel);
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -450,6 +461,7 @@ export const {
   toggleChannelSelection,
   selectAllChannels,
   deselectAllChannels,
+  selectChannelsInRange,
 } = channelSlice.actions;
 
 // Selectors

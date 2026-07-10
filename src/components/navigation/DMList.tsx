@@ -29,6 +29,7 @@ import {
   toggleDmSelection,
   selectAllDms,
   deselectAllDms,
+  selectDmsInRange,
 } from '@features/dm/dmSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { fetchMessages, clearMessages } from '@features/message/messageSlice';
@@ -124,11 +125,26 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     setVisibleCount(PAGE_SIZE);
   }, [filterText]);
 
-  const handleDmClick = async (dm: Channel) => {
+  // #218: Shift+Click range anchor — id of the last plainly-clicked row in
+  // multi-select mode (see ChannelList for the pattern rationale).
+  const rangeAnchorIdRef = useRef<string | null>(null);
+
+  const handleDmClick = async (dm: Channel, event?: React.MouseEvent) => {
     if (!token) return;
 
     if (multiSelectMode) {
+      if (event?.shiftKey && rangeAnchorIdRef.current) {
+        const anchorIdx = visible.findIndex((d) => d.id === rangeAnchorIdRef.current);
+        const clickIdx = visible.findIndex((d) => d.id === dm.id);
+        if (anchorIdx !== -1 && clickIdx !== -1) {
+          const [from, to] =
+            anchorIdx <= clickIdx ? [anchorIdx, clickIdx] : [clickIdx, anchorIdx];
+          dispatch(selectDmsInRange(visible.slice(from, to + 1)));
+          return;
+        }
+      }
       dispatch(toggleDmSelection(dm));
+      rangeAnchorIdRef.current = dm.id;
       return;
     }
 
@@ -160,6 +176,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     if (multiSelectMode) {
       dispatch(deselectAllDms());
     }
+    rangeAnchorIdRef.current = null;
     setMultiSelectMode(!multiSelectMode);
   };
 
@@ -232,7 +249,9 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           <ListItemButton
             key={dm.id}
             selected={multiSelectMode ? isDmSelected(dm) : selectedDm?.id === dm.id}
-            onClick={() => handleDmClick(dm)}
+            onClick={(e) => handleDmClick(dm, e)}
+            // Shift+Click must not smear a text selection across rows (#218).
+            onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
           >
             {multiSelectMode && (
               <Checkbox

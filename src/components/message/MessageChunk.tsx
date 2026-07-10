@@ -25,6 +25,10 @@ interface MessageChunkProps {
   guildRoles: any;
   settings: any;
   onToggleSelect: (message: Message) => void;
+  /** #220: drag-select — pointer went down on this row's checkbox. */
+  onSelectDragStart?: (message: Message) => void;
+  /** #220: drag-select — pointer entered this row mid-drag. */
+  onSelectDragEnter?: (message: Message) => void;
   onAuthorClick: (user: User) => void;
   onMentionClick: (user: User) => void;
   onOpenAttachments: (message: Message) => void;
@@ -43,6 +47,8 @@ const MessageChunk = memo(function MessageChunk({
   guildRoles,
   settings,
   onToggleSelect,
+  onSelectDragStart,
+  onSelectDragEnter,
   onAuthorClick,
   onMentionClick,
   onOpenAttachments,
@@ -230,6 +236,8 @@ const MessageChunk = memo(function MessageChunk({
             guildRoles={guildRoles}
             settings={settings}
             onToggleSelect={onToggleSelect}
+            onSelectDragStart={onSelectDragStart}
+            onSelectDragEnter={onSelectDragEnter}
             onMentionClick={onMentionClick}
             onOpenAttachments={onOpenAttachments}
             onOpenReactions={onOpenReactions}

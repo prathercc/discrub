@@ -22,6 +22,8 @@ import {
   toggleThreadMessageSelection,
   selectAllThreadMessages,
   deselectAllThreadMessages,
+  setSelectedMessages,
+  setThreadSelectedMessages,
   setThreadOrder,
   fetchMoreThreadMessages,
   applyUserFilter,
@@ -188,6 +190,75 @@ const MessageFeed = ({
     [activeTab, dispatch],
   );
 
+  // ────────── #220: click-and-drag range select ──────────
+  // A drag starts on a row CHECKBOX (never on message text, so native text
+  // selection and the copy button are untouched) and extends over whichever
+  // rows the pointer crosses. Selection during the drag = the selection at
+  // drag start ∪ the range between the anchor row and the row under the
+  // pointer — recomputed per row entered, so dragging backwards shrinks the
+  // range without losing the pre-drag selection. Ranges are computed over
+  // the `messages` array (display order), not the DOM, so virtualization
+  // unmounting offscreen rows doesn't matter.
+  const dragStateRef = useRef<{ anchorId: string; baseIds: Set<string> } | null>(null);
+
+  const handleSelectDragStart = useCallback(
+    (message: Message) => {
+      dragStateRef.current = {
+        anchorId: message.id,
+        baseIds: new Set(selectedMessages.map((m) => m.id)),
+      };
+    },
+    [selectedMessages],
+  );
+
+  const handleSelectDragEnter = useCallback(
+    (message: Message) => {
+      const drag = dragStateRef.current;
+      if (!drag || message.id === drag.anchorId) return;
+      const a = messages.findIndex((m) => m.id === drag.anchorId);
+      const b = messages.findIndex((m) => m.id === message.id);
+      if (a === -1 || b === -1) return;
+      const [from, to] = a <= b ? [a, b] : [b, a];
+      const union = messages.filter(
+        (m, i) => drag.baseIds.has(m.id) || (i >= from && i <= to),
+      );
+      if (activeTab) {
+        dispatch(setThreadSelectedMessages({ threadId: activeTab, messages: union }));
+      } else {
+        dispatch(setSelectedMessages(union));
+      }
+    },
+    [messages, activeTab, dispatch],
+  );
+
+  // End the drag on ANY mouseup, wherever it lands (row, gutter, outside
+  // the window). Listener is cheap and permanent; the ref gate makes
+  // non-drag mouseups no-ops.
+  useEffect(() => {
+    const endDrag = () => {
+      dragStateRef.current = null;
+    };
+    window.addEventListener('mouseup', endDrag);
+    return () => window.removeEventListener('mouseup', endDrag);
+  }, []);
+
+  // Edge auto-scroll: dragging near the top/bottom of the feed scrolls it
+  // so ranges can extend past the viewport (the virtualizer renders rows
+  // as they come into view and their mouseenter extends the range).
+  const handleDragAutoScroll = useCallback((e: React.MouseEvent) => {
+    if (!dragStateRef.current) return;
+    const el = parentRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const EDGE = 48;
+    const STEP = 16;
+    if (e.clientY < rect.top + EDGE) {
+      el.scrollTop -= STEP;
+    } else if (e.clientY > rect.bottom - EDGE) {
+      el.scrollTop += STEP;
+    }
+  }, []);
+
   const handleToggleSelectAll = useCallback(() => {
     const allSelected = selectedMessages.length === messages.length && messages.length > 0;
     if (allSelected) {
@@ -316,6 +387,7 @@ const MessageFeed = ({
 
         <Box
           ref={parentRef}
+          onMouseMove={handleDragAutoScroll}
           sx={{
             flex: 1,
             minHeight: 0,
@@ -364,6 +436,8 @@ const MessageFeed = ({
                     guildRoles={guildRoles}
                     settings={settings}
                     onToggleSelect={handleToggleSelect}
+                    onSelectDragStart={handleSelectDragStart}
+                    onSelectDragEnter={handleSelectDragEnter}
                     onAuthorClick={handleAuthorClick}
                     onMentionClick={handleMentionClick}
                     onOpenAttachments={handleOpenAttachments}

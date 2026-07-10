@@ -189,6 +189,59 @@ describe('ChannelList', () => {
     });
   });
 
+  describe('Shift+Click range select (#218)', () => {
+    const rangeChannels = [
+      createMockChannel({ id: 'r1', name: 'alpha', type: 0 }),
+      createMockChannel({ id: 'r2', name: 'bravo', type: 0 }),
+      createMockChannel({ id: 'r3', name: 'charlie', type: 0 }),
+      createMockChannel({ id: 'r4', name: 'delta', type: 0 }),
+    ];
+
+    const renderInMultiSelect = () => {
+      const utils = renderWithProviders(<ChannelList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
+          channel: { channels: rangeChannels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      return utils;
+    };
+
+    it('selects the whole range between the anchor and a shift-clicked row', () => {
+      const { store } = renderInMultiSelect();
+      fireEvent.click(screen.getByText('alpha'));
+      fireEvent.click(screen.getByText('delta'), { shiftKey: true });
+      const ids = store.getState().channel.selectedChannels.map((c) => c.id).sort();
+      expect(ids).toEqual(['r1', 'r2', 'r3', 'r4']);
+    });
+
+    it('selects a backwards range (shift-click above the anchor)', () => {
+      const { store } = renderInMultiSelect();
+      fireEvent.click(screen.getByText('charlie'));
+      fireEvent.click(screen.getByText('alpha'), { shiftKey: true });
+      const ids = store.getState().channel.selectedChannels.map((c) => c.id).sort();
+      expect(ids).toEqual(['r1', 'r2', 'r3']);
+    });
+
+    it('range-select adds to the existing selection without duplicating', () => {
+      const { store } = renderInMultiSelect();
+      fireEvent.click(screen.getByText('bravo')); // toggle + anchor
+      fireEvent.click(screen.getByText('alpha')); // toggle + re-anchor
+      fireEvent.click(screen.getByText('charlie'), { shiftKey: true }); // range a→c
+      const ids = store.getState().channel.selectedChannels.map((c) => c.id).sort();
+      expect(ids).toEqual(['r1', 'r2', 'r3']);
+    });
+
+    it('shift-click without an anchor falls back to a plain toggle', () => {
+      const { store } = renderInMultiSelect();
+      fireEvent.click(screen.getByText('bravo'), { shiftKey: true });
+      const ids = store.getState().channel.selectedChannels.map((c) => c.id);
+      expect(ids).toEqual(['r2']);
+    });
+  });
+
   describe('Copy Names (multi-select toolbar)', () => {
     it('does not render the Copy button when nothing is selected', () => {
       renderWithProviders(<ChannelList />, {

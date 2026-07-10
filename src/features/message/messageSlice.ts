@@ -2754,6 +2754,17 @@ const messageSlice = createSlice({
         tab.selectedMessages = [];
       }
     },
+    // #220: drag-select writes the whole selection per pointer move —
+    // thread-tab counterpart of setSelectedMessages.
+    setThreadSelectedMessages: (
+      state,
+      action: PayloadAction<{ threadId: string; messages: Message[] }>
+    ) => {
+      const tab = state.threadTabs[action.payload.threadId];
+      if (tab) {
+        tab.selectedMessages = action.payload.messages;
+      }
+    },
     setThreadOrder: (
       state,
       action: PayloadAction<{ threadId: string; order: MessageOrder }>
@@ -3293,6 +3304,7 @@ export const {
   toggleThreadMessageSelection,
   selectAllThreadMessages,
   deselectAllThreadMessages,
+  setThreadSelectedMessages,
   setThreadOrder,
   setThreadSearchCriteria,
   setThreadLoading,

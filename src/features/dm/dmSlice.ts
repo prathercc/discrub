@@ -59,6 +59,16 @@ const dmSlice = createSlice({
     deselectAllDms: (state) => {
       state.selectedDms = [];
     },
+    // #218: Shift+Click range select — union, never deselects (mirrors
+    // channelSlice.selectChannelsInRange).
+    selectDmsInRange: (state, action: PayloadAction<Channel[]>) => {
+      const existing = new Set(state.selectedDms.map((dm: Channel) => dm.id));
+      for (const dm of action.payload) {
+        if (!existing.has(dm.id)) {
+          state.selectedDms.push(dm);
+        }
+      }
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -84,6 +94,7 @@ export const {
   toggleDmSelection,
   selectAllDms,
   deselectAllDms,
+  selectDmsInRange,
 } = dmSlice.actions;
 
 // Selectors

@@ -63,6 +63,10 @@ interface MessageFeedRowProps {
   guildRoles: any;
   settings: any;
   onToggleSelect: (message: Message) => void;
+  /** #220: drag-select — pointer went down on this row's checkbox. */
+  onSelectDragStart?: (message: Message) => void;
+  /** #220: drag-select — pointer entered this row mid-drag. */
+  onSelectDragEnter?: (message: Message) => void;
   onMentionClick: (user: User) => void;
   onOpenAttachments: (message: Message) => void;
   onOpenReactions: (message: Message) => void;
@@ -80,6 +84,8 @@ const MessageFeedRow = memo(function MessageFeedRow({
   guildRoles,
   settings,
   onToggleSelect,
+  onSelectDragStart,
+  onSelectDragEnter,
   onMentionClick,
   onOpenAttachments,
   onOpenReactions,
@@ -274,6 +280,9 @@ const MessageFeedRow = memo(function MessageFeedRow({
       data-message-id={message.id}
       data-highlighted={highlighted ? 'true' : undefined}
       onClick={handleRowClick}
+      // #220: extend an in-flight drag-select over this row. No-op unless a
+      // drag started on some row's checkbox (MessageFeed gates on its ref).
+      onMouseEnter={() => onSelectDragEnter?.(message)}
       sx={{
         position: 'relative',
         display: 'block',
@@ -637,6 +646,14 @@ const MessageFeedRow = memo(function MessageFeedRow({
           checked={selected}
           onChange={() => onToggleSelect(message)}
           onClick={(e) => e.stopPropagation()}
+          // #220: a drag-select starts here — on the checkbox, never on
+          // message text, so native text selection stays intact.
+          // preventDefault stops the browser starting a text-drag; the
+          // subsequent click still fires so plain toggling is unaffected.
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onSelectDragStart?.(message);
+          }}
           inputProps={{
             'aria-label': `Select message ${message.id}`,
           }}

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   List,
   ListItemButton,
@@ -34,6 +34,7 @@ import {
   toggleChannelSelection,
   selectAllChannels,
   deselectAllChannels,
+  selectChannelsInRange,
   fetchForumThreads,
 } from '@features/channel/channelSlice';
 import { selectSelectedGuild, selectCurrentMemberRoles } from '@features/guild/guildSlice';
@@ -80,8 +81,12 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   const [bulkPurgeOpen, setBulkPurgeOpen] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
+  // #218: Shift+Click range anchor — id of the last plainly-clicked row in
+  // multi-select mode. Stored by id (not index) so filtering/collapsing
+  // between clicks can't shift the anchor onto a different channel.
+  const rangeAnchorIdRef = useRef<string | null>(null);
 
-  const handleChannelClick = async (channel: Channel) => {
+  const handleChannelClick = async (channel: Channel, event?: React.MouseEvent) => {
     if (!token || !selectedGuild) return;
 
     // Only allow channels that contain fetchable messages. Voice (2) and
@@ -102,7 +107,23 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     }
 
     if (multiSelectMode) {
+      // #218: Shift+Click selects the whole visible range between the last
+      // plainly-clicked row (anchor) and this one. Plain click toggles and
+      // re-anchors, like a file explorer.
+      if (event?.shiftKey && rangeAnchorIdRef.current) {
+        const anchorIdx = visibleOrderedChannels.findIndex(
+          (c) => c.id === rangeAnchorIdRef.current,
+        );
+        const clickIdx = visibleOrderedChannels.findIndex((c) => c.id === channel.id);
+        if (anchorIdx !== -1 && clickIdx !== -1) {
+          const [from, to] =
+            anchorIdx <= clickIdx ? [anchorIdx, clickIdx] : [clickIdx, anchorIdx];
+          dispatch(selectChannelsInRange(visibleOrderedChannels.slice(from, to + 1)));
+          return;
+        }
+      }
       dispatch(toggleChannelSelection(channel));
+      rangeAnchorIdRef.current = channel.id;
       return;
     }
 
@@ -146,6 +167,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     if (multiSelectMode) {
       dispatch(deselectAllChannels());
     }
+    rangeAnchorIdRef.current = null;
     setMultiSelectMode(!multiSelectMode);
   };
 
@@ -247,6 +269,31 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
 
     return groups;
   }, [filteredChannels, categoryMap, channels]);
+
+  // #218: the flattened row order the user actually sees — grouped by
+  // category, collapsed categories excluded, inaccessible channels excluded.
+  // Shift+Click ranges are computed over this list so "from here to there"
+  // means exactly the rows between the two clicks.
+  const visibleOrderedChannels = useMemo(() => {
+    const list: Channel[] = [];
+    groupedChannels.forEach((group) => {
+      if (group.categoryId && collapsedCategories.has(group.categoryId)) return;
+      group.channels.forEach((ch) => {
+        if (
+          canAccessChannel(
+            guildPermissions,
+            memberRoles,
+            ch,
+            selectedGuild?.id || '',
+            currentUserId,
+          )
+        ) {
+          list.push(ch);
+        }
+      });
+    });
+    return list;
+  }, [groupedChannels, collapsedCategories, guildPermissions, memberRoles, selectedGuild?.id, currentUserId]);
 
   const toggleCategory = (categoryId: string) => {
     setCollapsedCategories((prev) => {
@@ -395,7 +442,9 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
                 <ListItemButton
                   key={channel.id}
                   selected={multiSelectMode ? isChannelSelected(channel) : selectedChannel?.id === channel.id}
-                  onClick={() => hasAccess && handleChannelClick(channel)}
+                  onClick={(e) => hasAccess && handleChannelClick(channel, e)}
+                  // Shift+Click must not smear a text selection across rows.
+                  onMouseDown={(e) => { if (e.shiftKey) e.preventDefault(); }}
                   disabled={!hasAccess}
                   sx={{
                     ...(!hasAccess && {
