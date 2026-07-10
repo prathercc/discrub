@@ -99,6 +99,8 @@ const mockIterateSearchResults = async function* (options: any): AsyncGenerator<
       totalResults,
       pageIndex,
       aggregatedCount,
+      // #216: mirror the lib's pass-through of Discord's indexing flag.
+      stillIndexing: response.data.doing_deep_historical_index === true,
     };
     pageIndex++;
 
@@ -1236,6 +1238,72 @@ describe('purgeSlice thunks', () => {
   // actually got purged. The fix at purgeSlice:582 catches pinned
   // messages client-side using `message.pinned` (a required boolean
   // on every Discord Message object) before any destructive call.
+
+  describe('group DMs + search indexing (#227 / #216)', () => {
+    // THE type-3 fixture — every prior DM mock hardcoded type 1, which is
+    // how the group-DM blind spots escaped.
+    const mockGroupDmChannel = (id: string, name: string | null, recipients: string[]): Channel =>
+      ({
+        id,
+        type: 3,
+        name,
+        recipients: recipients.map((username) => ({ username }) as User),
+      }) as Channel;
+
+    it('labels group DMs with their custom name and a (group) marker in status entries (#227)', async () => {
+      const group = mockGroupDmChannel('gdm1', 'the lads', ['granddemon']);
+      setupSearchResults([[mockMessage('m1')]]);
+
+      await store.dispatch(
+        bulkPurgeDMs({ channels: [group], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const entries = store.getState().status.entries.map((e) => e.message);
+      expect(entries.some((m) => m.includes('the lads (group)'))).toBe(true);
+    });
+
+    it('falls back to joined recipients + (group) when the group has no custom name (#227)', async () => {
+      const group = mockGroupDmChannel('gdm2', null, ['granddemon', 'lockridge']);
+      setupSearchResults([[mockMessage('m1')]]);
+
+      await store.dispatch(
+        bulkPurgeDMs({ channels: [group], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const entries = store.getState().status.entries.map((e) => e.message);
+      expect(entries.some((m) => m.includes('granddemon, lockridge (group)'))).toBe(true);
+    });
+
+    it('warns when Discord reports 0 results while still indexing the conversation (#216)', async () => {
+      const group = mockGroupDmChannel('gdm3', null, ['granddemon']);
+      mockFetchSearchMessageData.mockResolvedValue({
+        success: true,
+        data: { messages: [], total_results: 0, doing_deep_historical_index: true },
+      });
+
+      await store.dispatch(
+        bulkPurgeDMs({ channels: [group], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const entries = store.getState().status.entries.map((e) => e.message);
+      expect(entries.some((m) => m.includes('still indexing'))).toBe(true);
+    });
+
+    it('does not warn about indexing on an ordinary empty result', async () => {
+      const group = mockGroupDmChannel('gdm4', null, ['granddemon']);
+      mockFetchSearchMessageData.mockResolvedValue({
+        success: true,
+        data: { messages: [], total_results: 0 },
+      });
+
+      await store.dispatch(
+        bulkPurgeDMs({ channels: [group], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const entries = store.getState().status.entries.map((e) => e.message);
+      expect(entries.some((m) => m.includes('still indexing'))).toBe(false);
+    });
+  });
 
   describe('bulkPurgeChannels — deleted-account scan fallback (#223)', () => {
     const DELETED_ID = 'deleted-user-1';

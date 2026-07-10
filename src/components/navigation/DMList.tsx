@@ -14,6 +14,7 @@ import {
   Message as MessageIcon,
   CheckBox as SelectModeIcon,
   CheckBoxOutlineBlank as SelectModeOffIcon,
+  Groups as GroupsIcon,
 } from '@mui/icons-material';
 import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
@@ -65,20 +66,34 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
+  // #227: type 3 = GROUP_DM. A group stays a group no matter how many
+  // recipients remain — Discord shows its custom name (when set) as the
+  // primary label, so we do too.
+  const isGroupDm = (dm: Channel) => dm.type === 3;
+
   const getDmName = (dm: Channel) => {
+    if (isGroupDm(dm) && dm.name) {
+      return dm.name;
+    }
     if (dm.recipients && dm.recipients.length > 0) {
       return dm.recipients.map((r) => r.username).join(', ');
     }
-    return 'Direct Message';
+    return isGroupDm(dm) ? 'Group DM' : 'Direct Message';
   };
 
   const getDmDisplayName = (dm: Channel) => {
+    // Groups never borrow a single recipient's display name (#227) — that's
+    // exactly how a dying group masquerades as a 1:1 DM.
+    if (isGroupDm(dm)) return null;
     if (dm.recipients && dm.recipients.length === 1) {
       const r = dm.recipients[0];
       if (r.global_name && r.global_name !== r.username) return r.global_name;
     }
     return null;
   };
+
+  // Member count shown on group rows: remaining recipients + you.
+  const getGroupMemberCount = (dm: Channel) => (dm.recipients?.length ?? 0) + 1;
 
   const getDmLastActive = (dm: Channel): string | null => {
     const lastMsgId = dm.last_message_id;
@@ -269,6 +284,19 @@ const DMList = ({ filterText = '' }: DMListProps) => {
               primary={getDmDisplayName(dm) || getDmName(dm)}
               secondary={
                 <Box component="span" sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                  {/* #227: groups are visually distinct from 1:1 DMs even
+                      when only one (or zero) recipients remain. */}
+                  {isGroupDm(dm) && (
+                    <Typography
+                      component="span"
+                      variant="caption"
+                      data-testid="group-dm-indicator"
+                      sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, color: 'text.secondary', fontSize: '0.7rem', fontWeight: 600 }}
+                    >
+                      <GroupsIcon sx={{ fontSize: 13 }} />
+                      Group · {getGroupMemberCount(dm)} member{getGroupMemberCount(dm) !== 1 ? 's' : ''}
+                    </Typography>
+                  )}
                   {getDmDisplayName(dm) && (
                     <Typography component="span" variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem' }}>
                       {getDmName(dm)}

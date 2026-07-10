@@ -44,9 +44,18 @@ const formatEmojiForApi = (emoji: Emoji): string => {
 
 /**
  * Get a display name for a channel (handles DMs vs server channels).
+ * Group DMs (#227) prefer their custom name and carry a "(group)" marker so
+ * purge status entries can't be mistaken for a 1:1 conversation.
  */
 const getChannelDisplayName = (channel: Channel, isDm: boolean): string => {
   if (isDm) {
+    if (channel.type === ChannelType.GROUP_DM) {
+      const base =
+        channel.name ||
+        channel.recipients?.map((r) => r.username).join(', ') ||
+        'Group DM';
+      return `${base} (group)`;
+    }
     return channel.recipients?.map((r) => r.username).join(', ') || 'DM';
   }
   return channel.name || `channel-${channel.id}`;
@@ -689,6 +698,14 @@ async function purgeChannelMessages(
           dispatch(addStatusEntry({
             level: 'info',
             message: `Discord reports ${totalForThisUser.toLocaleString()} matching message${totalForThisUser === 1 ? '' : 's'} in ${label}`,
+          }));
+        } else if ((page as { stillIndexing?: boolean }).stillIndexing) {
+          // #216: "0 matches" while Discord is still building this
+          // conversation's search index is not a real zero — the likely
+          // cause of "purge found nothing in my group DM" reports.
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `Discord is still indexing ${label} — search may return nothing until indexing finishes. Try this purge again in a little while.`,
           }));
         }
       }

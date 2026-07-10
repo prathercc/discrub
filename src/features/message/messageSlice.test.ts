@@ -859,6 +859,57 @@ describe('messageSlice', () => {
   });
 
   describe('searchMessages async thunk', () => {
+    it('warns when Discord returns nothing while still indexing the conversation (#216)', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      // statusSlice is module-mocked in this file — assert on the mocked
+      // action creator rather than a real status store.
+      const { addStatusEntry } = await import('@features/status/statusSlice');
+      vi.mocked(addStatusEntry).mockClear();
+
+      const testStore = configureStore({
+        reducer: {
+          message: messageReducer,
+          app: appReducer,
+        },
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+          message: initialMessageState,
+        },
+      });
+
+      const mockDiscordService = {
+        fetchSearchMessageData: vi.fn().mockResolvedValue({
+          success: true,
+          data: { messages: [], total_results: 0, doing_deep_historical_index: true },
+        }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      await testStore.dispatch(
+        searchMessages({
+          channelId: 'channel-1',
+          token: 'token',
+          searchCriteria: { content: 'test' } as any,
+        })
+      );
+
+      const warned = vi.mocked(addStatusEntry).mock.calls.some(
+        ([entry]: any[]) =>
+          entry?.level === 'warning' && entry?.message?.includes('still indexing'),
+      );
+      expect(warned).toBe(true);
+    });
+
     it('should search messages with criteria', async () => {
       // searchMessages requires app state for delay settings
       const { configureStore } = await import('@reduxjs/toolkit');

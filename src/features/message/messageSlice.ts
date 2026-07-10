@@ -1181,6 +1181,16 @@ export const searchMessages = createAsyncThunk(
         : [];
       const totalResults = response.data.total_results ?? rawMessages.length;
 
+      // #216: an empty result while Discord is still building this
+      // conversation's search index does NOT mean "no matches" — say so
+      // instead of letting the user conclude their messages are gone.
+      if (response.data.doing_deep_historical_index && rawMessages.length === 0) {
+        dispatch(addStatusEntry({
+          level: 'warning',
+          message: 'Discord is still indexing this conversation — search may return nothing until indexing finishes. Try again in a little while.',
+        }));
+      }
+
       // Pass 1 reaction enrichment (#163): Discord's search endpoint omits
       // `reactions`. Without this, reaction badges, the Remove Reactions
       // button, and downstream exports all silently lose reaction data

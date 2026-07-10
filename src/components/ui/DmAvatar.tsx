@@ -33,7 +33,11 @@ export const DmAvatar = ({
   ...rest
 }: DmAvatarProps) => {
   const recipients = dm?.recipients ?? [];
-  const isGroup = recipients.length > 1;
+  // #227: group-ness is the CHANNEL TYPE (3 = GROUP_DM), not the remaining
+  // headcount — a group whittled down to one (or zero) remaining recipients
+  // is still a group and must not masquerade as a 1:1 DM. Recipient-count
+  // fallback kept for data where `type` is absent.
+  const isGroup = dm?.type === 3 || recipients.length > 1;
 
   const avatarUrl = (id: string, hash: string | null | undefined) =>
     hash ? `https://cdn.discordapp.com/avatars/${id}/${hash}.png` : undefined;
@@ -53,7 +57,7 @@ export const DmAvatar = ({
     );
   }
 
-  if (recipients.length <= 1) {
+  if (!isGroup && recipients.length <= 1) {
     const r = recipients[0];
     return (
       <Avatar
@@ -62,6 +66,16 @@ export const DmAvatar = ({
         {...rest}
       >
         {r?.username?.[0]?.toUpperCase() ?? '#'}
+      </Avatar>
+    );
+  }
+
+  // A group everyone else has left (#227): no recipients to stack, no
+  // custom icon — placeholder initial so the row still reads as a group.
+  if (recipients.length === 0) {
+    return (
+      <Avatar sx={{ width: size, height: size, ...(sx as object) }} {...rest}>
+        #
       </Avatar>
     );
   }

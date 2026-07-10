@@ -207,6 +207,50 @@ describe('DMList', () => {
     });
   });
 
+  describe('Group DM distinction (#227)', () => {
+    const groupDm = (over: Record<string, unknown>) =>
+      ({
+        id: 'g1',
+        type: 3,
+        name: null,
+        last_message_id: null,
+        recipients: [createMockUser({ id: 'u9', username: 'granddemon', global_name: 'GrandDemon', avatar: null })],
+        ...over,
+      }) as any;
+
+    const renderWithDms = (dms: any[]) =>
+      renderWithProviders(<DMList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          dm: { dms, selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+
+    it('marks a one-remaining-recipient group as a group, not a 1:1 DM', () => {
+      renderWithDms([groupDm({})]);
+      expect(screen.getByTestId('group-dm-indicator')).toHaveTextContent('Group · 2 members');
+      // Groups never borrow the recipient's display name as the row title.
+      expect(screen.queryByText('GrandDemon')).not.toBeInTheDocument();
+      expect(screen.getByText('granddemon')).toBeInTheDocument();
+    });
+
+    it('shows the custom group name as the primary label when set', () => {
+      renderWithDms([groupDm({ name: 'the lads' })]);
+      expect(screen.getByText('the lads')).toBeInTheDocument();
+    });
+
+    it('labels an emptied group as "Group DM" with a member count of 1', () => {
+      renderWithDms([groupDm({ recipients: [] })]);
+      expect(screen.getByText('Group DM')).toBeInTheDocument();
+      expect(screen.getByTestId('group-dm-indicator')).toHaveTextContent('Group · 1 member');
+    });
+
+    it('does not mark a 1:1 DM as a group', () => {
+      renderWithDms([dmWithRecipient]);
+      expect(screen.queryByTestId('group-dm-indicator')).not.toBeInTheDocument();
+    });
+  });
+
   describe('Shift+Click range select (#218)', () => {
     const mkDm = (id: string, name: string) =>
       ({
