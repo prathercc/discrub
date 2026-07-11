@@ -1063,7 +1063,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       {!isForumChannel &&
         pagination.mode === 'search' &&
         !isLoading &&
-        messages.length === 0 &&
+        allMessages.length === 0 &&
         (currentSearchCriteria.userIds ?? []).some((id) =>
           isDeletedUserEntry(cachedUserMap[id]),
         ) && (
@@ -1073,7 +1073,9 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
             though the messages still exist. To find them: clear the user
             filter, click "Load All" to load this {contextLabel}'s full
             history, then use the filter's Refine tab with the user's ID.
-            Purge handles deleted accounts automatically.
+            {/* DM purges only ever target your own messages, so the scan
+                fallback never runs there — don't promise it. */}
+            {!isDm && ' Purge handles deleted accounts automatically.'}
           </Alert>
         )}
 

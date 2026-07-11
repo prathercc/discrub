@@ -339,24 +339,40 @@ async function* iterateDeletedUserScan(
   let nextScanMilestone = 500;
 
   const channelsToScan = [channelId, ...(threadIds ?? [])];
+  let scanIncomplete = false;
   for (const scanChannelId of channelsToScan) {
     // Seed the before-cursor inside the date window when one is set —
     // the list endpoint walks newest→oldest from this point.
     let lastId: string = beforeDate ? snowflakeFromDate(beforeDate) : '';
     let hasMore = true;
+    let scannedThisChannel = 0;
 
     while (hasMore) {
       await waitWhilePaused(getState);
       if (checkCancelled(getState)) return;
 
       const response = await discordService.fetchMessageData(token, lastId, scanChannelId);
-      if (!response.success || !response.data) break;
+      if (!response.success || !response.data) {
+        // A FIRST-page failure is the expected shape for unwalkable
+        // channels (forum parents 400 on the list endpoint, unreadable
+        // private threads) — skip quietly. A MID-walk failure means part
+        // of the history went unscanned and must not pass as a clean scan.
+        if (scannedThisChannel > 0) {
+          scanIncomplete = true;
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `History scan of ${channelLabel} stopped early after a failed request (${scannedThisChannel.toLocaleString()} messages in) — results may be incomplete. Re-run the purge to cover the rest.`,
+          }));
+        }
+        break;
+      }
 
       let messages = response.data;
       hasMore = messages.length >= 100;
       if (messages.length === 0) break;
       lastId = messages[messages.length - 1].id;
       scannedTotal += messages.length;
+      scannedThisChannel += messages.length;
 
       // Early exit: once the page reaches past the window's start, drop
       // the out-of-window tail and stop walking this channel.
@@ -395,8 +411,10 @@ async function* iterateDeletedUserScan(
   }
 
   dispatch(addStatusEntry({
-    level: 'info',
-    message: `Scan of ${channelLabel} complete: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user`,
+    level: scanIncomplete ? 'warning' : 'info',
+    message: scanIncomplete
+      ? `Scan of ${channelLabel} stopped early: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user — results may be incomplete`
+      : `Scan of ${channelLabel} complete: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user`,
   }));
 }
 

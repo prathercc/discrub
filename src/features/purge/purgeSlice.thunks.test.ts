@@ -312,16 +312,16 @@ function setupNestedSearchResults(pages: Message[][][]) {
   });
 }
 
-/** Helper to make fetchMessageData return pages, then empty */
+/** Helper to make fetchMessageData return pages, then empty.
+ *  Exhaustion is an HONEST empty page (success: true, data: []) — a
+ *  success: false response now means a mid-scan FAILURE and triggers the
+ *  incomplete-scan warning path. */
 function setupFetchMessages(pages: Message[][]) {
   let callCount = 0;
   mockFetchMessageData.mockImplementation(() => {
     const page = pages[callCount] || [];
     callCount++;
-    return Promise.resolve({
-      success: page.length > 0,
-      data: page.length > 0 ? page : [],
-    });
+    return Promise.resolve({ success: true, data: page });
   });
 }
 
@@ -1408,12 +1408,15 @@ describe('purgeSlice thunks', () => {
         ...mockMessage('m-new', 0, [], DELETED_USER),
         timestamp: '2026-06-15T12:00:00.000Z',
       } as Message;
-      const outOfWindow = {
-        ...mockMessage('m-old', 0, [], DELETED_USER),
+      // A FULL page (100) whose tail crosses the window: without the early
+      // exit, hasMore (length >= 100) would drive a second fetch, so the
+      // call-count assertion below actually pins the exit (a 2-message
+      // page stops regardless and proves nothing).
+      const outOfWindowTail = Array.from({ length: 99 }, (_, i) => ({
+        ...mockMessage(`m-old-${i}`, 0, [], DELETED_USER),
         timestamp: '2026-01-01T12:00:00.000Z',
-      } as Message;
-      // One page containing both — the out-of-window tail must stop the walk.
-      setupFetchMessages([[inWindow, outOfWindow]]);
+      })) as Message[];
+      setupFetchMessages([[inWindow, ...outOfWindowTail]]);
 
       await cacheStore.dispatch(
         bulkPurgeChannels({
@@ -1437,6 +1440,82 @@ describe('purgeSlice thunks', () => {
       expect(deletedIds).toEqual(['m-new']);
       // Early exit: the walk stopped after the page that crossed the window.
       expect(mockFetchMessageData).toHaveBeenCalledTimes(1);
+    });
+
+    it('advances the before-cursor across full pages', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const fullPage = Array.from({ length: 100 }, (_, i) => ({
+        ...mockMessage(`scan-${i}`, 0, [], DELETED_USER),
+      })) as Message[];
+      const tail = { ...mockMessage('scan-tail', 0, [], DELETED_USER) } as Message;
+      setupFetchMessages([fullPage, [tail]]);
+
+      await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // Page 2 was requested with page 1's last id as the before-cursor,
+      // and the short page (1 < 100) ended the walk.
+      expect(mockFetchMessageData).toHaveBeenCalledTimes(2);
+      expect(mockFetchMessageData.mock.calls[1][1]).toBe('scan-99');
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(101);
+    });
+
+    it('warns and reports the scan as incomplete when a page fetch fails mid-walk', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const fullPage = Array.from({ length: 100 }, (_, i) => ({
+        ...mockMessage(`scan-${i}`, 0, [], DELETED_USER),
+      })) as Message[];
+      let calls = 0;
+      mockFetchMessageData.mockImplementation(() => {
+        calls++;
+        return Promise.resolve(
+          calls === 1 ? { success: true, data: fullPage } : { success: false, data: null },
+        );
+      });
+
+      const result = await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // The purge itself still completes with what page 1 yielded...
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(100);
+      // ...but the failure is loud: a mid-walk warning, and the summary
+      // says "stopped early", never "complete".
+      const entries = cacheStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const midWalk = entries.find((e) => e.message.includes('stopped early after a failed request'));
+      expect(midWalk?.level).toBe('warning');
+      expect(entries.some((e) => e.message.includes('results may be incomplete'))).toBe(true);
+      expect(entries.some((e) => e.message.includes('Scan of') && e.message.includes('complete:'))).toBe(false);
+    });
+
+    it('skips quietly when a channel cannot be walked at all (first-page failure)', async () => {
+      // Forum parents 400 on the list endpoint and unreadable private
+      // threads fail page 1 — that is an expected skip, not an incomplete
+      // scan, and must not spook the user with a warning.
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      mockFetchMessageData.mockResolvedValue({ success: false, data: null });
+
+      await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      const entries = cacheStore.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.some((e) => e.message.includes('stopped early'))).toBe(false);
+      expect(entries.some((e) => e.message.includes('results may be incomplete'))).toBe(false);
     });
   });
 
