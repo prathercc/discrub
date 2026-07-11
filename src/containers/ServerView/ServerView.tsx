@@ -40,6 +40,7 @@ import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import type { Channel } from 'discrub-core/types/discord-types';
 import {
   selectActiveFilteredMessages,
+  selectClearSeq,
   selectActiveSelectedMessages,
   selectActiveMessages,
   selectActiveLoading,
@@ -127,6 +128,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const mainMessages = useAppSelector(selectMessages);
   const allMessages = useAppSelector(selectActiveMessages);
   const messages = useAppSelector(selectActiveFilteredMessages);
+  const clearSeq = useAppSelector(selectClearSeq);
   const selectedMessages = useAppSelector(selectActiveSelectedMessages);
   const isLoading = useAppSelector(selectActiveLoading);
   const error = useAppSelector(selectActiveError);
@@ -314,7 +316,11 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       delete next['main'];
       return next;
     });
-  }, [selectedChannel?.id, selectedDm?.id]);
+    // clearSeq covers the id-unchanged path: re-clicking the CURRENT
+    // conversation dispatches clearMessages (wiping the real criteria) but
+    // leaves both ids alone, which used to strand stale chips + FilterModal
+    // pre-fill here.
+  }, [selectedChannel?.id, selectedDm?.id, clearSeq]);
 
   // Clean up saved search criteria for closed thread tabs.
   // Refine criteria is now per-tab in Redux and cleaned up automatically

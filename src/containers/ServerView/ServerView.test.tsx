@@ -298,6 +298,34 @@ describe('ServerView', () => {
         expect(screen.queryByText('content: hello')).not.toBeInTheDocument(),
       );
     });
+
+    it('clears the saved search chips when the SAME channel is re-clicked', async () => {
+      // A sidebar re-click of the current conversation dispatches
+      // clearMessages without changing the selected id — the chips must
+      // clear on the clearMessages signal (clearSeq), not just on id change.
+      const { store } = renderWithProviders(<ServerView />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          guild: { guilds: [guild], selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
+          channel: { channels: [channel], selectedChannel: channel, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
+        }),
+      });
+
+      await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
+      await userEvent.type(
+        await screen.findByPlaceholderText('Search message content...'),
+        'hello',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Search' }));
+      expect(await screen.findByText('content: hello')).toBeInTheDocument();
+
+      // The re-click flow's relevant dispatch, with the id unchanged.
+      const { clearMessages } = await import('@/features/message/messageSlice');
+      store.dispatch(clearMessages());
+      await waitFor(() =>
+        expect(screen.queryByText('content: hello')).not.toBeInTheDocument(),
+      );
+    });
   });
 
   // #223: an author-filtered search that returns nothing for a DELETED

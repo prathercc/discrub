@@ -2624,6 +2624,9 @@ const messageSlice = createSlice({
       // lingering refine would silently hide messages in the next
       // channel/DM the user opens.
       state.refineCriteria = null;
+      // Signal criteria-mirroring UI (ServerView's chip ref) even when the
+      // selected conversation id doesn't change (#226 re-click path).
+      state.clearSeq += 1;
       // Reset pagination state and cancel any ongoing operations
       state.pagination = initialMessageState.pagination;
       state.isLoading = false;
@@ -3326,6 +3329,7 @@ export const {
 // Base selectors (always return main channel state)
 export const selectMessage = (state: RootState) => state.message;
 export const selectMessages = (state: RootState) => state.message.messages;
+export const selectClearSeq = (state: RootState) => state.message.clearSeq;
 export const selectHighlightedMessageId = (state: RootState) =>
   state.message.highlightedMessageId;
 export const selectFilteredMessages = (state: RootState) => state.message.filteredMessages;

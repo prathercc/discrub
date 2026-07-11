@@ -249,6 +249,34 @@ describe('DMList', () => {
       renderWithDms([dmWithRecipient]);
       expect(screen.queryByTestId('group-dm-indicator')).not.toBeInTheDocument();
     });
+
+    it('shows the members of a NAMED group as a secondary caption', () => {
+      // The custom name is the primary label; without this caption the
+      // member names would appear nowhere on the row.
+      renderWithDms([groupDm({ name: 'the lads' })]);
+      expect(screen.getByText('the lads')).toBeInTheDocument();
+      expect(screen.getByText('granddemon')).toBeInTheDocument();
+    });
+
+    it('finds a NAMED group when filtering by a member name', () => {
+      renderWithProviders(<DMList filterText="granddemon" />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          dm: { dms: [groupDm({ name: 'the lads' })], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+      expect(screen.getByText('the lads')).toBeInTheDocument();
+    });
+
+    it('finds a NAMED group when filtering by a member display name', () => {
+      renderWithProviders(<DMList filterText="GrandDemon" />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          dm: { dms: [groupDm({ name: 'the lads' })], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+      expect(screen.getByText('the lads')).toBeInTheDocument();
+    });
   });
 
   describe('Shift+Click range select (#218)', () => {

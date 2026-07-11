@@ -85,6 +85,14 @@ export interface MessageState {
    * flash-highlight its row. Cleared ~2s after the scroll.
    */
   highlightedMessageId: string | null;
+  /**
+   * Bumps on every clearMessages. UI that mirrors criteria outside Redux
+   * (ServerView's per-tab criteria ref for filter chips) keys its cleanup
+   * on this, so a re-click of the SAME conversation — which clears the
+   * real criteria without changing the selected id — can't leave stale
+   * chips behind (#226).
+   */
+  clearSeq: number;
 }
 
 export const initialPaginationState: PaginationState = {
@@ -120,4 +128,5 @@ export const initialMessageState: MessageState = {
   activeTab: null,
   threadTabs: {},
   highlightedMessageId: null,
+  clearSeq: 0,
 };

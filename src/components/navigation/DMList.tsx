@@ -111,8 +111,15 @@ const DMList = ({ filterText = '' }: DMListProps) => {
 
     const searchLower = filterText.toLowerCase().trim();
     return dms.filter((dm) => {
-      const dmName = getDmName(dm);
-      return dmName.toLowerCase().includes(searchLower);
+      // Match the custom group name AND member usernames — a named group's
+      // primary label is its name (#227), but people still look for groups
+      // by who's in them.
+      if (getDmName(dm).toLowerCase().includes(searchLower)) return true;
+      return (dm.recipients ?? []).some(
+        (r) =>
+          r.username?.toLowerCase().includes(searchLower) ||
+          r.global_name?.toLowerCase().includes(searchLower),
+      );
     });
   }, [dms, filterText]);
 
@@ -295,6 +302,18 @@ const DMList = ({ filterText = '' }: DMListProps) => {
                     >
                       <GroupsIcon sx={{ fontSize: 13 }} />
                       Group · {getGroupMemberCount(dm)} member{getGroupMemberCount(dm) !== 1 ? 's' : ''}
+                    </Typography>
+                  )}
+                  {/* A named group's primary label is its custom name, so
+                      surface the members here — otherwise they appear
+                      nowhere on the row. */}
+                  {isGroupDm(dm) && dm.name && (dm.recipients?.length ?? 0) > 0 && (
+                    <Typography
+                      component="span"
+                      variant="caption"
+                      sx={{ color: 'text.disabled', fontSize: '0.7rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}
+                    >
+                      {dm.recipients!.map((r) => r.username).join(', ')}
                     </Typography>
                   )}
                   {getDmDisplayName(dm) && (
