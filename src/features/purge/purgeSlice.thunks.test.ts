@@ -1303,6 +1303,30 @@ describe('purgeSlice thunks', () => {
       const entries = store.getState().status.entries.map((e) => e.message);
       expect(entries.some((m) => m.includes('still indexing'))).toBe(false);
     });
+
+    it('warns that a NON-zero total may be an undercount while still indexing (#216)', async () => {
+      const group = mockGroupDmChannel('gdm5', null, ['granddemon']);
+      let calls = 0;
+      mockFetchSearchMessageData.mockImplementation(() => {
+        calls++;
+        return Promise.resolve({
+          success: true,
+          data: calls === 1
+            ? { messages: [[mockMessage('m1')]], total_results: 5, doing_deep_historical_index: true }
+            : { messages: [], total_results: 5 },
+        });
+      });
+
+      await store.dispatch(
+        bulkPurgeDMs({ channels: [group], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const entries = store.getState().status.entries.map((e) => e.message);
+      // The count is announced AND flagged as possibly incomplete —
+      // deleting only what search returned must not read as a clean sweep.
+      expect(entries.some((m) => m.includes('Discord reports 5'))).toBe(true);
+      expect(entries.some((m) => m.includes('count may be incomplete'))).toBe(true);
+    });
   });
 
   describe('bulkPurgeChannels — deleted-account scan fallback (#223)', () => {

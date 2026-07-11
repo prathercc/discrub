@@ -529,6 +529,16 @@ async function fetchAllChannelMessages(
               message: `Discord reports ${page.totalResults.toLocaleString()} matching message${page.totalResults === 1 ? '' : 's'} in ${label}`,
             }));
           }
+          // #216: search-filtered exports share the purge's blind spot —
+          // while Discord is still indexing this conversation, results can
+          // be empty or an undercount, and the export would quietly ship a
+          // partial archive.
+          if ((page as { stillIndexing?: boolean }).stillIndexing) {
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `Discord is still indexing ${label} — this export may be missing messages. Re-run it after indexing finishes for a complete set.`,
+            }));
+          }
         }
 
         allMessages.push(...page.messages);

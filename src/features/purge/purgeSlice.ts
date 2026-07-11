@@ -717,6 +717,15 @@ async function purgeChannelMessages(
             level: 'info',
             message: `Discord reports ${totalForThisUser.toLocaleString()} matching message${totalForThisUser === 1 ? '' : 's'} in ${label}`,
           }));
+          if ((page as { stillIndexing?: boolean }).stillIndexing) {
+            // #216: a non-zero total while indexing is in progress can
+            // still be an UNDERCOUNT — deleting only what search returns
+            // and reporting success would silently miss the rest.
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `Discord is still indexing ${label} — this count may be incomplete. Re-run the purge after indexing finishes to catch anything missed.`,
+            }));
+          }
         } else if ((page as { stillIndexing?: boolean }).stillIndexing) {
           // #216: "0 matches" while Discord is still building this
           // conversation's search index is not a real zero — the likely

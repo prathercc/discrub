@@ -1124,6 +1124,68 @@ describe('exportSlice', () => {
       expect(firstCallMessages[0].id).toBe('sm-1');
       expect(firstCallMessages[0].reactions).toBeUndefined();
     });
+
+    it('warns that a still-indexing conversation may export incomplete (#216)', async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { iterateSearchMessagesRedux } = await import('@/utils/searchPagination');
+
+      vi.mocked(iterateSearchMessagesRedux).mockImplementation(async function* () {
+        yield {
+          messages: [],
+          totalResults: 0,
+          pageIndex: 0,
+          aggregatedCount: 0,
+          stillIndexing: true,
+        } as any;
+      });
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      await testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-1', name: 'general' } as any],
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          searchCriteria: { searchMessageContent: 'x' } as any,
+        })
+      );
+
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const warning = entries.find((e) => e.message.includes('still indexing'));
+      expect(warning).toBeDefined();
+      expect(warning?.level).toBe('warning');
+      expect(warning?.message).toContain('may be missing messages');
+    });
   });
 
   describe('Bulk export unfiltered branch status log milestones (#167)', () => {
