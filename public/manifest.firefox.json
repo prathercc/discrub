@@ -8,7 +8,8 @@
   "permissions": [
     "storage",
     "scripting",
-    "activeTab"
+    "activeTab",
+    "webRequest"
   ],
 
   "host_permissions": [

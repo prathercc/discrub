@@ -266,6 +266,19 @@ export function createScriptingMock() {
 }
 
 /**
+ * Mock Chrome webRequest API
+ */
+export function createWebRequestMock() {
+  return {
+    onBeforeSendHeaders: {
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      hasListener: vi.fn(),
+    },
+  };
+}
+
+/**
  * Create full Chrome API mock
  */
 export function createChromeMocks() {
@@ -275,6 +288,7 @@ export function createChromeMocks() {
     storage: createStorageMock(),
     action: createActionMock(),
     scripting: createScriptingMock(),
+    webRequest: createWebRequestMock(),
   };
 }
 

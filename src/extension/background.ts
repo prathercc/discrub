@@ -18,6 +18,115 @@ setupStreamingDownloads();
 console.log('[Discrub Background] Background script initialized');
 
 type ContentMessage = { action: string } | { message: string };
+type TokenResponse = { success?: boolean; token?: string | null; error?: string };
+
+const DISCORD_TAB_URLS = ['*://discord.com/*', '*://*.discord.com/*'];
+const DISCORD_API_URLS = [
+  '*://discord.com/api/*',
+  '*://*.discord.com/api/*',
+  '*://discordapp.com/api/*',
+  '*://*.discordapp.com/api/*',
+];
+const CACHED_TOKEN_STORAGE_KEY = 'discrubDiscordToken';
+
+let cachedDiscordToken: string | null = null;
+
+function isLikelyUserToken(value: string | undefined): value is string {
+  if (!value) return false;
+  const token = value.trim();
+  return token.length > 20 && !token.toLowerCase().startsWith('bot ');
+}
+
+function cacheAuthorizationHeader(headers?: chrome.webRequest.HttpHeader[]): void {
+  const header = headers?.find((item) => item.name.toLowerCase() === 'authorization');
+  const value = typeof header?.value === 'string' ? header.value.trim() : undefined;
+
+  if (isLikelyUserToken(value)) {
+    cachedDiscordToken = value;
+    chrome.storage?.session?.set?.({ [CACHED_TOKEN_STORAGE_KEY]: value });
+    console.log('[Discrub Background] Cached Discord auth header from API request');
+  }
+}
+
+function setupDiscordAuthHeaderCache(): void {
+  if (!chrome.webRequest?.onBeforeSendHeaders) {
+    console.warn('[Discrub Background] webRequest API is unavailable; auth header cache disabled');
+    return;
+  }
+
+  const listener = (details: chrome.webRequest.WebRequestHeadersDetails): void => {
+    cacheAuthorizationHeader(details.requestHeaders);
+  };
+
+  try {
+    chrome.webRequest.onBeforeSendHeaders.addListener(
+      listener,
+      { urls: DISCORD_API_URLS },
+      ['requestHeaders', 'extraHeaders'],
+    );
+  } catch (error) {
+    console.warn('[Discrub Background] extraHeaders unavailable, using requestHeaders only:', error);
+    chrome.webRequest.onBeforeSendHeaders.addListener(
+      listener,
+      { urls: DISCORD_API_URLS },
+      ['requestHeaders'],
+    );
+  }
+}
+
+function chooseDiscordTab(tabs: chrome.tabs.Tab[]): chrome.tabs.Tab {
+  return [...tabs].sort((first, second) => getDiscordTabPriority(first) - getDiscordTabPriority(second))[0];
+}
+
+function getDiscordTabPriority(tab: chrome.tabs.Tab): number {
+  const url = tab.url ?? '';
+  if (tab.active && url.includes('/channels/')) return 0;
+  if (url.includes('/channels/')) return 1;
+  if (tab.active) return 2;
+  return 3;
+}
+
+function getCachedDiscordToken(callback: (token: string | null) => void): void {
+  if (cachedDiscordToken) {
+    callback(cachedDiscordToken);
+    return;
+  }
+
+  if (!chrome.storage?.session?.get) {
+    callback(null);
+    return;
+  }
+
+  chrome.storage.session.get(CACHED_TOKEN_STORAGE_KEY, (items) => {
+    const token = items[CACHED_TOKEN_STORAGE_KEY];
+    if (typeof token === 'string' && isLikelyUserToken(token)) {
+      cachedDiscordToken = token;
+      callback(token);
+    } else {
+      callback(null);
+    }
+  });
+}
+
+function sendCachedTokenResponse(
+  sendResponse: (response?: unknown) => void,
+  fallback: () => void,
+): void {
+  getCachedDiscordToken((token) => {
+    if (!token) {
+      fallback();
+      return;
+    }
+
+    sendResponse({
+      success: true,
+      token,
+      source: 'webRequest',
+    });
+  });
+}
+
+setupDiscordAuthHeaderCache();
 
 function injectContentScript(tabId: number, callback: (error?: string) => void): void {
   if (!chrome.scripting?.executeScript) {
@@ -83,7 +192,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.action === 'requestToken') {
     // Find discord.com tab
     chrome.tabs.query(
-      { url: ['*://discord.com/*', '*://*.discord.com/*'] },
+      { url: DISCORD_TAB_URLS },
       (tabs) => {
         if (tabs.length === 0) {
           console.warn('[Discrub Background] No Discord tabs found');
@@ -95,18 +204,30 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         }
 
         // Send message to content script on discord.com
-        const discordTab = tabs[0];
+        const discordTab = chooseDiscordTab(tabs);
         sendContentMessage(discordTab, { action: 'getToken' }, (response, error) => {
           if (error) {
             console.error('[Discrub Background] Content script not responding:', error);
-            sendResponse({
-              success: false,
-              error: 'Failed to communicate with Discord tab. Try refreshing discord.com.'
+            sendCachedTokenResponse(sendResponse, () => {
+              sendResponse({
+                success: false,
+                error: 'Failed to communicate with Discord tab. Try refreshing discord.com.'
+              });
             });
           } else {
-            const tokenResponse = response as { success?: boolean } | undefined;
+            const tokenResponse = response as TokenResponse | undefined;
             console.log('[Discrub Background] Token response:', tokenResponse?.success ? 'Success' : 'Failed');
-            sendResponse(response);
+            if (tokenResponse?.success && tokenResponse.token) {
+              sendResponse(response);
+            } else {
+              sendCachedTokenResponse(sendResponse, () => {
+                sendResponse({
+                  success: false,
+                  token: null,
+                  error: tokenResponse?.error || 'Could not retrieve token from Discord. Refresh discord.com and try again.',
+                });
+              });
+            }
           }
         }, true);
       }
@@ -129,7 +250,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         } else {
           // Fall back to any Discord tab
           chrome.tabs.query(
-            { url: ['*://discord.com/*', '*://*.discord.com/*'] },
+            { url: DISCORD_TAB_URLS },
             (allTabs) => {
               if (allTabs.length === 0) {
                 console.warn('[Discrub Background] No Discord tabs found');
@@ -315,7 +436,7 @@ const openExtensionOverlay = () => {
       } else {
         // No active Discord tab - check for any Discord tab
         chrome.tabs.query(
-          { url: ['*://discord.com/*', '*://*.discord.com/*'] },
+          { url: DISCORD_TAB_URLS },
           (allTabs) => {
             if (allTabs.length > 0) {
               // Discord tab exists but not active - switch to it and inject
