@@ -79,4 +79,29 @@ describe('tokenExtraction', () => {
 
     expect(getDiscordToken()).toBe('iframe-token-123');
   });
+
+  it('falls back to iframe storage when page localStorage is unavailable', () => {
+    const iframeStorage = createStorageMock({ token: '"iframe-token-456"' });
+    const createElement = document.createElement.bind(document);
+
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get() {
+        throw new ReferenceError('localStorage is not defined');
+      },
+    });
+
+    vi.spyOn(document, 'createElement').mockImplementation(((tagName: string) => {
+      const element = createElement(tagName);
+      if (tagName.toLowerCase() === 'iframe') {
+        Object.defineProperty(element, 'contentWindow', {
+          configurable: true,
+          value: { localStorage: iframeStorage },
+        });
+      }
+      return element;
+    }) as typeof document.createElement);
+
+    expect(getDiscordToken()).toBe('iframe-token-456');
+  });
 });

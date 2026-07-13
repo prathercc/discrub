@@ -82,8 +82,22 @@ function readDiscordTokenFromIframeStorage(): string | null {
   }
 }
 
+function getPageStorage(): Storage | null {
+  try {
+    return window.localStorage ?? null;
+  } catch (error) {
+    console.warn('[Discrub Content] Page localStorage unavailable:', error);
+    return null;
+  }
+}
+
+function readDiscordTokenFromPageStorage(): string | null {
+  const storage = getPageStorage();
+  return storage ? readDiscordTokenFromStorage(storage, 'page') : null;
+}
+
 export function getDiscordToken(): string | null {
-  let token = readDiscordTokenFromStorage(localStorage, 'page');
+  let token = readDiscordTokenFromPageStorage();
   if (token) return token;
 
   try {
@@ -92,7 +106,7 @@ export function getDiscordToken(): string | null {
     console.warn('[Discrub Content] Failed to trigger Discord token flush:', error);
   }
 
-  token = readDiscordTokenFromStorage(localStorage, 'page');
+  token = readDiscordTokenFromPageStorage();
   if (token) return token;
 
   token = readDiscordTokenFromIframeStorage();

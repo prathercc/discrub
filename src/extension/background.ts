@@ -17,6 +17,62 @@ setupStreamingDownloads();
 
 console.log('[Discrub Background] Background script initialized');
 
+type ContentMessage = { action: string } | { message: string };
+
+function injectContentScript(tabId: number, callback: (error?: string) => void): void {
+  if (!chrome.scripting?.executeScript) {
+    callback('Scripting API is unavailable.');
+    return;
+  }
+
+  chrome.scripting.executeScript(
+    {
+      target: { tabId },
+      files: ['content.js'],
+    },
+    () => {
+      callback(chrome.runtime.lastError?.message);
+    },
+  );
+}
+
+function sendContentMessage(
+  tab: chrome.tabs.Tab,
+  message: ContentMessage,
+  callback: (response?: unknown, error?: string) => void,
+  retryWithInjection = false,
+): void {
+  if (!tab.id) {
+    callback(undefined, 'Discord tab has no id.');
+    return;
+  }
+
+  chrome.tabs.sendMessage(tab.id, message, (response) => {
+    const sendError = chrome.runtime.lastError?.message;
+    if (!sendError) {
+      callback(response);
+      return;
+    }
+
+    if (!retryWithInjection) {
+      callback(undefined, sendError);
+      return;
+    }
+
+    console.warn('[Discrub Background] Content script not responding, injecting fallback:', sendError);
+    injectContentScript(tab.id!, (injectError) => {
+      if (injectError) {
+        callback(undefined, injectError);
+        return;
+      }
+
+      chrome.tabs.sendMessage(tab.id!, message, (retryResponse) => {
+        callback(retryResponse, chrome.runtime.lastError?.message);
+      });
+    });
+  });
+}
+
 /**
  * Message handler
  */
@@ -40,22 +96,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
         // Send message to content script on discord.com
         const discordTab = tabs[0];
-        chrome.tabs.sendMessage(
-          discordTab.id!,
-          { action: 'getToken' },
-          (response) => {
-            if (chrome.runtime.lastError) {
-              console.error('[Discrub Background] Content script not responding:', chrome.runtime.lastError);
-              sendResponse({
-                success: false,
-                error: 'Failed to communicate with Discord tab. Try refreshing discord.com.'
-              });
-            } else {
-              console.log('[Discrub Background] Token response:', response?.success ? 'Success' : 'Failed');
-              sendResponse(response);
-            }
+        sendContentMessage(discordTab, { action: 'getToken' }, (response, error) => {
+          if (error) {
+            console.error('[Discrub Background] Content script not responding:', error);
+            sendResponse({
+              success: false,
+              error: 'Failed to communicate with Discord tab. Try refreshing discord.com.'
+            });
+          } else {
+            const tokenResponse = response as { success?: boolean } | undefined;
+            console.log('[Discrub Background] Token response:', tokenResponse?.success ? 'Success' : 'Failed');
+            sendResponse(response);
           }
-        );
+        }, true);
       }
     );
 
@@ -94,22 +147,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     );
 
     function sendInjectMessage(tab: chrome.tabs.Tab) {
-      chrome.tabs.sendMessage(
-        tab.id!,
-        { action: 'injectOverlay' },
-        (response) => {
-          if (chrome.runtime.lastError) {
-            console.error('[Discrub Background] Content script not responding:', chrome.runtime.lastError);
-            sendResponse({
-              success: false,
-              error: 'Failed to communicate with Discord tab. Try refreshing discord.com.'
-            });
-          } else {
-            console.log('[Discrub Background] Overlay injection:', response?.success ? 'Success' : 'Failed');
-            sendResponse(response);
-          }
+      sendContentMessage(tab, { action: 'injectOverlay' }, (response, error) => {
+        if (error) {
+          console.error('[Discrub Background] Content script not responding:', error);
+          sendResponse({
+            success: false,
+            error: 'Failed to communicate with Discord tab. Try refreshing discord.com.'
+          });
+        } else {
+          const injectResponse = response as { success?: boolean } | undefined;
+          console.log('[Discrub Background] Overlay injection:', injectResponse?.success ? 'Success' : 'Failed');
+          sendResponse(response);
         }
-      );
+      }, true);
     }
 
     return true; // Keep channel open for async response
@@ -257,15 +307,11 @@ const openExtensionOverlay = () => {
     (activeTabs) => {
       if (activeTabs.length > 0) {
         // Active Discord tab found - inject overlay
-        chrome.tabs.sendMessage(
-          activeTabs[0].id!,
-          { action: 'injectOverlay' },
-          (_response) => {
-            if (chrome.runtime.lastError) {
-              console.warn('[Discrub Background] Could not inject overlay:', chrome.runtime.lastError.message);
-            }
+        sendContentMessage(activeTabs[0], { action: 'injectOverlay' }, (_response, error) => {
+          if (error) {
+            console.warn('[Discrub Background] Could not inject overlay:', error);
           }
-        );
+        }, true);
       } else {
         // No active Discord tab - check for any Discord tab
         chrome.tabs.query(
@@ -274,15 +320,11 @@ const openExtensionOverlay = () => {
             if (allTabs.length > 0) {
               // Discord tab exists but not active - switch to it and inject
               chrome.tabs.update(allTabs[0].id!, { active: true }, () => {
-                chrome.tabs.sendMessage(
-                  allTabs[0].id!,
-                  { action: 'injectOverlay' },
-                  (_response) => {
-                    if (chrome.runtime.lastError) {
-                      console.warn('[Discrub Background] Could not inject overlay:', chrome.runtime.lastError.message);
-                    }
+                sendContentMessage(allTabs[0], { action: 'injectOverlay' }, (_response, error) => {
+                  if (error) {
+                    console.warn('[Discrub Background] Could not inject overlay:', error);
                   }
-                );
+                }, true);
               });
             } else {
               console.warn('[Discrub Background] No Discord tabs found. Please open discord.com first.');
