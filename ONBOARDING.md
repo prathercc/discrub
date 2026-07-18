@@ -52,6 +52,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Channel Categories** — Channels grouped by Discord categories with collapsible headers.
 - **Permission-Based Visibility** — Locked channels shown with lock icons, admin features gated by Manage Messages permission.
 - **Status Log** — Terminal-style real-time operation log with color-coded entries, downloadable as a `.log` file. The panel is resizable (drag the top edge), persists history across sessions, and groups entries by session for easy review.
+- **Range Selection** — Shift+Click selects a range in the server, channel, and DM lists. In the message feed, click a checkbox and drag to sweep a range of messages, with edge auto-scroll and thread-tab support.
+- **Group DM Distinction** — Group DMs carry a Group chip, show the group's own name when one is set, and are labeled as groups in purge confirmations.
 - **Skeleton Loading** — Smooth placeholder loading states instead of blank screens.
 - **Error Recovery** — Persistent error logging with crash recovery and downloadable error reports.
 
@@ -72,6 +74,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Oversized Exports | Single archive, could corrupt past 4 GB | Auto-split into `export.zip`, `export-part2.zip`, ... under a safe size |
 | Forwarded Media | Not exported (blank links offline) | Forwarded attachments and embedded images downloaded and rewritten to local copies |
 | Stickers & Polls | Not rendered | Sticker images and poll cards rendered in HTML exports |
+| Bare Image/GIF Links | Exported as plain URLs | Rendered as inline media, matching how Discord displays them |
 | Preset Date Range | Re-enter each time | Saved presets can remember an optional date range |
 | Thread Filenames | Last write wins on collision | Auto dedupe (`_<threadId>` suffix) so duplicate-named threads keep separate files |
 | Media Breakdown | None | Per-type counts and sizes with preview |
@@ -94,6 +97,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Stale-Feed Reload Toast | No | One-click reload after a purge targets the visible channel |
 | Pinned Message Preservation | No | Setting the FilterModal Pinned dropdown to "False" actually preserves pinned messages, with the count reported in the status log |
 | Progress Visibility | Static counter | Status log progress label pulses on each update with adaptive milestones (5 / 25 / 100) so progress is always obvious |
+| Deleted Accounts | Search finds nothing, so nothing is purged | Detects the empty search, warns you, and falls back to a full message-history scan so a deleted user's messages are still removed |
 
 ### Search Improvements
 
@@ -105,6 +109,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Date Precision | Whole days | Hour and minute (time-of-day), with Before, After, or Between two dates |
 | Pagination | All-at-once | Lazy 25-msg pages with "X of Y matches loaded" counter; Load All renders pages live and retries transient network failures |
 | Inline Filter-by-User | No | Click an author → one-click filter by them or messages mentioning them |
+| Filter Lifetime | Criteria persisted across channel switches | Cleared automatically when you switch conversations, so no stale filters |
+| Indexing Notice | No | Warns when Discord reports a channel's search index is still being built, so partial results aren't mistaken for missing messages |
 
 ---
 

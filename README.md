@@ -50,18 +50,24 @@ Available as a **web app** (manual token entry) and a **Chrome/Firefox extension
 
 Navigate your Discord servers with full channel category support, permission-based visibility (locked channels shown with lock icons; channels you can reach only through a member-specific permission grant, such as ticket channels, are correctly shown as open), and direct message browsing with display names. Voice and Stage channels are first-class clickable rows since Discord rolled out persistent text chat in voice channels: select one to read its embedded message history just like any text channel.
 
-Multi-select mode is available across the Server, Channel, and DM lists, with a styled Copy button for quickly grabbing names or IDs. Server multi-select lays groundwork for future cross-server bulk operations.
+Multi-select mode is available across the Server, Channel, and DM lists, with a styled Copy button for quickly grabbing names or IDs. Shift+Click selects a whole range at once. Server multi-select lays groundwork for future cross-server bulk operations.
+
+Group DMs are visually distinct from one-on-one conversations: they carry a Group chip in the DM list, show the group's own name when one is set, and purge confirmations label them as groups so you always know how many people a bulk action touches.
 
 ![Server & Channel Browsing](docs/screenshots/browsing/channel-list.png)
 ![DM Browsing](docs/screenshots/browsing/dm-list.png)
 
 ### Message Feed, Search & Filters
 
-A Discord-style chunked feed with inline message rendering, role-colored author names, role icons, reply indicators, hover-only gutter timestamps, virtualization for smooth scroll on huge channels, and system messages (pins, joins, boosts, thread-created) rendered as compact native-looking notices. Stickers render as images and polls as vote-bar cards. Forwarded messages render their full snapshot content (text, attachments, embeds), and system and pinned messages are selectable for bulk actions.
+A Discord-style chunked feed with inline message rendering, role-colored author names, role icons, reply indicators, hover-only gutter timestamps, virtualization for smooth scroll on huge channels, and system messages (pins, joins, boosts, thread-created) rendered as compact native-looking notices. Stickers render as images and polls as vote-bar cards. Forwarded messages render their full snapshot content (text, attachments, embeds), and system and pinned messages are selectable for bulk actions. Bare image and GIF links that Discord shows as inline media render the same way in the feed and in HTML exports, instead of appearing as plain URLs.
+
+Selecting many messages is fast: click a checkbox and drag to sweep a range (the feed auto-scrolls when you reach the edge), or use Shift+Click to extend a selection. Both work in thread tabs too.
 
 **Filters** uses a two-layer model in one modal:
 
-- **Search** hits Discord's API. Filter by message content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), date range (before, after, or between two dates) with **time-of-day precision**, pinned status, and author type (human / bot / webhook). Results stream in lazily as the channel header shows `X of Y matches loaded` and a Load All option transparently chains queries past Discord's 5,000-result cap. Load All renders messages live as pages arrive (no more waiting for the full run to finish before anything appears), retries transient network failures with exponential backoff, and pauses if retries exhaust so you can resume after fixing the network.
+- **Search** hits Discord's API. Filter by message content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), date range (before, after, or between two dates) with **time-of-day precision**, pinned status, and author type (human / bot / webhook). Results stream in lazily as the channel header shows `X of Y matches loaded` and a Load All option transparently chains queries past Discord's 5,000-result cap. Load All renders messages live as pages arrive (no more waiting for the full run to finish before anything appears), retries transient network failures with exponential backoff, and pauses if retries exhaust so you can resume after fixing the network. If Discord reports that a channel's search index is still being built, Discrub says so up front, since results can look incomplete until Discord finishes indexing.
+
+Search and Refine criteria are cleared automatically when you switch to a different channel or DM, so a filter from one conversation never silently narrows another.
 - **Refine** narrows the messages already loaded, client-side, with no API calls. Survives "Load more" so new pages stay filtered, and a status entry appears when an incoming page contributed zero matches. Includes a system-message control to **show only** or **hide** a chosen system-message type (pins, joins, boosts, etc.).
 
 ![Search & Filters](docs/screenshots/messages/search-filters.png)
@@ -116,7 +122,7 @@ Export messages in five formats with granular control:
 | **Media Only** | Download attachments without message content |
 
 **HTML Templates:**
-- **Discord Layout** (default) — wraps exports in a Discord-like shell with server sidebar, channel navigation, and theme toggle
+- **Discord Layout** (default) — wraps exports in a Discord-like shell with server sidebar, channel navigation grouped under your server's categories (just like Discord), and theme toggle
 - **Standard** — clean standalone HTML pages
 
 **Export Features:**
@@ -125,6 +131,7 @@ Export messages in five formats with granular control:
 - Per-type media selection (images, videos, audio)
 - Configurable messages per page
 - Thread/forum post separation into individual files, with automatic name-collision dedupe so threads that share a title don't overwrite each other (and the Discord Layout sidebar keeps those thread links clickable)
+- Any remaining zip path collision is renamed on the fly instead of aborting the export, so one duplicate filename can't sink a long run
 - Forwarded-message media (attachments and embedded images) is downloaded and rewritten to local copies, so forwarded content shows up offline instead of as blank links
 - Stickers and polls render in HTML exports (sticker images, poll cards)
 - Detailed reaction user data in HTML exports
@@ -150,6 +157,8 @@ Delete messages and reactions across one or multiple channels with user targetin
 - **Clear All Reactions** (admin) — bulk remove all reactions using a single API call per message
 
 Features: multi-channel selection with one-click "Select all", filters integration (narrow by author, content, date, has-types) for both bulk export and bulk purge, retain-attachments option, thread-aware discovery (auto-unarchives during purge and re-archives when done), DM support (own messages only), pause/resume/cancel.
+
+Purging a **deleted account's** messages works even though Discord's search returns nothing for deleted users: Discrub detects the empty search, warns you, and falls back to a full message-history scan so those messages are still found and removed.
 
 Setting the FilterModal's Pinned dropdown to **False** now actually preserves pinned messages during a purge. Discord's search endpoint silently ignores `pinned=false`, so Discrub applies the filter client-side as a final safety check before each delete and reports the count of preserved pinned messages in the status log.
 
@@ -513,8 +522,8 @@ Discrub displays author names in the color of their highest-position role that h
 - **Redux Toolkit** for state management
 - **Material UI (MUI)** for components
 - **discrub-core** for Discord API communication
-- **Vitest** for unit testing (3000+ tests)
-- **Cypress** for E2E testing (600+ tests across 34 specs)
+- **Vitest** for unit testing (3800+ tests)
+- **Cypress** for E2E testing (650+ tests across 40 specs)
 - **Storybook** for component development (35 stories)
 
 ---
