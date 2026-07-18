@@ -1640,4 +1640,43 @@ describe('Search & Filters', () => {
       cy.contains(/Showing messages mentioning/i).should('be.visible');
     });
   });
+
+  // ── FILTER RESET ON CONVERSATION SWITCH (#226) ──────────────────
+
+  describe('Filter reset on conversation switch (#226)', () => {
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.selectChannel('general');
+    });
+
+    it('clears applied filters when switching channels and does not resurrect them on return', () => {
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+        fixture: 'search-results.json',
+      }).as('guildSearch');
+
+      searchViaModal('project');
+      cy.wait('@guildSearch');
+
+      // Switch conversations: the new feed must start unfiltered and the
+      // modal must show empty criteria.
+      cy.selectChannel('dev-chat');
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]')
+        .find('input[placeholder="Search message content..."]')
+        .should('have.value', '');
+      cy.get('[role="dialog"]').contains('button', 'Cancel').click();
+
+      // Return to the original channel: criteria must not resurrect.
+      cy.selectChannel('general');
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]')
+        .find('input[placeholder="Search message content..."]')
+        .should('have.value', '');
+      cy.get('[role="dialog"]').contains('button', 'Cancel').click();
+
+      // The original search fired exactly once; neither switch re-ran it.
+      cy.get('@guildSearch.all').should('have.length', 1);
+    });
+  });
 });

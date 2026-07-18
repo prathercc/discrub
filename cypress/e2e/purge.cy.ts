@@ -653,6 +653,63 @@ describe('Bulk Purge Operations', () => {
     });
   });
 
+  describe('Messages Mode — Deleted-Account History Scan (#223)', () => {
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.contains('general').should('be.visible');
+
+      interceptThreadDiscovery();
+      interceptMessagesPurge();
+
+      // Deleted-account placeholder: the post-pomelo `deleted_user_` name
+      // pattern flips the purge onto the full-history scan, since Discord's
+      // author_id search returns nothing for deleted accounts (#223).
+      cy.intercept('GET', `${API}/users/*`, {
+        statusCode: 200,
+        body: {
+          id: '111222333444555666',
+          username: 'deleted_user_a1b2c3d4',
+          discriminator: '0',
+          avatar: null,
+          global_name: null,
+        },
+      }).as('lookupUser');
+    });
+
+    it('bypasses search and deletes via history scan for a deleted account', () => {
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      // The scan walks the parent channel plus every discovered thread, and
+      // each one yields fixture matches — the per-delete delay randomization
+      // legitimately overshoots the default 30s window (same reasoning as
+      // the multi-channel test above).
+      waitForPurgeComplete(90000);
+
+      // The fallback announces itself and reports a completed scan.
+      verifyStatusEntry(/account is deleted/);
+      verifyStatusEntry(/Scan of .* complete/);
+
+      // messages.json is authored by 111222333444555666, so the client-side
+      // author filter matches and real deletions go out — with zero calls
+      // to the search endpoint the fallback exists to avoid.
+      cy.get('@deleteMessage.all').should('have.length.gte', 1);
+      cy.get('@searchMessages.all').should('have.length', 0);
+
+      verifyStatusEntry(/Purge: Complete/);
+      verifyPurgeState((purge) => {
+        expect(purge.isPurging).to.eq(false);
+        expect(purge.purgeError).to.eq(null);
+      });
+    });
+  });
+
   describe('Messages Mode — System Message Handling', () => {
     beforeEach(() => {
       cy.login();
