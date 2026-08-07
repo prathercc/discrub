@@ -2,8 +2,8 @@
 
 ## Reporting a vulnerability
 
-- Preferred: open a private report at <https://github.com/prathercc/discrub/security/advisories/new>
-- Or email **prathercc@gmail.com** with "Discrub security" in the subject.
+- Preferred: open a private report at <https://github.com/pratherbytecraft/discrub/security/advisories/new>
+- Or email **support@pratherbytecraft.com** with "Discrub security" in the subject.
 
 Please include steps to reproduce and the extension version (Settings → About, or the store listing).
 You'll get a response as quickly as possible; please allow time for a fix before public disclosure.
@@ -58,7 +58,7 @@ as a whole file. Instead, compare per-file with the bundled script — it unzips
 `META-INF/`, and diffs every remaining file's SHA-256 against the published manifest:
 
 ```sh
-git clone https://github.com/prathercc/discrub && cd discrub
+git clone https://github.com/pratherbytecraft/discrub && cd discrub
 git checkout v<your-version>
 node scripts/verify-extension.mjs /path/to/downloaded.xpi
 ```

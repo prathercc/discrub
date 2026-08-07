@@ -332,10 +332,10 @@ If you're coming from Discrub Classic, see the [Onboarding Guide](ONBOARDING.md)
 
 ### Still prefer Discrub Classic?
 
-You can manually install the legacy extension from the [releases page](https://github.com/prathercc/discrub-ext/releases):
+You can manually install the legacy extension from the [releases page](https://github.com/pratherbytecraft/discrub-ext/releases):
 
 **Chrome:**
-1. Download the latest Chrome `.zip` from [Releases](https://github.com/prathercc/discrub-ext/releases)
+1. Download the latest Chrome `.zip` from [Releases](https://github.com/pratherbytecraft/discrub-ext/releases)
 2. Extract the ZIP file
 3. Open Chrome and navigate to `chrome://extensions`
 4. Enable **Developer mode** (toggle in the top-right corner)
@@ -344,7 +344,7 @@ You can manually install the legacy extension from the [releases page](https://g
 7. Navigate to [discord.com](https://discord.com) — the Discrub Classic overlay will appear
 
 **Firefox:**
-1. Download the latest Firefox `.zip` from [Releases](https://github.com/prathercc/discrub-ext/releases)
+1. Download the latest Firefox `.zip` from [Releases](https://github.com/pratherbytecraft/discrub-ext/releases)
 2. Extract the ZIP file
 3. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
 4. Click **Load Temporary Add-on**
@@ -539,15 +539,15 @@ published SHA-256 checksums (`store/SHA256SUMS.txt`, `scripts/verify-extension.m
 
 ## License
 
-All rights reserved. © 2026 prathercc.
+All rights reserved. © 2026 Prather Bytecraft.
 
 The source code in this repository is publicly visible for transparency and
 security review. Discrub is officially distributed via the Chrome Web Store and
 Firefox Add-ons; those are the supported ways to use it.
 
-"Discrub" and the Discrub logo are trademarks of prathercc and may not be used
+"Discrub" and the Discrub logo are trademarks of Prather Bytecraft and may not be used
 in derivative or competing works.
 
 ---
 
-Built by [@prathercc](https://github.com/prathercc)
+Built by [Prather Bytecraft](https://github.com/pratherbytecraft) · [pratherbytecraft.com](https://pratherbytecraft.com)
