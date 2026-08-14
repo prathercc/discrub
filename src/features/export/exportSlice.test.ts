@@ -272,6 +272,7 @@ describe('exportSlice', () => {
           botIndicator: 'include',
         }),
         expect.objectContaining({ onPartStart: expect.any(Function), onOversizeFile: expect.any(Function) }), // zipOptions (#207 Arm A)
+        expect.any(Function), // onRowError (#230)
       );
 
       const state = store.getState().export;
@@ -492,6 +493,7 @@ describe('exportSlice', () => {
         [],
         expect.any(Object), // textOptions (#184)
         expect.objectContaining({ onPartStart: expect.any(Function), onOversizeFile: expect.any(Function) }), // zipOptions (#207 Arm A)
+        expect.any(Function), // onRowError (#230)
       );
     });
 
@@ -534,6 +536,7 @@ describe('exportSlice', () => {
         [],
         expect.any(Object), // textOptions (#184)
         expect.objectContaining({ onPartStart: expect.any(Function), onOversizeFile: expect.any(Function) }), // zipOptions (#207 Arm A)
+        expect.any(Function), // onRowError (#230)
       );
     });
   });
@@ -1672,7 +1675,8 @@ describe('exportSlice', () => {
       let capturedZipOptions: any;
       const mockExportService = {
         exportToZip: vi.fn().mockImplementation(async (...args: any[]) => {
-          capturedZipOptions = args[args.length - 1];
+          // zipOptions is second-to-last since #230 appended onRowError
+          capturedZipOptions = args[args.length - 2];
         }),
       };
       vi.mocked(exportService.getExportService).mockReturnValue(mockExportService as any);

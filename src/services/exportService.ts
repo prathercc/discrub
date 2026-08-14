@@ -265,6 +265,7 @@ class ExportService {
     guildRoles?: any[],
     textOptions?: TextFormatOptions,
     zipOptions?: StreamingZipOptions,
+    onRowError?: (messageId: string, error: unknown) => void,
   ): Promise<void> {
     const textOpts: TextFormatOptions = textOptions ?? defaultTextFormatOptions;
     const sanitizedName = this.sanitizeFilename(channelName);
@@ -416,6 +417,8 @@ class ExportService {
             reactionMap,
             cachedUserMap,
             guildId,
+            undefined, // backLinkPage
+            onRowError,
           );
 
           const filename = `${sanitizedName}-page-${page.pageNumber}.html`;
@@ -507,6 +510,7 @@ class ExportService {
               cachedUserMap,
               guildId,
               threadStarterPageMap[threadExport.thread.id],
+              onRowError,
             );
             filename = threadTotalPages > 1
               ? `${threadName}-page-${page.pageNumber}.html`
@@ -812,6 +816,7 @@ class ExportService {
     cachedUserMap?: ExportUserMap,
     guildId?: string | null,
     backLinkPage?: number,
+    onRowError?: (messageId: string, error: unknown) => void,
   ): string[] {
     const previewMedia = exportConfig?.previewMedia !== false; // default true
 
@@ -833,6 +838,13 @@ class ExportService {
             dateDividerHtml = `<div class="date-divider" id="date-${dateId}"><span class="date-divider-text">${dateStr}</span></div>`;
           }
         }
+
+        // #230: a single message whose formatting explodes (e.g. a
+        // markdown/embed blowup crossing V8's string cap) must cost one
+        // row, not the whole export. The divider above is computed
+        // outside the guard (plain date math, cannot blow up) so day
+        // grouping survives even when the row itself is replaced.
+        const buildRow = (): string => {
 
         // System-message branch (types 1-18, 22, 24-46 excluding normal-message
         // types). formatSystemMessage returns null for types we render as
@@ -1244,6 +1256,30 @@ class ExportService {
             </div>
           </div>
         `;
+        };
+
+        try {
+          return buildRow();
+        } catch (error) {
+          // Placeholder keeps the page structurally valid (balanced divs
+          // for the #198 balance check) and carries the message ID so a
+          // user report can identify the poison message for us.
+          const safeId = this.escapeHtml(String(msg.id ?? 'unknown'));
+          if (import.meta.env.DEV) {
+            console.warn(`[Export] Failed to render message ${safeId}`, error);
+          }
+          if (onRowError) onRowError(String(msg.id ?? 'unknown'), error);
+          return `${dateDividerHtml}
+          <div class="message message-render-error" id="msg-${safeId}" data-message-id="${safeId}">
+            <div class="message-left">
+              <span class="render-error-icon">&#9888;&#65039;</span>
+            </div>
+            <div class="message-content">
+              <div class="message-text render-error-text">This message could not be rendered and was skipped. Message ID: <code>${safeId}</code></div>
+            </div>
+          </div>
+        `;
+        }
       });
 
     const pageInfo = totalPages > 1 ? ` - Page ${pageNumber} of ${totalPages}` : '';
@@ -1371,6 +1407,32 @@ class ExportService {
 
     .message:hover {
       background: var(--bg-hover);
+    }
+
+    /* #230: placeholder for a message whose rendering threw */
+    .message-render-error {
+      background: rgba(250, 166, 26, 0.08);
+      border-left: 3px solid #faa61a;
+    }
+
+    .message-render-error .render-error-icon {
+      display: block;
+      font-size: 20px;
+      text-align: center;
+      padding-top: 2px;
+    }
+
+    .render-error-text {
+      color: var(--text-muted);
+      font-style: italic;
+    }
+
+    .render-error-text code {
+      font-style: normal;
+      color: var(--text-secondary);
+      background: var(--bg-secondary);
+      padding: 1px 4px;
+      border-radius: 3px;
     }
 
     .message-left {

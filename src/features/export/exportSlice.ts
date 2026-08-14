@@ -262,6 +262,38 @@ function buildZipOptions(
 }
 
 /**
+ * #230: per-export collector for message rows the HTML builder failed to
+ * render. Each failure gets its own WARN carrying the message ID — that ID
+ * is the diagnostic payload that lets a user report pinpoint the poison
+ * message — capped so a pathological page can't flood the status log.
+ * Call `flush()` once the export finishes to emit the summary line.
+ */
+const RENDER_FAILURE_WARN_CAP = 10;
+export function createRowErrorReporter(dispatch: ExportDispatch, context?: string) {
+  let failures = 0;
+  const where = context ? ` in ${context}` : '';
+  return {
+    onRowError: (messageId: string, error: unknown) => {
+      failures++;
+      if (failures > RENDER_FAILURE_WARN_CAP) return;
+      const reason = error instanceof Error ? error.message : String(error);
+      dispatch(addStatusEntry({
+        level: 'warning',
+        message: `Export: Could not render message ${messageId}${where} — replaced with a placeholder (${reason})`,
+      }));
+    },
+    flush: () => {
+      if (failures === 0) return;
+      const plural = failures !== 1;
+      dispatch(addStatusEntry({
+        level: 'warning',
+        message: `Export: ${failures} message${plural ? 's' : ''}${where} could not be rendered and ${plural ? 'were' : 'was'} replaced with placeholder${plural ? 's' : ''}${failures > RENDER_FAILURE_WARN_CAP ? ` (first ${RENDER_FAILURE_WARN_CAP} logged above)` : ''}. Reporting the message ID on GitHub helps us fix the root cause.`,
+      }));
+    },
+  };
+}
+
+/**
  * Record a recent export entry. Persisted via the historySlice (its own
  * IDB database `Discrub-history`); retention capping happens there.
  *
@@ -390,6 +422,7 @@ export const exportMessages = createAsyncThunk<
         } catch { /* guild slice may not be available in tests */ }
 
         // Standard export with optional media
+        const rowErrors = createRowErrorReporter(dispatch as ExportDispatch);
         await exportService.exportToZip(
           allMessages,
           channelName,
@@ -415,7 +448,9 @@ export const exportMessages = createAsyncThunk<
           guildRoles,
           state.export.textOptions,
           buildZipOptions(getState, dispatch),
+          rowErrors.onRowError,
         );
+        rowErrors.flush();
       }
 
       dispatch(addStatusEntry({
@@ -892,11 +927,15 @@ export const bulkExportChannels = createAsyncThunk<
               ? await fetchReactionData(allMessages, token, getState, dispatch as ExportDispatch)
               : undefined;
 
+            const rowErrors = createRowErrorReporter(dispatch as ExportDispatch, `#${channelName}`);
             await exportService.exportToZip(
               allMessages, folderName, format, messagesPerPage, includeMedia,
               selectedGuild, cachedUserMap, guildId || null, onProgress, mediaConfig, exportConfig, shouldContinue, zipService,
               separateThreads, threads, reactionMap, guildRoles, initialState.export.textOptions,
+              undefined, // zipOptions — bulk zip is externally owned
+              rowErrors.onRowError,
             );
+            rowErrors.flush();
           }
 
           const sanitized = folderName;
@@ -1126,11 +1165,15 @@ export const bulkExportDMs = createAsyncThunk<
               ? await fetchReactionData(allMessages, token, getState, dispatch as ExportDispatch)
               : undefined;
 
+            const rowErrors = createRowErrorReporter(dispatch as ExportDispatch, dmName);
             await exportService.exportToZip(
               allMessages, folderName, format, messagesPerPage, includeMedia,
               null, cachedUserMap, null, onProgress, mediaConfig, exportConfig, shouldContinue, zipService,
               separateThreads, threads, reactionMap, [], initialState.export.textOptions,
+              undefined, // zipOptions — bulk zip is externally owned
+              rowErrors.onRowError,
             );
+            rowErrors.flush();
           }
 
           dispatch(addStatusEntry({

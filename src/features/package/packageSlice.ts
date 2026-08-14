@@ -19,6 +19,7 @@ import {
   waitWhilePaused,
 } from '@/utils/operationLoopUtils';
 import {
+  createRowErrorReporter,
   logMediaProgress,
   setExportProgress,
   type ExportDispatch,
@@ -761,6 +762,7 @@ export const exportPackageChannel = createAsyncThunk<
           zipOptions,
         );
       } else {
+        const rowErrors = createRowErrorReporter(dispatch as ExportDispatch, channelName);
         await exportService.exportToZip(
           discordMessages,
           channelName,
@@ -781,7 +783,9 @@ export const exportPackageChannel = createAsyncThunk<
           undefined,                   // guildRoles
           state.export?.textOptions,   // #184: thread text-format options (optional — fall back to defaults inside exportToZip when absent)
           zipOptions,
+          rowErrors.onRowError,
         );
+        rowErrors.flush();
       }
 
       dispatch(addStatusEntry({
