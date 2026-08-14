@@ -81,7 +81,15 @@ export const fetchDmById = createAsyncThunk(
       const discordService = getDiscordService();
       const response = await discordService.fetchChannel(token, channelId);
 
+      // discrub-core's withRetry never throws on an HTTP error — it
+      // resolves { success: false, status } (and swallows thrown fetch
+      // exceptions too), so error classification lives HERE, not in the
+      // catch block. Pre-fix, catch-side message sniffing for '403'/'404'
+      // was dead code and a real 403 reported "Channel not found".
       if (!response.success || !response.data) {
+        if (response.status === 403) {
+          return rejectWithValue('No access to this channel');
+        }
         return rejectWithValue('Channel not found');
       }
 
@@ -95,12 +103,6 @@ export const fetchDmById = createAsyncThunk(
 
       return channel;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('403')) {
-        return rejectWithValue('No access to this channel');
-      }
-      if (error instanceof Error && error.message.includes('404')) {
-        return rejectWithValue('Channel not found');
-      }
       return rejectWithValue(
         error instanceof Error ? error.message : 'Failed to fetch channel'
       );

@@ -405,7 +405,10 @@ describe('dmSlice', () => {
     });
 
     it('rejects with a distinguishable error on 403', async () => {
-      mockFetchChannel(vi.fn().mockRejectedValue(new Error('Request failed: 403 Forbidden')));
+      // F2: discrub-core's withRetry never throws on an HTTP error — it
+      // resolves { success: false, status }. The old catch-side message
+      // sniffing was dead code and a real 403 read "Channel not found".
+      mockFetchChannel(vi.fn().mockResolvedValue({ success: false, status: 403 }));
 
       const result = await store.dispatch(
         fetchDmById({ channelId: 'dm-x', token: 'test-token' })
@@ -416,7 +419,7 @@ describe('dmSlice', () => {
     });
 
     it('rejects with "Channel not found" on 404', async () => {
-      mockFetchChannel(vi.fn().mockRejectedValue(new Error('Request failed: 404 Not Found')));
+      mockFetchChannel(vi.fn().mockResolvedValue({ success: false, status: 404 }));
 
       const result = await store.dispatch(
         fetchDmById({ channelId: 'dm-x', token: 'test-token' })
