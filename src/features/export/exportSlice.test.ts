@@ -1884,4 +1884,238 @@ describe('exportSlice', () => {
       expect(options.channels.map((c: any) => c.id)).toEqual(['ch-1', 'ch-2']);
     });
   });
+
+  describe('bulk export forum expansion (#238)', () => {
+    // Multi-selecting a forum (type 15/16) used to export nothing: the
+    // parent 400s on the message list endpoint and matches nothing on
+    // search, yielding a README-only zip that reported success. The thunk
+    // now expands forums into their post threads (offset walk over the
+    // same endpoint the single-forum view uses) before the export loop.
+
+    const mockMessage = (channelId: string) => ({
+      id: `m-${channelId}`,
+      channel_id: channelId,
+      timestamp: '2026-01-01T00:00:00.000Z',
+      author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+      content: 'hi',
+      mentions: [],
+      attachments: [],
+      embeds: [],
+      pinned: false,
+      type: 0,
+      mention_everyone: false,
+      edited_timestamp: null,
+      tts: false,
+    });
+
+    async function runBulkForumExport(options: {
+      exportChannels: any[];
+      forumPages?: Array<{ threads: any[]; has_more: boolean }>;
+      emptyMessageChannels?: string[];
+      sliceChannels?: any[];
+    }) {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const channelReducer = (await import('@features/channel/channelSlice')).default;
+      const guildReducer = (await import('@features/guild/guildSlice')).default;
+      const { getDiscordService } = await import('@services/discordService');
+
+      const pages = options.forumPages ?? [];
+      let pageIndex = 0;
+      const fetchForumThreadSearch = vi.fn().mockImplementation(async () => {
+        const page = pages[pageIndex] ?? { threads: [], has_more: false };
+        pageIndex++;
+        return {
+          success: true,
+          data: { threads: page.threads, has_more: page.has_more, total_results: 0, first_messages: [], members: [] },
+        };
+      });
+
+      const fetchMessageData = vi.fn().mockImplementation(async (_token: string, _lastId: string, channelId: string) => ({
+        success: true,
+        data: options.emptyMessageChannels?.includes(channelId) ? [] : [mockMessage(channelId)],
+      }));
+
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchMessageData,
+        fetchForumThreadSearch,
+      } as any);
+
+      const mockExportService = {
+        exportToZip: vi.fn(),
+        exportMediaOnly: vi.fn(),
+      };
+      vi.mocked(exportService.getExportService).mockReturnValue(mockExportService as any);
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer,
+          app: appReducer,
+          auth: authReducer,
+          status: statusReducer,
+          history: historyReducer,
+          cache: cacheReducer,
+          channel: channelReducer,
+          guild: guildReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+          },
+          channel: { channels: options.sliceChannels ?? [] },
+        } as any,
+      });
+
+      const result = await testStore.dispatch(
+        bulkExportChannels({
+          channels: options.exportChannels,
+          token: 'token',
+          format: 'html',
+          messagesPerPage: 100,
+          separateThreads: false,
+          includeMedia: false,
+          guildId: 'g-1',
+          exportConfig: { exportTemplate: 'discord' } as any,
+        }) as any,
+      );
+
+      const { generateDiscordShellBulk } = await import('@services/exportDiscordShell');
+      return {
+        result,
+        shellCalls: vi.mocked(generateDiscordShellBulk).mock.calls,
+        fetchForumThreadSearch,
+        exportToZip: mockExportService.exportToZip,
+        entries: testStore.getState().status.entries as Array<{ level: string; message: string }>,
+      };
+    }
+
+    it('expands a forum into its posts via a multi-page offset walk', async () => {
+      const { shellCalls, fetchForumThreadSearch, entries } = await runBulkForumExport({
+        exportChannels: [{ id: 'forum-1', name: 'Help Forum', type: 15 }],
+        forumPages: [
+          {
+            threads: [
+              { id: 'post-1', name: 'First Post', type: 11, parent_id: 'forum-1' },
+              { id: 'post-2', name: 'Second Post', type: 11, parent_id: 'forum-1' },
+            ],
+            has_more: true,
+          },
+          {
+            threads: [{ id: 'post-3', name: 'Third Post', type: 11, parent_id: 'forum-1' }],
+            has_more: false,
+          },
+        ],
+      });
+
+      // Offset walk mirrors loadMoreForumThreads: 25-per-page increments.
+      expect(fetchForumThreadSearch).toHaveBeenCalledTimes(2);
+      expect(fetchForumThreadSearch.mock.calls[0][2].offset).toBe(0);
+      expect(fetchForumThreadSearch.mock.calls[1][2].offset).toBe(25);
+
+      const expansionEntry = entries.find((e) => e.message.includes('Expanded forum Help Forum into 3 posts'));
+      expect(expansionEntry?.level).toBe('info');
+
+      // Progress totals reflect the expanded unit count, not the raw selection.
+      expect(entries.some((e) => e.message.includes('Starting channel 1/3'))).toBe(true);
+      expect(entries.some((e) => e.message.includes('Starting channel 3/3'))).toBe(true);
+
+      // All three posts exported and grouped under the forum's name.
+      expect(shellCalls.length).toBe(1);
+      const shellOptions: any = shellCalls[0][0];
+      expect(shellOptions.channels.map((c: any) => c.id)).toEqual(['post-1', 'post-2', 'post-3']);
+      expect(shellOptions.channels.every((c: any) => c.category === 'Help Forum')).toBe(true);
+    });
+
+    it('prefixes post folder names with the parent forum name', async () => {
+      const { exportToZip } = await runBulkForumExport({
+        exportChannels: [{ id: 'forum-1', name: 'Help Forum', type: 15 }],
+        forumPages: [
+          { threads: [{ id: 'post-1', name: 'First Post', type: 11, parent_id: 'forum-1' }], has_more: false },
+        ],
+      });
+
+      expect(exportToZip).toHaveBeenCalledTimes(1);
+      // Second positional arg is the channel folder name.
+      expect(exportToZip.mock.calls[0][1]).toBe('help_forum_first_post');
+    });
+
+    it('logs a skip warning for a forum with zero posts and warns that nothing exported', async () => {
+      const { shellCalls, entries } = await runBulkForumExport({
+        exportChannels: [{ id: 'forum-1', name: 'Ghost Forum', type: 15 }],
+        forumPages: [{ threads: [], has_more: false }],
+      });
+
+      const skipEntry = entries.find((e) => e.message.includes('No posts in Ghost Forum, skipping'));
+      expect(skipEntry?.level).toBe('warning');
+
+      // Nothing exported: no shell, and the summary WARN fires so the run
+      // doesn't read as a clean success.
+      expect(shellCalls.length).toBe(0);
+      const summaryEntry = entries.find((e) => e.message.includes('0 channels exported'));
+      expect(summaryEntry?.level).toBe('warning');
+    });
+
+    it('exports a mixed selection of text channels and forums', async () => {
+      const { shellCalls, exportToZip, entries } = await runBulkForumExport({
+        exportChannels: [
+          { id: 'ch-1', name: 'general', type: 0 },
+          { id: 'forum-1', name: 'Help Forum', type: 15 },
+        ],
+        forumPages: [
+          { threads: [{ id: 'post-1', name: 'First Post', type: 11, parent_id: 'forum-1' }], has_more: false },
+        ],
+      });
+
+      expect(exportToZip).toHaveBeenCalledTimes(2);
+      expect(entries.some((e) => e.message.includes('Expanded forum Help Forum into 1 post'))).toBe(true);
+
+      const shellOptions: any = shellCalls[0][0];
+      expect(shellOptions.channels.map((c: any) => c.id)).toEqual(['ch-1', 'post-1']);
+      expect(shellOptions.channels.map((c: any) => c.category)).toEqual([undefined, 'Help Forum']);
+      // The plain channel keeps its unprefixed folder name.
+      expect(exportToZip.mock.calls[0][1]).toBe('general');
+      expect(exportToZip.mock.calls[1][1]).toBe('help_forum_first_post');
+    });
+
+    it('groups single-forum-path posts under the forum from the channel slice', async () => {
+      // ServerView's forum export passes the already-expanded post threads
+      // directly; the forum itself lives only in the channel slice. The
+      // shell grouping must resolve parent_id against it.
+      const { shellCalls } = await runBulkForumExport({
+        exportChannels: [
+          { id: 'post-1', name: 'First Post', type: 11, parent_id: 'forum-1' },
+          { id: 'post-2', name: 'Second Post', type: 11, parent_id: 'forum-1' },
+        ],
+        sliceChannels: [{ id: 'forum-1', name: 'Help Forum', type: 15, position: 2 }],
+      });
+
+      const shellOptions: any = shellCalls[0][0];
+      expect(shellOptions.channels.map((c: any) => c.category)).toEqual(['Help Forum', 'Help Forum']);
+    });
+
+    it('warns when every channel produced nothing', async () => {
+      const { result, entries, shellCalls } = await runBulkForumExport({
+        exportChannels: [{ id: 'ch-1', name: 'general', type: 0 }],
+        emptyMessageChannels: ['ch-1'],
+      });
+
+      // Per-channel isolation intact: the thunk still resolves.
+      expect(result.type).toBe('export/bulkExportChannels/fulfilled');
+      expect(shellCalls.length).toBe(0);
+      const summaryEntry = entries.find((e) => e.message.includes('0 channels exported'));
+      expect(summaryEntry?.level).toBe('warning');
+      expect(summaryEntry?.message).toContain('README');
+    });
+  });
 });

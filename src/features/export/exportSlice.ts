@@ -795,6 +795,57 @@ async function fetchThreadMessages(
   return threadMessages;
 }
 
+// #238: forum-family channel types have no message stream of their own —
+// GET /channels/{id}/messages 400s on the parent (see purgeSlice's
+// pre-flight note), so they must be expanded into post threads first.
+const FORUM_CHANNEL_TYPES: number[] = [ChannelType.GUILD_FORUM, ChannelType.GUILD_MEDIA];
+
+/**
+ * Page a forum/media channel's post threads to exhaustion (#238).
+ * Mirrors `channelSlice.loadMoreForumThreads`' offset walk: 25 per page,
+ * active + archived union (no `archived` param — #151), stopping on
+ * `has_more: false`, an unsuccessful response, or cancellation.
+ */
+async function fetchAllForumThreads(
+  forum: Channel,
+  token: string,
+  getState: () => RootState,
+  searchDelay: number,
+  delayModifier: number,
+): Promise<Channel[]> {
+  const discordService = getDiscordService();
+  const collected: Channel[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    await waitWhilePaused(getState);
+    if (checkCancelled(getState)) break;
+
+    const response = await discordService.fetchForumThreadSearch(token, forum.id, {
+      sort_by: 'last_message_time',
+      sort_order: 'desc',
+      limit: 25,
+      offset,
+      // Omit `archived` — see channelSlice.fetchForumThreads note (#151).
+    });
+
+    if (!response.success || !response.data) break;
+
+    collected.push(...response.data.threads);
+    hasMore = response.data.has_more;
+    offset += 25;
+
+    if (hasMore) {
+      const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+      const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
+      if (wasCancelled) break;
+    }
+  }
+
+  return collected;
+}
+
 interface BulkExportParams {
   channels: Channel[];
   token: string;
@@ -848,23 +899,79 @@ export const bulkExportChannels = createAsyncThunk<
     const zipService = new StreamingZipService('bulk-export', buildZipOptions(getState, dispatch));
     const exportedChannels: { id: string; name: string; filename: string; category?: string }[] = [];
 
-    // Pre-compute unique folder names to prevent collisions
+    // #238: expand multi-selected forum/media channels into their post
+    // threads before exporting. Forum parents 400 on the message list
+    // endpoint and match nothing on search, so exporting them verbatim
+    // used to yield a README-only zip that read as success.
+    const expandedChannels: Channel[] = [];
+    const selectedForumById = new Map<string, Channel>(
+      channels.filter((ch) => FORUM_CHANNEL_TYPES.includes(ch.type as number)).map((ch) => [ch.id, ch])
+    );
+    for (const channel of channels) {
+      if (checkCancelled(getState)) break;
+
+      if (!FORUM_CHANNEL_TYPES.includes(channel.type as number)) {
+        expandedChannels.push(channel);
+        continue;
+      }
+
+      const forumName = channel.name || `forum-${channel.id}`;
+      try {
+        const posts = await fetchAllForumThreads(channel, token, getState, searchDelay, delayModifier);
+        if (checkCancelled(getState)) break;
+
+        if (posts.length === 0) {
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `Bulk export: No posts in ${forumName}, skipping`,
+          }));
+          continue;
+        }
+
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `Bulk export: Expanded forum ${forumName} into ${posts.length} post${posts.length === 1 ? '' : 's'}`,
+        }));
+        expandedChannels.push(...posts);
+      } catch (error) {
+        if (error instanceof CancelledError) break;
+        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        errors.push(`${forumName}: ${errorMsg}`);
+        dispatch(addStatusEntry({
+          level: 'error',
+          message: `Bulk export: Failed to expand forum ${forumName} — ${errorMsg}`,
+        }));
+        // Continue with the remaining selection
+      }
+    }
+
+    // Pre-compute unique folder names to prevent collisions. Forum posts
+    // are prefixed with their parent forum's name — mirroring how thread
+    // files nest under their parent channel's folder — so posts from
+    // different forums stay grouped and can't collide on bare post names.
     const folderNames = buildUniqueFolderNames(
-      channels.map((ch) => ({ id: ch.id, name: ch.name || `channel-${ch.id}` }))
+      expandedChannels.map((ch) => {
+        const parentForum = ch.parent_id ? selectedForumById.get(ch.parent_id) : undefined;
+        const baseName = ch.name || `channel-${ch.id}`;
+        return {
+          id: ch.id,
+          name: parentForum ? `${parentForum.name || `forum-${parentForum.id}`} ${baseName}` : baseName,
+        };
+      })
     );
 
     try {
-      for (let i = 0; i < channels.length; i++) {
+      for (let i = 0; i < expandedChannels.length; i++) {
         await waitWhilePaused(getState);
         if (checkCancelled(getState)) break;
 
-        const channel = channels[i];
+        const channel = expandedChannels[i];
         const channelName = channel.name || `channel-${channel.id}`;
         const folderName = folderNames.get(channel.id) || channelName;
 
         const bulkContext = {
           currentIndex: i,
-          totalChannels: channels.length,
+          totalChannels: expandedChannels.length,
           currentChannelName: channelName,
         };
 
@@ -877,7 +984,7 @@ export const bulkExportChannels = createAsyncThunk<
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: Starting channel ${i + 1}/${channels.length} — ${channelName}`,
+          message: `Bulk export: Starting channel ${i + 1}/${expandedChannels.length} — ${channelName}`,
         }));
 
         try {
@@ -969,11 +1076,20 @@ export const bulkExportChannels = createAsyncThunk<
         }
 
         // Delay between channels
-        if (i < channels.length - 1) {
+        if (i < expandedChannels.length - 1) {
           const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
           const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
           if (wasCancelled) break;
         }
+      }
+
+      // #238: an all-skipped/all-failed run must not read as a clean
+      // success — the zip holds only the README at this point.
+      if (exportedChannels.length === 0 && !checkCancelled(getState)) {
+        dispatch(addStatusEntry({
+          level: 'warning',
+          message: 'Bulk export: 0 channels exported — the zip contains only the README. Review the entries above for skipped or failed channels.',
+        }));
       }
 
       // Generate Discord shell wrapper for bulk HTML exports
@@ -996,7 +1112,18 @@ export const bulkExportChannels = createAsyncThunk<
               .filter((ch) => ch.type === ChannelType.GUILD_CATEGORY)
               .map((ch) => [ch.id, { name: ch.name || 'Unknown Category', position: ch.position ?? 0 }]),
           );
-          const sourceById = new Map(channels.map((ch) => [ch.id, ch]));
+          // #238: forum posts carry the forum channel as parent_id — group
+          // them under the forum's name as a pseudo-category. Sourced from
+          // both the channel slice (covers ServerView's single-forum path,
+          // where the selection is already post threads) and the original
+          // selection (covers multi-select expansion when the slice is
+          // empty, e.g. tests).
+          for (const forum of [...allChannels, ...channels]) {
+            if (FORUM_CHANNEL_TYPES.includes(forum.type as number) && !categoryById.has(forum.id)) {
+              categoryById.set(forum.id, { name: forum.name || 'Unknown Forum', position: forum.position ?? 0 });
+            }
+          }
+          const sourceById = new Map(expandedChannels.map((ch) => [ch.id, ch]));
           const decorated = exportedChannels.map((entry) => {
             const source = sourceById.get(entry.id);
             const parent = source ? categoryById.get((source as any).parent_id) : undefined;
@@ -1042,11 +1169,13 @@ export const bulkExportChannels = createAsyncThunk<
 
       await zipService.finalize();
 
-      // Record recent export history (even with partial failures)
+      // Record recent export history (even with partial failures).
+      // #238: count expanded units (forum posts) so history matches the
+      // progress UI and the zip contents.
       recordRecentExport(dispatch, getState, {
-        channelName: `${channels.length} channels`,
+        channelName: `${expandedChannels.length} channels`,
         isBulk: true,
-        channelCount: channels.length,
+        channelCount: expandedChannels.length,
         config: buildConfigSnapshot(getState()),
       });
 
