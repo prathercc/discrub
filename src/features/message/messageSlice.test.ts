@@ -655,7 +655,7 @@ describe('messageSlice', () => {
       store.dispatch(setFilteredMessages([msgs[0], msgs[1], msgs[3]]));
       store.dispatch(setSelectedMessages([msgs[1], msgs[3], msgs[4]]));
 
-      store.dispatch(messagesRemoved(['msg-2', 'msg-4']));
+      store.dispatch(messagesRemoved({ ids: ['msg-2', 'msg-4'], containerId: null }));
 
       const state = store.getState().message;
       expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-1', 'msg-3', 'msg-5']);
@@ -667,7 +667,7 @@ describe('messageSlice', () => {
       const msgs = createMockMessages(3);
       store.dispatch(setMessages(msgs));
 
-      store.dispatch(messagesRemoved(['not-a-real-id', 'msg-2']));
+      store.dispatch(messagesRemoved({ ids: ['not-a-real-id', 'msg-2'], containerId: null }));
 
       const state = store.getState().message;
       expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-1', 'msg-3']);
@@ -677,7 +677,7 @@ describe('messageSlice', () => {
       store.dispatch(setMessages(createMockMessages(3)));
       const before = store.getState().message;
 
-      store.dispatch(messagesRemoved([]));
+      store.dispatch(messagesRemoved({ ids: [], containerId: null }));
 
       const after = store.getState().message;
       expect(after.messages).toBe(before.messages);
@@ -685,7 +685,7 @@ describe('messageSlice', () => {
       expect(after.selectedMessages).toBe(before.selectedMessages);
     });
 
-    it('targets the active thread tab, not the main arrays', () => {
+    it('targets the container named in the payload, not the main arrays', () => {
       const mainMsgs = createMockMessages(2);
       const threadMsgs = [
         createMockMessage({ id: 'tmsg-1' }),
@@ -696,14 +696,42 @@ describe('messageSlice', () => {
       store.dispatch(setThreadMessages({ threadId: 'thread-1', messages: threadMsgs }));
       store.dispatch(setActiveTab('thread-1'));
 
-      store.dispatch(messagesRemoved(['tmsg-1', 'msg-1']));
+      store.dispatch(messagesRemoved({ ids: ['tmsg-1', 'msg-1'], containerId: 'thread-1' }));
 
       const state = store.getState().message;
       expect(state.threadTabs['thread-1'].messages.map((m: Message) => m.id)).toEqual(['tmsg-2']);
       expect(state.threadTabs['thread-1'].filteredMessages.map((m: Message) => m.id)).toEqual(['tmsg-2']);
-      // Main arrays untouched while a thread tab is active — same container
-      // contract as the per-message deleteMessage.fulfilled path.
+      // Main arrays untouched — the batch was addressed to the thread tab.
       expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-1', 'msg-2']);
+    });
+
+    it('F14: routes by the captured containerId even when the active tab has changed', () => {
+      const mainMsgs = createMockMessages(2);
+      store.dispatch(setMessages(mainMsgs));
+      store.dispatch(addThreadTab({ threadId: 'thread-1', threadName: 'Test Thread' }));
+      store.dispatch(setThreadMessages({
+        threadId: 'thread-1',
+        messages: [createMockMessage({ id: 'tmsg-1' })],
+      }));
+      // A batch captured against the MAIN container flushes while a
+      // thread tab is active (the user switched mid-delete) — pre-fix,
+      // an active-tab lookup silently filtered the wrong arrays.
+      store.dispatch(setActiveTab('thread-1'));
+
+      store.dispatch(messagesRemoved({ ids: ['msg-1'], containerId: null }));
+
+      const state = store.getState().message;
+      expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-2']);
+      expect(state.threadTabs['thread-1'].messages.map((m: Message) => m.id)).toEqual(['tmsg-1']);
+    });
+
+    it('F14: is a safe no-op when the captured thread tab no longer exists', () => {
+      const mainMsgs = createMockMessages(2);
+      store.dispatch(setMessages(mainMsgs));
+
+      store.dispatch(messagesRemoved({ ids: ['msg-1'], containerId: 'closed-thread' }));
+
+      expect(store.getState().message.messages).toHaveLength(2);
     });
   });
 
@@ -901,6 +929,165 @@ describe('messageSlice', () => {
       // Pre-pause flushes for iterations 2 and 3, plus the final flush —
       // every confirmed deletion lands without waiting for a full batch.
       expect(actionTypes.filter((t) => t === 'message/messagesRemoved')).toHaveLength(3);
+    });
+
+    it('F14: a mid-run tab switch does not misroute the flush', async () => {
+      const messages = createMockMessages(3);
+      const { recordingStore } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      // The user opens and switches to a thread tab while the delete is
+      // in flight; the final flush (in `finally`) must still hit the MAIN
+      // container the operation started against.
+      let deletions = 0;
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockImplementation(() => {
+          deletions++;
+          if (deletions === 2) {
+            recordingStore.dispatch(addThreadTab({ threadId: 'thread-1', threadName: 'T' }));
+            recordingStore.dispatch(setThreadMessages({
+              threadId: 'thread-1',
+              messages: [createMockMessage({ id: 'tmsg-1' })],
+            }));
+            recordingStore.dispatch(setActiveTab('thread-1'));
+          }
+          return Promise.resolve({ success: true });
+        }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      await recordingStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+
+      const state = recordingStore.getState().message;
+      // All three deletions landed in the main arrays despite the flush
+      // arriving while the thread tab was active…
+      expect(state.messages).toHaveLength(0);
+      // …and the thread tab's arrays were not touched.
+      expect(state.threadTabs['thread-1'].messages.map((m: Message) => m.id)).toEqual(['tmsg-1']);
+    });
+  });
+
+  describe('editMessages batching (F13, #183 follow-up)', () => {
+    const createRecordingStoreWithApp = async (
+      messageState = initialMessageState,
+      appOverrides: Record<string, unknown> = {},
+    ) => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const actionTypes: string[] = [];
+
+      const recorder: import('@reduxjs/toolkit').Middleware =
+        () => (next) => (action) => {
+          const type = (action as { type?: string })?.type;
+          if (type) actionTypes.push(type);
+          return next(action);
+        };
+
+      const recordingStore = configureStore({
+        reducer: {
+          message: messageReducer,
+          app: appReducer,
+        },
+        middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(recorder),
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+            ...appOverrides,
+          },
+          message: messageState,
+        },
+      });
+      return { recordingStore, actionTypes };
+    };
+
+    it('applies edits in batches with zero per-message editMessage dispatches', async () => {
+      const mockDiscordService = {
+        editMessage: vi.fn().mockImplementation((_token: string, messageId: string) =>
+          Promise.resolve({
+            success: true,
+            data: { ...createMockMessage({ id: messageId }), content: 'redacted' },
+          })
+        ),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const count = DELETE_BATCH_SIZE + 5; // 30: one full batch + final flush
+      const messages = createMockMessages(count);
+      const { recordingStore, actionTypes } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      const result = await recordingStore.dispatch(
+        editMessages({ messages, channelId: 'ch-1', content: 'redacted', token: 'token' })
+      );
+
+      expect(result.type).toBe('message/editMessages/fulfilled');
+      expect(result.payload).toHaveLength(count);
+
+      // The freeze mechanic was N editMessage.fulfilled reducers, each
+      // rewriting all three arrays — the batched path produces zero.
+      expect(actionTypes.filter((t) => t.startsWith('message/editMessage/'))).toHaveLength(0);
+      expect(actionTypes.filter((t) => t === 'message/messagesEdited')).toHaveLength(2);
+
+      const state = recordingStore.getState().message;
+      expect(state.messages.every((m: Message) => m.content === 'redacted')).toBe(true);
+      expect(state.filteredMessages.every((m: Message) => m.content === 'redacted')).toBe(true);
+      expect(state.selectedMessages.every((m: Message) => m.content === 'redacted')).toBe(true);
+    });
+
+    it('holds isEditing stable for the whole run and lands partial edits on failure', async () => {
+      const mockDiscordService = {
+        editMessage: vi.fn().mockImplementation((_token: string, messageId: string) =>
+          Promise.resolve(
+            messageId === 'msg-2'
+              ? { success: false, status: 403 }
+              : {
+                  success: true,
+                  data: { ...createMockMessage({ id: messageId }), content: 'redacted' },
+                }
+          )
+        ),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = createMockMessages(3);
+      const { recordingStore } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      const dispatchPromise = recordingStore.dispatch(
+        editMessages({ messages, channelId: 'ch-1', content: 'redacted', token: 'token' })
+      );
+      expect(recordingStore.getState().message.isEditing).toBe(true);
+      const result = await dispatchPromise;
+
+      expect(recordingStore.getState().message.isEditing).toBe(false);
+      expect(result.payload).toHaveLength(2); // msg-2 failed
+
+      const state = recordingStore.getState().message;
+      const contentById = new Map(state.messages.map((m: Message) => [m.id, m.content]));
+      expect(contentById.get('msg-1')).toBe('redacted');
+      expect(contentById.get('msg-2')).not.toBe('redacted');
+      expect(contentById.get('msg-3')).toBe('redacted');
     });
   });
 

@@ -6,7 +6,7 @@ import { ReactionType, IsPinnedType } from 'discrub-core/discord-enum';
 import { MessageOrder, initialMessageState, initialPaginationState, ThreadTabState } from './messageTypes';
 import { getDiscordService } from '@services/discordService';
 import type { RootState } from '@/app/store';
-import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettings, setDiscrubPaused } from '@features/app/appSlice';
+import { selectSearchDelay, selectDeleteDelay, selectDelayModifier, selectSettings, selectDiscrubPaused, setDiscrubPaused } from '@features/app/appSlice';
 import { calculateRandomDelay } from '@/utils/delayUtils';
 import { userEnrichmentService } from '@services/userEnrichmentService';
 import { reactionEnrichmentService } from '@services/reactionEnrichmentService';
@@ -126,6 +126,18 @@ export const deleteMessages = createAsyncThunk(
       const discordService = getDiscordService();
       const deletedIds: string[] = [];
 
+      // Get delay settings once before loop
+      const state = getState() as RootState;
+      const deleteDelay = selectDeleteDelay(state);
+      const delayModifier = selectDelayModifier(state);
+
+      // F14: capture the target container NOW — the user may switch tabs
+      // mid-run (#237 keeps the tab bar interactive), and a flush that
+      // resolved the active tab at dispatch time misrouted up to a whole
+      // batch of confirmed deletions into the wrong container.
+      const startTab = state.message.activeTab;
+      const containerId = startTab && state.message.threadTabs[startTab] ? startTab : null;
+
       // #183: confirmed-deleted ids not yet applied to state. Flushed as one
       // `messagesRemoved` batch every DELETE_BATCH_SIZE deletions, before
       // parking on pause, and (via `finally`) on every loop exit — normal
@@ -134,14 +146,9 @@ export const deleteMessages = createAsyncThunk(
       let pendingRemovals: string[] = [];
       const flushPendingRemovals = () => {
         if (pendingRemovals.length === 0) return;
-        dispatch(messageSlice.actions.messagesRemoved(pendingRemovals));
+        dispatch(messageSlice.actions.messagesRemoved({ ids: pendingRemovals, containerId }));
         pendingRemovals = [];
       };
-
-      // Get delay settings once before loop
-      const state = getState() as RootState;
-      const deleteDelay = selectDeleteDelay(state);
-      const delayModifier = selectDelayModifier(state);
 
       try {
         for (let i = 0; i < messages.length; i++) {
@@ -149,7 +156,7 @@ export const deleteMessages = createAsyncThunk(
 
           // Check pause/cancel before each iteration. Flush before parking on
           // pause so the table reflects every confirmed deletion while paused.
-          if ((getState() as RootState).app.discrubPaused) flushPendingRemovals();
+          if (selectDiscrubPaused(getState() as RootState)) flushPendingRemovals();
           await waitWhilePaused(getState as () => RootState);
           if (checkCancelled(getState as () => RootState)) break;
 
@@ -263,28 +270,69 @@ export const editMessages = createAsyncThunk(
   ) => {
     try {
       dispatch(showOperationTip('Edit Operation Queued'));
+      const discordService = getDiscordService();
       const editedMessages: Message[] = [];
 
       const state = getState() as RootState;
       const deleteDelay = selectDeleteDelay(state);
       const delayModifier = selectDelayModifier(state);
 
-      for (const message of messages) {
-        await waitWhilePaused(getState as () => RootState);
-        if (checkCancelled(getState as () => RootState)) break;
+      // F14: capture the target container at start — see deleteMessages.
+      const startTab = state.message.activeTab;
+      const containerId = startTab && state.message.threadTabs[startTab] ? startTab : null;
 
-        try {
-          const result = await dispatch(
-            editMessage({ messageId: message.id, channelId, content, token })
-          ).unwrap();
-          editedMessages.push(result);
+      // F13: confirmed edits not yet applied to state, flushed as one
+      // `messagesEdited` batch — same structure as deleteMessages'
+      // pendingRemovals. Pre-fix this loop dispatched the per-message
+      // editMessage thunk, whose fulfilled reducer rewrites all three
+      // arrays per message: the "page unresponsive" freeze class #183
+      // removed for delete, reproduced by a bulk edit of a large table.
+      let pendingEdits: Message[] = [];
+      const flushPendingEdits = () => {
+        if (pendingEdits.length === 0) return;
+        dispatch(messageSlice.actions.messagesEdited({ messages: pendingEdits, containerId }));
+        pendingEdits = [];
+      };
 
-          const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
-          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
-          if (wasCancelled) break;
-        } catch (error) {
-          console.error(`Failed to edit message ${message.id}:`, error);
+      try {
+        for (let i = 0; i < messages.length; i++) {
+          const message = messages[i];
+
+          if (selectDiscrubPaused(getState() as RootState)) flushPendingEdits();
+          await waitWhilePaused(getState as () => RootState);
+          if (checkCancelled(getState as () => RootState)) break;
+
+          try {
+            // Call the service directly instead of dispatching editMessage —
+            // its fulfilled reducer is the per-message rewrite this batch
+            // path exists to avoid (and it flickers isEditing off between
+            // messages; the editMessages pending/fulfilled cases now hold
+            // it stable for the whole run).
+            const response = await discordService.editMessage(
+              token,
+              message.id,
+              { content },
+              channelId
+            );
+            if (!response.success || !response.data) {
+              throw new Error(withHttpStatus('Failed to edit message', response.status));
+            }
+            const edited = response.data as Message;
+            editedMessages.push(edited);
+            pendingEdits.push(edited);
+            if (pendingEdits.length >= DELETE_BATCH_SIZE) flushPendingEdits();
+
+            if (i < messages.length - 1) {
+              const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
+              const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+              if (wasCancelled) break;
+            }
+          } catch (error) {
+            console.error(`Failed to edit message ${message.id}:`, error);
+          }
         }
+      } finally {
+        flushPendingEdits();
       }
 
       if (editedMessages.length > 0) {
@@ -2586,6 +2634,24 @@ const getActiveContainer = (state: import('./messageTypes').MessageState) => {
   return state;
 };
 
+/**
+ * F14: resolve the container an operation CAPTURED when it started
+ * (null = main arrays, otherwise a thread tab id). The batched
+ * reducers take this instead of reading the active tab at flush time —
+ * tab switching is deliberately allowed mid-operation (#237 keeps the
+ * tab bar interactive), and an active-tab lookup at flush time silently
+ * routed a whole batch of confirmed deletions into the wrong
+ * container's arrays. Returns null when the captured thread tab no
+ * longer exists (nothing left to update).
+ */
+const resolveCapturedContainer = (
+  state: import('./messageTypes').MessageState,
+  containerId: string | null,
+) => {
+  if (containerId === null) return state;
+  return state.threadTabs[containerId] ?? null;
+};
+
 const messageSlice = createSlice({
   name: 'message',
   initialState: initialMessageState,
@@ -2618,13 +2684,31 @@ const messageSlice = createSlice({
     // three-array rewrite per deleted message (the per-message
     // `deleteMessage.fulfilled` path). Final state is identical to applying
     // the same ids one at a time — removal by id is order-independent.
-    messagesRemoved: (state, action: PayloadAction<string[]>) => {
-      if (action.payload.length === 0) return;
-      const ids = new Set(action.payload);
-      const container = getActiveContainer(state);
+    // F14: routed by the containerId the operation captured at start, not
+    // whichever tab is active when the flush lands.
+    messagesRemoved: (state, action: PayloadAction<{ ids: string[]; containerId: string | null }>) => {
+      if (action.payload.ids.length === 0) return;
+      const container = resolveCapturedContainer(state, action.payload.containerId);
+      if (!container) return;
+      const ids = new Set(action.payload.ids);
       container.messages = container.messages.filter((m) => !ids.has(m.id));
       container.filteredMessages = container.filteredMessages.filter((m) => !ids.has(m.id));
       container.selectedMessages = container.selectedMessages.filter((m) => !ids.has(m.id));
+    },
+    // F13 (#183 follow-up): batched in-place replacement used by the
+    // bulk-edit loop — same shape as messagesRemoved. Pre-fix, bulk edit
+    // dispatched the per-message editMessage thunk whose fulfilled
+    // reducer rewrote all three arrays per message: the exact freeze
+    // class #183 removed for delete, still live for edit.
+    messagesEdited: (state, action: PayloadAction<{ messages: Message[]; containerId: string | null }>) => {
+      if (action.payload.messages.length === 0) return;
+      const container = resolveCapturedContainer(state, action.payload.containerId);
+      if (!container) return;
+      const byId = new Map(action.payload.messages.map((m) => [m.id, m]));
+      const replaceInArray = (arr: Message[]) => arr.map((m) => byId.get(m.id) ?? m);
+      container.messages = replaceInArray(container.messages);
+      container.filteredMessages = replaceInArray(container.filteredMessages);
+      container.selectedMessages = replaceInArray(container.selectedMessages);
     },
     deselectAllMessages: (state) => {
       state.selectedMessages = [];
@@ -3021,21 +3105,15 @@ const messageSlice = createSlice({
         }
         state.error = payload ?? null;
       })
-      // Bulk edit messages
+      // Bulk edit messages (F13: array updates land via the batched
+      // messagesEdited flushes during the run — the fulfilled case only
+      // finalizes flags + selection, mirroring deleteMessages.fulfilled)
       .addCase(editMessages.pending, (state) => {
         state.isEditing = true;
       })
-      .addCase(editMessages.fulfilled, (state, action) => {
+      .addCase(editMessages.fulfilled, (state) => {
         state.isEditing = false;
-        const editedMessages = action.payload;
         const container = getActiveContainer(state);
-        const updateInArray = (arr: Message[]) =>
-          arr.map((m) => {
-            const edited = editedMessages.find((e: Message) => e.id === m.id);
-            return edited || m;
-          });
-        container.messages = updateInArray(container.messages);
-        container.filteredMessages = updateInArray(container.filteredMessages);
         container.selectedMessages = [];
       })
       .addCase(editMessages.rejected, (state, action) => {
@@ -3351,6 +3429,7 @@ export const {
   selectAllMessages,
   deselectAllMessages,
   messagesRemoved,
+  messagesEdited,
   setSearchCriteria,
   setRefineCriteria,
   clearRefineCriteria,
