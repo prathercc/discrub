@@ -190,6 +190,138 @@ describe('#232 streamDownloadWithStallGuard', () => {
     expect(result.success).toBe(true);
   });
 
+  it('is aborted mid-body by an external signal (F26: Cancel reaches in-flight downloads)', async () => {
+    // Trickling forever: a chunk every 20s re-arms the 30s stall clock,
+    // so only the external signal can end this download.
+    vi.stubGlobal('fetch', mockFetchStreaming({ chunkDelaysMs: Array(1000).fill(20_000) }));
+
+    const external = new AbortController();
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/trickle.png', external.signal);
+    await vi.advanceTimersByTimeAsync(50_000); // a few chunks in, still alive
+    external.abort();
+    const result = await promise;
+
+    expect(result).toEqual({ success: false, data: null });
+  });
+
+  it('returns failure immediately when the external signal is already aborted', async () => {
+    const fetchMock = mockFetchStreaming({ chunkDelaysMs: [10] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const external = new AbortController();
+    external.abort();
+    const result = await streamDownloadWithStallGuard('https://cdn.discordapp.com/late.png', external.signal);
+
+    expect(result).toEqual({ success: false, data: null });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('bounds a pathological trickle at the absolute per-file ceiling (F26)', async () => {
+    // ~66 minutes of chunks arriving inside every stall window — the
+    // 30-minute ceiling must end it even with no Cancel.
+    vi.stubGlobal('fetch', mockFetchStreaming({ chunkDelaysMs: Array(200).fill(20_000) }));
+
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/forever.png');
+    await vi.advanceTimersByTimeAsync(31 * 60_000);
+    const result = await promise;
+
+    expect(result).toEqual({ success: false, data: null });
+  });
+
+  it('waits out every 429 with no retry cap (F25: lib transport parity)', async () => {
+    let call = 0;
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      call++;
+      if (call <= 4) {
+        return Promise.resolve({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'retry-after': '1' }),
+          body: null,
+        } as unknown as Response);
+      }
+      return Promise.resolve(
+        makeStreamingResponse({ chunkDelaysMs: [10] }, init!.signal as AbortSignal)
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/very-busy.png');
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await promise;
+
+    // The old cap (2 retries) turned the 3rd consecutive 429 into a
+    // silently dropped file; parity behavior waits out all of them.
+    expect(result.success).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+  });
+
+  it('prefers the JSON body retry_after over the Retry-After header (F25: lib parity)', async () => {
+    let call = 0;
+    const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+      call++;
+      if (call === 1) {
+        return Promise.resolve({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'retry-after': '1' }),
+          json: () => Promise.resolve({ retry_after: 4 }),
+          body: null,
+        } as unknown as Response);
+      }
+      return Promise.resolve(
+        makeStreamingResponse({ chunkDelaysMs: [10] }, init!.signal as AbortSignal)
+      );
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/body-wait.png');
+
+    // Header said 1s, body said 4s — the body wins, so no retry yet at 2s
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(3_000);
+    const result = await promise;
+    expect(result.success).toBe(true);
+    expect(mockDiscordService.onRateLimit).toHaveBeenCalledWith(4);
+  });
+
+  it('does not cap an actively-arriving buffered body at the stall window (F29)', async () => {
+    // blob() takes 60s — well past the 30s stall window. The pre-fetch
+    // stall timer must be disarmed on the null-body path or it acts as a
+    // flat total cap, the exact failure class #232 removed.
+    const blob = new Blob(['slow but alive'], { type: 'text/plain' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
+        const signal = init!.signal as AbortSignal;
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          headers: new Headers(),
+          body: null,
+          blob: () =>
+            new Promise((resolve, reject) => {
+              signal.addEventListener(
+                'abort',
+                () => reject(new DOMException('Aborted', 'AbortError')),
+                { once: true },
+              );
+              setTimeout(() => resolve(blob), 60_000);
+            }),
+        } as unknown as Response);
+      })
+    );
+
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/slow-buffered.png');
+    await vi.advanceTimersByTimeAsync(61_000);
+    const result = await promise;
+
+    expect(result.success).toBe(true);
+    expect(result.data).toBe(blob);
+  });
+
   it('falls back to a buffered read when the environment has no body stream', async () => {
     const blob = new Blob(['buffered'], { type: 'text/plain' });
     vi.stubGlobal(

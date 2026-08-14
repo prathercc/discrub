@@ -1920,4 +1920,110 @@ describe('mediaDownloadService', () => {
       });
     });
   });
+
+  describe('F26: Cancel reaches an in-flight download', () => {
+    it('aborts the running transport via its signal and rethrows the gate error', async () => {
+      vi.useFakeTimers();
+      try {
+        const cancelErr = new Error('Operation cancelled');
+        let cancelled = false;
+        const shouldContinue = vi.fn().mockImplementation(async () => {
+          if (cancelled) throw cancelErr;
+        });
+        // Transport that never settles on its own — only the abort
+        // signal (Cancel) can end it, like a trickling CDN download.
+        const transport = vi.fn().mockImplementation(
+          (_url: string, signal?: AbortSignal) =>
+            new Promise((resolve) => {
+              signal?.addEventListener(
+                'abort',
+                () => resolve({ success: false, data: null }),
+                { once: true },
+              );
+            }),
+        );
+        const svc = new MediaDownloadService(transport, (m: string) => mockWarn(m));
+        const messages: Message[] = [
+          {
+            ...createMockMessage(),
+            attachments: [{ id: 'att-1', url: 'https://cdn.discordapp.com/big.png', filename: 'big.png' }],
+          } as any,
+        ];
+
+        const outcome = svc
+          .downloadMediaOnly(messages, 'chan', mockZipService, mockOnProgress, undefined, undefined, shouldContinue)
+          .then(() => 'resolved', (e: unknown) => e);
+
+        await vi.advanceTimersByTimeAsync(1_000); // download in flight, watcher polling
+        cancelled = true;
+        await vi.advanceTimersByTimeAsync(1_000); // next poll observes the cancel
+
+        expect(await outcome).toBe(cancelErr);
+        expect(transport).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  describe('F9/F17: download-failure WARNs', () => {
+    it('caps per-item WARNs and summarizes the real total (F9)', async () => {
+      const transport = vi.fn().mockResolvedValue({ success: false, data: null, status: 404 });
+      const svc = new MediaDownloadService(transport, (m: string) => mockWarn(m));
+      const messages: Message[] = Array.from({ length: 15 }, (_, i) => ({
+        ...createMockMessage(),
+        id: `msg-${i}`,
+        attachments: [{ id: `att-${i}`, url: `https://cdn.discordapp.com/f${i}.png`, filename: `f${i}.png` }],
+      })) as any;
+
+      await svc.downloadMediaOnly(messages, 'chan', mockZipService, mockOnProgress);
+
+      // 10 per-item WARNs + 1 summary carrying the real total
+      expect(mockWarn).toHaveBeenCalledTimes(11);
+      const summary = mockWarn.mock.calls[10][0];
+      expect(summary).toContain('15 media files');
+      expect(summary).toContain('first 10');
+    });
+
+    it('WARNs with status detail when an avatar download fails (F17)', async () => {
+      const transport = vi.fn().mockResolvedValue({ success: false, data: null, status: 403 });
+      const svc = new MediaDownloadService(transport, (m: string) => mockWarn(m));
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          author: {
+            id: 'user-1',
+            username: 'user1',
+            discriminator: '0001',
+            avatar: 'avatar123',
+            global_name: null,
+          },
+        } as any,
+      ];
+
+      await svc.downloadAllMedia(messages, null, 'chan', mockZipService, mockOnProgress);
+
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.stringContaining('avatar for user user-1'),
+      );
+      expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining('403'));
+    });
+
+    it('WARNs when a role icon download fails (F17)', async () => {
+      const transport = vi.fn().mockResolvedValue({ success: false, data: null });
+      const svc = new MediaDownloadService(transport, (m: string) => mockWarn(m));
+      const guild: Guild = {
+        id: 'guild-1',
+        name: 'Test Guild',
+        roles: [{ id: 'role-1', name: 'Admin', icon: 'icon123' }],
+      } as any;
+
+      await svc.downloadAllMedia([createMockMessage()] as Message[], guild, 'chan', mockZipService, mockOnProgress);
+
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.stringContaining('icon for role Admin'),
+      );
+      expect(mockWarn).toHaveBeenCalledWith(expect.stringContaining('CORS/network'));
+    });
+  });
 });

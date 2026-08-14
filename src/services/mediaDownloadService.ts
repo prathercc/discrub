@@ -14,7 +14,7 @@ export type ShouldContinueFn = () => Promise<void>;
 
 /** Transport result — matches discrub-core's DiscordApiResponse<Blob> shape. */
 export type MediaDownloadResult = { success: boolean; data: Blob | null; status?: number };
-export type MediaTransport = (url: string) => Promise<MediaDownloadResult>;
+export type MediaTransport = (url: string, signal?: AbortSignal) => Promise<MediaDownloadResult>;
 export type MediaWarnFn = (message: string) => void;
 
 /**
@@ -36,8 +36,23 @@ const dispatchStatusWarning: MediaWarnFn = (message) => {
  */
 const STALL_TIMEOUT_MS = 30_000;
 
-/** Bounded 429 retries — parity with the lib transport's rate-limit loop. */
-const MAX_RATE_LIMIT_RETRIES = 2;
+/**
+ * Absolute per-file ceiling. The stall guard alone lets a trickling
+ * download (one byte inside every stall window) run forever; this bounds
+ * every single file even unattended. Generous by design: cutting off a
+ * slow-but-progressing link is the exact failure #232 removed, so this
+ * only catches pathological trickles, and Cancel (which aborts the
+ * in-flight fetch via the transport's signal) is the responsive path.
+ */
+const MAX_FILE_DOWNLOAD_MS = 30 * 60_000;
+
+/**
+ * Cap on per-item download-failure WARNs, mirroring the #230 render
+ * reporter's RENDER_FAILURE_WARN_CAP: an export with hundreds of dead
+ * CDN links must not flood the 2000-entry status log. A summary entry
+ * carries the total once the cap is passed.
+ */
+const MEDIA_FAILURE_WARN_CAP = 10;
 
 /**
  * #232 default media transport: streaming fetch with a stall-based abort.
@@ -50,7 +65,10 @@ const MAX_RATE_LIMIT_RETRIES = 2;
  * - bounded 429 handling honoring Retry-After, surfaced via `onRateLimit`
  * - resolves to the same `{ success, data }` shape
  */
-export async function streamDownloadWithStallGuard(url: string): Promise<MediaDownloadResult> {
+export async function streamDownloadWithStallGuard(
+  url: string,
+  signal?: AbortSignal,
+): Promise<MediaDownloadResult> {
   const discordService = getDiscordService();
 
   const baseDelay = discordService.searchDelaySecs;
@@ -60,22 +78,37 @@ export async function streamDownloadWithStallGuard(url: string): Promise<MediaDo
     await wait(discordService.calculateRandomNumber(max, min));
   }
 
-  for (let attempt = 0; ; attempt++) {
+  for (;;) {
+    if (signal?.aborted) return { success: false, data: null };
     const controller = new AbortController();
+    // F26: the caller's signal (Cancel) must reach the in-flight fetch —
+    // pre-change, the pause/cancel gate only ran between files.
+    const onExternalAbort = () => controller.abort();
+    signal?.addEventListener('abort', onExternalAbort, { once: true });
     let stallTimer: ReturnType<typeof setTimeout> | undefined;
     const armStallTimer = () => {
       clearTimeout(stallTimer);
       stallTimer = setTimeout(() => controller.abort(), STALL_TIMEOUT_MS);
     };
+    const ceilingTimer = setTimeout(() => controller.abort(), MAX_FILE_DOWNLOAD_MS);
 
     try {
       armStallTimer();
       const response = await fetch(url, { signal: controller.signal });
 
-      if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
-        const retryAfterSecs = Number(response.headers.get('retry-after')) || 1;
-        discordService.onRateLimit?.(retryAfterSecs);
+      if (response.status === 429) {
+        // Parity with the lib transport this replaced: every 429 is
+        // waited out (no retry cap), reading retry_after from the JSON
+        // body like withRetry does — with the Retry-After header, then
+        // 1s, as fallbacks for CDN 429s that carry no JSON body.
         clearTimeout(stallTimer);
+        let retryAfterSecs = 0;
+        try {
+          const body = (await response.json()) as { retry_after?: number };
+          if (typeof body?.retry_after === 'number') retryAfterSecs = body.retry_after;
+        } catch { /* non-JSON 429 body */ }
+        if (!retryAfterSecs) retryAfterSecs = Number(response.headers.get('retry-after')) || 1;
+        discordService.onRateLimit?.(retryAfterSecs);
         await wait(retryAfterSecs);
         continue;
       }
@@ -85,9 +118,14 @@ export async function streamDownloadWithStallGuard(url: string): Promise<MediaDo
       }
 
       if (!response.body) {
-        // Environment without body streaming — buffered fallback (no
-        // mid-body stall detection, but the initial-response timer above
-        // still bounds a dead connection).
+        // Environment without body streaming — buffered fallback. blob()
+        // exposes no byte progress, so stall detection is impossible
+        // here; leaving the pre-fetch stall timer armed turned it into a
+        // flat 30s total cap that killed actively-progressing downloads
+        // (the exact failure class #232 removed). Headers arriving
+        // proved the connection alive; the per-file ceiling and the
+        // external signal still bound a body that dies mid-transfer.
+        clearTimeout(stallTimer);
         const blob = await response.blob();
         return { success: true, data: blob, status: response.status };
       }
@@ -108,10 +146,13 @@ export async function streamDownloadWithStallGuard(url: string): Promise<MediaDo
         status: response.status,
       };
     } catch {
-      // Includes the stall abort — caller falls back to an external link
+      // Includes the stall/ceiling/external aborts — caller falls back
+      // to an external link (or unwinds, when the abort was a Cancel)
       return { success: false, data: null };
     } finally {
       clearTimeout(stallTimer);
+      clearTimeout(ceilingTimer);
+      signal?.removeEventListener('abort', onExternalAbort);
     }
   }
 }
@@ -154,27 +195,87 @@ export class MediaDownloadService {
   private mediaFileSeq = 0;
 
   /**
-   * Single download attempt through the transport, preserving the HTTP
-   * status of a failure so callers can diagnose it (#234). A thrown
-   * network/CORS error collapses to `{ success: false }` with no status.
+   * Count of failed media items this instance has warned about; used by
+   * {@link warnMediaFailure} to cap status-log entries (F9) and by
+   * {@link flushMediaFailureSummary} to report the real total.
    */
-  private async downloadAttempt(url: string): Promise<MediaDownloadResult> {
-    try {
-      const transport = this.transport ?? streamDownloadWithStallGuard;
-      return await transport(url);
-    } catch {
-      return { success: false, data: null };
+  private mediaFailureCount = 0;
+
+  /** Capped per-item failure WARN — see MEDIA_FAILURE_WARN_CAP. */
+  private warnMediaFailure(message: string): void {
+    this.mediaFailureCount++;
+    if (this.mediaFailureCount <= MEDIA_FAILURE_WARN_CAP) {
+      this.warn(message);
+    }
+  }
+
+  /** Summary WARN for failures the per-item cap suppressed. */
+  private flushMediaFailureSummary(): void {
+    if (this.mediaFailureCount > MEDIA_FAILURE_WARN_CAP) {
+      this.warn(
+        `Export: ${this.mediaFailureCount} media files could not be downloaded (first ${MEDIA_FAILURE_WARN_CAP} logged above). The export links to the originals online where possible.`,
+      );
     }
   }
 
   /**
-   * Download a file, returning the blob or null on failure. Failure is a
-   * stall (no bytes for STALL_TIMEOUT_MS), an HTTP error, or a network
-   * error — never mere slowness (#232).
+   * Single download attempt through the transport, preserving the HTTP
+   * status of a failure so callers can diagnose it (#234). A thrown
+   * network/CORS error collapses to `{ success: false }` with no status.
+   *
+   * F26: when a pause/cancel gate is provided, a watcher polls it while
+   * the download runs and aborts the in-flight fetch on Cancel — the
+   * between-files gate alone left a trickling download unreachable by
+   * Cancel (it re-arms the stall clock on every byte). The gate's
+   * CancelledError is rethrown so the operation unwinds exactly as if
+   * the between-files gate had fired.
    */
-  private async downloadWithTimeout(url: string): Promise<Blob | null> {
-    const result = await this.downloadAttempt(url);
-    return result.success && result.data ? result.data : null;
+  private async downloadAttempt(
+    url: string,
+    shouldContinue?: ShouldContinueFn,
+  ): Promise<MediaDownloadResult> {
+    const transport = this.transport ?? streamDownloadWithStallGuard;
+    if (!shouldContinue) {
+      try {
+        return await transport(url);
+      } catch {
+        return { success: false, data: null };
+      }
+    }
+
+    const controller = new AbortController();
+    let downloadSettled = false;
+    let releaseWatcher: () => void = () => {};
+    const settledSignal = new Promise<void>((resolve) => { releaseWatcher = resolve; });
+    let cancelError: unknown = null;
+    const watcher = (async () => {
+      while (!downloadSettled) {
+        try {
+          await shouldContinue(); // waits out a pause; throws on cancel
+        } catch (error) {
+          cancelError = error;
+          controller.abort();
+          return;
+        }
+        if (downloadSettled) return;
+        // Poll sleep is released the instant the download settles so the
+        // watcher never adds latency to a completed file.
+        await Promise.race([settledSignal, wait(0.5)]);
+      }
+    })();
+
+    let result: MediaDownloadResult;
+    try {
+      result = await transport(url, controller.signal);
+    } catch {
+      result = { success: false, data: null };
+    } finally {
+      downloadSettled = true;
+      releaseWatcher();
+    }
+    await watcher;
+    if (cancelError) throw cancelError;
+    return result;
   }
 
   /**
@@ -223,6 +324,7 @@ export class MediaDownloadService {
       await this.downloadRoleIcons(guild, entityName, zipService, onProgress, shouldContinue);
     }
 
+    this.flushMediaFailureSummary();
     return this.maps;
   }
 
@@ -240,6 +342,7 @@ export class MediaDownloadService {
     shouldContinue?: ShouldContinueFn
   ): Promise<void> {
     await this.downloadAttachments(messages, entityName, zipService, onProgress, mediaConfig, artistMode, shouldContinue);
+    this.flushMediaFailureSummary();
   }
 
   /**
@@ -283,14 +386,18 @@ export class MediaDownloadService {
       const cdnUrl = `https://media.discordapp.net/avatars/${userId}/${avatarHash}.png`;
 
       if (!this.maps.avatarMap[idAndAvatar]) {
-        const blob = await this.downloadWithTimeout(cdnUrl);
-        if (blob) {
+        const result = await this.downloadAttempt(cdnUrl, shouldContinue);
+        if (result.success && result.data) {
+          const blob = result.data;
           const ext = this.getFileExtension(blob) || 'webp';
           const filePath = `${entityName}/avatars/${userId}/${avatarHash}.${ext}`;
           // Record the path the zip actually stored — addFile renames on
           // collision (#224), and the map must point at the real entry.
           this.maps.avatarMap[idAndAvatar] = await zipService.addFile(blob, filePath);
         } else {
+          this.warnMediaFailure(
+            `Export: Could not download the avatar for user ${userId} (${result.status ?? 'CORS/network'})`,
+          );
           console.warn(`Failed to download avatar: ${cdnUrl}`);
         }
       }
@@ -452,7 +559,7 @@ export class MediaDownloadService {
         const attempts: Array<{ attemptedUrl: string; result: MediaDownloadResult }> = [];
         let blob: Blob | null = null;
         for (const attemptUrl of fallbackUrl ? [downloadUrl, fallbackUrl] : [downloadUrl]) {
-          const result = await this.downloadAttempt(attemptUrl);
+          const result = await this.downloadAttempt(attemptUrl, shouldContinue);
           attempts.push({ attemptedUrl: attemptUrl, result });
           if (result.success && result.data) {
             blob = result.data;
@@ -499,7 +606,7 @@ export class MediaDownloadService {
             .map(({ attemptedUrl, result }) =>
               `${attemptedUrl === url ? 'direct' : 'proxy'} ${result.status ?? 'CORS/network'}`)
             .join(', ');
-          this.warn(`Export: Could not download ${filename} — ${detail}`);
+          this.warnMediaFailure(`Export: Could not download ${filename} (${detail})`);
           console.warn(
             `[mediaDownloadService] Failed to download ${type}`,
             { original: url, attempted: attempts.map((a) => a.attemptedUrl), detail },
@@ -568,12 +675,16 @@ export class MediaDownloadService {
       const cdnUrl = `https://media.discordapp.net/emojis/${emojiId}.webp?animated=true`;
 
       if (!this.maps.emojiMap[emojiId]) {
-        const blob = await this.downloadWithTimeout(cdnUrl);
-        if (blob) {
+        const result = await this.downloadAttempt(cdnUrl, shouldContinue);
+        if (result.success && result.data) {
+          const blob = result.data;
           const ext = this.getFileExtension(blob) || 'webp';
           const filePath = `${entityName}/emojis/${emojiId}.${ext}`;
           this.maps.emojiMap[emojiId] = await zipService.addFile(blob, filePath);
         } else {
+          this.warnMediaFailure(
+            `Export: Could not download emoji ${emojiId} (${result.status ?? 'CORS/network'})`,
+          );
           console.warn(`Failed to download emoji: ${cdnUrl}`);
         }
       }
@@ -620,10 +731,13 @@ export class MediaDownloadService {
       const ext = s.format_type === 4 ? 'gif' : 'png';
       const cdnUrl = `https://media.discordapp.net/stickers/${s.id}.${ext}`;
       const filePath = `${entityName}/stickers/${s.id}.${ext}`;
-      const blob = await this.downloadWithTimeout(cdnUrl);
-      if (blob) {
-        await zipService.addFile(blob, filePath);
+      const result = await this.downloadAttempt(cdnUrl, shouldContinue);
+      if (result.success && result.data) {
+        await zipService.addFile(result.data, filePath);
       } else {
+        this.warnMediaFailure(
+          `Export: Could not download sticker ${s.id} (${result.status ?? 'CORS/network'})`,
+        );
         console.warn(`Failed to download sticker: ${cdnUrl}`);
       }
       downloaded++;
@@ -671,13 +785,17 @@ export class MediaDownloadService {
       const cdnUrl = `https://cdn.discordapp.com/role-icons/${role.id}/${role.icon}.webp?size=20`;
 
       if (!this.maps.roleMap[cdnUrl]) {
-        const blob = await this.downloadWithTimeout(cdnUrl);
-        if (blob) {
+        const result = await this.downloadAttempt(cdnUrl, shouldContinue);
+        if (result.success && result.data) {
+          const blob = result.data;
           const ext = this.getFileExtension(blob) || 'webp';
           const fileName = filenamify(`${role.name}_${role.id}.${ext}`, { replacement: '_' });
           const filePath = `${entityName}/roles/${fileName}`;
           this.maps.roleMap[cdnUrl] = await zipService.addFile(blob, filePath);
         } else {
+          this.warnMediaFailure(
+            `Export: Could not download the icon for role ${role.name} (${result.status ?? 'CORS/network'})`,
+          );
           console.warn(`Failed to download role icon: ${cdnUrl}`);
         }
       }
