@@ -3,6 +3,7 @@ import { wait } from 'discrub-core/common-utils';
 import { EmbedType } from 'discrub-core/discord-enum';
 import filenamify from 'filenamify';
 import { isExtensionMode } from '@/extension/messaging';
+import { addStatusEntry } from '@features/status/statusSlice';
 import type { Message, Guild } from 'discrub-core/types/discord-types';
 import type { ExportReactionMap } from 'discrub-core/types/discrub-types';
 import type { MediaDownloadProgress, MediaMaps, MediaConfig } from '@features/export/exportTypes';
@@ -14,6 +15,17 @@ export type ShouldContinueFn = () => Promise<void>;
 /** Transport result — matches discrub-core's DiscordApiResponse<Blob> shape. */
 export type MediaDownloadResult = { success: boolean; data: Blob | null; status?: number };
 export type MediaTransport = (url: string) => Promise<MediaDownloadResult>;
+export type MediaWarnFn = (message: string) => void;
+
+/**
+ * #234 default WARN sink: the status log. Lazy store import mirrors
+ * discordService's onRateLimit wiring (store → slices → services → store).
+ */
+const dispatchStatusWarning: MediaWarnFn = (message) => {
+  void import('@/app/store').then(({ store }) => {
+    store.dispatch(addStatusEntry({ level: 'warning', message }));
+  });
+};
 
 /**
  * #232: window of NO byte progress after which a download is abandoned.
@@ -115,8 +127,15 @@ export class MediaDownloadService {
    */
   private transport?: MediaTransport;
 
-  constructor(transport?: MediaTransport) {
+  /**
+   * WARN seam (#234): production dispatches to the status log; unit tests
+   * inject a stub so no store is pulled into the test environment.
+   */
+  private warn: MediaWarnFn;
+
+  constructor(transport?: MediaTransport, warn?: MediaWarnFn) {
     this.transport = transport;
+    this.warn = warn ?? dispatchStatusWarning;
   }
 
   private maps: MediaMaps = {
@@ -135,18 +154,27 @@ export class MediaDownloadService {
   private mediaFileSeq = 0;
 
   /**
+   * Single download attempt through the transport, preserving the HTTP
+   * status of a failure so callers can diagnose it (#234). A thrown
+   * network/CORS error collapses to `{ success: false }` with no status.
+   */
+  private async downloadAttempt(url: string): Promise<MediaDownloadResult> {
+    try {
+      const transport = this.transport ?? streamDownloadWithStallGuard;
+      return await transport(url);
+    } catch {
+      return { success: false, data: null };
+    }
+  }
+
+  /**
    * Download a file, returning the blob or null on failure. Failure is a
    * stall (no bytes for STALL_TIMEOUT_MS), an HTTP error, or a network
    * error — never mere slowness (#232).
    */
   private async downloadWithTimeout(url: string): Promise<Blob | null> {
-    try {
-      const transport = this.transport ?? streamDownloadWithStallGuard;
-      const result = await transport(url);
-      return result.success && result.data ? result.data : null;
-    } catch {
-      return null;
-    }
+    const result = await this.downloadAttempt(url);
+    return result.success && result.data ? result.data : null;
   }
 
   /**
@@ -293,13 +321,27 @@ export class MediaDownloadService {
     const attachmentUrls: Array<{
       url: string;
       downloadUrl: string;
+      fallbackUrl?: string;
       messageIndex: number;
       filename: string;
       type: 'attachment' | 'embed-image' | 'embed-video' | 'embed-thumbnail';
       authorName: string;
+      timestamp?: string;
     }> = [];
 
     const useProxyUrl = !isExtensionMode();
+
+    // #234: every media item keeps BOTH its URLs. Web mode leads with the
+    // proxy (the direct cdn.discordapp.com URL is CORS-dead there) but the
+    // proxy 415s some formats (webp); extension mode leads with the direct
+    // URL but external-CDN embeds can be unreachable while the Discord-proxy
+    // copy IS fetchable under the extension's discordapp.net host
+    // permissions. Either way the other distinct URL is the second leg.
+    const resolveLegs = (url: string, proxyUrl?: string) => {
+      const downloadUrl = useProxyUrl && proxyUrl ? proxyUrl : url;
+      const other = downloadUrl === url ? proxyUrl : url;
+      return { downloadUrl, fallbackUrl: other && other !== downloadUrl ? other : undefined };
+    };
 
     // Collect attachment + embed media from a single message-like source.
     // Used for the top-level message AND for each forwarded snapshot's
@@ -308,7 +350,8 @@ export class MediaDownloadService {
     const collectMedia = (
       source: Pick<Message, 'attachments' | 'embeds'> | Partial<Message> | null | undefined,
       authorName: string,
-      index: number
+      index: number,
+      timestamp?: string
     ) => {
       if (!source) return;
       const attachments = source.attachments || [];
@@ -316,11 +359,12 @@ export class MediaDownloadService {
         if (att.url && this.shouldDownloadFile(att.filename || 'unknown', mediaConfig)) {
           attachmentUrls.push({
             url: att.url,
-            downloadUrl: useProxyUrl && att.proxy_url ? att.proxy_url : att.url,
+            ...resolveLegs(att.url, att.proxy_url),
             messageIndex: index,
             filename: att.filename || 'unknown',
             type: 'attachment',
             authorName,
+            timestamp,
           });
         }
       });
@@ -331,21 +375,23 @@ export class MediaDownloadService {
         if (embed.image?.url) {
           attachmentUrls.push({
             url: embed.image.url,
-            downloadUrl: useProxyUrl && embed.image.proxy_url ? embed.image.proxy_url : embed.image.url,
+            ...resolveLegs(embed.image.url, embed.image.proxy_url),
             messageIndex: index,
             filename: 'embed_image',
             type: 'embed-image',
             authorName,
+            timestamp,
           });
         }
         if (embed.video?.url) {
           attachmentUrls.push({
             url: embed.video.url,
-            downloadUrl: useProxyUrl && embed.video.proxy_url ? embed.video.proxy_url : embed.video.url,
+            ...resolveLegs(embed.video.url, embed.video.proxy_url),
             messageIndex: index,
             filename: 'embed_video',
             type: 'embed-video',
             authorName,
+            timestamp,
           });
         }
         // #219 residue: a gifv embed (Tenor/Giphy) renders as its video —
@@ -356,11 +402,12 @@ export class MediaDownloadService {
         if (embed.thumbnail?.url && !isGifvWithVideo) {
           attachmentUrls.push({
             url: embed.thumbnail.url,
-            downloadUrl: useProxyUrl && embed.thumbnail.proxy_url ? embed.thumbnail.proxy_url : embed.thumbnail.url,
+            ...resolveLegs(embed.thumbnail.url, embed.thumbnail.proxy_url),
             messageIndex: index,
             filename: 'embed_thumbnail',
             type: 'embed-thumbnail',
             authorName,
+            timestamp,
           });
         }
       });
@@ -368,7 +415,7 @@ export class MediaDownloadService {
 
     messages.forEach((msg, index) => {
       const authorName = msg.author?.username || 'unknown';
-      collectMedia(msg, authorName, index);
+      collectMedia(msg, authorName, index, msg.timestamp);
 
       // #214: forwarded messages (message_reference.type === 1) carry their
       // real payload — including attachments and embedded media — inside
@@ -377,7 +424,7 @@ export class MediaDownloadService {
       // leaving dead CDN links offline. Only snapshot[0] is collected: both the
       // feed and the HTML emitter render only message_snapshots[0], so deeper
       // snapshots would download orphaned files that are never linked.
-      collectMedia(msg.message_snapshots?.[0]?.message, authorName, index);
+      collectMedia(msg.message_snapshots?.[0]?.message, authorName, index, msg.timestamp);
     });
 
     // Report progress even if there are no attachments
@@ -393,19 +440,24 @@ export class MediaDownloadService {
 
     let downloaded = 0;
 
-    for (const { url, downloadUrl, messageIndex, filename, type, authorName } of attachmentUrls) {
+    for (const { url, downloadUrl, fallbackUrl, messageIndex, filename, type, authorName, timestamp } of attachmentUrls) {
       if (shouldContinue) await shouldContinue();
       if (!this.maps.mediaMap[url]) {
-        // Try the preferred URL first (usually Discord's proxy in web mode).
-        // Fall back to the direct URL if the proxy returns nothing — Discord's
-        // media proxy reliably serves images but has historically been flaky
-        // for external video CDNs (Tenor mp4s in particular). The CORS
-        // characteristics of the direct URL matter too; both attempts are
-        // cross-origin and the fetch will fail silently if headers don't
-        // allow it.
-        let blob = await this.downloadWithTimeout(downloadUrl);
-        if (!blob && downloadUrl !== url) {
-          blob = await this.downloadWithTimeout(url);
+        // Try the preferred leg first, then the other distinct URL (#234) —
+        // Discord's media proxy reliably serves images but 415s some formats
+        // (webp) and has historically been flaky for external video CDNs
+        // (Tenor mp4s in particular), while the direct URL's CORS
+        // characteristics cut the other way. Both legs run through the same
+        // transport, so pacing and 429 handling apply to each attempt.
+        const attempts: Array<{ attemptedUrl: string; result: MediaDownloadResult }> = [];
+        let blob: Blob | null = null;
+        for (const attemptUrl of fallbackUrl ? [downloadUrl, fallbackUrl] : [downloadUrl]) {
+          const result = await this.downloadAttempt(attemptUrl);
+          attempts.push({ attemptedUrl: attemptUrl, result });
+          if (result.success && result.data) {
+            blob = result.data;
+            break;
+          }
         }
         if (blob) {
           const ext = this.getFileExtension(blob) || this.getExtensionFromFilename(filename);
@@ -425,7 +477,13 @@ export class MediaDownloadService {
             relativePath = `media/${typeFolder}/${sanitizedFilename}`;
           }
 
-          const storedPath = await zipService.addFile(blob, filePath);
+          // #235: message-derived media carries the source message's
+          // timestamp as its zip modified date (1.x parity).
+          const storedPath = await zipService.addFile(
+            blob,
+            filePath,
+            timestamp ? new Date(timestamp) : undefined,
+          );
           // Re-derive the relative path from the stored path in case the
           // zip renamed a colliding entry (#224); renames only touch the
           // basename, so stripping the entity prefix stays valid.
@@ -433,9 +491,18 @@ export class MediaDownloadService {
             ? storedPath.slice(entityName.length + 1)
             : relativePath;
         } else {
+          // #234: surface per-leg failure detail in the status log — the
+          // proxy leg is any attempt at proxy_url, the direct leg the
+          // original url; a missing status means the fetch itself threw
+          // (CORS, network, or a stall abort).
+          const detail = attempts
+            .map(({ attemptedUrl, result }) =>
+              `${attemptedUrl === url ? 'direct' : 'proxy'} ${result.status ?? 'CORS/network'}`)
+            .join(', ');
+          this.warn(`Export: Could not download ${filename} — ${detail}`);
           console.warn(
             `[mediaDownloadService] Failed to download ${type}`,
-            { original: url, attempted: downloadUrl },
+            { original: url, attempted: attempts.map((a) => a.attemptedUrl), detail },
           );
         }
       }

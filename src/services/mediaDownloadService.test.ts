@@ -22,12 +22,18 @@ describe('mediaDownloadService', () => {
   let mockZipService: StreamingZipService;
   let mockDiscordService: any;
   let mockOnProgress: ReturnType<typeof vi.fn>;
+  let mockWarn: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     // #232 transport seam: forward to the downloadFile stub lazily so the
     // orchestration tests keep their existing per-test stubs verbatim.
-    service = new MediaDownloadService((url: string) => mockDiscordService.downloadFile(url));
+    // #234 warn seam: forward lazily for the same reason.
+    service = new MediaDownloadService(
+      (url: string) => mockDiscordService.downloadFile(url),
+      (message: string) => mockWarn(message),
+    );
     vi.clearAllMocks();
+    mockWarn = vi.fn();
 
     // Mock zip service — addFile echoes the stored path like the real one (#224)
     mockZipService = {
@@ -770,6 +776,110 @@ describe('mediaDownloadService', () => {
         ([u]: [string]) => u === url,
       );
       expect(calls).toHaveLength(1);
+    });
+
+    it('falls back to the direct URL when the proxy 415s a webp in web mode (#234)', async () => {
+      const directUrl = 'https://cdn.discordapp.com/attachments/1/2/image.webp';
+      const proxyUrl = 'https://media.discordapp.net/attachments/1/2/image.webp';
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          attachments: [
+            { id: 'att-1', url: directUrl, proxy_url: proxyUrl, filename: 'image.webp' },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockImplementation((requestedUrl: string) => {
+        if (requestedUrl === proxyUrl) {
+          return Promise.resolve({ success: false, data: null, status: 415 });
+        }
+        return Promise.resolve({
+          success: true,
+          data: new Blob(['data'], { type: 'image/webp' }),
+        });
+      });
+
+      await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+      const maps = service.getMaps();
+      expect(maps.mediaMap[directUrl]).toContain('attachments');
+      const calls = (mockDiscordService.downloadFile as any).mock.calls.map(([u]: [string]) => u);
+      expect(calls).toEqual([proxyUrl, directUrl]);
+      expect(mockWarn).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the proxy URL in extension mode when the direct URL fails (#234)', async () => {
+      const { isExtensionMode } = await import('@/extension/messaging');
+      vi.mocked(isExtensionMode).mockReturnValue(true);
+
+      const directUrl = 'https://some-external-cdn.com/image.png';
+      const proxyUrl = 'https://images-ext-1.discordapp.net/external/xyz/image.png';
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          embeds: [
+            {
+              image: { url: directUrl, proxy_url: proxyUrl },
+            },
+          ],
+        } as any,
+      ];
+
+      // Direct leg fails (third-party CDN unreachable); the Discord-proxy
+      // copy IS fetchable under the extension's discordapp.net permissions.
+      mockDiscordService.downloadFile.mockImplementation((requestedUrl: string) => {
+        if (requestedUrl === directUrl) {
+          return Promise.resolve({ success: false, data: null });
+        }
+        return Promise.resolve({
+          success: true,
+          data: new Blob(['data'], { type: 'image/png' }),
+        });
+      });
+
+      await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+      const maps = service.getMaps();
+      expect(maps.mediaMap[directUrl]).toContain('embed-images');
+      const calls = (mockDiscordService.downloadFile as any).mock.calls.map(([u]: [string]) => u);
+      expect(calls).toEqual([directUrl, proxyUrl]);
+
+      vi.mocked(isExtensionMode).mockReturnValue(false);
+    });
+
+    it('emits a status-log WARN with per-leg detail when all legs fail (#234)', async () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const directUrl = 'https://cdn.discordapp.com/attachments/1/2/image.webp';
+      const proxyUrl = 'https://media.discordapp.net/attachments/1/2/image.webp';
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          attachments: [
+            { id: 'att-1', url: directUrl, proxy_url: proxyUrl, filename: 'image.webp' },
+          ],
+        } as any,
+      ];
+
+      // Proxy leg 415s; direct leg throws (CORS-dead in web mode).
+      mockDiscordService.downloadFile.mockImplementation((requestedUrl: string) => {
+        if (requestedUrl === proxyUrl) {
+          return Promise.resolve({ success: false, data: null, status: 415 });
+        }
+        return Promise.reject(new Error('CORS'));
+      });
+
+      await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+      expect(mockWarn).toHaveBeenCalledTimes(1);
+      const warned = mockWarn.mock.calls[0][0];
+      expect(warned).toContain('image.webp');
+      expect(warned).toContain('proxy 415');
+      expect(warned).toContain('direct CORS/network');
+      expect(service.getMaps().mediaMap[directUrl]).toBeUndefined();
+
+      consoleWarnSpy.mockRestore();
     });
 
     it('should download embed thumbnails', async () => {
@@ -1736,6 +1846,78 @@ describe('mediaDownloadService', () => {
       expect(stickerPaths).toContain('test-channel/stickers/s-gif.gif');
       // Lottie is never downloaded (can't be rasterized).
       expect(stickerPaths.some((p: string) => p.includes('s-lottie'))).toBe(false);
+    });
+  });
+
+  describe('zip modified dates (#235)', () => {
+    it('passes the source message timestamp to addFile for attachments and embeds', async () => {
+      const timestamp = '2024-03-15T10:30:00.000Z';
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          timestamp,
+          attachments: [
+            { id: 'att-1', url: 'https://cdn.discordapp.com/file.png', filename: 'file.png' },
+          ],
+          embeds: [
+            {
+              image: { url: 'https://cdn.discordapp.com/embed-image.png' },
+            },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/png' }),
+      });
+
+      await service.downloadAllMedia(messages, null, 'test-channel', mockZipService, mockOnProgress);
+
+      const mediaCalls = (mockZipService.addFile as any).mock.calls.filter(
+        (c: any[]) => c[1].includes('/media/'),
+      );
+      expect(mediaCalls).toHaveLength(2);
+      mediaCalls.forEach((c: any[]) => {
+        expect(c[2]).toBeInstanceOf(Date);
+        expect(c[2].getTime()).toBe(new Date(timestamp).getTime());
+      });
+    });
+
+    it('leaves per-entity media (avatars, emojis, stickers, role icons) on the default date', async () => {
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          author: {
+            id: 'user-1',
+            username: 'user1',
+            discriminator: '0001',
+            avatar: 'avatar123',
+            global_name: null,
+          },
+          content: 'Test <:emoji:123456>',
+          sticker_items: [{ id: 's-png', name: 'wave', format_type: 1 }],
+        } as any,
+      ];
+
+      const guild: Guild = {
+        id: 'guild-1',
+        name: 'Test Guild',
+        roles: [{ id: 'role-1', name: 'Admin', icon: 'icon123' }],
+      } as any;
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/png' }),
+      });
+
+      await service.downloadAllMedia(messages, guild, 'test-channel', mockZipService, mockOnProgress);
+
+      const calls = (mockZipService.addFile as any).mock.calls;
+      expect(calls.length).toBe(4); // avatar + emoji + sticker + role icon
+      calls.forEach((c: any[]) => {
+        expect(c[2]).toBeUndefined();
+      });
     });
   });
 });
