@@ -268,3 +268,42 @@ Cypress.Commands.add('readIdbStoreKeys', (store: string) => {
     });
   });
 });
+
+/**
+ * Wait for a browser download matching `pattern` to land in the Cypress
+ * downloads folder and finish writing (size stable across two polls,
+ * `.crdownload` partials excluded). Yields the matching filename so
+ * follow-up `zip:list` / `zip:read` tasks can inspect the archive.
+ *
+ * Call `cy.task('downloads:clean')` at the start of any test that uses
+ * this, so stale files from earlier tests can't satisfy the match.
+ */
+Cypress.Commands.add(
+  'waitForDownload',
+  (pattern: RegExp, timeoutMs = 30000) => {
+    const started = Date.now();
+    const poll = (
+      lastSize: number | null,
+      lastName: string | null,
+    ): Cypress.Chainable<string> => {
+      return cy
+        .task<{ name: string; size: number }[]>('downloads:list', null, { log: false })
+        .then((files) => {
+          const match = files.find((f) => pattern.test(f.name));
+          if (match && lastName === match.name && lastSize === match.size) {
+            return cy.wrap(match.name, { log: false });
+          }
+          if (Date.now() - started > timeoutMs) {
+            throw new Error(
+              `Download matching ${pattern} did not complete within ${timeoutMs}ms ` +
+                `(saw: ${files.map((f) => f.name).join(', ') || 'none'})`,
+            );
+          }
+          return cy
+            .wait(500, { log: false })
+            .then(() => poll(match?.size ?? null, match?.name ?? null));
+        });
+    };
+    return poll(null, null);
+  },
+);

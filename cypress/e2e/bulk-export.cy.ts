@@ -380,6 +380,261 @@ describe('Bulk Export', () => {
     });
   });
 
+  // ── #238: Forum expansion during bulk export ──────────────────────────
+  // Forum/media channels have no message stream of their own (the parent
+  // 400s on GET /channels/{id}/messages), so bulkExportChannels expands
+  // each selected forum into its post threads via
+  // GET /channels/{id}/threads/search (25 per page, offset walk) before
+  // exporting. Post folders are prefixed with the forum's name and the
+  // Discord shell groups them under the forum as a pseudo-category.
+  // Listing failures retry under withTransientRetry (5 retries,
+  // 1/2/4/8/16s backoff); exhaustion is an ERROR in the run summary, not
+  // end-of-pagination (the pre-fix bug silently truncated forums).
+  describe('Forum expansion during bulk export (#238)', () => {
+    const API = '**/api/v10';
+    // The "feedback" forum (type 15 GUILD_FORUM) from channels.json;
+    // forum-threads.json lists its 3 posts with has_more: false.
+    const FORUM_ID = '801000000000000007';
+
+    /** Zero out operation delays so the export loop runs at test speed.
+     *  Keys are the DiscrubSetting enum values (SEARCH_DELAY etc.).
+     *  Dispatched as updateAllSettings.fulfilled (not plain setSettings)
+     *  so settingsChangeMiddleware reconstructs the discrub-core service
+     *  singleton, whose request pacing reads a constructor-time settings
+     *  snapshot rather than the store. */
+    const zeroDelays = () => {
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        store.dispatch({
+          type: 'app/updateAllSettings/fulfilled',
+          payload: {
+            ...store.getState().app.settings,
+            searchDelay2: '0',
+            deleteDelay2: '0',
+            delayModifier2: '0',
+          },
+        });
+      });
+    };
+
+    const statusEntries = (win: Cypress.AUTWindow) =>
+      (win as any).__store__.getState().status.entries as {
+        message: string;
+        level: string;
+      }[];
+
+    /** Select ONLY the feedback forum and open the bulk-export dialog. */
+    const openBulkExportForForum = () => {
+      cy.get('[aria-label="Toggle multi-select"]').first().click();
+      // Exact-text match — "Share your feedback" (the forum topic) also
+      // contains the substring "feedback".
+      cy.contains(/^feedback$/).click();
+      cy.get('[data-testid="multi-select-count"]').should('contain.text', '1 of');
+      cy.get('[aria-label="Export selected channels"]').click();
+      cy.get('[role="dialog"]').should('be.visible');
+    };
+
+    /** Ensure "Download files for offline viewing" is unchecked so the
+     *  export stays fully offline — the shared messages fixture carries
+     *  cdn.discordapp.com attachment/avatar URLs that would otherwise be
+     *  fetched for real. State-agnostic: EXPORT_DOWNLOAD_MEDIA defaults
+     *  to 'false' (storageKeys.ts), so usually this is a no-op. */
+    const disableMediaDownload = () => {
+      cy.get('[role="dialog"]')
+        .find('.MuiAccordionSummary-content')
+        .contains('Files & Media')
+        .scrollIntoView()
+        .click();
+      cy.get('[role="dialog"]')
+        .contains('label', 'Download files for offline viewing')
+        .find('input[type="checkbox"]')
+        .then(($input) => {
+          if ($input.prop('checked')) {
+            cy.wrap($input).click({ force: true });
+          }
+        });
+      cy.get('[role="dialog"]')
+        .contains('label', 'Download files for offline viewing')
+        .find('input[type="checkbox"]')
+        .should('not.be.checked');
+    };
+
+    const startExport = () => {
+      cy.get('[role="dialog"]').contains('button', /Export 1 Channel/).click();
+    };
+
+    beforeEach(() => {
+      zeroDelays();
+      // One shared-fixture message has reactions; HTML export fetches
+      // reacting users. Keep that offline too.
+      cy.intercept('GET', `${API}/channels/*/messages/*/reactions/*`, {
+        statusCode: 200,
+        body: [],
+      }).as('getReactingUsers');
+    });
+
+    it('expands a forum into posts, logs the expansion, and groups posts under the forum name in the zip', () => {
+      cy.task('downloads:clean');
+
+      // The forum PARENT must never be fetched as a message channel —
+      // that 400s on real Discord (#238's original symptom was a
+      // README-only zip that read as success).
+      let forumParentMessageFetches = 0;
+      cy.intercept('GET', `${API}/channels/${FORUM_ID}/messages*`, (req) => {
+        forumParentMessageFetches++;
+        req.reply({ statusCode: 400, body: {} });
+      });
+
+      const listingUrls: string[] = [];
+      cy.fixture('forum-threads.json').then((forumThreads) => {
+        cy.intercept('GET', `${API}/channels/${FORUM_ID}/threads/search*`, (req) => {
+          listingUrls.push(req.url);
+          req.reply({ statusCode: 200, body: forumThreads });
+        }).as('forumList');
+      });
+
+      openBulkExportForForum();
+      disableMediaDownload();
+      startExport();
+
+      // The post-listing endpoint pages the forum (25/page offset walk,
+      // active + archived union — no `archived` param).
+      cy.wait('@forumList', { timeout: 20000 })
+        .its('request.url')
+        .should('satisfy', (url: string) =>
+          url.includes(`/channels/${FORUM_ID}/threads/search`) &&
+          url.includes('limit=25') &&
+          url.includes('offset=0'));
+
+      cy.waitForDownload(/^bulk-export\.zip$/i, 60000).then((fileName) => {
+        cy.then(() => {
+          expect(listingUrls, 'single listing page for has_more:false').to.have.length(1);
+          expect(forumParentMessageFetches, 'forum parent /messages never fetched').to.eq(0);
+        });
+
+        cy.task<{ name: string }[]>('zip:list', fileName).then((entries) => {
+          const names = entries.map((e) => e.name);
+          // Post folders are prefixed with the forum's name so posts
+          // stay grouped and can't collide on bare post names.
+          expect(names).to.include(
+            'feedback_app_crashes_on_startup/feedback_app_crashes_on_startup-page-1.html');
+          expect(names).to.include(
+            'feedback_dark_mode_support/feedback_dark_mode_support-page-1.html');
+          expect(names).to.include(
+            'feedback_how_do_i_export_data/feedback_how_do_i_export_data-page-1.html');
+          expect(names).to.include('shell.html');
+          expect(names).to.include('README.html');
+        });
+
+        cy.task<string>('zip:read', { fileName, entry: 'shell.html' }).then((shell) => {
+          // #238: forum posts are grouped under the forum's name as a
+          // pseudo-category in the Discord shell sidebar.
+          expect(shell).to.include('class="category-name">FEEDBACK<');
+          expect(shell).to.include('App crashes on startup');
+          expect(shell).to.include('Dark mode support');
+          expect(shell).to.include('How do I export data?');
+          expect(shell).to.include(
+            'data-filename="feedback_app_crashes_on_startup/feedback_app_crashes_on_startup-page-1.html"');
+        });
+      });
+
+      // Status log shows the expansion entry (exact string from
+      // exportSlice). `exist` not `be.visible` — the panel renders the
+      // latest 50 entries in a scrollable list, and this entry sits above
+      // the auto-scrolled tail by the time the export completes.
+      cy.contains('STATUS LOG').click();
+      cy.contains('Bulk export: Expanded forum feedback into 3 posts').should('exist');
+    });
+
+    it('reports post-listing failure as an ERROR after retries, never a silent empty success', () => {
+      // withTransientRetry: initial call + 5 retries with 1/2/4/8/16s
+      // backoff — this test legitimately takes ~35s of wall time.
+      let listingCalls = 0;
+      cy.intercept('GET', `${API}/channels/${FORUM_ID}/threads/search*`, (req) => {
+        listingCalls++;
+        req.reply({ statusCode: 500, body: { message: 'Internal Server Error' } });
+      }).as('forumList');
+
+      openBulkExportForForum();
+      startExport();
+
+      // 6 total attempts (1 + 5 retries), spaced by exponential backoff.
+      for (let i = 0; i < 6; i++) {
+        cy.wait('@forumList', { timeout: 40000 });
+      }
+      cy.then(() => expect(listingCalls, 'initial attempt + 5 retries').to.eq(6));
+
+      cy.window({ timeout: 30000 }).should((win) => {
+        const entries = statusEntries(win);
+        const msgs = entries.map((e) => e.message);
+        // Retry WARNs fire before each backoff sleep (first and last).
+        expect(msgs, 'first retry WARN').to.include(
+          'Bulk export: post listing for feedback failed, retrying in 1s (attempt 1/5)');
+        expect(msgs, 'final retry WARN').to.include(
+          'Bulk export: post listing for feedback failed, retrying in 16s (attempt 5/5)');
+        // Exhaustion lands as an ERROR entry naming the forum + status...
+        const errorEntry = entries.find((e) =>
+          e.message === "Bulk export: Failed to expand forum feedback: Could not list this forum's posts (500); 0 fetched before the failure");
+        expect(errorEntry, 'error status entry for the failed forum').to.exist;
+        expect(errorEntry?.level, 'failure logged at error level').to.eq('error');
+        // ...and the run summary flags the README-only zip.
+        expect(msgs, 'empty-zip warning').to.include(
+          'Bulk export: 0 channels exported, the zip contains only the README. Review the entries above for skipped or failed channels.');
+        // NOT the pre-fix silent outcomes: no successful expansion, and
+        // no "0 posts, skipping" downgrade of the failure to a skip.
+        expect(msgs.some((m) => m.includes('Expanded forum')),
+          'no expansion success entry').to.eq(false);
+        expect(msgs.some((m) => m.includes('No posts in feedback')),
+          'failure not downgraded to an empty-forum skip').to.eq(false);
+      });
+
+      // The failure surfaces in the status log UI (see the visibility
+      // note in the previous test for why `exist`).
+      cy.contains('STATUS LOG').click();
+      cy.contains('Bulk export: Failed to expand forum feedback').should('exist');
+    });
+
+    it('recovers from a transient listing failure: retry WARN, then successful expansion', () => {
+      cy.task('downloads:clean');
+
+      let listingCalls = 0;
+      cy.fixture('forum-threads.json').then((forumThreads) => {
+        cy.intercept('GET', `${API}/channels/${FORUM_ID}/threads/search*`, (req) => {
+          listingCalls++;
+          if (listingCalls === 1) {
+            req.reply({ statusCode: 500, body: { message: 'Internal Server Error' } });
+          } else {
+            req.reply({ statusCode: 200, body: forumThreads });
+          }
+        }).as('forumList');
+      });
+
+      openBulkExportForForum();
+      disableMediaDownload();
+      startExport();
+
+      cy.wait('@forumList', { timeout: 20000 }); // failing first attempt
+      cy.wait('@forumList', { timeout: 20000 }); // successful retry (1s backoff)
+
+      cy.window({ timeout: 30000 }).should((win) => {
+        const msgs = statusEntries(win).map((e) => e.message);
+        expect(msgs, 'retry WARN for the transient failure').to.include(
+          'Bulk export: post listing for feedback failed, retrying in 1s (attempt 1/5)');
+        expect(msgs, 'expansion succeeded after the retry').to.include(
+          'Bulk export: Expanded forum feedback into 3 posts');
+        expect(msgs.some((m) => m.includes('Failed to expand forum')),
+          'no error entry after recovery').to.eq(false);
+      });
+
+      cy.then(() =>
+        expect(listingCalls, 'failed page retried once, then has_more:false ended the walk').to.eq(2));
+
+      // Let the run finish cleanly (3 posts export in seconds with zero
+      // delays and media downloads disabled).
+      cy.waitForDownload(/^bulk-export\.zip$/i, 60000);
+    });
+  });
+
   describe('DM Multi-Select Mode', () => {
     beforeEach(() => {
       // Switch to DMs tab

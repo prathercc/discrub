@@ -153,6 +153,59 @@ describe('Data package import', () => {
     });
   });
 
+  describe('Live remaining counts (#236)', () => {
+    it('fresh import shows remaining counts equal to the archive totals', () => {
+      cy.uploadPackage();
+      // Summary chip reflects the untouched archive total.
+      cy.contains(/6 messages/).should('be.visible');
+      // Sidebar row for #general shows the full archive count (the
+      // analytics "Top channels" list is not a ListItemButton, so this
+      // scoping uniquely targets the channel-list row).
+      cy.contains('.MuiListItemButton-root', 'general').within(() => {
+        cy.contains(/^4$/).should('be.visible');
+      });
+      // Channel header caption also reads the full archive count.
+      cy.contains('general').click();
+      cy.contains('Cypress Test Server · 4 messages').should('be.visible');
+    });
+
+    it('deleting messages drops the remaining counts while archive totals stay fixed', () => {
+      cy.uploadPackage();
+      cy.contains('general').click();
+      cy.contains('hello world').should('be.visible');
+
+      cy.intercept('DELETE', `${API}/channels/200/messages/*`, {
+        statusCode: 204,
+      }).as('deleteMsg');
+
+      cy.get('input[aria-label="Select message 1001"]').click();
+      cy.get('input[aria-label="Select message 1002"]').click();
+      cy.contains('button', /Delete selected/i).click();
+      cy.get('[role="dialog"]').contains('button', 'Delete').click();
+      cy.wait('@deleteMsg');
+      cy.contains(/Deleted 2/i, { timeout: 10000 }).should('be.visible');
+
+      // Channel header caption: 4 in the archive minus 2 deleted.
+      cy.contains('Cypress Test Server · 2 messages').should('be.visible');
+
+      cy.get('[aria-label="Back to analytics"]').click();
+
+      // Summary chip: 6 in the archive minus 2 deleted.
+      cy.contains(/4 messages/).should('be.visible');
+      cy.contains(/6 messages/).should('not.exist');
+
+      // Sidebar row for #general drops from 4 to 2.
+      cy.contains('.MuiListItemButton-root', 'general').within(() => {
+        cy.contains(/^2$/).should('be.visible');
+      });
+
+      // The archive total itself stays fixed — the chip's tooltip still
+      // reports the immutable in-package count next to the deletions.
+      cy.contains('.MuiChip-root', '4 messages').trigger('mouseover');
+      cy.contains('6 in package, 2 deleted via Discrub').should('be.visible');
+    });
+  });
+
   describe('Bulk edit', () => {
     beforeEach(() => {
       cy.uploadPackage();

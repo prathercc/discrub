@@ -55,5 +55,12 @@ declare namespace Cypress {
      * Click the "Package" sidebar tab.
      */
     openPackageTab(): Chainable<void>;
+
+    /**
+     * Wait for a completed browser download whose filename matches
+     * `pattern`; yields the filename. Pair with the `downloads:clean`,
+     * `zip:list`, and `zip:read` tasks for exported-zip assertions.
+     */
+    waitForDownload(pattern: RegExp, timeoutMs?: number): Chainable<string>;
   }
 }

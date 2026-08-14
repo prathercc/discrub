@@ -94,4 +94,152 @@ describe('DM Browsing', () => {
       cy.contains('frank_lurks').should('be.visible');
     });
   });
+
+  describe('Open DM by ID (#240)', () => {
+    const API = '**/api/v10';
+    const CLOSED_DM_ID = '502000000000000009';
+
+    // A closed 1:1 DM (type 1) that GET /users/@me/channels never returns —
+    // exactly the channel the Open-DM-by-ID escape hatch exists for.
+    const closedDm = {
+      id: CLOSED_DM_ID,
+      type: 1,
+      last_message_id: null,
+      recipients: [
+        {
+          id: '999888777666555444',
+          username: 'ghost_user',
+          discriminator: '0',
+          avatar: null,
+          global_name: 'Ghost',
+        },
+      ],
+    };
+
+    const submitChannelInput = (input: string) => {
+      // Tooltip-wrapped IconButton in the list header.
+      cy.get('[data-testid="open-dm-by-id-button"]').click({ force: true });
+      cy.get('[data-testid="open-dm-by-id-input"]').type(input);
+      cy.get('[data-testid="open-dm-by-id-confirm"]').click();
+    };
+
+    // All failure modes surface the dialog's single inline error string —
+    // the distinct rejection payloads ('No access to this channel',
+    // 'Channel not found', 'Channel is not a DM') are Redux-level and
+    // covered by dmSlice unit tests. Here we assert the user-facing
+    // outcome: dialog stays open with the error, nothing gets upserted
+    // into the list, nothing gets selected.
+    const expectInlineFailure = () => {
+      cy.contains(
+        "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
+      ).should('be.visible');
+      cy.get('[data-testid="open-dm-by-id-input"]').should('exist');
+      cy.window().then((win) => {
+        const state = (win as any).__store__.getState().dm;
+        expect(state.dms.map((d: { id: string }) => d.id)).to.not.include(
+          CLOSED_DM_ID,
+        );
+        expect(state.selectedDm).to.equal(null);
+      });
+    };
+
+    beforeEach(() => {
+      cy.contains('button', 'DMs').click();
+      cy.wait('@getDMs');
+    });
+
+    it('opens a closed DM by channel ID: upserts it into the list and selects it', () => {
+      cy.intercept('GET', `${API}/channels/${CLOSED_DM_ID}`, {
+        statusCode: 200,
+        body: closedDm,
+      }).as('getChannelById');
+
+      submitChannelInput(CLOSED_DM_ID);
+      cy.wait('@getChannelById');
+
+      // Dialog closes as soon as the channel is confirmed.
+      cy.get('[data-testid="open-dm-by-id-input"]').should('not.exist');
+
+      // Channel is prepended to the sidebar list and selected like a
+      // clicked row, which kicks off the message load.
+      cy.contains('ghost_user').should('be.visible');
+      cy.wait('@getMessages');
+      cy.window().then((win) => {
+        const state = (win as any).__store__.getState().dm;
+        expect(state.selectedDm?.id).to.equal(CLOSED_DM_ID);
+        expect(state.dms.map((d: { id: string }) => d.id)).to.include(
+          CLOSED_DM_ID,
+        );
+      });
+    });
+
+    it('accepts a pasted discord.com/channels/@me link', () => {
+      cy.intercept('GET', `${API}/channels/${CLOSED_DM_ID}`, {
+        statusCode: 200,
+        body: closedDm,
+      }).as('getChannelById');
+
+      submitChannelInput(
+        `https://discord.com/channels/@me/${CLOSED_DM_ID}`,
+      );
+      cy.wait('@getChannelById');
+
+      cy.get('[data-testid="open-dm-by-id-input"]').should('not.exist');
+      cy.contains('ghost_user').should('be.visible');
+    });
+
+    it('shows the inline error on 403 (missing access) and keeps the dialog open', () => {
+      cy.intercept('GET', `${API}/channels/${CLOSED_DM_ID}`, {
+        statusCode: 403,
+        body: { message: 'Missing Access', code: 50001 },
+      }).as('getChannelForbidden');
+
+      submitChannelInput(CLOSED_DM_ID);
+      cy.wait('@getChannelForbidden');
+      expectInlineFailure();
+    });
+
+    it('shows the inline error on 404 (unknown channel) and keeps the dialog open', () => {
+      cy.intercept('GET', `${API}/channels/${CLOSED_DM_ID}`, {
+        statusCode: 404,
+        body: { message: 'Unknown Channel', code: 10003 },
+      }).as('getChannelMissing');
+
+      submitChannelInput(CLOSED_DM_ID);
+      cy.wait('@getChannelMissing');
+      expectInlineFailure();
+    });
+
+    it('rejects a fetched channel that is not a DM (guild text channel)', () => {
+      // 200 response, but ChannelType 0 (GUILD_TEXT) — the thunk must
+      // refuse to upsert it into the DM list.
+      cy.intercept('GET', `${API}/channels/${CLOSED_DM_ID}`, {
+        statusCode: 200,
+        body: {
+          id: CLOSED_DM_ID,
+          type: 0,
+          guild_id: '901000000000000001',
+          position: 1,
+          name: 'general',
+          nsfw: false,
+          last_message_id: null,
+        },
+      }).as('getGuildChannel');
+
+      submitChannelInput(CLOSED_DM_ID);
+      cy.wait('@getGuildChannel');
+      expectInlineFailure();
+    });
+
+    it('rejects unparseable input locally without any network call', () => {
+      cy.get('[data-testid="open-dm-by-id-button"]').click({ force: true });
+      cy.get('[data-testid="open-dm-by-id-input"]').type('not-a-channel-id');
+      cy.get('[data-testid="open-dm-by-id-confirm"]').click();
+
+      cy.contains(
+        'Enter a 17-20 digit channel ID or a discord.com/channels/@me link.',
+      ).should('be.visible');
+      cy.get('[data-testid="open-dm-by-id-input"]').should('exist');
+    });
+  });
 });

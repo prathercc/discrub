@@ -79,4 +79,107 @@ describe('Focused View Mode', () => {
       'Exit Focus',
     );
   });
+
+  describe('Floating pause control (#237)', () => {
+    // Focused view hides the StatusPanel (the only other
+    // PauseResumeControls mount), so a floating pill must keep
+    // pause/resume/cancel reachable during heavy operations.
+    const enterFocusMode = () => {
+      cy.get('[data-testid="focus-mode-toggle"]').click({ force: true });
+      cy.get('[data-testid="focus-mode-toggle"]').should(
+        'contain.text',
+        'Exit Focus',
+      );
+    };
+
+    // Same simulation mechanism as pause-resume.cy.ts "Button
+    // Visibility": dispatch a heavy-tier pending action into the store.
+    const startHeavyOperation = () => {
+      cy.window().then((win) => {
+        (win as any).__store__.dispatch({
+          type: 'export/exportMessages/pending',
+        });
+      });
+    };
+
+    it('does not render in focused view while no operation is running', () => {
+      enterFocusMode();
+      cy.get('[data-testid="floating-pause-control"]').should('not.exist');
+    });
+
+    it('does not render outside focused view even during a heavy operation', () => {
+      startHeavyOperation();
+      // The StatusPanel mount owns the controls outside focus mode — a
+      // double mount would register the pause/cancel hotkeys twice.
+      cy.get('[aria-label="Pause"]').should('be.visible');
+      cy.get('[data-testid="floating-pause-control"]').should('not.exist');
+    });
+
+    it('shows pause/cancel and the operation label during a heavy operation in focused view', () => {
+      enterFocusMode();
+      startHeavyOperation();
+
+      cy.get('[data-testid="floating-pause-control"]')
+        .should('be.visible')
+        .within(() => {
+          cy.get('[aria-label="Pause"]').should('be.visible');
+          cy.get('[aria-label="Cancel"]').should('be.visible');
+          cy.contains('Exporting...').should('be.visible');
+        });
+    });
+
+    it('round-trips pause and resume from the floating control', () => {
+      enterFocusMode();
+      startHeavyOperation();
+
+      cy.get('[data-testid="floating-pause-control"]').within(() => {
+        cy.get('[aria-label="Pause"]').click({ force: true });
+      });
+      cy.window().then((win) => {
+        expect(
+          (win as any).__store__.getState().app.discrubPaused,
+        ).to.equal(true);
+      });
+
+      cy.get('[data-testid="floating-pause-control"]').within(() => {
+        cy.get('[aria-label="Resume"]')
+          .should('be.visible')
+          .click({ force: true });
+      });
+      cy.window().then((win) => {
+        expect(
+          (win as any).__store__.getState().app.discrubPaused,
+        ).to.equal(false);
+      });
+
+      // Back to a running (unpaused) state with pause reachable again.
+      cy.get('[data-testid="floating-pause-control"]').within(() => {
+        cy.get('[aria-label="Pause"]').should('be.visible');
+      });
+    });
+
+    it('does not render for light operations (spinner-only tier)', () => {
+      enterFocusMode();
+      cy.window().then((win) => {
+        (win as any).__store__.dispatch({
+          type: 'message/fetchMessages/pending',
+        });
+      });
+      cy.get('[data-testid="floating-pause-control"]').should('not.exist');
+    });
+
+    it('disappears when the heavy operation completes', () => {
+      enterFocusMode();
+      startHeavyOperation();
+      cy.get('[data-testid="floating-pause-control"]').should('be.visible');
+
+      cy.window().then((win) => {
+        (win as any).__store__.dispatch({
+          type: 'export/exportMessages/fulfilled',
+          payload: { success: true },
+        });
+      });
+      cy.get('[data-testid="floating-pause-control"]').should('not.exist');
+    });
+  });
 });

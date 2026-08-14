@@ -64,6 +64,84 @@ describe('Donation Wall', () => {
     cy.contains('Bob').should('not.exist');
   });
 
+  describe('Byte-ladder tiers (#231)', () => {
+    // Tier identity surfaces in the UI as the amount-chip color coming
+    // from @pratherbytecraft/contributions (tier NAMES are computed by
+    // getTierInfo but never rendered as text — name strings are covered
+    // by donationUtils unit tests). Assert the package's thresholds are
+    // wired through to the rendered chips, and that no legacy metal
+    // label ever reaches the DOM.
+    const TIER_COLORS = {
+      bit: 'rgb(205, 127, 50)', // #cd7f32, $0+
+      byte: 'rgb(192, 192, 192)', // #c0c0c0, $5+
+      kilobyte: 'rgb(255, 215, 0)', // #ffd700, $20+
+      megabyte: 'rgb(229, 228, 226)', // #e5e4e2, $50+
+      gigabyte: 'rgb(185, 242, 255)', // #b9f2ff, $100+
+    };
+
+    it('colors amount chips by the byte-ladder tier thresholds', () => {
+      // Alice $50 → Megabyte, Bob $25 → Kilobyte, Charlie $5 → Byte.
+      // Anchored regexes: '$5' must not substring-match the '$50' chip.
+      cy.contains('.MuiChip-root', /^\$50$/).should(
+        'have.css',
+        'background-color',
+        TIER_COLORS.megabyte,
+      );
+      cy.contains('.MuiChip-root', /^\$25$/).should(
+        'have.css',
+        'background-color',
+        TIER_COLORS.kilobyte,
+      );
+      cy.contains('.MuiChip-root', /^\$5$/).should(
+        'have.css',
+        'background-color',
+        TIER_COLORS.byte,
+      );
+    });
+
+    it('renders the Bit and Gigabyte ladder extremes', () => {
+      // The shared sample has no <$5 or >=$100 donor — reload with both
+      // extremes (LIFO override registered before the re-visit).
+      const extremeDonations = [
+        { donorId: 'd-giga', transactionId: 'tx-giga', timestamp: '2026-03-25T12:00:00.000Z', type: 'Tip', fromName: 'Grace', message: '', amount: 150, currency: 'USD' },
+        { donorId: 'd-bit', transactionId: 'tx-bit', timestamp: '2026-03-24T12:00:00.000Z', type: 'Tip', fromName: 'Bitty', message: '', amount: 2, currency: 'USD' },
+      ];
+      cy.intercept('GET', DONATION_GIST, mockDonations(extremeDonations)).as(
+        'getExtremeDonations',
+      );
+      cy.visit('/');
+      cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
+      openDonationDrawer();
+
+      cy.contains('Grace').should('be.visible');
+      cy.contains('.MuiChip-root', /^\$150$/).should(
+        'have.css',
+        'background-color',
+        TIER_COLORS.gigabyte,
+      );
+      cy.contains('.MuiChip-root', /^\$2$/).should(
+        'have.css',
+        'background-color',
+        TIER_COLORS.bit,
+      );
+    });
+
+    it('never renders a legacy metal tier name in the drawer', () => {
+      cy.contains('Alice').should('be.visible');
+      cy.get('.MuiDrawer-paper').should('be.visible');
+      for (const metal of ['Copper', 'Silver', 'Gold', 'Platinum', 'Diamond']) {
+        cy.get('.MuiDrawer-paper').should('not.contain.text', metal);
+      }
+
+      // Same check on the Top (leaderboard) tab, which styles rows by tier.
+      cy.contains('Top').click();
+      cy.contains('#1').should('be.visible');
+      for (const metal of ['Copper', 'Silver', 'Gold', 'Platinum', 'Diamond']) {
+        cy.get('.MuiDrawer-paper').should('not.contain.text', metal);
+      }
+    });
+  });
+
   describe('Polling', () => {
     it('should preserve active tab when new data arrives from poll', () => {
       // Switch to Top tab

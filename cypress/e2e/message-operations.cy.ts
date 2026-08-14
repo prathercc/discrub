@@ -182,3 +182,107 @@ describe('System / pinned message selection (#196 Phase 3)', () => {
     cy.wait('@deletePin').its('request.url').should('include', '700000000000000092');
   });
 });
+
+// ── Bulk delete batching (#183) ─────────────────────────────────────────────
+// deleteMessages no longer rewrites all three message arrays per deletion
+// (the "page unresponsive" freeze class): confirmed deletions accumulate and
+// flush to state via the batched `messagesRemoved` reducer every
+// DELETE_BATCH_SIZE (25, messageSlice.ts) deletions plus a final flush.
+// Batching changes the TABLE update cadence only — still exactly one DELETE
+// request per message — so the pinnable observables are: request count equals
+// the selection size, every row clears, and the run completes cleanly.
+describe('Bulk delete batching (#183)', () => {
+  const API = '**/api/v10';
+
+  const CURRENT_USER = {
+    id: '111222333444555666',
+    username: 'discrub_tester',
+    discriminator: '0',
+    avatar: 'abc123avatar',
+    global_name: 'Discrub Tester',
+  };
+
+  // 30 > DELETE_BATCH_SIZE (25) so the run spans a mid-run flush AND the
+  // final partial flush.
+  const MESSAGE_COUNT = 30;
+  const batchMessages = Array.from({ length: MESSAGE_COUNT }, (_, i) => ({
+    id: `7200000000000000${String(i + 10)}`, // 10..39 keeps ids fixed-width + unique
+    channel_id: '801000000000000001',
+    author: CURRENT_USER,
+    content: `Batch message ${i + 1}`,
+    timestamp: `2026-03-01T10:${String(i).padStart(2, '0')}:00.000Z`,
+    edited_timestamp: null,
+    tts: false,
+    mention_everyone: false,
+    mentions: [],
+    attachments: [],
+    embeds: [],
+    reactions: [],
+    pinned: false,
+    type: 0,
+  }));
+
+  beforeEach(() => {
+    cy.login();
+    cy.selectServer('Cypress Test Server');
+    cy.intercept('GET', `${API}/channels/*/messages?*`, {
+      statusCode: 200,
+      body: batchMessages,
+    }).as('getMessages');
+    cy.selectChannel('general');
+    cy.window().should((win) => {
+      expect((win as any).__store__.getState().message.messages, 'seeded table loaded')
+        .to.have.length(MESSAGE_COUNT);
+    });
+    // Zero the delete/search delays (DiscrubSetting enum keys) so the
+    // 30-message loop runs at test speed instead of ~2s per deletion.
+    // Dispatched as updateAllSettings.fulfilled (not plain setSettings)
+    // so settingsChangeMiddleware reconstructs the discrub-core service
+    // singleton, whose delete pacing reads a constructor-time settings
+    // snapshot rather than the store.
+    cy.window().then((win) => {
+      const store = (win as any).__store__;
+      store.dispatch({
+        type: 'app/updateAllSettings/fulfilled',
+        payload: {
+          ...store.getState().app.settings,
+          searchDelay2: '0',
+          deleteDelay2: '0',
+          delayModifier2: '0',
+        },
+      });
+    });
+  });
+
+  it('deletes a larger-than-batch selection: one DELETE per message, every row clears', () => {
+    let deleteCount = 0;
+    cy.intercept('DELETE', `${API}/channels/*/messages/*`, (req) => {
+      deleteCount++;
+      req.reply({ statusCode: 204, body: {} });
+    }).as('deleteMessage');
+
+    cy.get('input[aria-label="Select all messages"]').click({ force: true });
+    cy.contains('30 selected').should('be.visible');
+
+    cy.contains('button', 'Delete').click();
+    cy.get('[role="dialog"]').contains('button', 'Delete').click();
+
+    // Completion gate: the success status entry only exists after the
+    // whole loop (and its final messagesRemoved flush) finished.
+    cy.window({ timeout: 60000 }).should((win) => {
+      const state = (win as any).__store__.getState();
+      const msgs = (state.status.entries as { message: string }[]).map((e) => e.message);
+      expect(msgs, 'completion status entry').to.include(`Deleted ${MESSAGE_COUNT} messages`);
+      expect(deleteCount, 'one DELETE request per selected message').to.eq(MESSAGE_COUNT);
+      expect(state.message.messages, 'messages array drained').to.have.length(0);
+      expect(state.message.filteredMessages, 'filtered array drained').to.have.length(0);
+      expect(state.message.selectedMessages, 'selection drained').to.have.length(0);
+      expect(state.message.isDeleting, 'operation completed').to.eq(false);
+    });
+
+    // Every row cleared from the table; no stuck dialog or selection.
+    cy.get('[data-testid="message-feed-row"]').should('not.exist');
+    cy.get('[role="dialog"]').should('not.exist');
+    cy.contains('0 selected').should('be.visible');
+  });
+});

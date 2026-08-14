@@ -1574,6 +1574,214 @@ describe('Bulk Purge Operations', () => {
     });
   });
 
+  describe('Keep Messages With Files or Links Option (#239)', () => {
+    // #239 — the "Keep messages with files or links" checkbox preserves
+    // any message carrying an attachment or an http(s) link ENTIRELY:
+    // no DELETE, no content-clearing PATCH. Precedence: preserve wins
+    // over "Clear text, keep attachments" when both are checked, so a
+    // message both options could claim keeps its text too.
+    const author = {
+      id: '111222333444555666',
+      username: 'discrub_tester',
+      discriminator: '0',
+      avatar: 'abc123avatar',
+      global_name: 'Discrub Tester',
+    };
+
+    const baseMsg = {
+      channel_id: '801000000000000001',
+      author,
+      edited_timestamp: null,
+      tts: false,
+      mention_everyone: false,
+      mentions: [],
+      embeds: [],
+      reactions: [],
+      pinned: false,
+      type: 0,
+    };
+
+    const attachmentMsgId = '780000000000000020';
+    const linkMsgId = '780000000000000021';
+    const plainMsgId = '780000000000000022';
+
+    // One page with three messages: one bearing an attachment, one whose
+    // content contains an http(s) link, one plain-text.
+    const searchResults = {
+      messages: [
+        [
+          {
+            ...baseMsg,
+            id: attachmentMsgId,
+            content: 'Message with an attached photo',
+            timestamp: '2026-02-01T10:00:00.000Z',
+            attachments: [
+              {
+                id: '600000000000000020',
+                filename: 'photo.jpg',
+                size: 102400,
+                url: 'https://cdn.discordapp.com/attachments/test/photo.jpg',
+                proxy_url: 'https://media.discordapp.net/test/photo.jpg',
+                width: 800,
+                height: 600,
+                content_type: 'image/jpeg',
+              },
+            ],
+          },
+        ],
+        [
+          {
+            ...baseMsg,
+            id: linkMsgId,
+            content: 'check this out https://example.com/cool-thing',
+            timestamp: '2026-02-01T11:00:00.000Z',
+            attachments: [],
+          },
+        ],
+        [
+          {
+            ...baseMsg,
+            id: plainMsgId,
+            content: 'plain text message with no media',
+            timestamp: '2026-02-01T12:00:00.000Z',
+            attachments: [],
+          },
+        ],
+      ],
+      total_results: 3,
+      threads: [],
+    };
+
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.contains('general').should('be.visible');
+      interceptThreadDiscovery();
+
+      cy.intercept('GET', `${API}/users/*`, {
+        statusCode: 200,
+        body: author,
+      }).as('lookupUser');
+
+      let searchCount = 0;
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        searchCount++;
+        req.reply({
+          statusCode: 200,
+          body: searchCount === 1 ? searchResults : { messages: [], total_results: 0, threads: [] },
+        });
+      }).as('searchMessages');
+
+      cy.intercept('DELETE', `${API}/channels/*/messages/*`, {
+        statusCode: 204,
+        body: {},
+      }).as('deleteMessage');
+
+      cy.intercept('PATCH', `${API}/channels/*/messages/*`, {
+        statusCode: 200,
+        body: {},
+      }).as('editMessage');
+    });
+
+    it('preserves attachment- and link-bearing messages when enabled, deletes plain ones, and reports the preserved count', () => {
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      cy.get('[role="dialog"]')
+        .find('input[aria-label="Keep messages with files or links"]')
+        .click();
+
+      addUserById(author.id);
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      waitForPurgeComplete();
+
+      // Only the plain message is deleted; the attachment and link
+      // messages are preserved — no DELETE for their IDs, no PATCH at all.
+      cy.get('@deleteMessage.all').should('have.length', 1);
+      cy.get('@deleteMessage.all').then((calls) => {
+        const urls: string[] = (calls as any).map((c: any) => c.request.url);
+        expect(urls[0], 'plain message deleted').to.include(plainMsgId);
+        expect(urls.some((u) => u.includes(attachmentMsgId)), 'attachment message not deleted').to.be.false;
+        expect(urls.some((u) => u.includes(linkMsgId)), 'link message not deleted').to.be.false;
+      });
+      cy.get('@editMessage.all').should('have.length', 0);
+
+      // Single summary line for the two preserved messages.
+      verifyStatusEntry('Preserved 2 messages with files or links, "Keep messages with files or links" is on.');
+    });
+
+    it('deletes every message, including attachment/link bearers, when the option is left off', () => {
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      // Checkbox present in Messages mode and unchecked by default.
+      cy.get('[role="dialog"]')
+        .find('input[aria-label="Keep messages with files or links"]')
+        .should('not.be.checked');
+
+      addUserById(author.id);
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      waitForPurgeComplete();
+
+      // Pre-#239 behavior intact: all three messages deleted, none edited.
+      cy.get('@deleteMessage.all').should('have.length', 3);
+      cy.get('@editMessage.all').should('have.length', 0);
+
+      // No preserved-summary line when the option is off.
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        if (store) {
+          const entries = store.getState().status.entries || [];
+          const messages = entries.map((e: any) => e.message);
+          expect(
+            messages.some((m: string) => m.includes('Keep messages with files or links')),
+            'no preserved summary when option is off',
+          ).to.be.false;
+        }
+      });
+    });
+
+    it('preserve wins over "Clear text, keep attachments" when both are checked', () => {
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      // Both options are independent checkboxes and can be enabled
+      // together; #239's preserve takes precedence, so the attachment
+      // message keeps its text instead of being content-cleared.
+      cy.get('[role="dialog"]')
+        .find('input[aria-label="Clear text, keep attachments"]')
+        .click();
+      cy.get('[role="dialog"]')
+        .find('input[aria-label="Keep messages with files or links"]')
+        .click();
+
+      addUserById(author.id);
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      waitForPurgeComplete();
+
+      // Retain-media alone would PATCH the attachment message; preserve
+      // wins, so zero edits fire. The link message (no attachment) would
+      // have been DELETEd under retain alone; preserve keeps it too.
+      cy.get('@editMessage.all').should('have.length', 0);
+      cy.get('@deleteMessage.all').should('have.length', 1);
+      cy.get('@deleteMessage.all').then((calls) => {
+        const urls: string[] = (calls as any).map((c: any) => c.request.url);
+        expect(urls[0], 'only the plain message deleted').to.include(plainMsgId);
+      });
+
+      verifyStatusEntry('Preserved 2 messages with files or links, "Keep messages with files or links" is on.');
+    });
+  });
+
   describe('Attachments Only Mode', () => {
     beforeEach(() => {
       cy.login();
@@ -2054,6 +2262,383 @@ describe('Bulk Purge Operations', () => {
 
       // Single per-thread warning in the status log.
       verifyStatusEntry(/Missing permission to un-archive/);
+    });
+  });
+
+  describe("Don't Wake Archived Threads Option (#233)", () => {
+    // #233 — the "Don't wake archived threads" checkbox skips messages in
+    // archived threads (counted + summarized) instead of the #122
+    // un-archive → process → re-archive dance, so the thread never
+    // resurfaces for other members. Setup mirrors the #122 block: one
+    // archived thread under #general, one target message inside it.
+    const archivedThreadId = '802000000000000099';
+
+    const archivedThreadFixture = {
+      threads: [
+        {
+          id: archivedThreadId,
+          type: 11,
+          guild_id: '901000000000000001',
+          parent_id: '801000000000000001',
+          name: 'old-archived-thread',
+          owner_id: '111222333444555666',
+          message_count: 5,
+          member_count: 1,
+          thread_metadata: {
+            archived: true,
+            auto_archive_duration: 4320,
+            archive_timestamp: '2025-10-01T00:00:00.000Z',
+            locked: false,
+          },
+        },
+      ],
+      members: [],
+      has_more: false,
+    };
+
+    const emptyThreads = { threads: [], members: [], has_more: false };
+
+    beforeEach(() => {
+      cy.login();
+      cy.selectServer('Cypress Test Server');
+      cy.contains('general').should('be.visible');
+
+      cy.intercept('GET', `${API}/channels/*/threads/archived/public*`, {
+        statusCode: 200,
+        body: archivedThreadFixture,
+      }).as('getPublicThreads');
+      cy.intercept('GET', `${API}/channels/*/threads/archived/private*`, {
+        statusCode: 200,
+        body: emptyThreads,
+      }).as('getPrivateThreads');
+      cy.intercept(
+        'GET',
+        `${API}/channels/*/users/@me/threads/archived/private*`,
+        { statusCode: 200, body: emptyThreads },
+      ).as('getJoinedPrivateThreads');
+
+      cy.intercept('GET', `${API}/users/*`, {
+        statusCode: 200,
+        body: {
+          id: '111222333444555666',
+          username: 'discrub_tester',
+          discriminator: '0',
+          avatar: 'abc123avatar',
+          global_name: 'Discrub Tester',
+        },
+      }).as('lookupUser');
+
+      // Search returns one message whose channel_id is the archived thread.
+      const msgInArchived = {
+        id: '780000000000009999',
+        channel_id: archivedThreadId,
+        author: {
+          id: '111222333444555666',
+          username: 'discrub_tester',
+          discriminator: '0',
+          avatar: 'abc123avatar',
+          global_name: 'Discrub Tester',
+        },
+        content: 'Message inside archived thread',
+        timestamp: '2025-10-01T10:00:00.000Z',
+        edited_timestamp: null,
+        tts: false,
+        mention_everyone: false,
+        mentions: [],
+        attachments: [],
+        embeds: [],
+        reactions: [],
+        pinned: false,
+        type: 0,
+      };
+
+      let searchCount = 0;
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        searchCount++;
+        req.reply({
+          statusCode: 200,
+          body:
+            searchCount === 1
+              ? { messages: [[msgInArchived]], total_results: 1, threads: [] }
+              : { messages: [], total_results: 0, threads: [] },
+        });
+      }).as('searchMessages');
+
+      cy.intercept('DELETE', `${API}/channels/*/messages/*`, {
+        statusCode: 204,
+        body: {},
+      }).as('deleteMessage');
+    });
+
+    it('skips messages in archived threads without any un-archive PATCH when enabled, and reports both skip lines', () => {
+      // Record any archive-toggling PATCH — with the opt-out on, NONE may fire.
+      const archiveCalls: Array<{ archived: boolean; url: string }> = [];
+      cy.intercept('PATCH', `${API}/channels/*`, (req) => {
+        if (req.body && typeof req.body.archived === 'boolean') {
+          archiveCalls.push({ archived: req.body.archived, url: req.url });
+        }
+        req.reply({ statusCode: 200, body: {} });
+      }).as('patchChannel');
+
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      cy.get('[role="dialog"]')
+        .find(`input[aria-label="Don't wake archived threads"]`)
+        .click();
+
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      waitForPurgeComplete();
+
+      // The thread was never woken: zero archive toggles in either direction.
+      cy.then(() => {
+        expect(archiveCalls, 'no un-archive or re-archive PATCH fired').to.have.length(0);
+      });
+
+      // The message inside the archived thread was left untouched.
+      cy.get('@deleteMessage.all').should('have.length', 0);
+
+      // Per-thread announcement + end-of-run summary.
+      verifyStatusEntry(`Leaving archived thread ${archivedThreadId} untouched, "Don't wake archived threads" is on`);
+      verifyStatusEntry(`Left 1 message in archived threads untouched, "Don't wake archived threads" is on.`);
+    });
+
+    it('keeps the #122 un-archive path intact when the option is left off', () => {
+      const archiveCalls: Array<{ archived: boolean; url: string }> = [];
+      cy.intercept('PATCH', `${API}/channels/*`, (req) => {
+        if (req.body && typeof req.body.archived === 'boolean') {
+          archiveCalls.push({ archived: req.body.archived, url: req.url });
+        }
+        req.reply({ statusCode: 200, body: {} });
+      }).as('patchChannel');
+
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      // Checkbox is present for guild purges and unchecked by default.
+      cy.get('[role="dialog"]')
+        .find(`input[aria-label="Don't wake archived threads"]`)
+        .should('not.be.checked');
+
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      waitForPurgeComplete();
+
+      // Pre-#233 behavior: un-archive first, delete, re-archive after.
+      cy.get('@deleteMessage.all').should('have.length.gte', 1);
+      cy.then(() => {
+        const toggles = archiveCalls.filter((c) => c.url.includes(archivedThreadId));
+        expect(toggles, 'both archive toggles fired').to.have.length(2);
+        expect(toggles[0].archived, 'un-archive first').to.eq(false);
+        expect(toggles[1].archived, 're-archive after').to.eq(true);
+      });
+      verifyStatusEntry(/Un-archived thread/);
+      verifyStatusEntry(/Re-archived thread/);
+    });
+
+    it('counts archived threads the deleted-account scan excludes under the opt-out (#233/5288f33)', () => {
+      // Deleted-account placeholder flips the purge onto the full-history
+      // scan (#223). With the opt-out on, opted-out archived threads are
+      // excluded from the walk up-front — announced per channel and
+      // summarized at thread granularity, since the scan never sees the
+      // messages inside them.
+      cy.intercept('GET', `${API}/users/*`, {
+        statusCode: 200,
+        body: {
+          id: '111222333444555666',
+          username: 'deleted_user_a1b2c3d4',
+          discriminator: '0',
+          avatar: null,
+          global_name: null,
+        },
+      }).as('lookupDeletedUser');
+
+      // Record every history fetch the scan makes; empty pages end each
+      // channel's walk immediately.
+      const historyUrls: string[] = [];
+      cy.intercept('GET', `${API}/channels/*/messages?*`, (req) => {
+        historyUrls.push(req.url);
+        req.reply({ statusCode: 200, body: [] });
+      }).as('historyFetch');
+
+      const archiveCalls: Array<{ archived: boolean }> = [];
+      cy.intercept('PATCH', `${API}/channels/*`, (req) => {
+        if (req.body && typeof req.body.archived === 'boolean') {
+          archiveCalls.push({ archived: req.body.archived });
+        }
+        req.reply({ statusCode: 200, body: {} });
+      }).as('patchChannel');
+
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      cy.get('[role="dialog"]')
+        .find(`input[aria-label="Don't wake archived threads"]`)
+        .click();
+
+      addUserById('111222333444555666');
+      cy.wait('@lookupDeletedUser');
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      waitForPurgeComplete();
+
+      // The scan announced the fallback, walked the parent channel, and
+      // never fetched history for the excluded archived thread.
+      verifyStatusEntry(/account is deleted/);
+      cy.get('@searchMessages.all').should('have.length', 0);
+      cy.then(() => {
+        expect(historyUrls.length, 'parent channel history was walked').to.be.gte(1);
+        expect(
+          historyUrls.some((u) => u.includes(archivedThreadId)),
+          'archived thread history never fetched',
+        ).to.be.false;
+        expect(archiveCalls, 'no archive toggles during the scan').to.have.length(0);
+      });
+
+      // Exclusion is announced per channel and counted into the run summary.
+      verifyStatusEntry(`Leaving 1 archived thread in #general unscanned, "Don't wake archived threads" is on`);
+      verifyStatusEntry(`Left 1 archived thread unscanned, "Don't wake archived threads" is on. Any messages inside them were not touched.`);
+    });
+
+    it('reactions mode: drops archived threads up-front and skips cross-channel hits without waking (#233)', () => {
+      // Reactions family behavior differs from messages mode in two ways
+      // (purgeSlice ~1840): archived threads are dropped from the
+      // per-thread pass up-front (scanning them only to skip wastes API
+      // budget), and cross-channel hits landing in archived siblings are
+      // denied by the skipWaking guard instead of un-archived.
+      const hitWithReaction = {
+        id: '780000000000009999',
+        channel_id: archivedThreadId,
+        author: {
+          id: '111222333444555666',
+          username: 'discrub_tester',
+          discriminator: '0',
+          avatar: 'abc123avatar',
+          global_name: 'Discrub Tester',
+        },
+        content: 'Reacted inside the archived thread',
+        timestamp: '2025-10-01T10:00:00.000Z',
+        edited_timestamp: null,
+        tts: false,
+        mention_everyone: false,
+        mentions: [],
+        attachments: [],
+        embeds: [],
+        reactions: [
+          {
+            emoji: { id: null, name: '❤️' },
+            count: 1,
+            me: true,
+            me_burst: false,
+            count_details: { burst: 0, normal: 1 },
+            burst_colors: [],
+          },
+        ],
+        pinned: false,
+        type: 0,
+      };
+
+      // LIFO overrides of the beforeEach intercepts: the parent search
+      // surfaces the reaction-bearing cross-channel hit; the around-fetch
+      // returns it in full.
+      const searchUrls: string[] = [];
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, (req) => {
+        searchUrls.push(req.url);
+        req.reply({
+          statusCode: 200,
+          body: searchUrls.length === 1
+            ? { messages: [[hitWithReaction]], total_results: 1, threads: [] }
+            : { messages: [], total_results: 0, threads: [] },
+        });
+      }).as('reactionSearch');
+      cy.intercept('GET', `${API}/channels/*/messages?*`, {
+        statusCode: 200,
+        body: [hitWithReaction],
+      }).as('aroundFetch');
+      cy.intercept('GET', `${API}/channels/*/messages/*/reactions/*`, {
+        statusCode: 200,
+        body: [
+          {
+            id: '111222333444555666',
+            username: 'discrub_tester',
+            discriminator: '0',
+            avatar: 'abc123avatar',
+            global_name: 'Discrub Tester',
+          },
+        ],
+      }).as('getReactions');
+      cy.intercept('DELETE', `${API}/channels/*/messages/*/reactions/*/*`, {
+        statusCode: 204,
+        body: {},
+      }).as('deleteReaction');
+
+      const archiveCalls: Array<{ archived: boolean }> = [];
+      cy.intercept('PATCH', `${API}/channels/*`, (req) => {
+        if (req.body && typeof req.body.archived === 'boolean') {
+          archiveCalls.push({ archived: req.body.archived });
+        }
+        req.reply({ statusCode: 200, body: {} });
+      }).as('patchChannel');
+
+      selectChannelsForPurge('general');
+      openPurgeDialog();
+
+      cy.get('[role="dialog"]').find('button[value="reactions"]').click();
+
+      cy.get('[role="dialog"]')
+        .find(`input[aria-label="Don't wake archived threads"]`)
+        .click();
+
+      addUserById('111222333444555666');
+      cy.wait('@lookupUser');
+
+      // Content filter routes the purge through search + around-fetch —
+      // the path that produces cross-channel hits (mirrors the guard
+      // registry block below).
+      cy.contains('button', /Add filters|Edit filters/).click();
+      cy.get('[role="dialog"]')
+        .last()
+        .find('input[placeholder*="content"], input[placeholder*="Content"], textarea')
+        .first()
+        .type('archived');
+      cy.get('[role="dialog"]')
+        .last()
+        .contains('button', /Apply filters|Search/)
+        .click();
+
+      confirmPurge();
+      cy.get('[role="dialog"]').should('not.exist');
+      waitForPurgeComplete();
+
+      // The thread was never woken and its reaction was never removed.
+      cy.then(() => {
+        expect(archiveCalls, 'no archive toggles in either direction').to.have.length(0);
+      });
+      cy.get('@deleteReaction.all').should('have.length', 0);
+
+      // Up-front drop means the archived thread never got a search pass of
+      // its own (the filter-preview search and the parent's cap-shifted
+      // follow-ups still run — count is >1 — but none scope to the thread).
+      cy.then(() => {
+        expect(
+          searchUrls.every((u) => !u.includes(archivedThreadId)),
+          'no search scoped to the dropped archived thread',
+        ).to.eq(true);
+      });
+
+      // Both #233 announcements: the up-front per-channel drop and the
+      // skipWaking guard denying the cross-channel hit.
+      verifyStatusEntry(`Leaving 1 archived thread in #general untouched, "Don't wake archived threads" is on`);
+      verifyStatusEntry(`Leaving archived thread ${archivedThreadId} untouched, "Don't wake archived threads" is on; its reactions will be skipped`);
+      verifyStatusEntry(/Reaction purge: Completed/);
     });
   });
 
@@ -2586,7 +3171,7 @@ describe('Bulk Purge Operations', () => {
       // At least one search hit with no max_id (initial window) AND
       // at least one with max_id (cap-shifted window).
       cy.get('@searchMessages.all').then((calls) => {
-        const urls = (calls as any[]).map((c) => c.request.url);
+        const urls = (calls as unknown as any[]).map((c) => c.request.url);
         const initialSearches = urls.filter((u: string) => !u.includes('max_id='));
         const capShiftedSearches = urls.filter((u: string) => u.includes('max_id='));
         expect(initialSearches.length, 'initial-window searches').to.be.gte(1);
