@@ -1911,6 +1911,9 @@ describe('exportSlice', () => {
     async function runBulkForumExport(options: {
       exportChannels: any[];
       forumPages?: Array<{ threads: any[]; has_more: boolean }>;
+      // F28: raw response envelopes (success/failure) consumed in order;
+      // takes precedence over forumPages when provided.
+      forumResponses?: Array<Record<string, unknown>>;
       emptyMessageChannels?: string[];
       sliceChannels?: any[];
     }) {
@@ -1928,6 +1931,11 @@ describe('exportSlice', () => {
       const pages = options.forumPages ?? [];
       let pageIndex = 0;
       const fetchForumThreadSearch = vi.fn().mockImplementation(async () => {
+        if (options.forumResponses) {
+          const response = options.forumResponses[Math.min(pageIndex, options.forumResponses.length - 1)];
+          pageIndex++;
+          return response;
+        }
         const page = pages[pageIndex] ?? { threads: [], has_more: false };
         pageIndex++;
         return {
@@ -1999,6 +2007,54 @@ describe('exportSlice', () => {
         entries: testStore.getState().status.entries as Array<{ level: string; message: string }>,
       };
     }
+
+    it('records an error instead of silently truncating when a post page fails permanently (F28)', async () => {
+      const forumPage = (threads: any[], has_more: boolean) => ({
+        success: true,
+        data: { threads, has_more, total_results: 0, first_messages: [], members: [] },
+      });
+      const { result, entries, fetchForumThreadSearch } = await runBulkForumExport({
+        exportChannels: [{ id: 'forum-1', name: 'Help Forum', type: 15 }],
+        forumResponses: [
+          forumPage([{ id: 'post-1', name: 'First Post', type: 11, parent_id: 'forum-1' }], true),
+          { success: false, status: 403 },
+        ],
+      });
+
+      // Pre-fix, the mid-walk failure read as end-of-pagination: 1 of N
+      // posts exported, "Expanded forum" info entry, clean summary.
+      expect(fetchForumThreadSearch).toHaveBeenCalledTimes(2);
+      expect(result.payload.errors).toHaveLength(1);
+      expect(result.payload.errors[0]).toContain('Help Forum');
+      expect(result.payload.errors[0]).toContain('403');
+
+      const errorEntry = entries.find((e) => e.level === 'error' && e.message.includes('Failed to expand forum Help Forum'));
+      expect(errorEntry).toBeDefined();
+      expect(entries.find((e) => e.message.includes('Expanded forum'))).toBeUndefined();
+    });
+
+    it('retries a transient post-page failure and completes the walk (F28)', async () => {
+      const forumPage = (threads: any[], has_more: boolean) => ({
+        success: true,
+        data: { threads, has_more, total_results: 0, first_messages: [], members: [] },
+      });
+      const { result, entries, fetchForumThreadSearch, shellCalls } = await runBulkForumExport({
+        exportChannels: [{ id: 'forum-1', name: 'Help Forum', type: 15 }],
+        forumResponses: [
+          forumPage([{ id: 'post-1', name: 'First Post', type: 11, parent_id: 'forum-1' }], true),
+          { success: false, status: 500 },
+          forumPage([{ id: 'post-2', name: 'Second Post', type: 11, parent_id: 'forum-1' }], false),
+        ],
+      });
+
+      expect(fetchForumThreadSearch).toHaveBeenCalledTimes(3);
+      expect(result.payload.errors).toBeUndefined();
+      expect(entries.find((e) => e.level === 'warning' && e.message.includes('retrying'))).toBeDefined();
+      expect(entries.find((e) => e.message.includes('Expanded forum Help Forum into 2 posts'))).toBeDefined();
+
+      const shellOptions = shellCalls[0][0];
+      expect(shellOptions.channels).toHaveLength(2);
+    });
 
     it('expands a forum into its posts via a multi-page offset walk', async () => {
       const { shellCalls, fetchForumThreadSearch, entries } = await runBulkForumExport({

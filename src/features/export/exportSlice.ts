@@ -21,7 +21,7 @@ import { addRecentExport } from '@features/history/historySlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { IsPinnedType, ChannelType } from 'discrub-core/discord-enum';
 import { calculateRandomDelay } from '@/utils/delayUtils';
-import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError } from '@/utils/operationLoopUtils';
+import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError, withTransientRetry } from '@/utils/operationLoopUtils';
 import { iterateSearchMessagesRedux, nextMilestone } from '@/utils/searchPagination';
 import { addStatusEntry, showOperationTip } from '@features/status/statusSlice';
 
@@ -287,7 +287,7 @@ export function createRowErrorReporter(dispatch: ExportDispatch, context?: strin
       const reason = error instanceof Error ? error.message : String(error);
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `Export: Could not render message ${messageId}${where} — replaced with a placeholder (${reason})`,
+        message: `Export: Could not render message ${messageId}${where}, replaced with a placeholder (${reason})`,
       }));
     },
     flush: () => {
@@ -804,12 +804,20 @@ const FORUM_CHANNEL_TYPES: number[] = [ChannelType.GUILD_FORUM, ChannelType.GUIL
  * Page a forum/media channel's post threads to exhaustion (#238).
  * Mirrors `channelSlice.loadMoreForumThreads`' offset walk: 25 per page,
  * active + archived union (no `archived` param — #151), stopping on
- * `has_more: false`, an unsuccessful response, or cancellation.
+ * `has_more: false` or cancellation.
+ *
+ * An unsuccessful response is NOT end-of-pagination: discrub-core's
+ * withRetry resolves `{success:false}` instead of throwing, and treating
+ * that as the end silently truncated forums mid-walk (a page-2 failure
+ * exported 25 of 300 posts with a clean run summary). Transient failures
+ * are retried with backoff; exhaustion throws so the caller records the
+ * forum in `errors[]`.
  */
 async function fetchAllForumThreads(
   forum: Channel,
   token: string,
   getState: () => RootState,
+  dispatch: ExportDispatch,
   searchDelay: number,
   delayModifier: number,
 ): Promise<Channel[]> {
@@ -822,15 +830,34 @@ async function fetchAllForumThreads(
     await waitWhilePaused(getState);
     if (checkCancelled(getState)) break;
 
-    const response = await discordService.fetchForumThreadSearch(token, forum.id, {
-      sort_by: 'last_message_time',
-      sort_order: 'desc',
-      limit: 25,
-      offset,
-      // Omit `archived` — see channelSlice.fetchForumThreads note (#151).
-    });
+    const response = await withTransientRetry(
+      () => discordService.fetchForumThreadSearch(token, forum.id, {
+        sort_by: 'last_message_time',
+        sort_order: 'desc',
+        limit: 25,
+        offset,
+        // Omit `archived` — see channelSlice.fetchForumThreads note (#151).
+      }),
+      {
+        getState,
+        onRetry: (attempt, delayMs) => {
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `Bulk export: post listing for ${forum.name || forum.id} failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+          }));
+        },
+      },
+    );
 
-    if (!response.success || !response.data) break;
+    // A cancel during the retry backoff resolves as a failed response —
+    // don't misreport it as an API error.
+    if (checkCancelled(getState)) break;
+
+    if (!response.success || !response.data) {
+      throw new Error(
+        `Could not list this forum's posts (${response.status ?? 'network error'}); ${collected.length} fetched before the failure`,
+      );
+    }
 
     collected.push(...response.data.threads);
     hasMore = response.data.has_more;
@@ -917,7 +944,7 @@ export const bulkExportChannels = createAsyncThunk<
 
       const forumName = channel.name || `forum-${channel.id}`;
       try {
-        const posts = await fetchAllForumThreads(channel, token, getState, searchDelay, delayModifier);
+        const posts = await fetchAllForumThreads(channel, token, getState, dispatch as ExportDispatch, searchDelay, delayModifier);
         if (checkCancelled(getState)) break;
 
         if (posts.length === 0) {
@@ -939,7 +966,7 @@ export const bulkExportChannels = createAsyncThunk<
         errors.push(`${forumName}: ${errorMsg}`);
         dispatch(addStatusEntry({
           level: 'error',
-          message: `Bulk export: Failed to expand forum ${forumName} — ${errorMsg}`,
+          message: `Bulk export: Failed to expand forum ${forumName}: ${errorMsg}`,
         }));
         // Continue with the remaining selection
       }
@@ -1088,7 +1115,7 @@ export const bulkExportChannels = createAsyncThunk<
       if (exportedChannels.length === 0 && !checkCancelled(getState)) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: 'Bulk export: 0 channels exported — the zip contains only the README. Review the entries above for skipped or failed channels.',
+          message: 'Bulk export: 0 channels exported, the zip contains only the README. Review the entries above for skipped or failed channels.',
         }));
       }
 
