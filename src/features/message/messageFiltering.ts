@@ -34,6 +34,68 @@ export const criteriaIsActive = (criteria: RefineCriteria | null | undefined): b
   return false;
 };
 
+// #239 — proper URL detection for HasType.LINK. The original check was a
+// naive `content.includes('http://'|'https://')`, which counted a bare
+// dangling scheme ("see http://") as a link and missed uppercase schemes.
+// This requires http(s):// followed by at least one non-whitespace
+// character, case-insensitively. Deliberately not a full RFC URL parser —
+// Discord linkifies roughly this loosely too.
+const URL_PATTERN = /https?:\/\/\S+/i;
+
+/**
+ * Per-HasType predicate: does this message "have" the given type?
+ * Single source of truth shared by the refine filter below and the purge
+ * "Keep messages with files or links" option (#239), so both features
+ * agree on what counts as an attachment / link / embed / etc.
+ */
+export const messageHasType = (msg: Message, type: HasType): boolean => {
+  switch (type) {
+    case HasType.EMBED:
+      return !!msg.embeds && msg.embeds.length > 0;
+    case HasType.IMAGE:
+      return !!msg.attachments?.some((a: Attachment) =>
+        a.content_type?.startsWith('image/'),
+      );
+    case HasType.VIDEO:
+      return !!msg.attachments?.some((a: Attachment) =>
+        a.content_type?.startsWith('video/'),
+      );
+    case HasType.SOUND:
+      return !!msg.attachments?.some((a: Attachment) =>
+        a.content_type?.startsWith('audio/'),
+      );
+    case HasType.FILE:
+      return !!msg.attachments && msg.attachments.length > 0;
+    case HasType.LINK:
+      return !!msg.content && URL_PATTERN.test(msg.content);
+    case HasType.STICKER:
+      return !!msg.sticker_items && msg.sticker_items.length > 0;
+    case HasType.POLL:
+      return !!(msg as Record<string, unknown>).poll;
+    case HasType.FORWARD:
+      // #197: the load-bearing field is `message_snapshots`. Older
+      // code checked `msg.type === 1` (which is RECIPIENT_ADD, not
+      // a forward) plus a truthy probe of message_reference.type
+      // that worked by coincidence (FORWARD's discriminator value
+      // is 1, REPLY's is 0). Snapshot presence is the canonical
+      // check — forwards always carry a snapshot, snapshots only
+      // exist on forwards.
+      return Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0;
+    default:
+      return false;
+  }
+};
+
+/**
+ * #239 — predicate for the purge "Keep messages with files or links"
+ * option: true when the message carries at least one attachment
+ * (HasType.FILE semantics) or an http(s) link in its content
+ * (HasType.LINK semantics). An embed WITHOUT a link in the content
+ * (e.g. a bare sticker/poll/GIF embed) does not count.
+ */
+export const messageHasFileOrLink = (msg: Message): boolean =>
+  messageHasType(msg, HasType.FILE) || messageHasType(msg, HasType.LINK);
+
 /**
  * Pure client-side filter over Discord messages. Mirrors the criteria the
  * FilterModal's Refine section exposes. Extracted from ServerView so the
@@ -68,46 +130,9 @@ export const applyRefineCriteria = (
     }
 
     if (c.selectedHasTypes && c.selectedHasTypes.length > 0) {
-      const hasMatchingType = c.selectedHasTypes.some((type) => {
-        switch (type) {
-          case HasType.EMBED:
-            return !!msg.embeds && msg.embeds.length > 0;
-          case HasType.IMAGE:
-            return !!msg.attachments?.some((a: Attachment) =>
-              a.content_type?.startsWith('image/'),
-            );
-          case HasType.VIDEO:
-            return !!msg.attachments?.some((a: Attachment) =>
-              a.content_type?.startsWith('video/'),
-            );
-          case HasType.SOUND:
-            return !!msg.attachments?.some((a: Attachment) =>
-              a.content_type?.startsWith('audio/'),
-            );
-          case HasType.FILE:
-            return !!msg.attachments && msg.attachments.length > 0;
-          case HasType.LINK:
-            return (
-              !!msg.content?.includes('http://') ||
-              !!msg.content?.includes('https://')
-            );
-          case HasType.STICKER:
-            return !!msg.sticker_items && msg.sticker_items.length > 0;
-          case HasType.POLL:
-            return !!(msg as Record<string, unknown>).poll;
-          case HasType.FORWARD:
-            // #197: the load-bearing field is `message_snapshots`. Older
-            // code checked `msg.type === 1` (which is RECIPIENT_ADD, not
-            // a forward) plus a truthy probe of message_reference.type
-            // that worked by coincidence (FORWARD's discriminator value
-            // is 1, REPLY's is 0). Snapshot presence is the canonical
-            // check — forwards always carry a snapshot, snapshots only
-            // exist on forwards.
-            return Array.isArray(msg.message_snapshots) && msg.message_snapshots.length > 0;
-          default:
-            return false;
-        }
-      });
+      const hasMatchingType = c.selectedHasTypes.some((type) =>
+        messageHasType(msg, type),
+      );
       if (!hasMatchingType) return false;
     }
 

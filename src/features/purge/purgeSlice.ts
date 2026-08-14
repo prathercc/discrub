@@ -19,7 +19,7 @@ import {
 } from '@utils/operationLoopUtils';
 import { calculateRandomDelay } from '@utils/delayUtils';
 import { iterateSearchMessagesRedux } from '@utils/searchPagination';
-import { applyRefineCriteria, criteriaIsActive } from '@features/message/messageFiltering';
+import { applyRefineCriteria, criteriaIsActive, messageHasFileOrLink } from '@features/message/messageFiltering';
 import { nextMilestone } from '@utils/searchPagination';
 import { isDeletedUserEntry } from '@utils/userDisplayUtils';
 
@@ -610,6 +610,11 @@ async function purgeChannelMessages(
   // summarized) instead of un-archiving, so the thread never resurfaces
   // for other members.
   skipArchivedThreads?: boolean,
+  // #239 — "Keep messages with files or links": messages carrying an
+  // attachment or an http(s) link are skipped entirely (counted,
+  // summarized) — no delete, no content-clear. Wins over
+  // retainAttachedMedia.
+  preserveMediaAndLinks?: boolean,
 ): Promise<ChannelPurgeResult> {
   const discordService = getDiscordService();
   let totalDeleted = 0;
@@ -621,6 +626,7 @@ async function purgeChannelMessages(
   let totalSkippedArchivedNoPerm = 0;
   let totalSkippedArchivedOptOut = 0;
   let totalSkippedPinned = 0;
+  let totalSkippedPreserved = 0;
   let totalProcessed = 0;
   let lastProgressDispatch = 0;
   let searchPageCount = 0;
@@ -813,6 +819,26 @@ async function purgeChannelMessages(
         ) {
           totalSkipped++;
           totalSkippedPinned++;
+          totalProcessed++;
+          if (totalProcessed - lastProgressDispatch >= PROGRESS_THROTTLE_MESSAGES || mi === messages.length - 1) {
+            lastProgressDispatch = totalProcessed;
+            onProgress(totalProcessed, totalDeleted, totalSkipped, totalEditedAttachmentsOnly, totalFailed);
+          }
+          continue;
+        }
+
+        // #239 — "Keep messages with files or links": a message carrying
+        // an attachment or an http(s) link is preserved entirely — no
+        // API call, no delete, no content-clear. Checked BEFORE the
+        // archived-thread handling so a preserved message never triggers
+        // an un-archive PATCH on its behalf, and before the
+        // retainAttachedMedia / delete branches so preserve wins over
+        // retain (the message keeps its text instead of having it
+        // cleared). Applies identically to the search path and the
+        // deleted-account history-scan path — both feed this loop.
+        if (preserveMediaAndLinks && messageHasFileOrLink(message)) {
+          totalSkipped++;
+          totalSkippedPreserved++;
           totalProcessed++;
           if (totalProcessed - lastProgressDispatch >= PROGRESS_THROTTLE_MESSAGES || mi === messages.length - 1) {
             lastProgressDispatch = totalProcessed;
@@ -1064,6 +1090,15 @@ async function purgeChannelMessages(
     dispatch(addStatusEntry({
       level: 'info',
       message: `Preserved ${totalSkippedPinned} pinned message${totalSkippedPinned !== 1 ? 's' : ''} — your filter is set to exclude pinned messages.`,
+    }));
+  }
+
+  // #239: single summary for messages preserved because they carry an
+  // attachment or a link and the user opted to keep those.
+  if (totalSkippedPreserved > 0) {
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `Preserved ${totalSkippedPreserved} message${totalSkippedPreserved !== 1 ? 's' : ''} with files or links — "Keep messages with files or links" is on.`,
     }));
   }
 
@@ -1652,7 +1687,7 @@ export const bulkPurgeChannels = createAsyncThunk<
   'purge/bulkPurgeChannels',
   async (params, { rejectWithValue, dispatch, getState }) => {
     const { channels, config, guildId, searchCriteria: filterCriteria } = params;
-    const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly, systemMessageTypesToDelete, skipArchivedThreads } = config;
+    const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly, systemMessageTypesToDelete, skipArchivedThreads, preserveMediaAndLinks } = config;
     const errors: string[] = [];
     const isDm = !guildId;
     const isReactionsMode = mode === 'reactions';
@@ -2017,6 +2052,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               `${isDm ? '' : '#'}${channelName}`,
               systemMessageTypesToDelete,
               skipArchivedThreads,
+              preserveMediaAndLinks,
             );
 
             if (

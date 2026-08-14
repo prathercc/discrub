@@ -82,6 +82,10 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
 
   const [uiMode, setUiMode] = useState<UiPurgeMode>('messages');
   const [retainAttachedMedia, setRetainAttachedMedia] = useState(false);
+  // #239 — dialog-local, defaults to false on every open (mirrors #233's
+  // skipArchivedThreads). A persisted settings default would need a new
+  // DiscrubSetting enum member, which lives in discrub-core.
+  const [preserveMediaAndLinks, setPreserveMediaAndLinks] = useState(false);
   const [skipArchivedThreads, setSkipArchivedThreads] = useState(false);
   const [selectedSystemGroups, setSelectedSystemGroups] = useState<string[]>([]);
   const [targetUserIds, setTargetUserIds] = useState<string[]>([]);
@@ -106,6 +110,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
         settings[DiscrubSetting.PURGE_DELETE_ATTACHMENTS_ONLY] === 'true';
       setUiMode(deriveUiMode(rawMode, deleteAttachmentsOnlySetting, canManageMessages));
       setRetainAttachedMedia(settings[DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA] === 'true');
+      setPreserveMediaAndLinks(false);
       setSkipArchivedThreads(false);
       setSelectedSystemGroups([]);
       setTargetUserIds([]);
@@ -201,6 +206,9 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       mode: underlyingMode,
       targetUserIds: isClearReactions ? [] : effectiveTargetUserIds,
       retainAttachedMedia: uiMode === 'messages' ? retainAttachedMedia : false,
+      // #239 — Messages mode only, mirroring retainAttachedMedia's gating:
+      // the other modes never delete or content-clear whole messages.
+      preserveMediaAndLinks: uiMode === 'messages' ? preserveMediaAndLinks : false,
       deleteAttachmentsOnly: uiMode === 'attachmentsOnly',
       // Opt-in system-message deletion only applies to full Messages mode.
       systemMessageTypesToDelete: uiMode === 'messages' ? selectedSystemTypes : [],
@@ -428,6 +436,33 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                   <Typography variant="body2">Clear text, keep attachments</Typography>
                   <Typography variant="caption" color="text.secondary">
                     For messages with attachments, strip the text content and preserve the media. Only works on messages you authored.
+                  </Typography>
+                </Box>
+              }
+            />
+          )}
+
+          {/* #239 — keep messages with files or links. Messages mode only,
+              same gating as the retain-media checkbox above: the other
+              modes never delete or content-clear whole messages. Preserve
+              wins over retain-media when both are checked. */}
+          {uiMode === 'messages' && (
+            <FormControlLabel
+              sx={{ m: 0, alignItems: 'flex-start' }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={preserveMediaAndLinks}
+                  onChange={(e) => setPreserveMediaAndLinks(e.target.checked)}
+                  inputProps={{ 'aria-label': 'Keep messages with files or links' }}
+                  sx={{ mt: '-4px' }}
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2">Keep messages with files or links</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Messages containing an attachment or a link are skipped entirely: not deleted and not edited. The summary reports how many were preserved.
                   </Typography>
                 </Box>
               }

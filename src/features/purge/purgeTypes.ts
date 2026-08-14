@@ -46,6 +46,14 @@ export interface PurgeConfig {
   // (and counted) instead of waking the thread. Guild mode only — DMs
   // have no threads.
   skipArchivedThreads?: boolean;
+  // #239 — "Keep messages with files or links". When set, any message
+  // carrying an attachment or an http(s) link (shared predicate:
+  // messageHasFileOrLink in messageFiltering.ts) is skipped entirely —
+  // not deleted, not content-cleared — and counted so the summary can
+  // report how many were preserved. Wins over retainAttachedMedia: a
+  // message both options could claim stays fully intact. Messages mode
+  // only, mirroring retainAttachedMedia's gating.
+  preserveMediaAndLinks?: boolean;
 }
 
 export interface PurgeState {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { applyRefineCriteria } from './messageFiltering';
+import { applyRefineCriteria, messageHasType, messageHasFileOrLink } from './messageFiltering';
 import { HasType } from 'discrub-core/discord-enum';
 import { createMockMessage } from '@/test/fixtures';
 import type { Message } from 'discrub-core/types/discord-types';
@@ -76,6 +76,99 @@ describe('messageFiltering — HasType.FORWARD (#197)', () => {
       selectedHasTypes: [HasType.FORWARD],
     } as any);
     expect(result).toHaveLength(0);
+  });
+});
+
+describe('messageFiltering — messageHasType / messageHasFileOrLink (#239)', () => {
+  const attachment = { id: 'a1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+  const plain = (id: string, content: string): Message =>
+    createMockMessage({ id, type: 0, content }) as Message;
+  const withAttachment = (id: string, content = 'has a file'): Message =>
+    ({ ...createMockMessage({ id, type: 0, content }), attachments: [attachment] }) as Message;
+
+  describe('messageHasType — LINK detection', () => {
+    it('matches http:// and https:// URLs in content', () => {
+      expect(messageHasType(plain('m1', 'see http://example.com'), HasType.LINK)).toBe(true);
+      expect(messageHasType(plain('m2', 'see https://example.com/path?q=1'), HasType.LINK)).toBe(true);
+    });
+
+    it('matches a URL embedded mid-word and uppercase schemes (extended vs old substring check)', () => {
+      expect(messageHasType(plain('m1', 'linkhttps://example.com'), HasType.LINK)).toBe(true);
+      expect(messageHasType(plain('m2', 'HTTPS://EXAMPLE.COM'), HasType.LINK)).toBe(true);
+    });
+
+    it('does NOT match a bare dangling scheme with nothing after it (hardening)', () => {
+      expect(messageHasType(plain('m1', 'just http:// lol'), HasType.LINK)).toBe(false);
+      expect(messageHasType(plain('m2', 'https://'), HasType.LINK)).toBe(false);
+    });
+
+    it('does NOT match scheme-less URLs or plain text', () => {
+      expect(messageHasType(plain('m1', 'www.example.com'), HasType.LINK)).toBe(false);
+      expect(messageHasType(plain('m2', 'no links here'), HasType.LINK)).toBe(false);
+      expect(messageHasType(plain('m3', ''), HasType.LINK)).toBe(false);
+    });
+  });
+
+  describe('messageHasFileOrLink (purge preserve predicate)', () => {
+    it('true for attachment-only message', () => {
+      expect(messageHasFileOrLink(withAttachment('m1', 'no url here'))).toBe(true);
+    });
+
+    it('true for link-only message', () => {
+      expect(messageHasFileOrLink(plain('m1', 'check https://example.com out'))).toBe(true);
+    });
+
+    it('true when both attachment and link are present', () => {
+      expect(messageHasFileOrLink(withAttachment('m1', 'also https://example.com'))).toBe(true);
+    });
+
+    it('false for a plain text message (neither)', () => {
+      expect(messageHasFileOrLink(plain('m1', 'just words'))).toBe(false);
+    });
+
+    it('false for an embed WITHOUT a link in content (bare embed is not preserved)', () => {
+      const embedOnly = {
+        ...createMockMessage({ id: 'm1', type: 0, content: 'gif reaction' }),
+        embeds: [{ type: 'gifv', url: 'https://tenor.com/x.gif' }],
+      } as unknown as Message;
+      expect(messageHasType(embedOnly, HasType.EMBED)).toBe(true);
+      expect(messageHasFileOrLink(embedOnly)).toBe(false);
+    });
+
+    it('false for empty attachments array', () => {
+      const msg = { ...plain('m1', 'text'), attachments: [] } as Message;
+      expect(messageHasFileOrLink(msg)).toBe(false);
+    });
+  });
+
+  describe('refine parity — applyRefineCriteria and messageHasType agree', () => {
+    it('selectedHasTypes [LINK, FILE] keeps exactly the messages the predicate approves', () => {
+      const msgs = [
+        plain('link', 'go to https://example.com'),
+        withAttachment('file', 'plain caption'),
+        plain('neither', 'nothing to see'),
+        plain('dangling', 'broken http:// scheme'),
+      ];
+      const result = applyRefineCriteria(msgs, {
+        selectedHasTypes: [HasType.LINK, HasType.FILE],
+      } as any);
+      const expected = msgs.filter(
+        (m) => messageHasType(m, HasType.LINK) || messageHasType(m, HasType.FILE),
+      );
+      expect(result.map((m) => m.id)).toEqual(expected.map((m) => m.id));
+      expect(result.map((m) => m.id)).toEqual(['link', 'file']);
+    });
+
+    it('FILE refine still matches any attachment regardless of content_type', () => {
+      const noContentType = {
+        ...plain('m1', 'doc'),
+        attachments: [{ id: 'a1', filename: 'notes.txt', url: 'https://cdn.example.com/notes.txt' }],
+      } as Message;
+      const result = applyRefineCriteria([noContentType], {
+        selectedHasTypes: [HasType.FILE],
+      } as any);
+      expect(result).toHaveLength(1);
+    });
   });
 });
 

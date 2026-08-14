@@ -865,6 +865,136 @@ describe('purgeSlice thunks', () => {
       )).toBe(true);
     });
 
+    it('#239: preserves messages with attachments or links entirely (zero API calls for them)', async () => {
+      const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+      const withFile = mockMessage('m1', 0, [attachment]);
+      const withLink = { ...mockMessage('m2'), content: 'see https://example.com/thread' } as Message;
+      const withBoth = { ...mockMessage('m3', 0, [attachment]), content: 'both http://example.com' } as Message;
+      const plain = mockMessage('m4');
+
+      setupSearchResults([[withFile, withLink, withBoth, plain]]);
+
+      const result = await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: { ...messagesConfig([CURRENT_USER.id]), preserveMediaAndLinks: true },
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      // Only the plain message was deleted; nothing was PATCHed.
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm4', 'ch1');
+      expect(mockEditMessage).not.toHaveBeenCalled();
+
+      // Summary reports how many were preserved.
+      const entries = store.getState().status.entries;
+      expect(entries.some(
+        (e) => e.level === 'info' && e.message.includes('Preserved 3 messages with files or links'),
+      )).toBe(true);
+    });
+
+    it('#239: preserve wins over retainAttachedMedia — no content-clear PATCH on a preserved message', async () => {
+      const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+      const withFile = mockMessage('m1', 0, [attachment]); // has text + attachment
+      const plain = mockMessage('m2');
+
+      setupSearchResults([[withFile, plain]]);
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: { ...messagesConfig([CURRENT_USER.id], true), preserveMediaAndLinks: true },
+          guildId: 'guild1',
+        }),
+      );
+
+      // Without preserve, retainAttachedMedia would PATCH content:'' on m1.
+      // With preserve on, m1 stays fully intact — text included.
+      expect(mockEditMessage).not.toHaveBeenCalled();
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm2', 'ch1');
+
+      const entries = store.getState().status.entries;
+      expect(entries.some(
+        (e) => e.message.includes('Preserved 1 message with files or links'),
+      )).toBe(true);
+    });
+
+    it('#239: embed-only message (no attachment, no link in content) is NOT preserved', async () => {
+      const embedOnly = {
+        ...mockMessage('m1'),
+        content: 'gif reaction without a url',
+        embeds: [{ type: 'gifv', url: 'https://tenor.com/x.gif' }],
+      } as unknown as Message;
+
+      setupSearchResults([[embedOnly]]);
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: { ...messagesConfig([CURRENT_USER.id]), preserveMediaAndLinks: true },
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm1', 'ch1');
+    });
+
+    it('#239: default (option off) deletes messages with files and links normally, no preserved summary', async () => {
+      const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+      const withFile = mockMessage('m1', 0, [attachment]);
+      const withLink = { ...mockMessage('m2'), content: 'see https://example.com' } as Message;
+
+      setupSearchResults([[withFile, withLink]]);
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(2);
+      const entries = store.getState().status.entries;
+      expect(entries.some(
+        (e) => e.message.includes('Preserved') && e.message.includes('files or links'),
+      )).toBe(false);
+    });
+
+    it('#239: a preserved message inside an archived thread never triggers an un-archive PATCH', async () => {
+      const archivedThread = {
+        id: 'thread-archived',
+        parent_id: 'ch1',
+        thread_metadata: { archived: true },
+      } as unknown as Channel;
+      setupThreadDiscovery({ ch1: [archivedThread] });
+
+      const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+      const preservedInArchived = {
+        ...mockMessage('m1', 0, [attachment]),
+        channel_id: 'thread-archived',
+      } as Message;
+      setupSearchResults([[preservedInArchived]]);
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          // skipArchivedThreads deliberately OFF — the preserve gate alone
+          // must be enough to keep the thread's archived state untouched.
+          config: { ...messagesConfig([CURRENT_USER.id]), preserveMediaAndLinks: true },
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockEditChannel).not.toHaveBeenCalled();
+      expect(mockDeleteMessage).not.toHaveBeenCalled();
+      expect(mockEditMessage).not.toHaveBeenCalled();
+    });
+
     it('threads FilterModal criteria into the search call while preserving per-user author iteration (#112)', async () => {
       // When the dialog passes searchCriteria, those narrowing fields
       // (content, date range, has-types, mentions) must arrive at
@@ -1545,6 +1675,34 @@ describe('purgeSlice thunks', () => {
 
       expect(mockFetchSearchMessageData).toHaveBeenCalled();
       expect(mockFetchMessageData).not.toHaveBeenCalled();
+    });
+
+    it('#239: preserve applies on the history-scan path for deleted accounts too', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+      const mFile = { ...mockMessage('mf', 0, [attachment], DELETED_USER) } as Message;
+      const mLink = { ...mockMessage('ml', 0, [], DELETED_USER), content: 'https://example.com' } as Message;
+      const mPlain = { ...mockMessage('mp', 0, [], DELETED_USER) } as Message;
+      setupFetchMessages([[mFile, mLink, mPlain]]);
+
+      const result = await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: { ...messagesConfig([DELETED_ID]), preserveMediaAndLinks: true },
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      // Scan path was used (not search), and only the plain message died.
+      expect(mockFetchSearchMessageData).not.toHaveBeenCalled();
+      const deletedIds = mockDeleteMessage.mock.calls.map((c) => c[1]);
+      expect(deletedIds).toEqual(['mp']);
+
+      const entries = cacheStore.getState().status.entries;
+      expect(entries.some(
+        (e: { message: string }) => e.message.includes('Preserved 2 messages with files or links'),
+      )).toBe(true);
     });
 
     it('applies filter overrides client-side during the scan (date window early exit)', async () => {

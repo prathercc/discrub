@@ -422,6 +422,7 @@ describe('BulkPurgeDialog', () => {
           mode: 'reactions',
           targetUserIds: ['999'],
           retainAttachedMedia: false,
+          preserveMediaAndLinks: false,
           deleteAttachmentsOnly: false,
           systemMessageTypesToDelete: [],
           skipArchivedThreads: false,
@@ -451,6 +452,7 @@ describe('BulkPurgeDialog', () => {
           mode: 'messages',
           targetUserIds: ['999'],
           retainAttachedMedia: false,
+          preserveMediaAndLinks: false,
           deleteAttachmentsOnly: false,
           systemMessageTypesToDelete: [],
           skipArchivedThreads: false,
@@ -525,6 +527,7 @@ describe('BulkPurgeDialog', () => {
           mode: 'clearReactions',
           targetUserIds: [],
           retainAttachedMedia: false,
+          preserveMediaAndLinks: false,
           deleteAttachmentsOnly: false,
           systemMessageTypesToDelete: [],
           skipArchivedThreads: false,
@@ -532,6 +535,69 @@ describe('BulkPurgeDialog', () => {
         guildId: 'g1',
         searchCriteria: null,
       });
+    });
+
+    it('#239: dispatches preserveMediaAndLinks: true when the keep-files-links checkbox is toggled', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+
+      fireEvent.click(screen.getByLabelText('Keep messages with files or links'));
+      fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
+
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            mode: 'messages',
+            preserveMediaAndLinks: true,
+          }),
+        }),
+      );
+    });
+
+    it('#239: hides the keep-files-links checkbox outside Messages mode and forces the flag off', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+
+      // Check it in Messages mode, then switch modes — the dispatched
+      // config must still carry false (mode gating mirrors retain-media).
+      fireEvent.click(screen.getByLabelText('Keep messages with files or links'));
+      fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
+
+      expect(screen.queryByLabelText('Keep messages with files or links')).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: /Strip Attachments \(2 DMs\)/ }));
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            deleteAttachmentsOnly: true,
+            preserveMediaAndLinks: false,
+          }),
+        }),
+      );
+    });
+
+    it('#239: checkbox can be combined with retain-media (both dispatched true)', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+
+      fireEvent.click(screen.getByLabelText('Clear text, keep attachments'));
+      fireEvent.click(screen.getByLabelText('Keep messages with files or links'));
+      fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
+
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            retainAttachedMedia: true,
+            preserveMediaAndLinks: true,
+          }),
+        }),
+      );
     });
 
     it("#233: dispatches skipArchivedThreads: true when the don't-wake checkbox is toggled (guild mode)", () => {
