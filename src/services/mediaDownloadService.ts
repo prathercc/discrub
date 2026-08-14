@@ -1,4 +1,5 @@
 import { getDiscordService } from '@services/discordService';
+import { wait } from 'discrub-core/common-utils';
 import filenamify from 'filenamify';
 import { isExtensionMode } from '@/extension/messaging';
 import type { Message, Guild } from 'discrub-core/types/discord-types';
@@ -9,11 +10,114 @@ import { IMAGE_EXTS, VIDEO_EXTS, AUDIO_EXTS } from '@/constants/mediaExtensions'
 
 export type ShouldContinueFn = () => Promise<void>;
 
+/** Transport result — matches discrub-core's DiscordApiResponse<Blob> shape. */
+export type MediaDownloadResult = { success: boolean; data: Blob | null; status?: number };
+export type MediaTransport = (url: string) => Promise<MediaDownloadResult>;
+
+/**
+ * #232: window of NO byte progress after which a download is abandoned.
+ * A stall window (rather than a total-time cap) means a slow connection
+ * that is still receiving data never gets cut off, no matter how large
+ * the attachment — Discord allows 500MB, which a flat cap structurally
+ * fails on slow links — while a dead link still fails fast.
+ */
+const STALL_TIMEOUT_MS = 30_000;
+
+/** Bounded 429 retries — parity with the lib transport's rate-limit loop. */
+const MAX_RATE_LIMIT_RETRIES = 2;
+
+/**
+ * #232 default media transport: streaming fetch with a stall-based abort.
+ *
+ * Replaces `discordService.downloadFile` (a buffered fetch raced against a
+ * flat 10s timer that never aborted the losing fetch — GitHub #12). Parity
+ * is preserved with the lib transport it replaces:
+ * - jittered searchDelay pacing before each fetch (the lib's
+ *   `withDelay('search')`), read off the live DiscordService instance
+ * - bounded 429 handling honoring Retry-After, surfaced via `onRateLimit`
+ * - resolves to the same `{ success, data }` shape
+ */
+export async function streamDownloadWithStallGuard(url: string): Promise<MediaDownloadResult> {
+  const discordService = getDiscordService();
+
+  const baseDelay = discordService.searchDelaySecs;
+  if (baseDelay > 0) {
+    const min = Math.max(baseDelay - discordService.delayModifierSecs, 0);
+    const max = baseDelay + discordService.delayModifierSecs;
+    await wait(discordService.calculateRandomNumber(max, min));
+  }
+
+  for (let attempt = 0; ; attempt++) {
+    const controller = new AbortController();
+    let stallTimer: ReturnType<typeof setTimeout> | undefined;
+    const armStallTimer = () => {
+      clearTimeout(stallTimer);
+      stallTimer = setTimeout(() => controller.abort(), STALL_TIMEOUT_MS);
+    };
+
+    try {
+      armStallTimer();
+      const response = await fetch(url, { signal: controller.signal });
+
+      if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+        const retryAfterSecs = Number(response.headers.get('retry-after')) || 1;
+        discordService.onRateLimit?.(retryAfterSecs);
+        clearTimeout(stallTimer);
+        await wait(retryAfterSecs);
+        continue;
+      }
+
+      if (!response.ok) {
+        return { success: false, data: null, status: response.status };
+      }
+
+      if (!response.body) {
+        // Environment without body streaming — buffered fallback (no
+        // mid-body stall detection, but the initial-response timer above
+        // still bounds a dead connection).
+        const blob = await response.blob();
+        return { success: true, data: blob, status: response.status };
+      }
+
+      armStallTimer();
+      const reader = response.body.getReader();
+      const chunks: BlobPart[] = [];
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        armStallTimer(); // any byte progress resets the stall clock
+      }
+      const type = response.headers.get('content-type') || '';
+      return {
+        success: true,
+        data: new Blob(chunks, type ? { type } : undefined),
+        status: response.status,
+      };
+    } catch {
+      // Includes the stall abort — caller falls back to an external link
+      return { success: false, data: null };
+    } finally {
+      clearTimeout(stallTimer);
+    }
+  }
+}
+
 /**
  * MediaDownloadService - Orchestrates media downloads with progress tracking
  * Downloads avatars, attachments, emojis, and role icons for offline export
  */
 export class MediaDownloadService {
+  /**
+   * Transport seam (#232): production uses the stall-guard streaming
+   * fetch; unit tests inject a stub with the same response shape.
+   */
+  private transport?: MediaTransport;
+
+  constructor(transport?: MediaTransport) {
+    this.transport = transport;
+  }
+
   private maps: MediaMaps = {
     avatarMap: {},
     mediaMap: {},
@@ -30,17 +134,14 @@ export class MediaDownloadService {
   private mediaFileSeq = 0;
 
   /**
-   * Download a file with a 10-second timeout, returning the blob or null on failure
+   * Download a file, returning the blob or null on failure. Failure is a
+   * stall (no bytes for STALL_TIMEOUT_MS), an HTTP error, or a network
+   * error — never mere slowness (#232).
    */
   private async downloadWithTimeout(url: string): Promise<Blob | null> {
     try {
-      const discordService = getDiscordService();
-      const result = await Promise.race([
-        discordService.downloadFile(url),
-        new Promise<{ success: boolean; data: null }>((resolve) =>
-          setTimeout(() => resolve({ success: false, data: null }), 10000)
-        ),
-      ]);
+      const transport = this.transport ?? streamDownloadWithStallGuard;
+      const result = await transport(url);
       return result.success && result.data ? result.data : null;
     } catch {
       return null;

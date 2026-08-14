@@ -24,7 +24,9 @@ describe('mediaDownloadService', () => {
   let mockOnProgress: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
-    service = new MediaDownloadService();
+    // #232 transport seam: forward to the downloadFile stub lazily so the
+    // orchestration tests keep their existing per-test stubs verbatim.
+    service = new MediaDownloadService((url: string) => mockDiscordService.downloadFile(url));
     vi.clearAllMocks();
 
     // Mock zip service — addFile echoes the stored path like the real one (#224)
@@ -327,7 +329,7 @@ describe('mediaDownloadService', () => {
       });
     });
 
-    it('should handle timeout with Promise.race', async () => {
+    it('should skip the file when the transport reports failure (#232 stall abort)', async () => {
       const messages: Message[] = [
         {
           ...createMockMessage(),
@@ -341,15 +343,11 @@ describe('mediaDownloadService', () => {
         } as any,
       ];
 
-      // Mock slow download that times out
-      mockDiscordService.downloadFile.mockImplementation(
-        () => new Promise(() => {}) // Never resolves
-      );
+      // The stall guard resolves { success: false } after aborting a dead
+      // download — timeout mechanics live in the transport's own spec.
+      mockDiscordService.downloadFile.mockResolvedValue({ success: false, data: null });
 
-      // Speed up the test by mocking setTimeout
-      vi.useFakeTimers();
-
-      const downloadPromise = service.downloadAllMedia(
+      await service.downloadAllMedia(
         messages,
         null,
         'test-channel',
@@ -357,15 +355,8 @@ describe('mediaDownloadService', () => {
         mockOnProgress
       );
 
-      // Fast-forward past the 10s timeout
-      vi.advanceTimersByTime(10000);
-
-      await downloadPromise;
-
       const maps = service.getMaps();
       expect(maps.avatarMap['user-1/avatar123']).toBeUndefined();
-
-      vi.useRealTimers();
     });
 
     it('should download reaction-user avatars when reactionMap is provided', async () => {
@@ -1469,7 +1460,7 @@ describe('mediaDownloadService', () => {
       consoleWarnSpy.mockRestore();
     });
 
-    it('should return null on timeout', async () => {
+    it('should return null when the transport gives up on a stalled download (#232)', async () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const messages: Message[] = [
@@ -1479,21 +1470,15 @@ describe('mediaDownloadService', () => {
         } as any,
       ];
 
-      mockDiscordService.downloadFile.mockImplementation(() => new Promise(() => {}));
+      mockDiscordService.downloadFile.mockResolvedValue({ success: false, data: null });
 
-      vi.useFakeTimers();
-
-      const downloadPromise = service.downloadAllMedia(
+      await service.downloadAllMedia(
         messages, null, 'test-channel', mockZipService, mockOnProgress
       );
-
-      vi.advanceTimersByTime(10000);
-      await downloadPromise;
 
       const maps = service.getMaps();
       expect(maps.avatarMap['user-1/avatar123']).toBeUndefined();
 
-      vi.useRealTimers();
       consoleWarnSpy.mockRestore();
     });
   });
