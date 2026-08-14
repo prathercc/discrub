@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen, fireEvent } from '../../test/test-utils';
+import { renderWithProviders, screen, fireEvent, waitFor } from '../../test/test-utils';
 import DMList from './DMList';
 import { createBaseState } from '../../test/state-factories';
 import { createMockUser, createMockChannel } from '../../test/fixtures';
+import { getDiscordService } from '@services/discordService';
 
 vi.mock('@services/discordService', () => ({
   getDiscordService: vi.fn(() => ({
@@ -402,6 +403,155 @@ describe('DMList', () => {
       fireEvent.click(button);
       expect(button).toHaveTextContent('Multi-select');
       expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    });
+  });
+
+  /**
+   * #240: closed DM conversations (e.g. with a deleted account) are omitted
+   * from GET /users/@me/channels, so the list can never show them. The
+   * "Open DM by ID" affordance fetches such a channel directly by snowflake
+   * (raw ID or pasted discord.com/channels/@me link), upserts it into the
+   * session's DM list, and selects it.
+   */
+  describe('Open DM by ID (#240)', () => {
+    // A closed 1:1 DM whose counterpart account was deleted: recipients
+    // empty. The row must still render safely ("Direct Message" label,
+    // '#' placeholder avatar).
+    const closedDm = {
+      id: '1029384756102938475',
+      type: 1,
+      last_message_id: null,
+      recipients: [],
+    } as any;
+
+    const authedState = (dms: any[]) =>
+      createBaseState({
+        auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+        dm: { dms, selectedDm: null, selectedDms: [], isLoading: false, error: null },
+      });
+
+    const mockService = (fetchChannel: ReturnType<typeof vi.fn>) => {
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchChannel,
+        fetchDirectMessages: vi.fn().mockResolvedValue({ success: true, data: [] }),
+        fetchMessageData: vi.fn().mockResolvedValue({ success: true, data: [] }),
+      } as any);
+      return fetchChannel;
+    };
+
+    it('renders the Open DM by ID button in the header', () => {
+      renderWithProviders(<DMList />, { preloadedState: authedState([dmWithRecipient]) });
+      expect(screen.getByTestId('open-dm-by-id-button')).toBeInTheDocument();
+      expect(screen.getByLabelText('Open DM by ID')).toBeInTheDocument();
+    });
+
+    it('keeps the affordance reachable when the DM list is empty', () => {
+      // The exact target user: every DM closed, list empty. token: null so
+      // the mount-time fetchDMs does not flip the list into its skeleton.
+      renderWithProviders(<DMList />, {
+        preloadedState: createBaseState({
+          auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false },
+          dm: { dms: [], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        }),
+      });
+      expect(screen.getByText('No direct messages found')).toBeInTheDocument();
+      expect(screen.getByTestId('open-dm-by-id-button')).toBeInTheDocument();
+    });
+
+    it('opens a closed DM from a pasted URL, selects it, and lists it for the session', async () => {
+      const fetchChannel = mockService(
+        vi.fn().mockResolvedValue({ success: true, data: closedDm })
+      );
+      const { store } = renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: 'https://discord.com/channels/@me/1029384756102938475' },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+
+      await waitFor(() => {
+        expect(store.getState().dm.selectedDm?.id).toBe('1029384756102938475');
+      });
+      expect(fetchChannel).toHaveBeenCalledWith('test-token', '1029384756102938475');
+
+      // Upserted into the session's list and rendered safely despite the
+      // empty recipients array (deleted account).
+      expect(store.getState().dm.dms.some((d: any) => d.id === closedDm.id)).toBe(true);
+      expect(screen.getByText('Direct Message')).toBeInTheDocument();
+
+      // Status log INFO entry.
+      expect(
+        store.getState().status.entries.some(
+          (e: any) => e.message === 'Opened DM channel 1029384756102938475 by ID'
+        )
+      ).toBe(true);
+
+      // Dialog closes on success.
+      await waitFor(() => {
+        expect(screen.queryByTestId('open-dm-by-id-input')).not.toBeInTheDocument();
+      });
+    });
+
+    it('accepts a raw snowflake as input', async () => {
+      const fetchChannel = mockService(
+        vi.fn().mockResolvedValue({ success: true, data: closedDm })
+      );
+      const { store } = renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: '1029384756102938475' },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+
+      await waitFor(() => {
+        expect(store.getState().dm.selectedDm?.id).toBe('1029384756102938475');
+      });
+      expect(fetchChannel).toHaveBeenCalledWith('test-token', '1029384756102938475');
+    });
+
+    it('shows an inline error and stays open when the channel cannot be fetched', async () => {
+      mockService(vi.fn().mockRejectedValue(new Error('Request failed: 404 Not Found')));
+      const { store } = renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: '1029384756102938475' },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+
+      expect(
+        await screen.findByText(/Couldn't open that channel/)
+      ).toBeInTheDocument();
+      // Dialog stays open, nothing selected, list untouched.
+      expect(screen.getByTestId('open-dm-by-id-input')).toBeInTheDocument();
+      expect(store.getState().dm.selectedDm).toBeNull();
+      expect(store.getState().dm.dms).toHaveLength(1);
+    });
+
+    it('rejects unparseable input client-side without calling the API', async () => {
+      const fetchChannel = mockService(vi.fn());
+      renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: 'not-a-channel-id' },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+
+      expect(
+        await screen.findByText(/Enter a 17-20 digit channel ID/)
+      ).toBeInTheDocument();
+      expect(fetchChannel).not.toHaveBeenCalled();
     });
   });
 });

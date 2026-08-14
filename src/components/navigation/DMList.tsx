@@ -8,6 +8,14 @@ import {
   Typography,
   Checkbox,
   Divider,
+  Tooltip,
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
 } from '@mui/material';
 import DmAvatar from '@/components/ui/DmAvatar';
 import {
@@ -15,6 +23,7 @@ import {
   CheckBox as SelectModeIcon,
   CheckBoxOutlineBlank as SelectModeOffIcon,
   Groups as GroupsIcon,
+  Tag as TagIcon,
 } from '@mui/icons-material';
 import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
@@ -26,6 +35,8 @@ import {
   selectDmLoading,
   selectSelectedDms,
   fetchDMs,
+  fetchDmById,
+  parseDmChannelInput,
   setSelectedDm,
   toggleDmSelection,
   selectAllDms,
@@ -44,6 +55,109 @@ import BulkPurgeDialog from '@containers/PurgeView/BulkPurgeDialog';
 import BulkEditDialog from '@containers/PurgeView/BulkEditDialog';
 
 const PAGE_SIZE = 50;
+
+interface OpenDmByIdDialogProps {
+  open: boolean;
+  onClose: () => void;
+  /** Resolve = channel opened + selected; reject = show the inline error. */
+  onOpenChannel: (channelId: string) => Promise<void>;
+}
+
+/**
+ * "Open DM by ID" dialog (#240). GET /users/@me/channels omits CLOSED DM
+ * conversations (e.g. one with a deleted account), so the sidebar list can
+ * never surface them — but the channel still exists and the user often has
+ * its ID from a discord.com/channels/@me/<id> URL. This dialog accepts the
+ * raw snowflake or the pasted URL and hands the parsed ID to the parent.
+ * Session-only: nothing here is persisted.
+ */
+const OpenDmByIdDialog = ({
+  open,
+  onClose,
+  onOpenChannel,
+}: OpenDmByIdDialogProps) => {
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const handleClose = () => {
+    if (busy) return;
+    setValue('');
+    setError(null);
+    onClose();
+  };
+
+  const handleConfirm = async () => {
+    const channelId = parseDmChannelInput(value);
+    if (!channelId) {
+      setError(
+        'Enter a 17-20 digit channel ID or a discord.com/channels/@me link.',
+      );
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await onOpenChannel(channelId);
+      setBusy(false);
+      setValue('');
+      onClose();
+    } catch {
+      setBusy(false);
+      setError(
+        "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
+      );
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Open DM by ID</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+          Closed conversations (for example, with a deleted account) never
+          appear in the DM list, but one can be opened directly using its
+          channel ID or a discord.com/channels/@me link.
+        </Typography>
+        <TextField
+          autoFocus
+          fullWidth
+          size="small"
+          label="Channel ID or link"
+          placeholder="e.g. 1029384756102938475"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setError(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              handleConfirm();
+            }
+          }}
+          error={!!error}
+          helperText={error ?? ' '}
+          disabled={busy}
+          inputProps={{ 'data-testid': 'open-dm-by-id-input' }}
+        />
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={handleClose} disabled={busy} color="inherit">
+          Cancel
+        </Button>
+        <Button
+          onClick={handleConfirm}
+          disabled={busy || !value.trim()}
+          variant="contained"
+          data-testid="open-dm-by-id-confirm"
+        >
+          Open
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
 
 interface DMListProps {
   filterText?: string;
@@ -64,6 +178,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   const [bulkExportOpen, setBulkExportOpen] = useState(false);
   const [bulkPurgeOpen, setBulkPurgeOpen] = useState(false);
   const [bulkEditOpen, setBulkEditOpen] = useState(false);
+  const [openByIdOpen, setOpenByIdOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   // #227: type 3 = GROUP_DM. A group stays a group no matter how many
@@ -151,6 +266,24 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   // multi-select mode (see ChannelList for the pattern rationale).
   const rangeAnchorIdRef = useRef<string | null>(null);
 
+  // Normal single-select navigation. Shared by row clicks and the
+  // Open-DM-by-ID flow (#240) so a channel opened by ID lights up the
+  // whole DM workflow exactly like a clicked row.
+  const selectDmAndLoad = async (dm: Channel) => {
+    if (!token) return;
+    dispatch(setSelectedChannel(null));
+    dispatch(clearMessages());
+    dispatch(setSelectedDm(dm));
+    dispatch(addStatusEntry({ level: 'info', message: `Loading conversation with ${getDmName(dm)}` }));
+
+    await dispatch(
+      fetchMessages({
+        channelId: dm.id,
+        token,
+      })
+    );
+  };
+
   const handleDmClick = async (dm: Channel, event?: React.MouseEvent) => {
     if (!token) return;
 
@@ -170,18 +303,18 @@ const DMList = ({ filterText = '' }: DMListProps) => {
       return;
     }
 
-    // Normal single-select navigation
-    dispatch(setSelectedChannel(null));
-    dispatch(clearMessages());
-    dispatch(setSelectedDm(dm));
-    dispatch(addStatusEntry({ level: 'info', message: `Loading conversation with ${getDmName(dm)}` }));
+    await selectDmAndLoad(dm);
+  };
 
-    await dispatch(
-      fetchMessages({
-        channelId: dm.id,
-        token,
-      })
-    );
+  // #240: fetch a closed/hidden DM by its channel ID, then select it like a
+  // clicked row. Throws (via unwrap) on 403/404/non-DM so the dialog can
+  // show its inline error. Message loading is intentionally NOT awaited:
+  // the dialog should close as soon as the channel is confirmed.
+  const handleOpenChannelById = async (channelId: string) => {
+    if (!token) throw new Error('Not authenticated');
+    const channel = await dispatch(fetchDmById({ channelId, token })).unwrap();
+    dispatch(addStatusEntry({ level: 'info', message: `Opened DM channel ${channel.id} by ID` }));
+    void selectDmAndLoad(channel);
   };
 
   const handleCopySelectedNames = () => {
@@ -209,13 +342,20 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     return <ListSkeleton rows={6} avatar />;
   }
 
-  if (filteredDMs.length === 0 && filterText.trim()) {
-    return <EmptyState message={`No DMs matching "${filterText}"`} icon={<MessageIcon />} />;
-  }
-
-  if (filteredDMs.length === 0) {
-    return <EmptyState message="No direct messages found" icon={<MessageIcon />} />;
-  }
+  // #240: empty states render BELOW the header instead of replacing the
+  // whole component — the exact user who needs "Open DM by ID" (every DM
+  // closed / hidden) would otherwise never see the affordance.
+  const emptyState =
+    filteredDMs.length === 0 ? (
+      <EmptyState
+        message={
+          filterText.trim()
+            ? `No DMs matching "${filterText}"`
+            : 'No direct messages found'
+        }
+        icon={<MessageIcon />}
+      />
+    ) : null;
 
   return (
     <Box>
@@ -231,6 +371,17 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         >
           Direct Messages
         </Typography>
+        <Tooltip title="Open DM by ID">
+          <IconButton
+            size="small"
+            aria-label="Open DM by ID"
+            data-testid="open-dm-by-id-button"
+            onClick={() => setOpenByIdOpen(true)}
+            sx={{ mr: 0.5, color: 'text.secondary' }}
+          >
+            <TagIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
         <TourButton
           stepKey="multi-select-toggle"
           size="small"
@@ -246,6 +397,8 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         </TourButton>
       </Box>
 
+      {emptyState ?? (
+        <>
       <MultiSelectControls
         active={multiSelectMode}
         selectedCount={selectedDms.length}
@@ -336,6 +489,8 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           </ListItemButton>
         ))}
       </List>
+        </>
+      )}
 
       <BulkExportDialog
         open={bulkExportOpen}
@@ -356,6 +511,12 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         onClose={() => setBulkEditOpen(false)}
         channels={selectedDms}
         mode="dms"
+      />
+
+      <OpenDmByIdDialog
+        open={openByIdOpen}
+        onClose={() => setOpenByIdOpen(false)}
+        onOpenChannel={handleOpenChannelById}
       />
 
     </Box>

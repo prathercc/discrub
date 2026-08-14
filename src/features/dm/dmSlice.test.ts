@@ -7,6 +7,8 @@ import dmReducer, {
   selectAllDms,
   deselectAllDms,
   fetchDMs,
+  fetchDmById,
+  parseDmChannelInput,
   selectDm,
   selectDMs,
   selectSelectedDm,
@@ -328,6 +330,177 @@ describe('dmSlice', () => {
       expect(state.dms).toEqual(mixedDMs);
       expect(state.dms.some((dm: Channel) => dm.type === 1)).toBe(true);
       expect(state.dms.some((dm: Channel) => dm.type === 3)).toBe(true);
+    });
+  });
+
+  describe('fetchDmById async thunk (#240)', () => {
+    const closedDm = {
+      id: 'dm-closed',
+      type: 1,
+      recipients: [],
+    } as unknown as Channel;
+
+    const mockFetchChannel = (fetchChannel: ReturnType<typeof vi.fn>) => {
+      const svc = { fetchChannel };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(svc as any);
+      return svc;
+    };
+
+    it('fetches a DM channel by id and prepends it to state.dms', async () => {
+      store = createTestStore({ dm: dmReducer }, { dm: { ...initialDmState, dms: mockDMs } });
+      const svc = mockFetchChannel(
+        vi.fn().mockResolvedValue({ success: true, data: closedDm })
+      );
+
+      const result = await store.dispatch(
+        fetchDmById({ channelId: 'dm-closed', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmById/fulfilled');
+      expect(result.payload).toEqual(closedDm);
+      expect(svc.fetchChannel).toHaveBeenCalledWith('test-token', 'dm-closed');
+
+      const state = store.getState().dm;
+      expect(state.dms).toHaveLength(4);
+      expect(state.dms[0]).toEqual(closedDm);
+    });
+
+    it('accepts a group DM (type 3)', async () => {
+      const groupDm = { id: 'g-closed', type: 3, recipients: [] } as unknown as Channel;
+      mockFetchChannel(vi.fn().mockResolvedValue({ success: true, data: groupDm }));
+
+      const result = await store.dispatch(
+        fetchDmById({ channelId: 'g-closed', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmById/fulfilled');
+      expect(store.getState().dm.dms[0]).toEqual(groupDm);
+    });
+
+    it('dedupes by id, replacing the existing entry in place', async () => {
+      store = createTestStore({ dm: dmReducer }, { dm: { ...initialDmState, dms: mockDMs } });
+      const updated = { ...mockDMs[1], name: 'Renamed User Two' } as Channel;
+      mockFetchChannel(vi.fn().mockResolvedValue({ success: true, data: updated }));
+
+      await store.dispatch(fetchDmById({ channelId: 'dm-2', token: 'test-token' }));
+
+      const state = store.getState().dm;
+      expect(state.dms).toHaveLength(3);
+      expect(state.dms[1]).toEqual(updated);
+      expect(state.dms.filter((dm: Channel) => dm.id === 'dm-2')).toHaveLength(1);
+    });
+
+    it('rejects a non-DM channel type without touching state.dms', async () => {
+      store = createTestStore({ dm: dmReducer }, { dm: { ...initialDmState, dms: mockDMs } });
+      const guildText = { id: 'chan-1', type: 0 } as unknown as Channel;
+      mockFetchChannel(vi.fn().mockResolvedValue({ success: true, data: guildText }));
+
+      const result = await store.dispatch(
+        fetchDmById({ channelId: 'chan-1', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmById/rejected');
+      expect(result.payload).toBe('Channel is not a DM');
+      expect(store.getState().dm.dms).toEqual(mockDMs);
+    });
+
+    it('rejects with a distinguishable error on 403', async () => {
+      mockFetchChannel(vi.fn().mockRejectedValue(new Error('Request failed: 403 Forbidden')));
+
+      const result = await store.dispatch(
+        fetchDmById({ channelId: 'dm-x', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmById/rejected');
+      expect(result.payload).toBe('No access to this channel');
+    });
+
+    it('rejects with "Channel not found" on 404', async () => {
+      mockFetchChannel(vi.fn().mockRejectedValue(new Error('Request failed: 404 Not Found')));
+
+      const result = await store.dispatch(
+        fetchDmById({ channelId: 'dm-x', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmById/rejected');
+      expect(result.payload).toBe('Channel not found');
+    });
+
+    it('rejects with "Channel not found" on an unsuccessful response', async () => {
+      mockFetchChannel(vi.fn().mockResolvedValue({ success: false, data: null }));
+
+      const result = await store.dispatch(
+        fetchDmById({ channelId: 'dm-x', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmById/rejected');
+      expect(result.payload).toBe('Channel not found');
+    });
+
+    it('never touches the shared isLoading/error state (would unmount the dialog)', async () => {
+      // Pending: isLoading must stay false or DMList swaps to its skeleton.
+      mockFetchChannel(vi.fn().mockImplementation(() => new Promise(() => {})));
+      store.dispatch(fetchDmById({ channelId: 'dm-x', token: 'test-token' }));
+      expect(store.getState().dm.isLoading).toBe(false);
+
+      // Rejected: error stays local to the dialog, not in the slice.
+      mockFetchChannel(vi.fn().mockRejectedValue(new Error('Request failed: 404')));
+      await store.dispatch(fetchDmById({ channelId: 'dm-y', token: 'test-token' }));
+      expect(store.getState().dm.isLoading).toBe(false);
+      expect(store.getState().dm.error).toBeNull();
+    });
+  });
+
+  describe('parseDmChannelInput (#240)', () => {
+    it('accepts a raw 17-20 digit snowflake', () => {
+      expect(parseDmChannelInput('10293847561029384')).toBe('10293847561029384'); // 17
+      expect(parseDmChannelInput('10293847561029384756')).toBe('10293847561029384756'); // 20
+    });
+
+    it('trims surrounding whitespace', () => {
+      expect(parseDmChannelInput('  1029384756102938475  ')).toBe('1029384756102938475');
+    });
+
+    it('rejects snowflakes outside 17-20 digits', () => {
+      expect(parseDmChannelInput('1029384756102938')).toBeNull(); // 16
+      expect(parseDmChannelInput('102938475610293847561')).toBeNull(); // 21
+    });
+
+    it('extracts the channel id from a discord.com/channels/@me URL', () => {
+      expect(
+        parseDmChannelInput('https://discord.com/channels/@me/1029384756102938475')
+      ).toBe('1029384756102938475');
+    });
+
+    it('extracts the CHANNEL id when the URL carries a trailing message id', () => {
+      expect(
+        parseDmChannelInput(
+          'https://discord.com/channels/@me/1029384756102938475/1129384756102938475'
+        )
+      ).toBe('1029384756102938475');
+    });
+
+    it('accepts discordapp.com and PTB/Canary hosts', () => {
+      expect(
+        parseDmChannelInput('https://discordapp.com/channels/@me/1029384756102938475')
+      ).toBe('1029384756102938475');
+      expect(
+        parseDmChannelInput('https://ptb.discord.com/channels/@me/1029384756102938475')
+      ).toBe('1029384756102938475');
+    });
+
+    it('rejects guild channel URLs (no @me segment)', () => {
+      expect(
+        parseDmChannelInput(
+          'https://discord.com/channels/10293847561029384756/1029384756102938475'
+        )
+      ).toBeNull();
+    });
+
+    it('rejects garbage and empty input', () => {
+      expect(parseDmChannelInput('hello world')).toBeNull();
+      expect(parseDmChannelInput('')).toBeNull();
+      expect(parseDmChannelInput('12345abc678901234567')).toBeNull();
     });
   });
 
