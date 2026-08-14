@@ -31,6 +31,7 @@ import { useRestoreListener } from '@/hooks/useRestoreListener';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useTour } from '@/hooks/useTour';
 import StatusPanel from '@components/ui/StatusPanel';
+import FloatingPauseControl from '@components/ui/FloatingPauseControl';
 import Toast from '@components/ui/Toast';
 import TourTooltip from '@components/welcome/TourTooltip';
 import { shellTourSteps } from '@components/welcome/tourSteps';
@@ -219,6 +220,15 @@ const MainLayout = () => {
       </Box>
 
       {!focusedView && <DonationDrawer />}
+
+      {/* Focused view hides the StatusPanel (the only other
+          PauseResumeControls mount), so float a compact pill above the
+          feed to keep pause/resume/cancel — and the Space/mod+.
+          hotkeys registered inside it — reachable during heavy
+          operations (#237). Mutually exclusive with the StatusPanel
+          mount above; the component self-nulls when no heavy op is
+          running. */}
+      {focusedView && <FloatingPauseControl />}
 
       <AnnouncementModal
         open={hasNewAnnouncement}

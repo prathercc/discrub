@@ -4,6 +4,7 @@ import { renderWithProviders, screen } from '../../test/test-utils';
 import MainLayout from './MainLayout';
 import { createBaseState } from '../../test/state-factories';
 import { initialAppState } from '@features/app/appTypes';
+import { initialExportState } from '@features/export/exportTypes';
 
 
 vi.mock('@services/discordService', () => ({
@@ -162,6 +163,72 @@ describe('MainLayout', () => {
       await waitFor(() =>
         expect(store.getState().app.focusedView).toBe(false),
       );
+    });
+  });
+
+  describe('floating pause control in focused view (#237)', () => {
+    const focusedWithHeavyOp = (appOverrides?: Partial<typeof initialAppState>) =>
+      createBaseState({
+        app: { ...initialAppState, focusedView: true, ...appOverrides },
+        export: { ...initialExportState, isExporting: true },
+      });
+
+    it('renders the floating pause control when focused and a heavy operation is running', () => {
+      renderWithProviders(<MainLayout />, {
+        preloadedState: focusedWithHeavyOp(),
+      });
+      expect(screen.getByTestId('floating-pause-control')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
+    });
+
+    it('clicking Pause dispatches pause and swaps the button to Resume', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: focusedWithHeavyOp(),
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Pause' }));
+      expect(store.getState().app.discrubPaused).toBe(true);
+      expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
+    });
+
+    it('shows Resume when paused and clicking it resumes the operation', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: focusedWithHeavyOp({ discrubPaused: true }),
+      });
+      const resumeButton = screen.getByRole('button', { name: 'Resume' });
+      fireEvent.click(resumeButton);
+      expect(store.getState().app.discrubPaused).toBe(false);
+      expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    });
+
+    it('Space hotkey toggles pause while focused with a heavy operation running', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: focusedWithHeavyOp(),
+      });
+      fireEvent.keyDown(document, { key: ' ' });
+      expect(store.getState().app.discrubPaused).toBe(true);
+      fireEvent.keyDown(document, { key: ' ' });
+      expect(store.getState().app.discrubPaused).toBe(false);
+    });
+
+    it('renders nothing when focused with no heavy operation running', () => {
+      renderWithProviders(<MainLayout />, {
+        preloadedState: createBaseState({
+          app: { ...initialAppState, focusedView: true },
+        }),
+      });
+      expect(screen.queryByTestId('floating-pause-control')).not.toBeInTheDocument();
+    });
+
+    it('does not render the floating control in normal view even with a heavy operation running', () => {
+      renderWithProviders(<MainLayout />, {
+        preloadedState: createBaseState({
+          export: { ...initialExportState, isExporting: true },
+        }),
+      });
+      expect(screen.queryByTestId('floating-pause-control')).not.toBeInTheDocument();
+      // StatusPanel (mocked) remains the pause/resume mount in normal view.
+      expect(screen.getByTestId('status-panel')).toBeInTheDocument();
     });
   });
 });
