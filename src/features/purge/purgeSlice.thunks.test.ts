@@ -744,6 +744,127 @@ describe('purgeSlice thunks', () => {
       )).toBe(true);
     });
 
+    it('#233: leaves archived threads untouched when skipArchivedThreads is on (messages mode)', async () => {
+      const archivedThread = {
+        id: 'thread-archived',
+        parent_id: 'ch1',
+        thread_metadata: { archived: true },
+      } as unknown as Channel;
+      setupThreadDiscovery({ ch1: [archivedThread] });
+
+      const msgInArchived = {
+        ...mockMessage('m1', 0),
+        channel_id: 'thread-archived',
+        content: 'inside the archived thread',
+      } as Message;
+      const msgInParent = {
+        ...mockMessage('m2', 0),
+        content: 'in the parent channel',
+      } as Message;
+      setupSearchResults([[msgInArchived, msgInParent]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: { ...messagesConfig([CURRENT_USER.id]), skipArchivedThreads: true },
+          guildId: 'guild1',
+        }),
+      );
+
+      // The thread's archived state was never touched in either direction —
+      // no un-archive PATCH, no re-archive cleanup.
+      expect(mockEditChannel).not.toHaveBeenCalled();
+
+      // The archived-thread message was skipped; the parent message still deleted.
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(1);
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm2', 'ch1');
+
+      // Calm per-thread notice (info, not warning) + completion summary count.
+      const entries = store.getState().status.entries;
+      expect(entries.some(
+        (e) => e.level === 'info' && e.message.includes('Leaving archived thread thread-archived untouched'),
+      )).toBe(true);
+      expect(entries.some(
+        (e) => e.message.includes('Left 1 message in archived threads untouched'),
+      )).toBe(true);
+    });
+
+    it('#233: default (toggle off) preserves the un-archive → process → re-archive flow', async () => {
+      const archivedThread = {
+        id: 'thread-archived',
+        parent_id: 'ch1',
+        thread_metadata: { archived: true },
+      } as unknown as Channel;
+      setupThreadDiscovery({ ch1: [archivedThread] });
+
+      const msgInArchived = {
+        ...mockMessage('m1', 0),
+        channel_id: 'thread-archived',
+        content: 'inside the archived thread',
+      } as Message;
+      setupSearchResults([[msgInArchived]]);
+      mockEditChannel.mockResolvedValue({ success: true, status: 200 });
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+        }),
+      );
+
+      // Un-archive, delete inside, re-archive — the pre-#233 behavior.
+      expect(mockEditChannel).toHaveBeenNthCalledWith(1, TOKEN, 'thread-archived', { archived: false });
+      expect(mockEditChannel).toHaveBeenNthCalledWith(2, TOKEN, 'thread-archived', { archived: true });
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm1', 'thread-archived');
+    });
+
+    it('#233: drops archived threads from the reactions pass when skipArchivedThreads is on', async () => {
+      const archivedThread = {
+        id: 'thread-archived',
+        parent_id: 'ch1',
+        thread_metadata: { archived: true },
+      } as unknown as Channel;
+      const activeThread = {
+        id: 'thread-active',
+        parent_id: 'ch1',
+        thread_metadata: { archived: false },
+      } as unknown as Channel;
+      setupThreadDiscovery({ ch1: [archivedThread, activeThread] });
+
+      // Every channel/thread scan comes back empty — we only care about
+      // WHICH channels get scanned.
+      mockFetchMessageData.mockResolvedValue({ success: true, data: [] });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: {
+            mode: 'clearReactions',
+            targetUserIds: [],
+            retainAttachedMedia: false,
+            deleteAttachmentsOnly: false,
+            skipArchivedThreads: true,
+          },
+          guildId: 'guild1',
+        }),
+      );
+
+      // The archived thread was never scanned; the active thread was.
+      const scannedChannels = mockFetchMessageData.mock.calls.map((c: any[]) => c[2]);
+      expect(scannedChannels).not.toContain('thread-archived');
+      expect(scannedChannels).toContain('thread-active');
+
+      // No archived-state mutation, and the drop was announced.
+      expect(mockEditChannel).not.toHaveBeenCalled();
+      const entries = store.getState().status.entries;
+      expect(entries.some(
+        (e) => e.level === 'info' && e.message.includes('Leaving 1 archived thread in #general untouched'),
+      )).toBe(true);
+    });
+
     it('threads FilterModal criteria into the search call while preserving per-user author iteration (#112)', async () => {
       // When the dialog passes searchCriteria, those narrowing fields
       // (content, date range, has-types, mentions) must arrive at

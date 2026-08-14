@@ -424,6 +424,7 @@ describe('BulkPurgeDialog', () => {
           retainAttachedMedia: false,
           deleteAttachmentsOnly: false,
           systemMessageTypesToDelete: [],
+          skipArchivedThreads: false,
         },
         guildId: 'g1',
         // Reactions mode doesn't narrow messages via FilterModal (yet).
@@ -452,6 +453,7 @@ describe('BulkPurgeDialog', () => {
           retainAttachedMedia: false,
           deleteAttachmentsOnly: false,
           systemMessageTypesToDelete: [],
+          skipArchivedThreads: false,
         },
         // DM messages mode exposes the optional filter row but sends null
         // when the user hasn't opened/applied it.
@@ -525,10 +527,45 @@ describe('BulkPurgeDialog', () => {
           retainAttachedMedia: false,
           deleteAttachmentsOnly: false,
           systemMessageTypesToDelete: [],
+          skipArchivedThreads: false,
         },
         guildId: 'g1',
         searchCriteria: null,
       });
+    });
+
+    it("#233: dispatches skipArchivedThreads: true when the don't-wake checkbox is toggled (guild mode)", () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="g1" canManageMessages />,
+        { preloadedState: stateWithUser },
+      );
+
+      // Clear All Reactions needs no targeting, so confirm is always enabled.
+      fireEvent.click(screen.getByRole('button', { name: 'Clear All Reactions' }));
+      fireEvent.click(screen.getByLabelText("Don't wake archived threads"));
+      fireEvent.click(screen.getByRole('button', { name: /Clear Reactions/ }));
+
+      expect(bulkPurgeChannels).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ skipArchivedThreads: true }),
+        }),
+      );
+    });
+
+    it('#233: hides the archived-threads checkbox in DM mode (DMs have no threads)', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockDms} onClose={vi.fn()} mode="dms" />,
+        { preloadedState: stateWithUser },
+      );
+
+      expect(screen.queryByLabelText("Don't wake archived threads")).toBeNull();
+
+      fireEvent.click(screen.getByRole('button', { name: /Purge 2 DMs/ }));
+      expect(bulkPurgeDMs).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({ skipArchivedThreads: false }),
+        }),
+      );
     });
 
     it('does not export PurgeMode from BulkPurgeDialog (only default export)', async () => {

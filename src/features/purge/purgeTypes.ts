@@ -39,6 +39,13 @@ export interface PurgeConfig {
   // non-REPLY type. Purge-scope decision, set in BulkPurgeDialog — not a
   // search filter.
   systemMessageTypesToDelete?: string[];
+  // #233 — leave archived threads untouched. Deleting inside an archived
+  // thread REQUIRES un-archiving it first (Discord error 50083), which
+  // resurfaces the thread for every member until it's re-archived at the
+  // end of the run. When set, messages in archived threads are skipped
+  // (and counted) instead of waking the thread. Guild mode only — DMs
+  // have no threads.
+  skipArchivedThreads?: boolean;
 }
 
 export interface PurgeState {

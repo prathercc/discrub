@@ -82,6 +82,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
 
   const [uiMode, setUiMode] = useState<UiPurgeMode>('messages');
   const [retainAttachedMedia, setRetainAttachedMedia] = useState(false);
+  const [skipArchivedThreads, setSkipArchivedThreads] = useState(false);
   const [selectedSystemGroups, setSelectedSystemGroups] = useState<string[]>([]);
   const [targetUserIds, setTargetUserIds] = useState<string[]>([]);
   const [filterCriteria, setFilterCriteria] = useState<SearchCriteria | null>(null);
@@ -105,6 +106,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
         settings[DiscrubSetting.PURGE_DELETE_ATTACHMENTS_ONLY] === 'true';
       setUiMode(deriveUiMode(rawMode, deleteAttachmentsOnlySetting, canManageMessages));
       setRetainAttachedMedia(settings[DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA] === 'true');
+      setSkipArchivedThreads(false);
       setSelectedSystemGroups([]);
       setTargetUserIds([]);
       setFilterCriteria(null);
@@ -202,6 +204,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       deleteAttachmentsOnly: uiMode === 'attachmentsOnly',
       // Opt-in system-message deletion only applies to full Messages mode.
       systemMessageTypesToDelete: uiMode === 'messages' ? selectedSystemTypes : [],
+      // #233 — guild-only: DMs have no threads to wake.
+      skipArchivedThreads: !isDmMode && skipArchivedThreads,
     };
 
     // All modes now thread filterCriteria — messages family consumes it as
@@ -424,6 +428,34 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                   <Typography variant="body2">Clear text, keep attachments</Typography>
                   <Typography variant="caption" color="text.secondary">
                     For messages with attachments, strip the text content and preserve the media. Only works on messages you authored.
+                  </Typography>
+                </Box>
+              }
+            />
+          )}
+
+          {/* #233 — leave archived threads untouched. Acting inside an
+              archived thread requires briefly un-archiving it (Discord
+              error 50083), which resurfaces the thread for every member
+              until it's re-archived at the end of the run. Guild mode
+              only: DMs have no threads. */}
+          {!isDmMode && (
+            <FormControlLabel
+              sx={{ m: 0, alignItems: 'flex-start' }}
+              control={
+                <Checkbox
+                  size="small"
+                  checked={skipArchivedThreads}
+                  onChange={(e) => setSkipArchivedThreads(e.target.checked)}
+                  inputProps={{ 'aria-label': "Don't wake archived threads" }}
+                  sx={{ mt: '-4px' }}
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2">Don&apos;t wake archived threads</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Acting inside an archived thread briefly un-archives it, making it reappear for everyone until the purge re-archives it. Skip those messages instead — the summary reports how many were left untouched.
                   </Typography>
                 </Box>
               }

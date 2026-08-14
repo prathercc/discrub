@@ -606,6 +606,10 @@ async function purgeChannelMessages(
   // user opted to delete despite being system messages. Converted to a
   // numeric Set below and consulted by the system-message skip gate.
   systemMessageTypesToDelete?: string[],
+  // #233 — leave archived threads untouched: skip their messages (counted,
+  // summarized) instead of un-archiving, so the thread never resurfaces
+  // for other members.
+  skipArchivedThreads?: boolean,
 ): Promise<ChannelPurgeResult> {
   const discordService = getDiscordService();
   let totalDeleted = 0;
@@ -615,6 +619,7 @@ async function purgeChannelMessages(
   let totalSkippedNotAuthor = 0;
   let totalSkippedUnexpectedAuthor = 0;
   let totalSkippedArchivedNoPerm = 0;
+  let totalSkippedArchivedOptOut = 0;
   let totalSkippedPinned = 0;
   let totalProcessed = 0;
   let lastProgressDispatch = 0;
@@ -637,6 +642,9 @@ async function purgeChannelMessages(
   // messages, false = we lack permission (403) and must skip this thread's
   // messages for the rest of the run. Avoids retrying the PATCH per message.
   const threadUnarchiveAllowed = new Map<string, boolean>();
+  // #233 — threads we've already announced skipping under the opt-out,
+  // so a busy thread logs once instead of once per message.
+  const optOutLoggedThreads = new Set<string>();
 
   try {
 
@@ -687,7 +695,12 @@ async function purgeChannelMessages(
     const pageSource = targetIsDeleted
       ? iterateDeletedUserScan(
           channelId,
-          threadIds,
+          // #233: opted-out archived threads are excluded from the walk
+          // entirely — scanning them only to skip every hit wastes the
+          // scan's (already slow) budget.
+          skipArchivedThreads
+            ? threadIds?.filter((id) => !archivedThreadIds?.has(id))
+            : threadIds,
           userId,
           filterOverrides,
           token,
@@ -826,6 +839,28 @@ async function purgeChannelMessages(
 
         if (isArchivedThread && message.channel_id) {
           const threadId = message.channel_id;
+
+          // #233: the user opted out of waking archived threads. Skip the
+          // message without attempting the un-archive PATCH — the whole
+          // point of the option is that the thread must never resurface
+          // for other members.
+          if (skipArchivedThreads) {
+            if (!optOutLoggedThreads.has(threadId)) {
+              optOutLoggedThreads.add(threadId);
+              dispatch(addStatusEntry({
+                level: 'info',
+                message: `Leaving archived thread ${threadId} untouched — "Don't wake archived threads" is on`,
+              }));
+            }
+            totalSkipped++;
+            totalSkippedArchivedOptOut++;
+            totalProcessed++;
+            if (totalProcessed - lastProgressDispatch >= PROGRESS_THROTTLE_MESSAGES || mi === messages.length - 1) {
+              lastProgressDispatch = totalProcessed;
+              onProgress(totalProcessed, totalDeleted, totalSkipped, totalEditedAttachmentsOnly, totalFailed);
+            }
+            continue;
+          }
 
           // First message we've seen in this archived thread this run?
           // Attempt the un-archive and cache the outcome.
@@ -1032,6 +1067,15 @@ async function purgeChannelMessages(
     }));
   }
 
+  // #233: single summary for messages left untouched inside archived
+  // threads because the user opted out of waking them.
+  if (totalSkippedArchivedOptOut > 0) {
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `Left ${totalSkippedArchivedOptOut} message${totalSkippedArchivedOptOut !== 1 ? 's' : ''} in archived threads untouched — "Don't wake archived threads" is on.`,
+    }));
+  }
+
   return {
     deleted: totalDeleted,
     skipped: totalSkipped,
@@ -1117,9 +1161,29 @@ function createThreadMutationGuard(
   isArchivedThread: boolean,
   token: string,
   dispatch: (action: any) => void,
+  // #233 — user opted out of waking archived threads: deny mutation
+  // without ever PATCHing, announced calmly (a choice, not an error).
+  skipWaking = false,
 ): ThreadMutationGuard {
   if (!isArchivedThread) {
     return { ensureUnarchived: async () => true, cleanup: async () => {} };
+  }
+
+  if (skipWaking) {
+    let logged = false;
+    return {
+      ensureUnarchived: async () => {
+        if (!logged) {
+          logged = true;
+          dispatch(addStatusEntry({
+            level: 'info',
+            message: `Leaving archived thread ${channelId} untouched — "Don't wake archived threads" is on; its reactions will be skipped`,
+          }));
+        }
+        return false;
+      },
+      cleanup: async () => {},
+    };
   }
 
   // Three-state cache — pending = not attempted yet, unarchived = success,
@@ -1201,6 +1265,7 @@ function createThreadMutationGuardRegistry(
   token: string,
   dispatch: (action: any) => void,
   archivedChannelIds: Set<string>,
+  skipWaking = false,
 ): ThreadMutationGuardRegistry {
   const guards = new Map<string, ThreadMutationGuard>();
   return {
@@ -1208,7 +1273,7 @@ function createThreadMutationGuardRegistry(
       const existing = guards.get(channelId);
       if (existing) return existing;
       const fresh = createThreadMutationGuard(
-        channelId, archivedChannelIds.has(channelId), token, dispatch,
+        channelId, archivedChannelIds.has(channelId), token, dispatch, skipWaking,
       );
       guards.set(channelId, fresh);
       return fresh;
@@ -1587,7 +1652,7 @@ export const bulkPurgeChannels = createAsyncThunk<
   'purge/bulkPurgeChannels',
   async (params, { rejectWithValue, dispatch, getState }) => {
     const { channels, config, guildId, searchCriteria: filterCriteria } = params;
-    const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly, systemMessageTypesToDelete } = config;
+    const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly, systemMessageTypesToDelete, skipArchivedThreads } = config;
     const errors: string[] = [];
     const isDm = !guildId;
     const isReactionsMode = mode === 'reactions';
@@ -1690,14 +1755,33 @@ export const bulkPurgeChannels = createAsyncThunk<
         // this, DELETE would fail with 400 code 50083 and the
         // reaction would be lost.
         // Declared outside the try so the finally clause can cleanup.
-        const threads = threadMap?.get(channel.id) ?? [];
+        const allChannelThreads = threadMap?.get(channel.id) ?? [];
         const archivedChannelIds = new Set(
-          threads
+          allChannelThreads
             .filter((t) => t.thread_metadata?.archived === true)
             .map((t) => t.id),
         );
+        // #233 (reactions family only): with the opt-out on, archived
+        // threads are dropped from the per-thread pass up-front (scanning
+        // them only to skip is wasted API budget). Messages mode instead
+        // keeps them in the search so every skipped message is counted.
+        // The registry keeps the FULL archived set so cross-channel hits
+        // landing in archived siblings are skipped quietly via skipWaking
+        // instead of un-archived.
+        const dropArchivedThreads =
+          !!skipArchivedThreads && (isReactionsMode || isClearReactionsMode);
+        const threads = dropArchivedThreads
+          ? allChannelThreads.filter((t) => t.thread_metadata?.archived !== true)
+          : allChannelThreads;
+        if (dropArchivedThreads && threads.length < allChannelThreads.length) {
+          const skippedCount = allChannelThreads.length - threads.length;
+          dispatch(addStatusEntry({
+            level: 'info',
+            message: `Leaving ${skippedCount} archived thread${skippedCount !== 1 ? 's' : ''} in ${isDm ? '' : '#'}${channelName} untouched — "Don't wake archived threads" is on`,
+          }));
+        }
         const guardRegistry = createThreadMutationGuardRegistry(
-          token, dispatch, archivedChannelIds,
+          token, dispatch, archivedChannelIds, skipArchivedThreads,
         );
 
         try {
@@ -1932,6 +2016,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               archivedThreadIds,
               `${isDm ? '' : '#'}${channelName}`,
               systemMessageTypesToDelete,
+              skipArchivedThreads,
             );
 
             if (
