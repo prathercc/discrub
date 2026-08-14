@@ -238,6 +238,57 @@ async function writeDeletedCache(
 }
 
 /**
+ * F19 (#236): the deleted cache is keyed per user with no package
+ * fingerprint. A FRESH package (requested after the purges ran) already
+ * excludes those messages from its archive and counts, so subtracting
+ * the cached ids again under-reported every affected channel (small
+ * ones read "empty"). Prune the cache against the newly streamed
+ * archive: a cached id is a valid subtraction only while the archive
+ * still contains that message. Channels absent from the new archive
+ * drop out entirely; re-importing the same package keeps every id
+ * (they are all still present), which is the #236 behavior the cache
+ * exists for. The pruned map is written back so later resumes stay
+ * consistent without re-pruning.
+ */
+async function pruneDeletedCacheAgainstArchive(
+  parsed: ParsedPackage,
+  cache: Record<string, string[]>,
+): Promise<Record<string, string[]>> {
+  const cachedChannelIds = Object.keys(cache);
+  if (cachedChannelIds.length === 0) return cache;
+
+  const archiveChannelIds = new Set(parsed.channels.map((c) => c.id));
+  const pruned: Record<string, string[]> = {};
+  let changed = false;
+
+  for (const channelId of cachedChannelIds) {
+    const ids = cache[channelId];
+    if (!ids?.length) {
+      changed = true;
+      continue;
+    }
+    if (!archiveChannelIds.has(channelId)) {
+      changed = true;
+      continue;
+    }
+    try {
+      const messages = await loadChannelMessagesFromStorage(parsed.user.id, channelId);
+      const present = new Set(messages.map((m) => m.id));
+      const kept = ids.filter((id) => present.has(id));
+      if (kept.length > 0) pruned[channelId] = kept;
+      if (kept.length !== ids.length) changed = true;
+    } catch {
+      // Unreadable channel: keep the cached ids rather than guessing —
+      // worst case is the pre-fix behavior, for this channel only.
+      pruned[channelId] = ids;
+    }
+  }
+
+  if (changed) await writeDeletedCache(parsed.user.id, pruned);
+  return pruned;
+}
+
+/**
  * No more module-level File reference (#162). Once `streamPackageToStorage`
  * has run, every read goes through IndexedDB. The original File handle
  * is dropped on the floor by `importPackage` and not retained anywhere.
@@ -362,7 +413,12 @@ export const importPackage = createAsyncThunk<
     // the payload (#236) rather than fired as a separate hydrate thunk:
     // the fulfilled reducer applies parsed + deleted ids atomically, so
     // hydration can never lose a race against the reducer's state reset.
-    const deletedMessageIds = await readDeletedCache(parsed.user.id);
+    // F19: pruned against the just-streamed archive so a fresh package's
+    // already-reduced counts aren't double-subtracted.
+    const deletedMessageIds = await pruneDeletedCacheAgainstArchive(
+      parsed,
+      await readDeletedCache(parsed.user.id),
+    );
 
     return { parsed, validation, deletedMessageIds };
   } catch (err) {

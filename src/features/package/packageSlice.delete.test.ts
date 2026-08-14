@@ -377,6 +377,28 @@ describe('packageSlice — #236 deleted-cache hydrate ordering', () => {
     ]);
   });
 
+  it('F19: import prunes cached ids the fresh archive no longer contains', async () => {
+    // A package requested AFTER a purge already excludes those messages
+    // from its archive and counts — carrying their ids forward would
+    // subtract them a second time (small channels read "empty").
+    await storage.package.set(`deleted:${FIXTURE_USER_ID}`, {
+      '200': ['1', 'purged-before-this-archive'],
+      'channel-not-in-archive': ['x1', 'x2'],
+    });
+    const store = makeStore();
+    await store.dispatch(importPackage(await buildFixturePackage()));
+
+    const map = store.getState().package.deletedMessageIds;
+    // '1' still exists in the archive (purge happened after this package
+    // was generated) — it remains a valid subtraction.
+    expect(map['200']).toEqual(['1']);
+    expect(map['channel-not-in-archive']).toBeUndefined();
+
+    // The pruned map is persisted so later resumes stay consistent.
+    const persisted = await storage.package.get(`deleted:${FIXTURE_USER_ID}`);
+    expect(persisted).toEqual({ '200': ['1'] });
+  });
+
   it('deleted ids survive resumeStoredPackage without a separate hydrate dispatch', async () => {
     // Stream a package into IDB, then simulate a purge having persisted
     // deleted ids before the next session resumes.
