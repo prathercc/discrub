@@ -44,6 +44,14 @@ const EMPTY_EXPORT_CRITERIA: SearchCriteria = {
  * Appends the entity ID as suffix when multiple names sanitize to the same string,
  * preventing folder collisions on case-insensitive file systems.
  */
+/**
+ * #227 residue: a named group DM exports under its actual name — the
+ * username join is the fallback for 1:1 DMs and unnamed groups, then
+ * `dm-<id>` as the last resort (e.g. a group everyone has left).
+ */
+export const dmExportName = (dm: Channel): string =>
+  dm.name || dm.recipients?.map(r => r.username).join(', ') || `dm-${dm.id}`;
+
 export function buildUniqueFolderNames(items: { id: string; name: string }[]): Map<string, string> {
   const sanitize = (name: string) => name.replace(/[^a-z0-9]/gi, '_').toLowerCase().replace(/_+/g, '_').replace(/^_|_$/g, '');
   const nameToIds = new Map<string, string[]>();
@@ -1082,7 +1090,7 @@ export const bulkExportDMs = createAsyncThunk<
 
     // Pre-compute unique folder names to prevent collisions
     const folderNames = buildUniqueFolderNames(
-      channels.map((dm) => ({ id: dm.id, name: dm.recipients?.map(r => r.username).join(', ') || `dm-${dm.id}` }))
+      channels.map((dm) => ({ id: dm.id, name: dmExportName(dm) }))
     );
 
     try {
@@ -1091,7 +1099,7 @@ export const bulkExportDMs = createAsyncThunk<
         if (checkCancelled(getState)) break;
 
         const dm = channels[i];
-        const dmName = dm.recipients?.map(r => r.username).join(', ') || `dm-${dm.id}`;
+        const dmName = dmExportName(dm);
         const folderName = folderNames.get(dm.id) || dmName;
 
         const bulkContext = {

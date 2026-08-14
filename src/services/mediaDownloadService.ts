@@ -1,5 +1,6 @@
 import { getDiscordService } from '@services/discordService';
 import { wait } from 'discrub-core/common-utils';
+import { EmbedType } from 'discrub-core/discord-enum';
 import filenamify from 'filenamify';
 import { isExtensionMode } from '@/extension/messaging';
 import type { Message, Guild } from 'discrub-core/types/discord-types';
@@ -347,7 +348,12 @@ export class MediaDownloadService {
             authorName,
           });
         }
-        if (embed.thumbnail?.url) {
+        // #219 residue: a gifv embed (Tenor/Giphy) renders as its video —
+        // the thumbnail .gif is never referenced by the HTML, so
+        // downloading it just plants a dead file in the zip. Skip it
+        // whenever the gifv's video is being downloaded instead.
+        const isGifvWithVideo = embed.type === EmbedType.GIFV && !!embed.video?.url;
+        if (embed.thumbnail?.url && !isGifvWithVideo) {
           attachmentUrls.push({
             url: embed.thumbnail.url,
             downloadUrl: useProxyUrl && embed.thumbnail.proxy_url ? embed.thumbnail.proxy_url : embed.thumbnail.url,

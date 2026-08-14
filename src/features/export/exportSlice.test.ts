@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import exportReducer, {
   buildUniqueFolderNames,
+  dmExportName,
   exportMessages,
   setExportFormat,
   setMessagesPerPage,
@@ -957,6 +958,31 @@ describe('exportSlice', () => {
       expect(state.artistMode).toBe(true);
       expect(state.sortOrder).toBe('ascending');
       expect(state.messagesPerPage).toBe(500);
+    });
+  });
+
+  describe('dmExportName (#227 residue)', () => {
+    it('uses the group name when the group is named', () => {
+      const dm = {
+        id: 'g1',
+        name: 'movie night',
+        recipients: [{ username: 'alice' }, { username: 'bob' }],
+      } as any;
+      expect(dmExportName(dm)).toBe('movie night');
+    });
+
+    it('falls back to the username join for 1:1 DMs and unnamed groups', () => {
+      const dm = {
+        id: 'g2',
+        name: null,
+        recipients: [{ username: 'alice' }, { username: 'bob' }],
+      } as any;
+      expect(dmExportName(dm)).toBe('alice, bob');
+    });
+
+    it('falls back to dm-<id> when there are no recipients left', () => {
+      const dm = { id: 'g3', name: null, recipients: [] } as any;
+      expect(dmExportName(dm)).toBe('dm-g3');
     });
   });
 

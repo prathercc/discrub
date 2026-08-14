@@ -802,6 +802,73 @@ describe('mediaDownloadService', () => {
       expect(maps.mediaMap[thumbUrl]).toContain('embed-thumbnails');
     });
 
+    it('skips the thumbnail for a gifv embed whose video is downloaded (#219 residue)', async () => {
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          embeds: [
+            {
+              type: 'gifv',
+              video: { url: 'https://media.tenor.com/clip.mp4' },
+              thumbnail: { url: 'https://media.tenor.com/clip-thumb.gif' },
+            },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'video/mp4' }),
+      });
+
+      await service.downloadAllMedia(
+        messages,
+        null,
+        'test-channel',
+        mockZipService,
+        mockOnProgress
+      );
+
+      const maps = service.getMaps();
+      // The video downloaded; the never-referenced thumbnail .gif did not.
+      expect(maps.mediaMap['https://media.tenor.com/clip.mp4']).toBeDefined();
+      expect(maps.mediaMap['https://media.tenor.com/clip-thumb.gif']).toBeUndefined();
+      const thumbCalls = mockDiscordService.downloadFile.mock.calls.filter(
+        ([u]: [string]) => u.includes('clip-thumb'),
+      );
+      expect(thumbCalls).toHaveLength(0);
+    });
+
+    it('still downloads the thumbnail for a gifv embed with no video URL', async () => {
+      const messages: Message[] = [
+        {
+          ...createMockMessage(),
+          embeds: [
+            {
+              type: 'gifv',
+              thumbnail: { url: 'https://media.tenor.com/clip-thumb.gif' },
+            },
+          ],
+        } as any,
+      ];
+
+      mockDiscordService.downloadFile.mockResolvedValue({
+        success: true,
+        data: new Blob(['data'], { type: 'image/gif' }),
+      });
+
+      await service.downloadAllMedia(
+        messages,
+        null,
+        'test-channel',
+        mockZipService,
+        mockOnProgress
+      );
+
+      const maps = service.getMaps();
+      expect(maps.mediaMap['https://media.tenor.com/clip-thumb.gif']).toBeDefined();
+    });
+
     it('should handle attachment download failure', async () => {
       const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
