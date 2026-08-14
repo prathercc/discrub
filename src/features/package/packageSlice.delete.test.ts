@@ -7,8 +7,12 @@ import {
 import packageReducer, {
   deletePackageMessages,
   importPackage,
+  initialPackageState,
   loadPackageChannelMessages,
+  resumeStoredPackage,
   selectAllChannelMessages,
+  selectChannelDeletedMessageCount,
+  selectPackageDeletedMessageCount,
   clearChannelMessageSelection,
   toggleMessageSelection,
   __testHelpers__,
@@ -285,5 +289,105 @@ describe('packageSlice — deletePackageMessages', () => {
       '2',
       '3',
     ]);
+  });
+});
+
+/* ────────── #236: live remaining counts + hydrate ordering ────────── */
+
+const FIXTURE_USER_ID = '253286221395001345';
+
+function stateWith(overrides: Partial<typeof initialPackageState>): RootState {
+  return {
+    package: { ...initialPackageState, ...overrides },
+  } as unknown as RootState;
+}
+
+const minimalParsed = {
+  user: {
+    id: FIXTURE_USER_ID,
+    username: 'tester',
+    globalName: null,
+    avatarHash: null,
+  },
+  guilds: [],
+  channels: [
+    {
+      id: '200',
+      type: 0,
+      name: 'general',
+      guildId: 'g1',
+      guildName: 'Guild A',
+      messageCount: 3,
+      isOrphan: false,
+    },
+  ],
+  totalMessages: 3,
+  packageSizeBytes: 1,
+} as never;
+
+describe('packageSlice — #236 deleted-count selectors', () => {
+  it('selectChannelDeletedMessageCount returns per-channel counts (0 when absent)', () => {
+    const state = stateWith({ deletedMessageIds: { '200': ['1', '2'] } });
+    expect(selectChannelDeletedMessageCount('200')(state)).toBe(2);
+    expect(selectChannelDeletedMessageCount('999')(state)).toBe(0);
+  });
+
+  it('selectPackageDeletedMessageCount only counts ids for channels in the parsed package', () => {
+    // 'stale-channel' simulates a leftover cache entry from an older
+    // export of the same account — it must not skew this package's total.
+    const state = stateWith({
+      parsed: minimalParsed,
+      deletedMessageIds: {
+        '200': ['1', '2'],
+        'stale-channel': ['9', '10', '11'],
+      },
+    });
+    expect(selectPackageDeletedMessageCount(state)).toBe(2);
+  });
+
+  it('selectPackageDeletedMessageCount is 0 without a parsed package', () => {
+    const state = stateWith({
+      parsed: null,
+      deletedMessageIds: { '200': ['1'] },
+    });
+    expect(selectPackageDeletedMessageCount(state)).toBe(0);
+  });
+});
+
+describe('packageSlice — #236 deleted-cache hydrate ordering', () => {
+  beforeEach(async () => {
+    __testHelpers__.storeSourceFile(null);
+    await storage.package.clear();
+  });
+
+  it('importPackage applies the persisted deleted cache atomically with the parsed payload', async () => {
+    await storage.package.set(`deleted:${FIXTURE_USER_ID}`, {
+      '200': ['1', '2'],
+    });
+    const store = makeStore();
+    await store.dispatch(importPackage(await buildFixturePackage()));
+
+    // Asserted immediately after the thunk settles — no extra microtask
+    // flush. Pre-#236 a fire-and-forget hydrate raced the fulfilled
+    // reducer's `deletedMessageIds = {}` reset and only won by accident
+    // of IDB latency.
+    expect(store.getState().package.deletedMessageIds['200']).toEqual([
+      '1',
+      '2',
+    ]);
+  });
+
+  it('deleted ids survive resumeStoredPackage without a separate hydrate dispatch', async () => {
+    // Stream a package into IDB, then simulate a purge having persisted
+    // deleted ids before the next session resumes.
+    const seedStore = makeStore();
+    await seedStore.dispatch(importPackage(await buildFixturePackage()));
+    await storage.package.set(`deleted:${FIXTURE_USER_ID}`, { '200': ['1'] });
+
+    const store = makeStore();
+    await store.dispatch(resumeStoredPackage());
+
+    expect(store.getState().package.parsed).not.toBeNull();
+    expect(store.getState().package.deletedMessageIds['200']).toEqual(['1']);
   });
 });

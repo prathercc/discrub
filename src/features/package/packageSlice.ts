@@ -278,8 +278,10 @@ export const hydrateCachedEnrichment = createAsyncThunk<
 
 /**
  * Hydrate the per-channel deletedMessageIds map from persisted storage
- * for the given user. Dispatched automatically after a successful
- * import; safe to re-dispatch anytime.
+ * for the given user. Safe to re-dispatch anytime. Import/resume no
+ * longer rely on it (#236) — they fold the cache read into their own
+ * payloads so hydration can't race the fulfilled reducers — but it
+ * remains a valid standalone recovery path.
  */
 export const hydratePackageDeletedCache = createAsyncThunk<
   Record<string, string[]>,
@@ -328,10 +330,14 @@ export const clearPackageDeletedCache = createAsyncThunk<
 
 /** Parse a Discord data package file and validate it against the current auth. */
 export const importPackage = createAsyncThunk<
-  { parsed: ParsedPackage; validation: PackageValidationResult },
+  {
+    parsed: ParsedPackage;
+    validation: PackageValidationResult;
+    deletedMessageIds: Record<string, string[]>;
+  },
   File | Blob | ArrayBuffer,
   { state: RootState; rejectValue: string }
->('package/import', async (input, { getState, dispatch, rejectWithValue }) => {
+>('package/import', async (input, { getState, rejectWithValue }) => {
   try {
     // Stream once into IndexedDB (#162). After this returns, every
     // subsequent channel/avatar read is an O(1) IDB lookup; the
@@ -351,11 +357,14 @@ export const importPackage = createAsyncThunk<
       return rejectWithValue(validation.errors.join(' ') || 'Invalid package');
     }
 
-    // Hydrate the persisted deleted-message cache for this user so
-    // already-purged messages stay hidden across sessions.
-    void dispatch(hydratePackageDeletedCache({ userId: parsed.user.id }));
+    // Read the persisted deleted-message cache for this user so
+    // already-purged messages stay hidden across sessions. Folded into
+    // the payload (#236) rather than fired as a separate hydrate thunk:
+    // the fulfilled reducer applies parsed + deleted ids atomically, so
+    // hydration can never lose a race against the reducer's state reset.
+    const deletedMessageIds = await readDeletedCache(parsed.user.id);
 
-    return { parsed, validation };
+    return { parsed, validation, deletedMessageIds };
   } catch (err) {
     return rejectWithValue(err instanceof Error ? err.message : 'Failed to parse package');
   }
@@ -368,10 +377,14 @@ export const importPackage = createAsyncThunk<
  * shows the package without a re-upload.
  */
 export const resumeStoredPackage = createAsyncThunk<
-  { parsed: ParsedPackage; validation: PackageValidationResult } | null,
+  {
+    parsed: ParsedPackage;
+    validation: PackageValidationResult;
+    deletedMessageIds: Record<string, string[]>;
+  } | null,
   void,
   { state: RootState; rejectValue: string }
->('package/resume', async (_, { getState, dispatch, rejectWithValue }) => {
+>('package/resume', async (_, { getState, rejectWithValue }) => {
   try {
     const authedUserId = getState().user?.currentUser?.id ?? null;
     if (!authedUserId) return null;
@@ -380,8 +393,11 @@ export const resumeStoredPackage = createAsyncThunk<
     const validation = validatePackage(parsed, authedUserId);
     if (!validation.ok) return null;
 
-    void dispatch(hydratePackageDeletedCache({ userId: parsed.user.id }));
-    return { parsed, validation };
+    // #236: read the deleted cache here (not via a fire-and-forget
+    // hydrate dispatch) so the fulfilled reducer sets deleted ids in
+    // the same action that hydrates `parsed` — no ordering hazard.
+    const deletedMessageIds = await readDeletedCache(parsed.user.id);
+    return { parsed, validation, deletedMessageIds };
   } catch (err) {
     return rejectWithValue(err instanceof Error ? err.message : 'Failed to resume package');
   }
@@ -1787,9 +1803,10 @@ const packageSlice = createSlice({
         state.selectedChannelId = null;
         state.loadedChannels = {};
         state.loadedOrder = [];
-        // `deletedMessageIds` gets hydrated by the hydratePackageDeletedCache
-        // thunk which runs right after a successful import.
-        state.deletedMessageIds = {};
+        // #236: the deleted cache rides in on the payload — applying it
+        // here (instead of resetting and racing a separate hydrate
+        // thunk) guarantees purged-through-Discrub ids survive import.
+        state.deletedMessageIds = action.payload.deletedMessageIds;
         // #172: previous package's filters don't carry over to a new import.
         state.filterCriteria = {};
       })
@@ -1808,7 +1825,9 @@ const packageSlice = createSlice({
         state.selectedChannelId = null;
         state.loadedChannels = {};
         state.loadedOrder = [];
-        state.deletedMessageIds = {};
+        // #236: same atomic treatment as importPackage.fulfilled —
+        // deleted ids come from the payload, never a racing hydrate.
+        state.deletedMessageIds = action.payload.deletedMessageIds;
         state.filterCriteria = {};
       })
       .addCase(loadPackageChannelMessages.pending, (state, action) => {
@@ -2003,6 +2022,28 @@ export const selectTotalDeletedMessageCount = (state: RootState): number =>
     (sum, arr) => sum + arr.length,
     0,
   );
+/** Count of ids deleted via Discrub for one channel (0 when none). */
+export const selectChannelDeletedMessageCount =
+  (channelId: string) =>
+  (state: RootState): number =>
+    state.package.deletedMessageIds[channelId]?.length ?? 0;
+/**
+ * Deleted-via-Discrub total scoped to the currently-parsed package's
+ * channels (#236). The persisted cache is keyed per user and may carry
+ * channel ids from an older export of the same account; only deletions
+ * attributable to this package's channels count toward the live
+ * remaining totals shown in the UI. Archive counts themselves
+ * (`messageCount`/`totalMessages` in pkg:meta) stay immutable.
+ */
+export const selectPackageDeletedMessageCount = (state: RootState): number => {
+  const parsed = state.package.parsed;
+  if (!parsed) return 0;
+  const map = state.package.deletedMessageIds;
+  return parsed.channels.reduce(
+    (sum, c) => sum + (map[c.id]?.length ?? 0),
+    0,
+  );
+};
 export const selectPackageExportError = (state: RootState) =>
   state.package.exportError;
 

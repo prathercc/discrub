@@ -28,7 +28,10 @@ const parsed: ParsedPackage = {
   packageSizeBytes: 1,
 };
 
-function statePackageLoaded(selectedChannelId: string | null = null) {
+function statePackageLoaded(
+  selectedChannelId: string | null = null,
+  deletedMessageIds: Record<string, string[]> = {},
+) {
   return {
     package: {
       status: 'ready',
@@ -61,7 +64,7 @@ function statePackageLoaded(selectedChannelId: string | null = null) {
       deleteError: null,
       exportStatus: 'idle',
       exportError: null,
-      deletedMessageIds: {},
+      deletedMessageIds,
       enrichmentStatus: {},
       enrichmentProgress: {},
       enrichedMessages: {},
@@ -97,5 +100,41 @@ describe('<PackageView /> routing', () => {
     });
     fireEvent.click(screen.getByLabelText(/Back to analytics/i));
     expect(store.getState().package.selectedChannelId).toBeNull();
+  });
+});
+
+describe('<PackageView /> — #236 live remaining counts', () => {
+  it('summary chip shows the live remaining total with an explanatory tooltip', async () => {
+    renderWithProviders(<PackageView />, {
+      preloadedState: statePackageLoaded(null, { '200': ['1', '2'] }),
+    });
+    // 5 in the archive minus 2 deleted via Discrub.
+    const chipLabel = screen.getByText('3 messages');
+    fireEvent.mouseOver(chipLabel);
+    expect(
+      await screen.findByText('5 in package, 2 deleted via Discrub'),
+    ).toBeInTheDocument();
+  });
+
+  it('summary chip shows the raw archive total when nothing was deleted', () => {
+    renderWithProviders(<PackageView />, {
+      preloadedState: statePackageLoaded(null),
+    });
+    expect(screen.getByText('5 messages')).toBeInTheDocument();
+  });
+
+  it('channel header caption subtracts deleted ids', () => {
+    renderWithProviders(<PackageView />, {
+      preloadedState: statePackageLoaded('200', { '200': ['1', '2'] }),
+    });
+    expect(screen.getByText('Guild A · 3 messages')).toBeInTheDocument();
+  });
+
+  it('deleted ids from channels outside the package do not skew the total', () => {
+    renderWithProviders(<PackageView />, {
+      preloadedState: statePackageLoaded(null, { 'stale-channel': ['9'] }),
+    });
+    // The scoped remaining total ignores the stale entry entirely.
+    expect(screen.getByText('5 messages')).toBeInTheDocument();
   });
 });

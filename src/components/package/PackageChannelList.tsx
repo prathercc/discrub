@@ -10,6 +10,7 @@ import {
   ListItemButton,
   ListSubheader,
   Stack,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import {
@@ -25,6 +26,7 @@ import {
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
+  selectChannelDeletedMessageCount,
   selectPackageChannel,
   selectParsedPackage,
   selectSelectedPackageChannelId,
@@ -242,10 +244,17 @@ const ChannelRow = ({ channel, selected, onSelect }: ChannelRowProps) => {
   const primary = getPackageChannelLabel(channel);
   const subtitle = getPackageChannelSubtitle(channel);
   const category = getPackageChannelCategory(channel);
+  // #236: the archive's messageCount is import-time static; deletions
+  // made through Discrub live in the deleted cache. Show the live
+  // remaining count (display-only — pkg:meta is never rewritten).
+  const deletedCount = useAppSelector(
+    selectChannelDeletedMessageCount(channel.id),
+  );
+  const remainingCount = Math.max(channel.messageCount - deletedCount, 0);
   const countLabel =
     channel.messageCount === 0
       ? 'empty'
-      : channel.messageCount.toLocaleString();
+      : remainingCount.toLocaleString();
 
   return (
     <ListItemButton
@@ -278,13 +287,27 @@ const ChannelRow = ({ channel, selected, onSelect }: ChannelRowProps) => {
           >
             {primary}
           </Typography>
-          <Typography
-            variant="caption"
-            color={channel.messageCount === 0 ? 'text.disabled' : 'text.secondary'}
-            sx={{ flexShrink: 0 }}
-          >
-            {countLabel}
-          </Typography>
+          {deletedCount > 0 ? (
+            <Tooltip
+              title={`${channel.messageCount.toLocaleString()} in package, ${deletedCount.toLocaleString()} deleted via Discrub`}
+            >
+              <Typography
+                variant="caption"
+                color={channel.messageCount === 0 ? 'text.disabled' : 'text.secondary'}
+                sx={{ flexShrink: 0 }}
+              >
+                {countLabel}
+              </Typography>
+            </Tooltip>
+          ) : (
+            <Typography
+              variant="caption"
+              color={channel.messageCount === 0 ? 'text.disabled' : 'text.secondary'}
+              sx={{ flexShrink: 0 }}
+            >
+              {countLabel}
+            </Typography>
+          )}
         </Stack>
         <Typography
           variant="caption"

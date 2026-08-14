@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Alert, Avatar, Box, Button, Chip, IconButton, Stack, Typography } from '@mui/material';
+import { Alert, Avatar, Box, Button, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import {
   Archive as ArchiveIcon,
   ArrowBack as ArrowBackIcon,
@@ -10,7 +10,9 @@ import {
   clearPackageDeletedCache,
   resetPackage,
   resumeStoredPackage,
+  selectChannelDeletedMessageCount,
   selectPackageChannel,
+  selectPackageDeletedMessageCount,
   selectPackageValidation,
   selectParsedPackage,
   selectSelectedPackageChannelId,
@@ -42,6 +44,12 @@ const PackageView = () => {
   const selectedChannelId = useAppSelector(selectSelectedPackageChannelId);
   const liveGuilds = useAppSelector(selectGuilds);
   const totalDeleted = useAppSelector(selectTotalDeletedMessageCount);
+  // #236: live remaining counts. Archive counts (pkg:meta) are static;
+  // deletions made through Discrub are subtracted at display time only.
+  const packageDeleted = useAppSelector(selectPackageDeletedMessageCount);
+  const selectedChannelDeleted = useAppSelector(
+    selectChannelDeletedMessageCount(selectedChannelId ?? ''),
+  );
   const currentUserId = useAppSelector(selectCurrentUser)?.id ?? null;
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -101,6 +109,20 @@ const PackageView = () => {
   }
 
   if (selectedChannel) {
+    const remainingCount = Math.max(
+      selectedChannel.messageCount - selectedChannelDeleted,
+      0,
+    );
+    const caption = selectedChannel.isOrphan
+      ? 'Messages from a server you are no longer in'
+      : selectedChannel.guildName
+        ? `${selectedChannel.guildName} · ${remainingCount.toLocaleString()} messages`
+        : `${remainingCount.toLocaleString()} messages`;
+    const captionNode = (
+      <Typography variant="caption" color="text.secondary" noWrap>
+        {caption}
+      </Typography>
+    );
     return (
       <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
@@ -115,13 +137,15 @@ const PackageView = () => {
             <Typography variant="h6" noWrap>
               {getPackageChannelLabel(selectedChannel)}
             </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {selectedChannel.isOrphan
-                ? 'Messages from a server you are no longer in'
-                : selectedChannel.guildName
-                  ? `${selectedChannel.guildName} · ${selectedChannel.messageCount.toLocaleString()} messages`
-                  : `${selectedChannel.messageCount.toLocaleString()} messages`}
-            </Typography>
+            {selectedChannelDeleted > 0 && !selectedChannel.isOrphan ? (
+              <Tooltip
+                title={`${selectedChannel.messageCount.toLocaleString()} in package, ${selectedChannelDeleted.toLocaleString()} deleted via Discrub`}
+              >
+                {captionNode}
+              </Tooltip>
+            ) : (
+              captionNode
+            )}
           </Box>
           {selectedChannel.isOrphan && (
             <Chip label="Read only — left server" size="small" color="warning" variant="outlined" />
@@ -190,7 +214,17 @@ const PackageView = () => {
       )}
 
       <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap', gap: 1 }}>
-        <Chip label={pluralize(totalMessages, 'message')} />
+        {packageDeleted > 0 ? (
+          <Tooltip
+            title={`${totalMessages.toLocaleString()} in package, ${packageDeleted.toLocaleString()} deleted via Discrub`}
+          >
+            <Chip
+              label={pluralize(Math.max(totalMessages - packageDeleted, 0), 'message')}
+            />
+          </Tooltip>
+        ) : (
+          <Chip label={pluralize(totalMessages, 'message')} />
+        )}
         <Chip label={channelsChipLabel} />
         <Chip label={pluralize(guilds.length, 'server')} />
         <Chip label={`${dmCount} ${dmCount === 1 ? 'DM' : 'DMs'}`} />
