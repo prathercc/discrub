@@ -651,6 +651,14 @@ async function purgeChannelMessages(
   // #233 — threads we've already announced skipping under the opt-out,
   // so a busy thread logs once instead of once per message.
   const optOutLoggedThreads = new Set<string>();
+  // #233/F18 — archived threads the deleted-account scan excluded from
+  // its walk under the opt-out. The scan never sees their messages (the
+  // filter exists to protect the scan's budget), so the option's
+  // "skipped (and counted)" contract is honored at thread granularity:
+  // logged when excluded, summarized at the end. Without this, a
+  // deleted-account purge reported a clean complete while messages
+  // persisted in archived threads with no signal at all.
+  const scanExcludedArchivedThreads = new Set<string>();
 
   try {
 
@@ -698,15 +706,29 @@ async function purgeChannelMessages(
     let totalForThisUser = 0;
     let announcedTotal = false;
 
+    // #233: opted-out archived threads are excluded from the walk
+    // entirely — scanning them only to skip every hit wastes the
+    // scan's (already slow) budget. F18: count and announce what got
+    // excluded (see scanExcludedArchivedThreads).
+    let scanThreadIds = threadIds;
+    if (targetIsDeleted && skipArchivedThreads && threadIds) {
+      scanThreadIds = threadIds.filter((id) => !archivedThreadIds?.has(id));
+      const newlyExcluded = threadIds.filter(
+        (id) => archivedThreadIds?.has(id) && !scanExcludedArchivedThreads.has(id),
+      );
+      newlyExcluded.forEach((id) => scanExcludedArchivedThreads.add(id));
+      if (newlyExcluded.length > 0) {
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `Leaving ${newlyExcluded.length} archived thread${newlyExcluded.length !== 1 ? 's' : ''} in ${label} unscanned, "Don't wake archived threads" is on`,
+        }));
+      }
+    }
+
     const pageSource = targetIsDeleted
       ? iterateDeletedUserScan(
           channelId,
-          // #233: opted-out archived threads are excluded from the walk
-          // entirely — scanning them only to skip every hit wastes the
-          // scan's (already slow) budget.
-          skipArchivedThreads
-            ? threadIds?.filter((id) => !archivedThreadIds?.has(id))
-            : threadIds,
+          scanThreadIds,
           userId,
           filterOverrides,
           token,
@@ -875,7 +897,7 @@ async function purgeChannelMessages(
               optOutLoggedThreads.add(threadId);
               dispatch(addStatusEntry({
                 level: 'info',
-                message: `Leaving archived thread ${threadId} untouched — "Don't wake archived threads" is on`,
+                message: `Leaving archived thread ${threadId} untouched, "Don't wake archived threads" is on`,
               }));
             }
             totalSkipped++;
@@ -1098,7 +1120,7 @@ async function purgeChannelMessages(
   if (totalSkippedPreserved > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Preserved ${totalSkippedPreserved} message${totalSkippedPreserved !== 1 ? 's' : ''} with files or links — "Keep messages with files or links" is on.`,
+      message: `Preserved ${totalSkippedPreserved} message${totalSkippedPreserved !== 1 ? 's' : ''} with files or links, "Keep messages with files or links" is on.`,
     }));
   }
 
@@ -1107,7 +1129,17 @@ async function purgeChannelMessages(
   if (totalSkippedArchivedOptOut > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Left ${totalSkippedArchivedOptOut} message${totalSkippedArchivedOptOut !== 1 ? 's' : ''} in archived threads untouched — "Don't wake archived threads" is on.`,
+      message: `Left ${totalSkippedArchivedOptOut} message${totalSkippedArchivedOptOut !== 1 ? 's' : ''} in archived threads untouched, "Don't wake archived threads" is on.`,
+    }));
+  }
+
+  // #233/F18: the deleted-account scan excludes opted-out archived
+  // threads wholesale, so their skips are reported per thread rather
+  // than per message.
+  if (scanExcludedArchivedThreads.size > 0) {
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `Left ${scanExcludedArchivedThreads.size} archived thread${scanExcludedArchivedThreads.size !== 1 ? 's' : ''} unscanned, "Don't wake archived threads" is on. Any messages inside them were not touched.`,
     }));
   }
 
@@ -1212,7 +1244,7 @@ function createThreadMutationGuard(
           logged = true;
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Leaving archived thread ${channelId} untouched — "Don't wake archived threads" is on; its reactions will be skipped`,
+            message: `Leaving archived thread ${channelId} untouched, "Don't wake archived threads" is on; its reactions will be skipped`,
           }));
         }
         return false;
@@ -1812,7 +1844,7 @@ export const bulkPurgeChannels = createAsyncThunk<
           const skippedCount = allChannelThreads.length - threads.length;
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Leaving ${skippedCount} archived thread${skippedCount !== 1 ? 's' : ''} in ${isDm ? '' : '#'}${channelName} untouched — "Don't wake archived threads" is on`,
+            message: `Leaving ${skippedCount} archived thread${skippedCount !== 1 ? 's' : ''} in ${isDm ? '' : '#'}${channelName} untouched, "Don't wake archived threads" is on`,
           }));
         }
         const guardRegistry = createThreadMutationGuardRegistry(

@@ -1705,6 +1705,49 @@ describe('purgeSlice thunks', () => {
       )).toBe(true);
     });
 
+    it('#233/F18: counts and logs archived threads excluded from the scan', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const archivedThread = {
+        id: 'thread-archived',
+        parent_id: 'ch1',
+        thread_metadata: { archived: true },
+      } as unknown as Channel;
+      const activeThread = {
+        id: 'thread-active',
+        parent_id: 'ch1',
+        thread_metadata: { archived: false },
+      } as unknown as Channel;
+      setupThreadDiscovery({ ch1: [archivedThread, activeThread] });
+      setupFetchMessages([[{ ...mockMessage('m1', 0, [], DELETED_USER) } as Message]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      const result = await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: { ...messagesConfig([DELETED_ID]), skipArchivedThreads: true },
+          guildId: 'guild1',
+        }),
+      );
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+
+      // The archived thread was excluded from the walk; the active one was not.
+      const scannedChannels = mockFetchMessageData.mock.calls.map((c) => c[2]);
+      expect(scannedChannels).not.toContain('thread-archived');
+      expect(scannedChannels).toContain('thread-active');
+
+      // The exclusion is announced when it happens and counted in the
+      // run summary — pre-fix the scan filtered silently and the run
+      // read as a clean complete (the option's contract says skips are
+      // counted).
+      const entries = cacheStore.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.some(
+        (e) => e.level === 'info' && e.message.includes('Leaving 1 archived thread') && e.message.includes('unscanned'),
+      )).toBe(true);
+      expect(entries.some(
+        (e) => e.message.includes('Left 1 archived thread unscanned'),
+      )).toBe(true);
+    });
+
     it('applies filter overrides client-side during the scan (date window early exit)', async () => {
       const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
       const inWindow = {

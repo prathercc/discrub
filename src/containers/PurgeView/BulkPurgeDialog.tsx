@@ -490,7 +490,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                 <Box>
                   <Typography variant="body2">Don&apos;t wake archived threads</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Acting inside an archived thread briefly un-archives it, making it reappear for everyone until the purge re-archives it. Skip those messages instead — the summary reports how many were left untouched.
+                    Acting inside an archived thread briefly un-archives it, making it reappear for everyone until the purge re-archives it. Skip those messages instead; the summary reports how many were left untouched.
                   </Typography>
                 </Box>
               }
