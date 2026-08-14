@@ -339,9 +339,9 @@ class ExportService {
       if (exportFormat === 'json') {
         for (const page of exportData.mainPages) {
           if (shouldContinue) await shouldContinue();
-          const content = JSON.stringify(page.messages, null, 2);
+          const parts = this.buildJSONPageParts(page.messages, onRowError);
           const filename = `${sanitizedName}-page-${page.pageNumber}.json`;
-          const blob = new Blob([content], { type: 'application/json' });
+          const blob = new Blob(parts, { type: 'application/json' });
           await zipService.addFile(blob, `${sanitizedName}/${filename}`);
           processedPages++;
 
@@ -357,9 +357,9 @@ class ExportService {
       } else if (exportFormat === 'csv') {
         for (const page of exportData.mainPages) {
           if (shouldContinue) await shouldContinue();
-          const content = this.generateCSV(page.messages, cachedUserMap, guildId, exportConfig);
+          const parts = this.buildCSVPageParts(page.messages, cachedUserMap, guildId, exportConfig, onRowError);
           const filename = `${sanitizedName}-page-${page.pageNumber}.csv`;
-          const blob = new Blob([content], { type: 'text/csv' });
+          const blob = new Blob(parts, { type: 'text/csv' });
           await zipService.addFile(blob, `${sanitizedName}/${filename}`);
           processedPages++;
 
@@ -375,15 +375,15 @@ class ExportService {
       } else if (exportFormat === 'text') {
         for (const page of exportData.mainPages) {
           if (shouldContinue) await shouldContinue();
-          const content = generateTextPage(page.messages, {
+          const parts = this.buildTextPageParts(page.messages, {
             cachedUserMap,
             guildId,
             exportConfig,
             mediaMaps,
             textOptions: textOpts,
-          });
+          }, onRowError);
           const filename = `${sanitizedName}-page-${page.pageNumber}.txt`;
-          const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+          const blob = new Blob(parts, { type: 'text/plain;charset=utf-8' });
           await zipService.addFile(blob, `${sanitizedName}/${filename}`);
           processedPages++;
 
@@ -466,30 +466,30 @@ class ExportService {
         for (const page of threadExport.pages) {
           if (shouldContinue) await shouldContinue();
 
-          let content: string;
+          let parts: string[];
           let filename: string;
           let mimeType: string;
 
           if (exportFormat === 'json') {
-            content = JSON.stringify(page.messages, null, 2);
+            parts = this.buildJSONPageParts(page.messages, onRowError);
             filename = threadTotalPages > 1
               ? `${threadName}-page-${page.pageNumber}.json`
               : `${threadName}.json`;
             mimeType = 'application/json';
           } else if (exportFormat === 'csv') {
-            content = this.generateCSV(page.messages, cachedUserMap, guildId, exportConfig);
+            parts = this.buildCSVPageParts(page.messages, cachedUserMap, guildId, exportConfig, onRowError);
             filename = threadTotalPages > 1
               ? `${threadName}-page-${page.pageNumber}.csv`
               : `${threadName}.csv`;
             mimeType = 'text/csv';
           } else if (exportFormat === 'text') {
-            content = generateTextPage(page.messages, {
+            parts = this.buildTextPageParts(page.messages, {
               cachedUserMap,
               guildId,
               exportConfig,
               mediaMaps,
               textOptions: textOpts,
-            });
+            }, onRowError);
             filename = threadTotalPages > 1
               ? `${threadName}-page-${page.pageNumber}.txt`
               : `${threadName}.txt`;
@@ -532,7 +532,7 @@ class ExportService {
             continue;
           }
 
-          const blob = new Blob([content], { type: mimeType });
+          const blob = new Blob(parts, { type: mimeType });
           await zipService.addFile(blob, `${sanitizedName}/threads/${filename}`);
           processedPages++;
 
@@ -655,47 +655,137 @@ class ExportService {
   }
 
   /**
-   * Generate CSV content from messages
+   * Generate CSV content from messages. Kept as a join over
+   * {@link buildCSVPageParts} — the page-writing loops hand the parts
+   * straight to Blob instead so no whole-page string is materialized.
    */
-  private generateCSV(messages: Message[], cachedUserMap: ExportUserMap, guildId: string | null, exportConfig?: ExportConfig): string {
+  generateCSV(messages: Message[], cachedUserMap: ExportUserMap, guildId: string | null, exportConfig?: ExportConfig): string {
+    return this.buildCSVPageParts(messages, cachedUserMap, guildId, exportConfig).join('');
+  }
+
+  /**
+   * #230: the render-failure guard originally wrapped only the HTML row
+   * builder — the same poison message still killed JSON/CSV/text exports
+   * whole while the error reporter flushed zero failures. Each non-HTML
+   * format now serializes per message under its own guard (placeholder
+   * row + onRowError, matching the HTML semantics), and pages are handed
+   * to Blob as parts so no whole-page string is ever joined (the #185
+   * Bug B string-cap reasoning applies to every format, not just HTML).
+   */
+  private buildCSVPageParts(
+    messages: Message[],
+    cachedUserMap: ExportUserMap,
+    guildId: string | null,
+    exportConfig?: ExportConfig,
+    onRowError?: (messageId: string, error: unknown) => void,
+  ): string[] {
     const headers = ['ID', 'Timestamp', 'Username', 'Display Name', 'Server Nickname', 'Content', 'Forwarded Content', 'Attachments', 'Embeds', 'Reactions'];
-    const rows = [headers.join(',')];
+    const parts = [headers.join(',')];
 
     messages.forEach((msg) => {
       const id = msg.id || '';
-      const timestamp = msg.timestamp
-        ? (exportConfig?.dateFormat && exportConfig?.timeFormat
-            ? formatMessageTimestamp(msg.timestamp, exportConfig.dateFormat, exportConfig.timeFormat)
-            : format(new Date(msg.timestamp), 'yyyy-MM-dd HH:mm:ss'))
-        : '';
+      let row: string;
+      try {
+        const timestamp = msg.timestamp
+          ? (exportConfig?.dateFormat && exportConfig?.timeFormat
+              ? formatMessageTimestamp(msg.timestamp, exportConfig.dateFormat, exportConfig.timeFormat)
+              : format(new Date(msg.timestamp), 'yyyy-MM-dd HH:mm:ss'))
+          : '';
 
-      // Get user display data from cache
-      const userData = getUserDisplayData(
-        msg.author?.id || '',
-        cachedUserMap,
-        guildId
-      );
-      const username = this.escapeCSV(userData.username || msg.author?.username || 'Unknown');
-      const displayName = this.escapeCSV(userData.displayName || msg.author?.global_name || '');
-      const nickname = this.escapeCSV(userData.nickname || '');
+        // Get user display data from cache
+        const userData = getUserDisplayData(
+          msg.author?.id || '',
+          cachedUserMap,
+          guildId
+        );
+        const username = this.escapeCSV(userData.username || msg.author?.username || 'Unknown');
+        const displayName = this.escapeCSV(userData.displayName || msg.author?.global_name || '');
+        const nickname = this.escapeCSV(userData.nickname || '');
 
-      const content = this.escapeCSV(getMessageContent(msg));
+        const content = this.escapeCSV(getMessageContent(msg));
 
-      // #197 — a forwarded message carries no body of its own; the
-      // payload lives in message_snapshots. Surface its text in a
-      // dedicated column and fold the snapshot's attachment/embed
-      // counts into the totals so a forward isn't reported as empty.
-      const snapshot = getForwardedSnapshot(msg);
-      const forwardedContent = this.escapeCSV(snapshot?.content || '');
-      const attachments =
-        (msg.attachments?.length || 0) + (snapshot?.attachments?.length || 0);
-      const embeds = (msg.embeds?.length || 0) + (snapshot?.embeds?.length || 0);
-      const reactions = msg.reactions?.reduce((sum, r) => sum + (r.count || 0), 0) || 0;
+        // #197 — a forwarded message carries no body of its own; the
+        // payload lives in message_snapshots. Surface its text in a
+        // dedicated column and fold the snapshot's attachment/embed
+        // counts into the totals so a forward isn't reported as empty.
+        const snapshot = getForwardedSnapshot(msg);
+        const forwardedContent = this.escapeCSV(snapshot?.content || '');
+        const attachments =
+          (msg.attachments?.length || 0) + (snapshot?.attachments?.length || 0);
+        const embeds = (msg.embeds?.length || 0) + (snapshot?.embeds?.length || 0);
+        const reactions = msg.reactions?.reduce((sum, r) => sum + (r.count || 0), 0) || 0;
 
-      rows.push(`"${id}","${timestamp}","${username}","${displayName}","${nickname}","${content}","${forwardedContent}",${attachments},${embeds},${reactions}`);
+        row = `"${id}","${timestamp}","${username}","${displayName}","${nickname}","${content}","${forwardedContent}",${attachments},${embeds},${reactions}`;
+      } catch (error) {
+        if (onRowError) onRowError(String(msg.id ?? 'unknown'), error);
+        row = `"${id}","","","","","[This message could not be rendered and was skipped]","",0,0,0`;
+      }
+      parts.push('\n', row);
     });
 
-    return rows.join('\n');
+    return parts;
+  }
+
+  /**
+   * Per-message-guarded JSON page. Joined, the parts are byte-identical
+   * to `JSON.stringify(messages, null, 2)`; a message whose
+   * serialization throws becomes a placeholder object carrying its ID.
+   * See {@link buildCSVPageParts} for the #230 background.
+   */
+  private buildJSONPageParts(
+    messages: Message[],
+    onRowError?: (messageId: string, error: unknown) => void,
+  ): string[] {
+    if (messages.length === 0) return ['[]'];
+    const parts: string[] = ['[\n'];
+    messages.forEach((msg, idx) => {
+      let body: string;
+      try {
+        body = JSON.stringify(msg, null, 2);
+      } catch (error) {
+        const safeId = String(msg.id ?? 'unknown');
+        if (onRowError) onRowError(safeId, error);
+        body = JSON.stringify(
+          { id: safeId, export_error: 'This message could not be serialized and was skipped' },
+          null,
+          2,
+        );
+      }
+      parts.push(`  ${body.replace(/\n/g, '\n  ')}`);
+      parts.push(idx < messages.length - 1 ? ',\n' : '\n');
+    });
+    parts.push(']');
+    return parts;
+  }
+
+  /**
+   * Per-message-guarded text page. `generateTextPage` renders each
+   * message independently (blocks joined by a blank line, trailing
+   * newline), so calling it per message reproduces its output exactly.
+   * See {@link buildCSVPageParts} for the #230 background.
+   */
+  private buildTextPageParts(
+    messages: Message[],
+    opts: Parameters<typeof generateTextPage>[1],
+    onRowError?: (messageId: string, error: unknown) => void,
+  ): string[] {
+    if (messages.length === 0) return [''];
+    const parts: string[] = [];
+    messages.forEach((msg, idx) => {
+      let block: string;
+      try {
+        // Single-message page = "<block>\n"; strip the page's trailing
+        // newline so the separators below rebuild the multi-block form.
+        block = generateTextPage([msg], opts).slice(0, -1);
+      } catch (error) {
+        const safeId = String(msg.id ?? 'unknown');
+        if (onRowError) onRowError(safeId, error);
+        block = `[This message could not be rendered and was skipped. Message ID: ${safeId}]`;
+      }
+      parts.push(block);
+      parts.push(idx < messages.length - 1 ? '\n\n' : '\n');
+    });
+    return parts;
   }
 
   /**

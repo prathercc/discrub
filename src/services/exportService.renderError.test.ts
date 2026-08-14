@@ -67,6 +67,44 @@ vi.mock('discrub-core/html-formatting-utils', async (importOriginal) => {
   };
 });
 
+// CSV path: getMessageContent is the per-row surface that explodes on
+// oversized content. Same marker convention as the HTML mock above.
+vi.mock('discrub-core/discrub-utils', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('discrub-core/discrub-utils')>();
+  return {
+    ...actual,
+    getMessageContent: (msg: unknown) => {
+      const content = (msg as { content?: string })?.content;
+      if (typeof content === 'string' && content.includes('POISON_CONTENT_MARKER')) {
+        throw new RangeError('Invalid string length');
+      }
+      return (actual.getMessageContent as (m: unknown) => string)(msg);
+    },
+  };
+});
+
+// Text path: generateTextPage is called once per message by the guarded
+// builder, so throwing only for the poison message exercises isolation.
+vi.mock('discrub-core/export-utils', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('discrub-core/export-utils')>();
+  return {
+    ...actual,
+    generateTextPage: (messages: unknown[], opts: unknown) => {
+      const poisoned = messages.some((m) => {
+        const content = (m as { content?: string })?.content;
+        return typeof content === 'string' && content.includes('POISON_CONTENT_MARKER');
+      });
+      if (poisoned) throw new RangeError('Invalid string length');
+      return (actual.generateTextPage as (m: unknown[], o: unknown) => string)(
+        messages,
+        opts,
+      );
+    },
+  };
+});
+
 // ── Fixtures ─────────────────────────────────────────────────────
 
 const AUTHOR: User = {
@@ -102,7 +140,8 @@ const GOOD_AFTER = {
   timestamp: '2024-01-03T10:00:00.000Z',
 } as unknown as Message;
 
-async function exportHtml(
+async function exportAs(
+  format: 'html' | 'json' | 'csv' | 'text',
   messages: Message[],
   onRowError?: (messageId: string, error: unknown) => void,
 ): Promise<string> {
@@ -110,7 +149,7 @@ async function exportHtml(
   await service.exportToZip(
     messages,
     'test-channel',
-    'html',
+    format,
     1000,
     false, // includeMedia
     null,  // guild
@@ -129,12 +168,18 @@ async function exportHtml(
     undefined, // zipOptions
     onRowError,
   );
-  const page = capturedFiles.get('test_channel/test_channel-page-1.html');
+  const ext = format === 'text' ? 'txt' : format;
+  const page = capturedFiles.get(`test_channel/test_channel-page-1.${ext}`);
   if (page === undefined) {
     throw new Error(`Page not captured. Files: ${[...capturedFiles.keys()].join(', ')}`);
   }
   return page;
 }
+
+const exportHtml = (
+  messages: Message[],
+  onRowError?: (messageId: string, error: unknown) => void,
+) => exportAs('html', messages, onRowError);
 
 beforeEach(() => {
   capturedFiles = new Map();
@@ -183,6 +228,86 @@ describe('#230 export render-error isolation', () => {
     // on the row markup, which only the catch branch emits.
     expect(page).not.toContain('class="message message-render-error"');
     expect(onRowError).not.toHaveBeenCalled();
+  });
+});
+
+describe('#230 export render-error isolation — non-HTML formats', () => {
+  it('JSON: replaces only the unserializable message and stays valid JSON', async () => {
+    // Circular reference: JSON.stringify throws for real, no mock needed.
+    const circular = {
+      id: '900000000000000004',
+      type: 0,
+      content: 'circular poison',
+      author: AUTHOR,
+      timestamp: '2024-01-02T10:00:00.000Z',
+    } as unknown as Message & { self?: unknown };
+    (circular as { self?: unknown }).self = circular;
+
+    const onRowError = vi.fn();
+    const page = await exportAs('json', [GOOD_BEFORE, circular, GOOD_AFTER], onRowError);
+
+    const parsed = JSON.parse(page) as Array<Record<string, unknown>>;
+    expect(parsed).toHaveLength(3);
+    expect(parsed.map((m) => m.content)).toContain('hello before the poison');
+    expect(parsed.map((m) => m.content)).toContain('hello after the poison');
+
+    const placeholder = parsed.find((m) => m.id === circular.id);
+    expect(placeholder?.export_error).toContain('could not be serialized');
+
+    expect(onRowError).toHaveBeenCalledTimes(1);
+    expect(onRowError).toHaveBeenCalledWith(circular.id, expect.any(TypeError));
+  });
+
+  it('JSON: healthy pages are byte-identical to whole-page stringify', async () => {
+    const onRowError = vi.fn();
+    const page = await exportAs('json', [GOOD_BEFORE, GOOD_AFTER], onRowError);
+    // Descending default sort: newest first.
+    expect(page).toBe(JSON.stringify([GOOD_AFTER, GOOD_BEFORE], null, 2));
+    expect(onRowError).not.toHaveBeenCalled();
+  });
+
+  it('CSV: replaces only the poison row and keeps the rest intact', async () => {
+    const onRowError = vi.fn();
+    const page = await exportAs('csv', [GOOD_BEFORE, POISON, GOOD_AFTER], onRowError);
+
+    const lines = page.split('\n');
+    expect(lines[0]).toContain('ID,Timestamp,Username');
+    expect(lines).toHaveLength(4); // header + 3 rows
+    expect(page).toContain('hello before the poison');
+    expect(page).toContain('hello after the poison');
+
+    const poisonRow = lines.find((l) => l.includes(POISON.id!));
+    expect(poisonRow).toContain('[This message could not be rendered and was skipped]');
+    expect(page).not.toContain(POISON_MARKER);
+
+    expect(onRowError).toHaveBeenCalledTimes(1);
+    expect(onRowError).toHaveBeenCalledWith(POISON.id, expect.any(RangeError));
+  });
+
+  it('text: replaces only the poison block and keeps the rest intact', async () => {
+    const onRowError = vi.fn();
+    const page = await exportAs('text', [GOOD_BEFORE, POISON, GOOD_AFTER], onRowError);
+
+    expect(page).toContain('hello before the poison');
+    expect(page).toContain('hello after the poison');
+    expect(page).toContain(
+      `[This message could not be rendered and was skipped. Message ID: ${POISON.id}]`,
+    );
+    expect(page).not.toContain(POISON_MARKER);
+
+    expect(onRowError).toHaveBeenCalledTimes(1);
+    expect(onRowError).toHaveBeenCalledWith(POISON.id, expect.any(RangeError));
+  });
+
+  it('non-HTML formats emit no placeholder and no onRowError when nothing throws', async () => {
+    for (const fmt of ['json', 'csv', 'text'] as const) {
+      capturedFiles = new Map();
+      const onRowError = vi.fn();
+      const page = await exportAs(fmt, [GOOD_BEFORE, GOOD_AFTER], onRowError);
+      expect(page).not.toContain('could not be rendered');
+      expect(page).not.toContain('could not be serialized');
+      expect(onRowError).not.toHaveBeenCalled();
+    }
   });
 });
 
