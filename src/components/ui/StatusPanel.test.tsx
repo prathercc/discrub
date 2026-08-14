@@ -1,10 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen, fireEvent, waitFor } from '@/test/test-utils';
+import { renderWithProviders, screen, fireEvent, waitFor, act } from '@/test/test-utils';
 import { createBaseState } from '@/test/state-factories';
 import StatusPanel from './StatusPanel';
 import { initialStatusState } from '@features/status/statusTypes';
 import { initialExportState } from '@features/export/exportTypes';
 import { storage } from '@/extension/storage';
+import { groupEntriesBySession } from '@features/status/statusGrouping';
+import { addStatusEntry } from '@features/status/statusSlice';
+
+// #183: transparent spy over the real grouping so memo-stability tests can
+// count recomputations without changing behavior for the rest of the suite.
+vi.mock('@features/status/statusGrouping', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@features/status/statusGrouping')>();
+  return {
+    ...actual,
+    groupEntriesBySession: vi.fn(actual.groupEntriesBySession),
+  };
+});
 
 describe('StatusPanel', () => {
   it('renders with STATUS LOG header', () => {
@@ -354,6 +366,52 @@ describe('StatusPanel', () => {
       expect(screen.getByText(/Session of /)).toBeInTheDocument();
       expect(screen.queryByText('pre-upgrade entry')).toBeNull();
       expect(screen.queryByText('post-upgrade entry')).toBeNull();
+    });
+  });
+
+  describe('grouping memo stability (#183)', () => {
+    const entriesState = () =>
+      createBaseState({
+        status: {
+          ...initialStatusState,
+          entries: [
+            { id: '1', timestamp: 1000, level: 'info' as const, message: 'stable one' },
+            { id: '2', timestamp: 2000, level: 'info' as const, message: 'stable two' },
+          ],
+        },
+      });
+
+    it('does not regroup on a re-render when entries and visibleCount are unchanged', () => {
+      const { store } = renderWithProviders(<StatusPanel />, {
+        preloadedState: entriesState(),
+      });
+      fireEvent.click(screen.getByText('STATUS LOG'));
+      const callsAfterExpand = vi.mocked(groupEntriesBySession).mock.calls.length;
+      expect(callsAfterExpand).toBeGreaterThan(0);
+
+      // Unrelated store change that re-renders the panel: message.isDeleting
+      // flips the operation summary (the exact render pressure a bulk delete
+      // produces). Before the visibleEntries slice was memoized, every such
+      // render rebuilt the slice identity and forced a full regroup.
+      act(() => {
+        store.dispatch({ type: 'message/deleteMessages/pending' });
+      });
+
+      expect(vi.mocked(groupEntriesBySession).mock.calls.length).toBe(callsAfterExpand);
+    });
+
+    it('regroups when a new status entry arrives', () => {
+      const { store } = renderWithProviders(<StatusPanel />, {
+        preloadedState: entriesState(),
+      });
+      fireEvent.click(screen.getByText('STATUS LOG'));
+      const callsAfterExpand = vi.mocked(groupEntriesBySession).mock.calls.length;
+
+      act(() => {
+        store.dispatch(addStatusEntry({ level: 'info', message: 'fresh entry' }));
+      });
+
+      expect(vi.mocked(groupEntriesBySession).mock.calls.length).toBeGreaterThan(callsAfterExpand);
     });
   });
 

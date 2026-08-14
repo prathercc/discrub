@@ -13,6 +13,8 @@ import messageReducer, {
   resetPagination,
   deleteMessage,
   deleteMessages,
+  messagesRemoved,
+  DELETE_BATCH_SIZE,
   editMessage,
   editMessages,
   fetchReactingUsers,
@@ -643,6 +645,262 @@ describe('messageSlice', () => {
         ([p]) => p.level === 'warning' && /Couldn't delete message msg-1.*HTTP 404/.test(p.message),
       );
       expect(warning).toBeTruthy();
+    });
+  });
+
+  describe('messagesRemoved reducer (#183)', () => {
+    it('removes exactly the given ids from messages, filteredMessages, and selectedMessages in one dispatch', () => {
+      const msgs = createMockMessages(5);
+      store.dispatch(setMessages(msgs));
+      store.dispatch(setFilteredMessages([msgs[0], msgs[1], msgs[3]]));
+      store.dispatch(setSelectedMessages([msgs[1], msgs[3], msgs[4]]));
+
+      store.dispatch(messagesRemoved(['msg-2', 'msg-4']));
+
+      const state = store.getState().message;
+      expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-1', 'msg-3', 'msg-5']);
+      expect(state.filteredMessages.map((m: Message) => m.id)).toEqual(['msg-1']);
+      expect(state.selectedMessages.map((m: Message) => m.id)).toEqual(['msg-5']);
+    });
+
+    it('ignores unknown ids and leaves other messages intact', () => {
+      const msgs = createMockMessages(3);
+      store.dispatch(setMessages(msgs));
+
+      store.dispatch(messagesRemoved(['not-a-real-id', 'msg-2']));
+
+      const state = store.getState().message;
+      expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-1', 'msg-3']);
+    });
+
+    it('is a no-op (same array identities) for an empty payload', () => {
+      store.dispatch(setMessages(createMockMessages(3)));
+      const before = store.getState().message;
+
+      store.dispatch(messagesRemoved([]));
+
+      const after = store.getState().message;
+      expect(after.messages).toBe(before.messages);
+      expect(after.filteredMessages).toBe(before.filteredMessages);
+      expect(after.selectedMessages).toBe(before.selectedMessages);
+    });
+
+    it('targets the active thread tab, not the main arrays', () => {
+      const mainMsgs = createMockMessages(2);
+      const threadMsgs = [
+        createMockMessage({ id: 'tmsg-1' }),
+        createMockMessage({ id: 'tmsg-2' }),
+      ];
+      store.dispatch(setMessages(mainMsgs));
+      store.dispatch(addThreadTab({ threadId: 'thread-1', threadName: 'Test Thread' }));
+      store.dispatch(setThreadMessages({ threadId: 'thread-1', messages: threadMsgs }));
+      store.dispatch(setActiveTab('thread-1'));
+
+      store.dispatch(messagesRemoved(['tmsg-1', 'msg-1']));
+
+      const state = store.getState().message;
+      expect(state.threadTabs['thread-1'].messages.map((m: Message) => m.id)).toEqual(['tmsg-2']);
+      expect(state.threadTabs['thread-1'].filteredMessages.map((m: Message) => m.id)).toEqual(['tmsg-2']);
+      // Main arrays untouched while a thread tab is active — same container
+      // contract as the per-message deleteMessage.fulfilled path.
+      expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-1', 'msg-2']);
+    });
+  });
+
+  describe('deleteMessages batching (#183)', () => {
+    // Store with an action recorder so tests can assert on the dispatch
+    // pattern (how many array-rewriting updates a bulk delete produced).
+    const createRecordingStoreWithApp = async (
+      messageState = initialMessageState,
+      appOverrides: Record<string, unknown> = {},
+    ) => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const actionTypes: string[] = [];
+
+      const recorder: import('@reduxjs/toolkit').Middleware =
+        () => (next) => (action) => {
+          const type = (action as { type?: string })?.type;
+          if (type) actionTypes.push(type);
+          return next(action);
+        };
+
+      const recordingStore = configureStore({
+        reducer: {
+          message: messageReducer,
+          app: appReducer,
+        },
+        middleware: (getDefaultMiddleware) => getDefaultMiddleware().concat(recorder),
+        preloadedState: {
+          app: {
+            discrubPaused: false,
+            discrubCancelled: false,
+            isMinimized: false,
+            focusedView: false,
+            sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' },
+            settings: defaultSettings,
+            ...appOverrides,
+          },
+          message: messageState,
+        },
+      });
+      return { recordingStore, actionTypes };
+    };
+
+    it('applies all deletions in DELETE_BATCH_SIZE batches and matches the sequential end-state', async () => {
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: true }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const count = DELETE_BATCH_SIZE * 2 + 10; // 60: two full batches + final flush
+      const messages = createMockMessages(count);
+      const { recordingStore, actionTypes } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      const result = await recordingStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+
+      expect(result.type).toBe('message/deleteMessages/fulfilled');
+      expect(result.payload).toHaveLength(count);
+      const state = recordingStore.getState().message;
+      expect(state.messages).toHaveLength(0);
+      expect(state.filteredMessages).toHaveLength(0);
+      expect(state.selectedMessages).toHaveLength(0);
+
+      const flushes = actionTypes.filter((t) => t === 'message/messagesRemoved');
+      expect(flushes).toHaveLength(Math.ceil(count / DELETE_BATCH_SIZE));
+    });
+
+    it('does not dispatch per-message array-rewriting fulfilled updates (regression)', async () => {
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: true }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = createMockMessages(10);
+      const { recordingStore, actionTypes } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      await recordingStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+
+      // The freeze mechanic: N per-message deleteMessage.fulfilled reducers,
+      // each rewriting all three arrays. The batched path must produce zero
+      // of them — a sub-batch run collapses to a single final flush.
+      expect(actionTypes.filter((t) => t.startsWith('message/deleteMessage/'))).toHaveLength(0);
+      expect(actionTypes.filter((t) => t === 'message/messagesRemoved')).toHaveLength(1);
+      expect(recordingStore.getState().message.messages).toHaveLength(0);
+    });
+
+    it('still lands all confirmed deletions when cancelled mid-run', async () => {
+      const { checkCancelled } = await import('@/utils/operationLoopUtils');
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: true }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const confirmedBeforeCancel = DELETE_BATCH_SIZE + 5; // 30: one flushed batch + 5 pending
+      let iterations = 0;
+      vi.mocked(checkCancelled).mockImplementation(() => ++iterations > confirmedBeforeCancel);
+
+      const messages = createMockMessages(40);
+      const { recordingStore, actionTypes } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      await recordingStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+      vi.mocked(checkCancelled).mockReturnValue(false);
+
+      // Every confirmed deletion (including the partial pending batch at the
+      // moment of cancellation) must be reflected in state.
+      const state = recordingStore.getState().message;
+      expect(state.messages).toHaveLength(40 - confirmedBeforeCancel);
+      expect(state.messages[0].id).toBe(`msg-${confirmedBeforeCancel + 1}`);
+      expect(actionTypes.filter((t) => t === 'message/messagesRemoved')).toHaveLength(2);
+    });
+
+    it('still lands confirmed deletions around a mid-run failure', async () => {
+      vi.mocked(addStatusEntry).mockClear();
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockImplementation((_token: string, messageId: string) =>
+          Promise.resolve(messageId === 'msg-3' ? { success: false, status: 403 } : { success: true })
+        ),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      const messages = createMockMessages(5);
+      const { recordingStore } = await createRecordingStoreWithApp({
+        ...initialMessageState,
+        messages,
+        filteredMessages: messages,
+        selectedMessages: messages,
+      });
+
+      const result = await recordingStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+
+      // The failed message survives in state; every confirmed one is gone.
+      const state = recordingStore.getState().message;
+      expect(state.messages.map((m: Message) => m.id)).toEqual(['msg-3']);
+      expect(state.filteredMessages.map((m: Message) => m.id)).toEqual(['msg-3']);
+      expect(result.payload).toEqual(['msg-1', 'msg-2', 'msg-4', 'msg-5']);
+
+      // #212 warning contract survives the direct-service-call refactor.
+      const warning = vi.mocked(addStatusEntry).mock.calls.find(
+        ([p]) => p.level === 'warning' && /Couldn't delete message msg-3.*HTTP 403/.test(p.message),
+      );
+      expect(warning).toBeTruthy();
+    });
+
+    it('flushes pending confirmed deletions before parking on pause', async () => {
+      const mockDiscordService = {
+        deleteMessage: vi.fn().mockResolvedValue({ success: true }),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+
+      // waitWhilePaused is mocked to resolve immediately, so a paused run
+      // still progresses — what matters is that each iteration flushes the
+      // pending batch before the pause wait, so state never lags reality
+      // while the user is paused.
+      const messages = createMockMessages(3);
+      const { recordingStore, actionTypes } = await createRecordingStoreWithApp(
+        {
+          ...initialMessageState,
+          messages,
+          filteredMessages: messages,
+          selectedMessages: messages,
+        },
+        { discrubPaused: true },
+      );
+
+      await recordingStore.dispatch(
+        deleteMessages({ messages, channelId: 'ch-1', token: 'token' })
+      );
+
+      const state = recordingStore.getState().message;
+      expect(state.messages).toHaveLength(0);
+      // Pre-pause flushes for iterations 2 and 3, plus the final flush —
+      // every confirmed deletion lands without waiting for a full batch.
+      expect(actionTypes.filter((t) => t === 'message/messagesRemoved')).toHaveLength(3);
     });
   });
 

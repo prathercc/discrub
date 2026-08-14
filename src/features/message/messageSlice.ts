@@ -93,6 +93,18 @@ export const deleteMessage = createAsyncThunk(
 );
 
 /**
+ * #183: how many confirmed deletions accumulate before the bulk-delete loop
+ * flushes them to state via `messagesRemoved`. Each state write replaces the
+ * `messages`/`filteredMessages`/`selectedMessages` array identities, which
+ * makes MessageFeed rebuild its chunking memo and re-measure the virtualizer
+ * (O(N) work). Per-message writes made a 1000-message delete O(N·D) — the
+ * reported "page unresponsive" freeze. 25 keeps the table visibly draining
+ * (a flush every few seconds at typical delete delays) while cutting the
+ * O(N) re-renders by 25x.
+ */
+export const DELETE_BATCH_SIZE = 25;
+
+/**
  * Delete multiple messages
  */
 export const deleteMessages = createAsyncThunk(
@@ -111,42 +123,70 @@ export const deleteMessages = createAsyncThunk(
   ) => {
     try {
       dispatch(showOperationTip('Delete Operation Queued'));
+      const discordService = getDiscordService();
       const deletedIds: string[] = [];
+
+      // #183: confirmed-deleted ids not yet applied to state. Flushed as one
+      // `messagesRemoved` batch every DELETE_BATCH_SIZE deletions, before
+      // parking on pause, and (via `finally`) on every loop exit — normal
+      // completion, cancel breaks, or an unexpected throw — so no confirmed
+      // deletion is ever lost from state.
+      let pendingRemovals: string[] = [];
+      const flushPendingRemovals = () => {
+        if (pendingRemovals.length === 0) return;
+        dispatch(messageSlice.actions.messagesRemoved(pendingRemovals));
+        pendingRemovals = [];
+      };
 
       // Get delay settings once before loop
       const state = getState() as RootState;
       const deleteDelay = selectDeleteDelay(state);
       const delayModifier = selectDelayModifier(state);
 
-      for (let i = 0; i < messages.length; i++) {
-        const message = messages[i];
+      try {
+        for (let i = 0; i < messages.length; i++) {
+          const message = messages[i];
 
-        // Check pause/cancel before each iteration
-        await waitWhilePaused(getState as () => RootState);
-        if (checkCancelled(getState as () => RootState)) break;
+          // Check pause/cancel before each iteration. Flush before parking on
+          // pause so the table reflects every confirmed deletion while paused.
+          if ((getState() as RootState).app.discrubPaused) flushPendingRemovals();
+          await waitWhilePaused(getState as () => RootState);
+          if (checkCancelled(getState as () => RootState)) break;
 
-        try {
-          await dispatch(deleteMessage({ messageId: message.id, channelId, token })).unwrap();
-          deletedIds.push(message.id);
+          try {
+            // #183: call the service directly instead of dispatching the
+            // single-message `deleteMessage` thunk — its fulfilled reducer
+            // rewrites all three message arrays per message, which is exactly
+            // the per-deletion O(N) work this batch path exists to avoid.
+            const response = await discordService.deleteMessage(token, message.id, channelId);
+            if (!response.success) {
+              throw new Error(withHttpStatus('Failed to delete message', response.status));
+            }
+            deletedIds.push(message.id);
+            pendingRemovals.push(message.id);
+            if (pendingRemovals.length >= DELETE_BATCH_SIZE) flushPendingRemovals();
 
-          // Apply delay between deletions (skip after the last one)
-          if (i < messages.length - 1) {
-            const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
+            // Apply delay between deletions (skip after the last one)
+            if (i < messages.length - 1) {
+              const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
 
-            const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
-            if (wasCancelled) break;
+              const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState as () => RootState);
+              if (wasCancelled) break;
+            }
+          } catch (error) {
+            // #212: surface the failure (now carrying the HTTP status) in the
+            // status log, not just the console — a status-log entry is what a
+            // user can screenshot, which is exactly what #199 has been missing.
+            const reason = error instanceof Error ? error.message : String(error);
+            console.error(`Failed to delete message ${message.id}:`, error);
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `Couldn't delete message ${message.id}: ${reason}`,
+            }));
           }
-        } catch (error) {
-          // #212: surface the failure (now carrying the HTTP status) in the
-          // status log, not just the console — a status-log entry is what a
-          // user can screenshot, which is exactly what #199 has been missing.
-          const reason = error instanceof Error ? error.message : String(error);
-          console.error(`Failed to delete message ${message.id}:`, error);
-          dispatch(addStatusEntry({
-            level: 'warning',
-            message: `Couldn't delete message ${message.id}: ${reason}`,
-          }));
         }
+      } finally {
+        flushPendingRemovals();
       }
 
       if (deletedIds.length > 0) {
@@ -2573,6 +2613,19 @@ const messageSlice = createSlice({
     selectAllMessages: (state) => {
       state.selectedMessages = [...state.filteredMessages];
     },
+    // #183: batched removal used by the bulk-delete loop. One Set lookup +
+    // one filter pass per array for the whole batch, instead of a full
+    // three-array rewrite per deleted message (the per-message
+    // `deleteMessage.fulfilled` path). Final state is identical to applying
+    // the same ids one at a time — removal by id is order-independent.
+    messagesRemoved: (state, action: PayloadAction<string[]>) => {
+      if (action.payload.length === 0) return;
+      const ids = new Set(action.payload);
+      const container = getActiveContainer(state);
+      container.messages = container.messages.filter((m) => !ids.has(m.id));
+      container.filteredMessages = container.filteredMessages.filter((m) => !ids.has(m.id));
+      container.selectedMessages = container.selectedMessages.filter((m) => !ids.has(m.id));
+    },
     deselectAllMessages: (state) => {
       state.selectedMessages = [];
     },
@@ -3297,6 +3350,7 @@ export const {
   toggleMessageSelection,
   selectAllMessages,
   deselectAllMessages,
+  messagesRemoved,
   setSearchCriteria,
   setRefineCriteria,
   clearRefineCriteria,

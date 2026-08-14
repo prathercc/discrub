@@ -120,7 +120,11 @@ const StatusPanel = () => {
     [panelHeight],
   );
 
-  const visibleEntries = entries.slice(-visibleCount);
+  // #183: memoize the window slice itself. A bare `entries.slice(...)` made
+  // a fresh array identity every render, so the sessionGroups memo below
+  // never hit — O(visibleCount) regrouping on every re-render of the panel
+  // (i.e. per status line during long operations).
+  const visibleEntries = useMemo(() => entries.slice(-visibleCount), [entries, visibleCount]);
   const hasMore = visibleCount < count;
 
   // Session grouping (#126): contiguous-by-sessionId. Current session
