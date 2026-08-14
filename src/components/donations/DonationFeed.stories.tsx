@@ -35,11 +35,11 @@ export const ManyDonations: Story = {
 export const AllTiers: Story = {
   args: {
     donations: [
-      { donorId: 'd1', transactionId: 't1', timestamp: new Date().toISOString(), type: 'Tip', fromName: 'Diamond Donor', message: 'Incredible work!', amount: 150, currency: 'USD' },
-      { donorId: 'd2', transactionId: 't2', timestamp: new Date(Date.now() - 86400000).toISOString(), type: 'Tip', fromName: 'Platinum Donor', message: '', amount: 75, currency: 'USD' },
-      { donorId: 'd3', transactionId: 't3', timestamp: new Date(Date.now() - 172800000).toISOString(), type: 'Tip', fromName: 'Gold Donor', message: 'Great tool!', amount: 25, currency: 'USD' },
-      { donorId: 'd4', transactionId: 't4', timestamp: new Date(Date.now() - 259200000).toISOString(), type: 'Tip', fromName: 'Silver Donor', message: '', amount: 10, currency: 'USD' },
-      { donorId: 'd5', transactionId: 't5', timestamp: new Date(Date.now() - 345600000).toISOString(), type: 'Tip', fromName: 'Copper Donor', message: '', amount: 3, currency: 'USD' },
+      { donorId: 'd1', transactionId: 't1', timestamp: new Date().toISOString(), type: 'Tip', fromName: 'Gigabyte Donor', message: 'Incredible work!', amount: 150, currency: 'USD' },
+      { donorId: 'd2', transactionId: 't2', timestamp: new Date(Date.now() - 86400000).toISOString(), type: 'Tip', fromName: 'Megabyte Donor', message: '', amount: 75, currency: 'USD' },
+      { donorId: 'd3', transactionId: 't3', timestamp: new Date(Date.now() - 172800000).toISOString(), type: 'Tip', fromName: 'Kilobyte Donor', message: 'Great tool!', amount: 25, currency: 'USD' },
+      { donorId: 'd4', transactionId: 't4', timestamp: new Date(Date.now() - 259200000).toISOString(), type: 'Tip', fromName: 'Byte Donor', message: '', amount: 10, currency: 'USD' },
+      { donorId: 'd5', transactionId: 't5', timestamp: new Date(Date.now() - 345600000).toISOString(), type: 'Tip', fromName: 'Bit Donor', message: '', amount: 3, currency: 'USD' },
     ],
     visibleCount: 25,
   },

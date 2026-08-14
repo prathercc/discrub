@@ -28,19 +28,19 @@ const cornerTicks = (color: string, size: number, thickness: number): Record<str
 
 export function getTierSx(tier: TierInfo['tier'], isDark = true): SxProps<Theme> {
   switch (tier) {
-    // Copper — barely there
+    // Bit — barely there
     case 1:
       return {
         border: '1px solid rgba(205, 127, 50, 0.15)',
         backgroundColor: isDark ? 'rgba(205, 127, 50, 0.03)' : 'rgba(205, 127, 50, 0.04)',
       };
-    // Silver — slight hint
+    // Byte — slight hint
     case 2:
       return {
         border: '1px solid rgba(192, 192, 192, 0.25)',
         backgroundColor: isDark ? 'rgba(192, 192, 192, 0.05)' : 'rgba(192, 192, 192, 0.06)',
       };
-    // Gold — noticeable warm tint
+    // Kilobyte — noticeable warm tint
     case 3:
       return {
         position: 'relative',
@@ -50,7 +50,7 @@ export function getTierSx(tier: TierInfo['tier'], isDark = true): SxProps<Theme>
         boxShadow: '0 1px 8px rgba(255, 215, 0, 0.1)',
         ...cornerTicks('rgba(255, 215, 0, 0.45)', 8, 2),
       };
-    // Platinum — clear silver-white presence
+    // Megabyte — clear silver-white presence
     case 4:
       return {
         position: 'relative',
@@ -60,7 +60,7 @@ export function getTierSx(tier: TierInfo['tier'], isDark = true): SxProps<Theme>
         boxShadow: '0 2px 10px rgba(229, 228, 226, 0.12)',
         ...cornerTicks('rgba(229, 228, 226, 0.55)', 10, 2),
       };
-    // Diamond — unmistakable cyan glow
+    // Gigabyte — unmistakable cyan glow
     case 5:
       return {
         position: 'relative',

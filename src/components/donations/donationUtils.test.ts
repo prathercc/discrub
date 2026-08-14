@@ -16,29 +16,29 @@ const mockDonation = (overrides: Partial<Donation> = {}): Donation => ({
 });
 
 describe('getTierInfo', () => {
-  it('should return Copper for amounts under $5', () => {
-    expect(getTierInfo(0)).toEqual({ tier: 1, name: 'Copper', color: '#cd7f32' });
-    expect(getTierInfo(4.99)).toEqual({ tier: 1, name: 'Copper', color: '#cd7f32' });
+  it('should return Bit for amounts under $5', () => {
+    expect(getTierInfo(0)).toEqual({ tier: 1, name: 'Bit', color: '#cd7f32' });
+    expect(getTierInfo(4.99)).toEqual({ tier: 1, name: 'Bit', color: '#cd7f32' });
   });
 
-  it('should return Silver for $5-$19', () => {
-    expect(getTierInfo(5)).toEqual({ tier: 2, name: 'Silver', color: '#c0c0c0' });
-    expect(getTierInfo(19.99)).toEqual({ tier: 2, name: 'Silver', color: '#c0c0c0' });
+  it('should return Byte for $5-$19', () => {
+    expect(getTierInfo(5)).toEqual({ tier: 2, name: 'Byte', color: '#c0c0c0' });
+    expect(getTierInfo(19.99)).toEqual({ tier: 2, name: 'Byte', color: '#c0c0c0' });
   });
 
-  it('should return Gold for $20-$49', () => {
-    expect(getTierInfo(20)).toEqual({ tier: 3, name: 'Gold', color: '#ffd700' });
-    expect(getTierInfo(49.99)).toEqual({ tier: 3, name: 'Gold', color: '#ffd700' });
+  it('should return Kilobyte for $20-$49', () => {
+    expect(getTierInfo(20)).toEqual({ tier: 3, name: 'Kilobyte', color: '#ffd700' });
+    expect(getTierInfo(49.99)).toEqual({ tier: 3, name: 'Kilobyte', color: '#ffd700' });
   });
 
-  it('should return Platinum for $50-$99', () => {
-    expect(getTierInfo(50)).toEqual({ tier: 4, name: 'Platinum', color: '#e5e4e2' });
-    expect(getTierInfo(99.99)).toEqual({ tier: 4, name: 'Platinum', color: '#e5e4e2' });
+  it('should return Megabyte for $50-$99', () => {
+    expect(getTierInfo(50)).toEqual({ tier: 4, name: 'Megabyte', color: '#e5e4e2' });
+    expect(getTierInfo(99.99)).toEqual({ tier: 4, name: 'Megabyte', color: '#e5e4e2' });
   });
 
-  it('should return Diamond for $100+', () => {
-    expect(getTierInfo(100)).toEqual({ tier: 5, name: 'Diamond', color: '#b9f2ff' });
-    expect(getTierInfo(500)).toEqual({ tier: 5, name: 'Diamond', color: '#b9f2ff' });
+  it('should return Gigabyte for $100+', () => {
+    expect(getTierInfo(100)).toEqual({ tier: 5, name: 'Gigabyte', color: '#b9f2ff' });
+    expect(getTierInfo(500)).toEqual({ tier: 5, name: 'Gigabyte', color: '#b9f2ff' });
   });
 });
 

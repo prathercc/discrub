@@ -1,14 +1,24 @@
 import { differenceInDays, parseISO, subDays, isAfter } from 'date-fns';
+import { TIERS, getTier } from '@pratherbytecraft/contributions';
 import type { Donation } from 'discrub-core/types/discrub-types';
 import { LeaderboardPeriod } from './donationTypes';
 import type { TierInfo, AggregatedDonor, SubscriberInfo } from './donationTypes';
 
+/**
+ * #231: tier names/colors/thresholds come from the canonical Prather
+ * Bytecraft byte ladder (`@pratherbytecraft/contributions`) — the same
+ * source the company site's Supporter Constellation and the GitHub
+ * Sponsors tiers read. Numeric `tier` stays 1 (Bit) → 5 (Gigabyte),
+ * matching the pre-#231 metal-ladder numbering (TIERS is ordered
+ * highest-first).
+ */
 export function getTierInfo(dollars: number): TierInfo {
-  if (dollars >= 100) return { tier: 5, name: 'Diamond', color: '#b9f2ff' };
-  if (dollars >= 50) return { tier: 4, name: 'Platinum', color: '#e5e4e2' };
-  if (dollars >= 20) return { tier: 3, name: 'Gold', color: '#ffd700' };
-  if (dollars >= 5) return { tier: 2, name: 'Silver', color: '#c0c0c0' };
-  return { tier: 1, name: 'Copper', color: '#cd7f32' };
+  const tier = getTier(dollars);
+  return {
+    tier: (TIERS.length - TIERS.indexOf(tier)) as TierInfo['tier'],
+    name: tier.name,
+    color: tier.color,
+  };
 }
 
 export function getRelativeDate(dateStr: string, now: Date = new Date()): string {

@@ -39,23 +39,23 @@ export default meta;
 
 type Story = StoryObj<typeof DonationCard>;
 
-export const CopperTier: Story = {
+export const BitTier: Story = {
   args: { donation: { ...baseDonation, amount: 3 }, index: 0 },
 };
 
-export const SilverTier: Story = {
+export const ByteTier: Story = {
   args: { donation: { ...baseDonation, amount: 10 }, index: 0 },
 };
 
-export const GoldTier: Story = {
+export const KilobyteTier: Story = {
   args: { donation: { ...baseDonation, amount: 25 }, index: 0 },
 };
 
-export const PlatinumTier: Story = {
+export const MegabyteTier: Story = {
   args: { donation: { ...baseDonation, amount: 75 }, index: 0 },
 };
 
-export const DiamondTier: Story = {
+export const GigabyteTier: Story = {
   args: { donation: { ...baseDonation, amount: 150 }, index: 0 },
 };
 

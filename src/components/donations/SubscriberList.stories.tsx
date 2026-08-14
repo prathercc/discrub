@@ -62,8 +62,8 @@ export const AllActive: Story = {
 export const AllInactive: Story = {
   args: {
     donations: [
-      ...generateSubPayments('d1', 'Lapsed Diamond', 10, 6),
-      ...generateSubPayments('d2', 'Lapsed Silver', 2, 4),
+      ...generateSubPayments('d1', 'Lapsed Gigabyte', 10, 6),
+      ...generateSubPayments('d2', 'Lapsed Byte', 2, 4),
     ],
     visibleCount: 25,
   },
