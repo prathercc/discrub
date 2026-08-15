@@ -54,6 +54,8 @@ Multi-select mode is available across the Server, Channel, and DM lists, with a 
 
 Group DMs are visually distinct from one-on-one conversations: they carry a Group chip in the DM list, show the group's own name when one is set, and purge confirmations label them as groups so you always know how many people a bulk action touches.
 
+Conversations Discord no longer lists can still be reached: **Open DM by ID** (in the DM list) accepts a DM channel ID and opens the conversation directly, including closed DMs and DMs with deleted accounts, so their history stays exportable and purgeable.
+
 ![Server & Channel Browsing](docs/screenshots/browsing/channel-list.png)
 ![DM Browsing](docs/screenshots/browsing/dm-list.png)
 
@@ -140,6 +142,11 @@ Export messages in five formats with granular control:
 - Sort order (oldest/newest first)
 - README.html (HTML/CSV/JSON/Media exports) or README.txt (Plain Text exports) bundled with every export explaining how to navigate the files
 - Large HTML exports stream each page as separate chunks so multi-thousand-message channels no longer hit the V8 string-size cap mid-run
+- If a single message fails to render, the export keeps going: the message gets a placeholder row (in every format) and a warning naming its ID, so one bad message can't sink a multi-hour run
+- Media downloads abort only when they truly stall (no bytes arriving for a sustained period), so large attachments on slow connections finish instead of being cut off by a flat timeout
+- Failed media downloads automatically retry on Discord's alternate CDN endpoint, with the HTTP status included in the warning (this also fixes WebP attachments silently failing to download)
+- Downloaded media files are stamped with their message's original date as the file modified date, matching Discrub Classic behavior
+- Group DM exports are foldered under the group's actual name, and orphaned GIF thumbnails no longer produce broken media entries
 - Oversized exports split into multiple zip parts (`export.zip`, `export-part2.zip`, ...) under a safe size, so a single archive can't corrupt past the 4 GB / 65,535-entry limit
 - Saved presets can remember an optional date range, so a recurring export doesn't need the dates re-entered each time
 - A screen wake lock is held during long exports and purges, so the run doesn't stall when your display sleeps
@@ -157,6 +164,11 @@ Delete messages and reactions across one or multiple channels with user targetin
 - **Clear All Reactions** (admin) — bulk remove all reactions using a single API call per message
 
 Features: multi-channel selection with one-click "Select all", filters integration (narrow by author, content, date, has-types) for both bulk export and bulk purge, retain-attachments option, thread-aware discovery (auto-unarchives during purge and re-archives when done), DM support (own messages only), pause/resume/cancel.
+
+Two safeguard options let a purge leave things alone:
+
+- **Don't wake archived threads** skips archived threads entirely instead of un-archiving them to purge inside (Discord requires un-archiving to delete, which makes old threads visibly reappear for other members). Skipped threads are counted loudly in the summary.
+- **Keep messages with files or links** preserves any message carrying an attachment or a link, deleting only the plain-text chatter around them. Preserved counts appear in the purge summary.
 
 Purging a **deleted account's** messages works even though Discord's search returns nothing for deleted users: Discrub detects the empty search, warns you, and falls back to a full message-history scan so those messages are still found and removed.
 
@@ -197,6 +209,7 @@ Full support for forum/media channels (Discord channel types 15 and 16):
 - Load thread messages into the message table
 - Export forum threads individually or as part of bulk exports
 - Discovers active and archived threads (public and private), so freshly-active posts show up alongside the archive
+- Bulk exports expand forum channels into their posts automatically: every post is exported as its own unit and the Discord Layout shell groups them under the forum's name, so selecting a forum in a bulk export actually captures its content
 
 The **Load Thread** modal now auto-discovers active and archived threads in the current channel and renders a clickable list, so threads whose starter message has been deleted are still reachable without having to copy a thread ID by hand. The manual ID input remains as a fallback for power users.
 
@@ -257,7 +270,7 @@ All long-running operations (export, purge, load all, delete, edit, reaction rem
 - **Resume** — continue from where you left off
 - **Cancel** — abort the operation
 
-Controls appear in the status bar whenever an operation is running.
+Controls appear in the status bar whenever an operation is running. In Focus Mode (or anywhere the status panel is hidden), a floating pause control appears during heavy operations so pausing is always within reach, and the `Space` hotkey keeps working.
 
 ### Theme Toggle
 
@@ -522,8 +535,8 @@ Discrub displays author names in the color of their highest-position role that h
 - **Redux Toolkit** for state management
 - **Material UI (MUI)** for components
 - **discrub-core** for Discord API communication
-- **Vitest** for unit testing (3800+ tests)
-- **Cypress** for E2E testing (650+ tests across 40 specs)
+- **Vitest** for unit testing (4000+ tests)
+- **Cypress** for E2E testing (740+ tests across 41 specs)
 - **Storybook** for component development (35 stories)
 
 ---

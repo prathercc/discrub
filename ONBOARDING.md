@@ -54,6 +54,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Status Log** — Terminal-style real-time operation log with color-coded entries, downloadable as a `.log` file. The panel is resizable (drag the top edge), persists history across sessions, and groups entries by session for easy review.
 - **Range Selection** — Shift+Click selects a range in the server, channel, and DM lists. In the message feed, click a checkbox and drag to sweep a range of messages, with edge auto-scroll and thread-tab support.
 - **Group DM Distinction** — Group DMs carry a Group chip, show the group's own name when one is set, and are labeled as groups in purge confirmations.
+- **Open DM by ID** — Paste a DM channel ID to open conversations Discord no longer lists, including closed DMs and DMs with deleted accounts, keeping their history exportable and purgeable.
 - **Skeleton Loading** — Smooth placeholder loading states instead of blank screens.
 - **Error Recovery** — Persistent error logging with crash recovery and downloadable error reports.
 
@@ -78,6 +79,10 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Preset Date Range | Re-enter each time | Saved presets can remember an optional date range |
 | Thread Filenames | Last write wins on collision | Auto dedupe (`_<threadId>` suffix) so duplicate-named threads keep separate files |
 | Media Breakdown | None | Per-type counts and sizes with preview |
+| Media File Dates | Downloaded files carried the message's date | Same behavior, restored: media files are stamped with the original message date |
+| Failing Message Mid-Export | Could abort the whole run | Placeholder row + warning with the message ID; the export keeps going |
+| Slow Media Downloads | Flat timeout could cut off large files | Aborts only on a true stall, so slow connections finish large attachments |
+| Forum Channels in Bulk Export | N/A | Forums expand into their posts automatically, grouped under the forum's name in the shell |
 | README in Export | No | Yes. Bundled guide explaining file structure |
 | Role Colors in HTML | Basic | Enhanced with role icon support next to author names |
 | Reply Bars in HTML | Basic | Enhanced with formatted content preview |
@@ -93,7 +98,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Batch Reaction Removal | No | Remove reactions across selected messages with emoji picker |
 | Strip Attachments Only | No | Edits messages to remove attachments without deleting text (own messages) |
 | Bulk Filters | No | Filter bulk purge by author, date range, content, has-types, mentions |
-| Archived Thread Handling | Skip with warning | Auto-unarchive → operate → restore archive state |
+| Archived Thread Handling | Skip with warning | Auto-unarchive → operate → restore archive state, or opt to skip archived threads entirely with "Don't wake archived threads" |
+| Preserve Files & Links | No | "Keep messages with files or links" deletes only plain-text chatter, preserving anything with an attachment or link |
 | Stale-Feed Reload Toast | No | One-click reload after a purge targets the visible channel |
 | Pinned Message Preservation | No | Setting the FilterModal Pinned dropdown to "False" actually preserves pinned messages, with the count reported in the status log |
 | Progress Visibility | Static counter | Status log progress label pulses on each update with adaptive milestones (5 / 25 / 100) so progress is always obvious |
@@ -187,4 +193,4 @@ All operations now show in the status log at the bottom of the screen (instead o
 
 Discrub Classic is **built into the extension** — no separate install needed. When you launch Discrub on discord.com, the splash screen lets you choose between Discrub 2.0 and Discrub Classic. Your preference is saved automatically.
 
-If you want the standalone legacy extension instead, you can download it from the [releases page](https://github.com/prathercc/discrub-ext/releases) and load it manually in your browser.
+If you want the standalone legacy extension instead, you can download it from the [releases page](https://github.com/pratherbytecraft/discrub-ext/releases) and load it manually in your browser.
