@@ -1093,6 +1093,95 @@ describe('Content Script', () => {
     });
   });
 
+  describe('Bridge Token (GitHub #9)', () => {
+    /** Simulate the MAIN-world bridge relaying a token to the content script. */
+    function relayBridgeToken(token: string | null, type = 'discrub:tokenCapture') {
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type, token },
+          origin: window.location.origin,
+          source: window,
+        })
+      );
+    }
+
+    it('should prefer the bridge token over localStorage', () => {
+      const sendResponse = vi.fn();
+      vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('"localStorage-token"');
+
+      relayBridgeToken('bridge-token');
+
+      messageListener(
+        { action: 'getToken' },
+        {} as chrome.runtime.MessageSender,
+        sendResponse
+      );
+
+      expect(sendResponse).toHaveBeenCalledWith({
+        token: 'bridge-token',
+        success: true,
+      });
+    });
+
+    it('should strip surrounding quotes from a relayed token', () => {
+      const sendResponse = vi.fn();
+      vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
+
+      relayBridgeToken('"quoted-bridge-token"', 'discrub:tokenResponse');
+
+      messageListener(
+        { action: 'getToken' },
+        {} as chrome.runtime.MessageSender,
+        sendResponse
+      );
+
+      expect(sendResponse).toHaveBeenCalledWith({
+        token: 'quoted-bridge-token',
+        success: true,
+      });
+    });
+
+    it('should fall back to localStorage when no bridge token has arrived', () => {
+      const sendResponse = vi.fn();
+      vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('"fallback-token"');
+
+      messageListener(
+        { action: 'getToken' },
+        {} as chrome.runtime.MessageSender,
+        sendResponse
+      );
+
+      expect(sendResponse).toHaveBeenCalledWith({
+        token: 'fallback-token',
+        success: true,
+      });
+    });
+
+    it('should ignore relayed messages from a foreign origin', () => {
+      const sendResponse = vi.fn();
+      vi.spyOn(Storage.prototype, 'getItem').mockReturnValue('"localStorage-token"');
+
+      window.dispatchEvent(
+        new MessageEvent('message', {
+          data: { type: 'discrub:tokenCapture', token: 'evil-token' },
+          origin: 'https://evil.example.com',
+          source: window,
+        })
+      );
+
+      messageListener(
+        { action: 'getToken' },
+        {} as chrome.runtime.MessageSender,
+        sendResponse
+      );
+
+      expect(sendResponse).toHaveBeenCalledWith({
+        token: 'localStorage-token',
+        success: true,
+      });
+    });
+  });
+
   describe('isOverlayOpen message', () => {
     it('should return false when overlay not open', () => {
       const sendResponse = vi.fn();

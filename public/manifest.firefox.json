@@ -30,6 +30,16 @@
       "js": ["content.js"],
       "run_at": "document_end",
       "all_frames": false
+    },
+    {
+      "matches": [
+        "*://discord.com/*",
+        "*://*.discord.com/*"
+      ],
+      "js": ["token-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": false
     }
   ],
 
@@ -51,7 +61,8 @@
 
   "browser_specific_settings": {
     "gecko": {
-      "id": "prathercc@gmail.com"
+      "id": "prathercc@gmail.com",
+      "strict_min_version": "128.0"
     }
   },
 

@@ -36,6 +36,55 @@ let overlayState: {
  */
 let cachedToken: string | null = null;
 
+/**
+ * Latest Discord token observed by the MAIN-world token bridge (GitHub #9).
+ * Discord no longer keeps the token in localStorage for some accounts, so the
+ * bridge captures it from Discord's own request headers and relays it here.
+ */
+let bridgeToken: string | null = null;
+
+/**
+ * Battle-test switch: when built with DISCRUB_BRIDGE_ONLY=1, the localStorage
+ * token path is disabled so the bridge is exercised on its own. Always false in
+ * shipped builds.
+ */
+const BRIDGE_ONLY =
+  (import.meta.env as Record<string, unknown>).DISCRUB_BRIDGE_ONLY === true;
+
+/** Cross-world token relay message types (shared with token-bridge.ts). */
+const TOKEN_REQUEST = 'discrub:tokenRequest';
+const TOKEN_RESPONSE = 'discrub:tokenResponse';
+const TOKEN_CAPTURE = 'discrub:tokenCapture';
+
+/**
+ * Receive tokens relayed by the MAIN-world bridge and keep the latest cached so
+ * getDiscordToken() can stay synchronous. Runs in addition to the iframe
+ * message listener below (that one ignores same-window messages).
+ */
+window.addEventListener('message', (event) => {
+  if (event.source !== window) return;
+  if (event.origin !== window.location.origin) return;
+  const data = event.data;
+  if (!data) return;
+  if (data.type === TOKEN_RESPONSE || data.type === TOKEN_CAPTURE) {
+    if (typeof data.token === 'string' && data.token.length > 0) {
+      bridgeToken = data.token.replace(/^"|"$/g, '');
+    }
+  }
+});
+
+/** Ask the MAIN-world bridge for the current token (primes bridgeToken). */
+function requestBridgeToken(): void {
+  try {
+    window.postMessage({ type: TOKEN_REQUEST }, window.location.origin);
+  } catch {
+    /* postMessage can throw in exotic contexts — ignore */
+  }
+}
+
+// Announce ourselves to the bridge on startup so it begins relaying captures.
+requestBridgeToken();
+
 /** Extension origin for secure postMessage targeting (prevents broadcast to other iframes) */
 function getExtensionOrigin(): string {
   try {
@@ -546,10 +595,25 @@ window.addEventListener('message', (event) => {
 });
 
 /**
- * Extract Discord authentication token from localStorage
+ * Resolve the Discord token, preferring the token captured by the MAIN-world
+ * bridge (which works even when Discord neuters localStorage — GitHub #9) and
+ * falling back to the legacy localStorage read.
  * @returns Discord token without quotes, or null if not found
  */
 function getDiscordToken(): string | null {
+  // Re-ask the bridge so the cache is fresh for the next call on this tab.
+  requestBridgeToken();
+  if (bridgeToken) return bridgeToken;
+  return getDiscordTokenFromLocalStorage();
+}
+
+/**
+ * Extract Discord authentication token from localStorage.
+ * @returns Discord token without quotes, or null if not found or disabled
+ */
+function getDiscordTokenFromLocalStorage(): string | null {
+  // Battle-test builds disable this path to verify the bridge stands alone.
+  if (BRIDGE_ONLY) return null;
   try {
     // Primary location: direct token key
     let token = localStorage.getItem('token');

@@ -55,6 +55,11 @@ describe('Extension Build Tests', () => {
       expect(fs.existsSync(contentPath)).toBe(true);
     });
 
+    it('should include token-bridge.js', () => {
+      const bridgePath = path.join(rootDir, 'dist-extension-chrome', 'token-bridge.js');
+      expect(fs.existsSync(bridgePath)).toBe(true);
+    });
+
     it('should include index.html', () => {
       const indexPath = path.join(rootDir, 'dist-extension-chrome', 'index.html');
       expect(fs.existsSync(indexPath)).toBe(true);
@@ -85,6 +90,14 @@ describe('Extension Build Tests', () => {
       expect(Array.isArray(manifest.content_scripts)).toBe(true);
       expect(manifest.content_scripts.length).toBeGreaterThan(0);
       expect(manifest.content_scripts[0].js).toContain('content.js');
+
+      // Check the MAIN-world token bridge (GitHub #9)
+      const bridge = manifest.content_scripts.find((cs) =>
+        cs.js.includes('token-bridge.js')
+      );
+      expect(bridge).toBeDefined();
+      expect(bridge.world).toBe('MAIN');
+      expect(bridge.run_at).toBe('document_start');
     });
   });
 
@@ -136,6 +149,17 @@ describe('Extension Build Tests', () => {
       expect(Array.isArray(manifest.content_scripts)).toBe(true);
       expect(manifest.content_scripts.length).toBeGreaterThan(0);
       expect(manifest.content_scripts[0].js).toContain('content.js');
+
+      // Check the MAIN-world token bridge (GitHub #9)
+      const bridge = manifest.content_scripts.find((cs) =>
+        cs.js.includes('token-bridge.js')
+      );
+      expect(bridge).toBeDefined();
+      expect(bridge.world).toBe('MAIN');
+      expect(bridge.run_at).toBe('document_start');
+
+      // Firefox needs 128+ for declarative world: MAIN
+      expect(manifest.browser_specific_settings.gecko.strict_min_version).toBe('128.0');
     });
   });
 

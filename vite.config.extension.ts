@@ -46,12 +46,17 @@ export default defineConfig(({ mode }) => {
           // Extension scripts
           content: resolve(__dirname, 'src/extension/content.ts'),
           background: resolve(__dirname, 'src/extension/background.ts'),
+          'token-bridge': resolve(__dirname, 'src/extension/token-bridge.ts'),
         },
 
         output: {
           entryFileNames: (chunkInfo) => {
             // Extension scripts go in root
-            if (chunkInfo.name === 'content' || chunkInfo.name === 'background') {
+            if (
+              chunkInfo.name === 'content' ||
+              chunkInfo.name === 'background' ||
+              chunkInfo.name === 'token-bridge'
+            ) {
               return '[name].js';
             }
             // App chunks go in assets/
@@ -71,6 +76,11 @@ export default defineConfig(({ mode }) => {
       'import.meta.env.EXTENSION_MODE': JSON.stringify(true),
       'import.meta.env.BROWSER': JSON.stringify(isFirefox ? 'firefox' : 'chrome'),
       'import.meta.env.VITE_DISCORD_TOKEN': JSON.stringify(''),
+      // Battle-test switch: DISCRUB_BRIDGE_ONLY=1 disables the localStorage token
+      // path so the MAIN-world bridge is verified on its own. Off in normal builds.
+      'import.meta.env.DISCRUB_BRIDGE_ONLY': JSON.stringify(
+        process.env.DISCRUB_BRIDGE_ONLY === '1',
+      ),
     },
   };
 });
