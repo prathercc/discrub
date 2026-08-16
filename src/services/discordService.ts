@@ -19,7 +19,12 @@ const getStore = () => import('@/app/store').then((m) => m.store);
  */
 export const getDiscordService = (settings?: AppSettings): DiscordService => {
   if (!discordServiceInstance || settings) {
-    discordServiceInstance = new DiscordService(settings);
+    // autoDelay off: every bulk loop in the slices already sleeps the
+    // configured search/delete delay between calls, so the service's
+    // own pre-request delay would double the effective pacing (#241).
+    // The app owns pacing for everything routed through this singleton;
+    // enrichment flows construct their own self-pacing adapters.
+    discordServiceInstance = new DiscordService(settings, { autoDelay: false });
     discordServiceInstance.onRateLimit = async (retryAfter) => {
       const store = await getStore();
       store.dispatch(addStatusEntry({

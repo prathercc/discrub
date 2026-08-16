@@ -44,36 +44,81 @@ describe('Attachment Deletion', () => {
       cy.contains('button', 'Remove All').should('be.visible');
     });
 
-    it('should trigger delete action when removing an attachment', () => {
-      // Intercept both DELETE (full message removal) and PATCH (attachment edit)
-      cy.intercept('DELETE', '**/api/v10/channels/*/messages/*', {
-        statusCode: 204,
-        body: {},
-      }).as('deleteMessage');
+    // The "Here's a screenshot" fixture message: content + 2 attachments
+    // (screenshot.png, debug-log.txt). Removing attachments from a message
+    // that keeps content is a PATCH, and the modal renders whatever the
+    // PATCH echoes back — so the mock must return a realistic message body.
+    // (These tests used to assert the dialog was simply still open after the
+    // click, which only held because the pre-#241 service slept the delete
+    // delay before the PATCH; single-shot actions are instant now.)
+    const patchedMessage = (attachments: object[]) => ({
+      id: '700000000000000006',
+      channel_id: '801000000000000001',
+      author: {
+        id: '333444555666777888',
+        username: 'bob_gamer',
+        discriminator: '0',
+        avatar: null,
+        global_name: 'Bob',
+      },
+      content: "Here's a screenshot",
+      timestamp: '2026-02-01T13:00:00.000Z',
+      edited_timestamp: '2026-02-01T13:05:00.000Z',
+      tts: false,
+      mention_everyone: false,
+      mentions: [],
+      attachments,
+      embeds: [],
+      reactions: [],
+      pinned: false,
+      type: 0,
+    });
+
+    const remainingAttachment = {
+      id: '600000000000000002',
+      filename: 'debug-log.txt',
+      size: 4096,
+      url: 'https://cdn.discordapp.com/attachments/801000000000000001/600000000000000002/debug-log.txt',
+      proxy_url: 'https://media.discordapp.net/attachments/801000000000000001/600000000000000002/debug-log.txt',
+      content_type: 'text/plain',
+    };
+
+    it('removes one attachment via PATCH and keeps the modal open with the rest', () => {
       cy.intercept('PATCH', '**/api/v10/channels/*/messages/*', {
         statusCode: 200,
-        body: {},
+        body: patchedMessage([remainingAttachment]),
       }).as('editMessage');
 
       cy.get('[aria-label="delete attachment"]').first().click();
-      // The thunk dispatches and calls the lib service
-      // Verify the button was clicked and modal updates
+
+      // The message keeps content, so removing one of two attachments is an
+      // edit (not a delete), and it must carry only the surviving attachment.
+      cy.wait('@editMessage').its('request.body.attachments').should('have.length', 1);
       cy.get('[role="dialog"]').should('be.visible');
+      cy.contains('Attachments (1)').should('be.visible');
+      cy.get('[role="dialog"]').contains('debug-log.txt').should('be.visible');
+      cy.get('[role="dialog"]').contains('screenshot.png').should('not.exist');
     });
 
-    it('should trigger delete action when clicking Remove All', () => {
-      cy.intercept('DELETE', '**/api/v10/channels/*/messages/*', {
-        statusCode: 204,
-        body: {},
-      }).as('deleteMessage');
-      cy.intercept('PATCH', '**/api/v10/channels/*/messages/*', {
-        statusCode: 200,
-        body: {},
+    it('removes all attachments via sequential PATCHes and auto-closes the emptied modal', () => {
+      let patchCount = 0;
+      cy.intercept('PATCH', '**/api/v10/channels/*/messages/*', (req) => {
+        patchCount++;
+        req.reply({
+          statusCode: 200,
+          body: patchedMessage(patchCount === 1 ? [remainingAttachment] : []),
+        });
       }).as('editMessage');
 
       cy.contains('button', 'Remove All').click();
-      // Verify the action was triggered
-      cy.get('[role="dialog"]').should('be.visible');
+
+      // Remove All walks the attachments one PATCH at a time, re-reading
+      // state between calls: the first edit keeps debug-log.txt, the second
+      // empties the list. The modal auto-closes once none remain. (Content
+      // survives, so this is never a whole-message DELETE.)
+      cy.wait('@editMessage').its('request.body.attachments').should('have.length', 1);
+      cy.wait('@editMessage').its('request.body.attachments').should('have.length', 0);
+      cy.get('[role="dialog"]').should('not.exist');
     });
   });
 

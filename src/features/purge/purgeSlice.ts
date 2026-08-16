@@ -1672,6 +1672,12 @@ async function purgeChannelReactions(
               hasMoreReactors = false;
             } else {
               reactorLastId = reactors[reactors.length - 1].id;
+              // Pace between reactor pages — the service no longer
+              // self-delays (#241). Matters when a full page contains
+              // no matching reactors, so no delete-delay ran above.
+              const pageDelay = calculateRandomDelay(searchDelay, delayModifier);
+              const wasCancelled = await cancellableDelay(pageDelay.delayMs, getState);
+              if (wasCancelled) throw new CancelledError(partialReactions());
             }
           }
         }

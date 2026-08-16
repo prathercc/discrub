@@ -200,8 +200,13 @@ describe('Reaction Deletion', () => {
   });
 
   describe('me flag optimization — skip reactions user has not reacted to', () => {
-    it('should not make DELETE calls when removing own reactions from message where me=false', () => {
-      // The fixture message has 👍 with me=false — user hasn't reacted
+    it('only DELETEs the me=true reaction, skipping emojis the user has not reacted to', () => {
+      // The fixture message carries 👍 with me=false (the user never
+      // reacted — deleting would be a guaranteed 404, so it must be
+      // skipped) and ❤️ with me=true (a legitimate delete). This test
+      // previously asserted ZERO deletes inside a 1s window, which only
+      // held because the pre-#241 service slept the delete delay before
+      // every call — the legitimate ❤️ DELETE landed after the window.
       cy.intercept({ method: 'DELETE', url: /\/reactions/ }, {
         statusCode: 204,
         body: {},
@@ -219,11 +224,14 @@ describe('Reaction Deletion', () => {
       // Click Remove
       cy.get('[role="dialog"]').contains('button', 'Remove').click();
 
-      // Wait briefly for the operation
-      cy.wait(1000);
-
-      // No DELETE calls should have been made since me=false on all reactions
-      cy.get('@deleteReaction.all').should('have.length', 0);
+      // Exactly one DELETE: the me=true ❤️, never the me=false 👍
+      cy.wait('@deleteReaction');
+      cy.get('@deleteReaction.all').should('have.length', 1);
+      cy.get('@deleteReaction.all').then((calls) => {
+        const url = (calls as unknown as Array<{ request: { url: string } }>)[0].request.url;
+        expect(url, 'targets the me=true heart').to.include(encodeURIComponent('❤️'));
+        expect(url, 'never the me=false thumbs-up').to.not.include(encodeURIComponent('👍'));
+      });
     });
   });
 

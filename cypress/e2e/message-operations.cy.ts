@@ -285,4 +285,55 @@ describe('Bulk delete batching (#183)', () => {
     cy.get('[role="dialog"]').should('not.exist');
     cy.contains('0 selected').should('be.visible');
   });
+
+  // #241: bulk operations used to pace at ~2× the configured delay — the
+  // discrub-core service slept the delete delay before every DELETE/PATCH
+  // (constructor-time settings snapshot) AND the app loop slept the same
+  // delay again between calls. The singleton now runs with autoDelay off,
+  // so the loop sleep is the only pacing. Three deletes with a 1s delay
+  // means two ~1s gaps (~2s first-to-last); the old double pacing added a
+  // further 1s pre-delay per call (~4s+), which the upper bound excludes.
+  it('paces bulk deletes at 1x the configured delay, not 2x (#241)', () => {
+    cy.window().then((win) => {
+      const store = (win as any).__store__;
+      store.dispatch({
+        type: 'app/updateAllSettings/fulfilled',
+        payload: {
+          ...store.getState().app.settings,
+          searchDelay2: '0',
+          deleteDelay2: '1',
+          delayModifier2: '0',
+        },
+      });
+    });
+
+    const deleteTimes: number[] = [];
+    cy.intercept('DELETE', `${API}/channels/*/messages/*`, (req) => {
+      deleteTimes.push(Date.now());
+      req.reply({ statusCode: 204, body: {} });
+    }).as('deleteMessage');
+
+    // 21/22/23 — unlike "Batch message 1", these don't substring-match
+    // any other row's content.
+    cy.contains('[data-testid="message-feed-row"]', 'Batch message 21').click();
+    cy.contains('[data-testid="message-feed-row"]', 'Batch message 22').click();
+    cy.contains('[data-testid="message-feed-row"]', 'Batch message 23').click();
+    cy.contains('3 selected').should('be.visible');
+
+    cy.contains('button', 'Delete').click();
+    cy.get('[role="dialog"]').contains('button', 'Delete').click();
+
+    cy.window({ timeout: 30000 }).should((win) => {
+      const state = (win as any).__store__.getState();
+      const msgs = (state.status.entries as { message: string }[]).map((e) => e.message);
+      expect(msgs, 'completion status entry').to.include('Deleted 3 messages');
+    });
+
+    cy.then(() => {
+      expect(deleteTimes, 'three DELETE requests').to.have.length(3);
+      const firstToLast = deleteTimes[2] - deleteTimes[0];
+      expect(firstToLast, 'two ~1s gaps, no hidden service pre-delay')
+        .to.be.within(1800, 3400);
+    });
+  });
 });

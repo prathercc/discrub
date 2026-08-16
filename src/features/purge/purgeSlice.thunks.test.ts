@@ -2442,6 +2442,43 @@ describe('purgeSlice thunks', () => {
       expect(mockDeleteReaction).toHaveBeenCalledTimes(2);
     });
 
+    it('paces between reactor pages even when no reactors match (#241)', async () => {
+      // No reactor ever matches, so the delete-delay sleep never runs.
+      // The service no longer self-delays (#241), so reactor-page
+      // pagination must pace itself: a two-page walk sleeps exactly one
+      // more time than a one-page walk of the same purge.
+      const nonTarget = (i: number) => ({ id: `other${i}`, username: `other${i}` }) as User;
+
+      const runPurge = async (pages: User[][]) => {
+        const message = mockMessageWithReactions('m1', [
+          { emoji: { name: '🔥' }, count: 150 },
+        ]);
+        setupFetchMessages([[message]]);
+        let call = 0;
+        mockGetReactions.mockImplementation(() => {
+          const page = pages[Math.min(call, pages.length - 1)];
+          call++;
+          return Promise.resolve({ success: true, data: page });
+        });
+        (cancellableDelay as Mock).mockClear();
+        await store.dispatch(
+          bulkPurgeChannels({
+            channels: [mockChannel('ch1', 'general')],
+            config: reactionsConfig(['no-such-user']),
+            guildId: 'guild1',
+          }),
+        );
+        return (cancellableDelay as Mock).mock.calls.length;
+      };
+
+      const onePageSleeps = await runPurge([[nonTarget(0)]]);
+      const fullPage = Array.from({ length: 100 }, (_, i) => nonTarget(i));
+      const twoPageSleeps = await runPurge([fullPage, [nonTarget(200)]]);
+
+      expect(mockDeleteReaction).not.toHaveBeenCalled();
+      expect(twoPageSleeps).toBe(onePageSleeps + 1);
+    });
+
     it('handles messages with multiple emoji reactions', async () => {
       const message = mockMessageWithReactions('m1', [
         { emoji: { name: '👍' }, count: 1 },

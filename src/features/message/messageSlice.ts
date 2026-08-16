@@ -524,10 +524,13 @@ export const fetchReactingUsers = createAsyncThunk(
       emoji: string;
       token: string;
     },
-    { rejectWithValue }
+    { getState, rejectWithValue }
   ) => {
     try {
       const discordService = getDiscordService();
+      const state = getState() as RootState;
+      const searchDelay = selectSearchDelay(state);
+      const delayModifier = selectDelayModifier(state);
       const allUsers: User[] = [];
       let lastId: string | null = null;
 
@@ -554,6 +557,10 @@ export const fetchReactingUsers = createAsyncThunk(
 
         // Discord returns max 100 per page
         if (users.length < 100) break;
+
+        // Pace between pages — the service no longer self-delays (#241)
+        const { delayMs } = calculateRandomDelay(searchDelay, delayModifier);
+        await cancellableDelay(delayMs, getState as () => RootState);
       }
 
       return { messageId, emoji, users: allUsers };

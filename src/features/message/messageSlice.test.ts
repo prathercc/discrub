@@ -2295,7 +2295,8 @@ describe('messageSlice', () => {
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
-      const result = await store.dispatch(
+      const appStore = await createStoreWithApp();
+      const result = await appStore.dispatch(
         fetchReactingUsers({ channelId: 'channel-1', messageId: 'msg-1', emoji: '👍', token: 'token' })
       );
 
@@ -2310,7 +2311,7 @@ describe('messageSlice', () => {
       );
     });
 
-    it('should paginate through all reacting users', async () => {
+    it('should paginate through all reacting users, pacing between pages (#241)', async () => {
       const firstPage = Array.from({ length: 100 }, (_, i) =>
         createMockUser({ id: `user-${i}`, username: `User${i}` })
       );
@@ -2323,8 +2324,11 @@ describe('messageSlice', () => {
           .mockResolvedValueOnce({ success: true, data: secondPage }),
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+      const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+      vi.mocked(cancellableDelay).mockClear();
 
-      const result = await store.dispatch(
+      const appStore = await createStoreWithApp();
+      const result = await appStore.dispatch(
         fetchReactingUsers({ channelId: 'channel-1', messageId: 'msg-1', emoji: '👍', token: 'token' })
       );
 
@@ -2336,6 +2340,9 @@ describe('messageSlice', () => {
       expect(mockDiscordService.getReactions).toHaveBeenCalledWith(
         'token', 'channel-1', 'msg-1', '👍', 0, 'user-99'
       );
+      // The service no longer self-delays, so the loop paces between
+      // pages itself: one delay for two pages (none after the last).
+      expect(cancellableDelay).toHaveBeenCalledTimes(1);
     });
 
     it('should handle API failure', async () => {
@@ -2344,7 +2351,8 @@ describe('messageSlice', () => {
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
-      const result = await store.dispatch(
+      const appStore = await createStoreWithApp();
+      const result = await appStore.dispatch(
         fetchReactingUsers({ channelId: 'channel-1', messageId: 'msg-1', emoji: '👍', token: 'token' })
       );
 
@@ -2360,7 +2368,8 @@ describe('messageSlice', () => {
       };
       vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
-      const result = await store.dispatch(
+      const appStore = await createStoreWithApp();
+      const result = await appStore.dispatch(
         fetchReactingUsers({ channelId: 'channel-1', messageId: 'msg-1', emoji: '👍', token: 'token' })
       );
 
