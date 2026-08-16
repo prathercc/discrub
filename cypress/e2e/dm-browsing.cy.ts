@@ -123,16 +123,12 @@ describe('DM Browsing', () => {
       cy.get('[data-testid="open-dm-by-id-confirm"]').click();
     };
 
-    // All failure modes surface the dialog's single inline error string —
-    // the distinct rejection payloads ('No access to this channel',
-    // 'Channel not found', 'Channel is not a DM') are Redux-level and
-    // covered by dmSlice unit tests. Here we assert the user-facing
-    // outcome: dialog stays open with the error, nothing gets upserted
-    // into the list, nothing gets selected.
-    const expectInlineFailure = () => {
-      cy.contains(
-        "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
-      ).should('be.visible');
+    // #242: each failure mode surfaces its own inline guidance, mapped in
+    // DMList from the thunk's distinct rejection payloads. Beyond the
+    // message we assert the shared user-facing outcome: dialog stays open,
+    // nothing gets upserted into the list, nothing gets selected.
+    const expectInlineFailure = (message: string) => {
+      cy.contains(message).should('be.visible');
       cy.get('[data-testid="open-dm-by-id-input"]').should('exist');
       cy.window().then((win) => {
         const state = (win as any).__store__.getState().dm;
@@ -196,7 +192,7 @@ describe('DM Browsing', () => {
 
       submitChannelInput(CLOSED_DM_ID);
       cy.wait('@getChannelForbidden');
-      expectInlineFailure();
+      expectInlineFailure('Discord refused access to that channel.');
     });
 
     it('shows the inline error on 404 (unknown channel) and keeps the dialog open', () => {
@@ -207,7 +203,7 @@ describe('DM Browsing', () => {
 
       submitChannelInput(CLOSED_DM_ID);
       cy.wait('@getChannelMissing');
-      expectInlineFailure();
+      expectInlineFailure('Discord has no channel with that ID.');
     });
 
     it('rejects a fetched channel that is not a DM (guild text channel)', () => {
@@ -228,7 +224,7 @@ describe('DM Browsing', () => {
 
       submitChannelInput(CLOSED_DM_ID);
       cy.wait('@getGuildChannel');
-      expectInlineFailure();
+      expectInlineFailure('That ID belongs to a server channel, not a DM.');
     });
 
     it('rejects unparseable input locally without any network call', () => {

@@ -56,6 +56,26 @@ import BulkEditDialog from '@containers/PurgeView/BulkEditDialog';
 
 const PAGE_SIZE = 50;
 
+// #242: fetchDmById rejects with distinguishable payloads (see dmSlice) and
+// unwrap() rethrows them verbatim, so the caught value IS the classification.
+// Anything unrecognized (thrown Errors, transport failures) falls back to the
+// generic line.
+const OPEN_DM_ERROR_GUIDANCE: Record<string, string> = {
+  'No access to this channel':
+    "Discord refused access to that channel. It exists, but it doesn't belong to this account's conversations.",
+  'Channel not found':
+    'Discord has no channel with that ID. Check it for typos, or the conversation may have been deleted entirely.',
+  'Channel is not a DM':
+    'That ID belongs to a server channel, not a DM. Only direct message and group DM channels can be opened here.',
+};
+
+const FALLBACK_OPEN_DM_ERROR =
+  "Couldn't open that channel. Check the ID and that you were a member of the conversation.";
+
+const describeOpenDmError = (err: unknown): string =>
+  (typeof err === 'string' && OPEN_DM_ERROR_GUIDANCE[err]) ||
+  FALLBACK_OPEN_DM_ERROR;
+
 interface OpenDmByIdDialogProps {
   open: boolean;
   onClose: () => void;
@@ -102,11 +122,9 @@ const OpenDmByIdDialog = ({
       setBusy(false);
       setValue('');
       onClose();
-    } catch {
+    } catch (err) {
       setBusy(false);
-      setError(
-        "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
-      );
+      setError(describeOpenDmError(err));
     }
   };
 

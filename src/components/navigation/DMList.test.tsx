@@ -536,6 +536,61 @@ describe('DMList', () => {
       expect(store.getState().dm.dms).toHaveLength(1);
     });
 
+    // #242: the thunk's distinguishable rejection payloads must reach the
+    // dialog as distinct guidance, not the one generic line.
+    const submitId = (id: string) => {
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: id },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+    };
+
+    it('shows the missing-access message on a 403', async () => {
+      mockService(vi.fn().mockResolvedValue({ success: false, status: 403 }));
+      renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      submitId('1029384756102938475');
+      expect(
+        await screen.findByText(/Discord refused access to that channel/)
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('open-dm-by-id-input')).toBeInTheDocument();
+    });
+
+    it('shows the no-such-channel message on a 404', async () => {
+      mockService(vi.fn().mockResolvedValue({ success: false, status: 404 }));
+      renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      submitId('1029384756102938475');
+      expect(
+        await screen.findByText(/Discord has no channel with that ID/)
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('open-dm-by-id-input')).toBeInTheDocument();
+    });
+
+    it('shows the not-a-DM message for a guild channel ID', async () => {
+      mockService(
+        vi.fn().mockResolvedValue({
+          success: true,
+          data: { id: '1029384756102938475', type: 0, name: 'general' },
+        })
+      );
+      const { store } = renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      submitId('1029384756102938475');
+      expect(
+        await screen.findByText(/belongs to a server channel, not a DM/)
+      ).toBeInTheDocument();
+      // The guild channel must not sneak into the DM list either.
+      expect(store.getState().dm.dms).toHaveLength(1);
+    });
+
     it('rejects unparseable input client-side without calling the API', async () => {
       const fetchChannel = mockService(vi.fn());
       renderWithProviders(<DMList />, {
