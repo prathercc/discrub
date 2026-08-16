@@ -2,4 +2,4 @@
 # Verify: shasum -a 256 <file>  (Windows: certutil -hashfile <file> SHA256)
 a324c64714c76b6b342e18ea4f89e88712ee4fa8c719049c3ab929863c11a2bc  chrome/discrub-chrome.zip
 489038d543c97e48f9c129bb819acdcfaa8f7b8c1087aa0212e85c6c0d6bc12e  firefox/discrub-firefox.zip
-e9a069f73a80646901713292a3c262cce868a72bdd21bc912256dbbcca735717  firefox/discrub-firefox-source.zip
+fa62609533803719e8007ede5def0c1147ddf5c9fac28ea7bb578ed58ca9f0c3  firefox/discrub-firefox-source.zip

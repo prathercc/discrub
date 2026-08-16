@@ -25,6 +25,7 @@ const INCLUDE = [
   'vite.config.extension.ts',
   'index.html',
   '.env.example',
+  'ONBOARDING.md',
 ];
 
 const BUILD_MD = `# Building Discrub for Firefox
