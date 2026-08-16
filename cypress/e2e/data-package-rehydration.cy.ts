@@ -95,6 +95,8 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.contains('enriched', { timeout: 10000 }).should('exist');
     // Status log mentions completion. Copy was polished in #161 from
     // "Package rehydration complete" to "Rich data loaded for ...".
+    // Expand the panel first — #183 unmounts collapsed status rows.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains(/Rich data loaded for/i, { timeout: 10000 })
       .should('exist');
     // Banner flips to the done state with a Refresh button.
@@ -230,6 +232,8 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.contains('button', /Load rich data/i).click();
 
     // Status log surfaces the rate-limit notice from the global handler.
+    // Expand the panel first — #183 unmounts collapsed status rows.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains(/Rate limited by Discord/i, { timeout: 10000 }).should('exist');
     // Eventually the run finishes with all 4 enriched.
     cy.contains(/4 enriched/i, { timeout: 15000 }).should('exist');
@@ -337,6 +341,8 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.contains('button', /^Export$/, { timeout: 15000 }).should('not.be.disabled');
     // Status log reflects the full flow. Rehydration completion copy
     // changed in #161; export completion copy is unchanged.
+    // Expand the panel first — #183 unmounts collapsed status rows.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains(/Rich data loaded for/i).should('exist');
     cy.contains(/Package export: completed/i, { timeout: 10000 }).should('exist');
   });
@@ -528,6 +534,8 @@ describe('Data package rehydration robustness fixes (#174)', () => {
     cy.contains('button', /Load rich data/i).click();
     cy.wait('@preflight');
 
+    // Expand the panel first — #183 unmounts collapsed status rows.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains(/Channel scan matched 4 of 4 package messages/i, {
       timeout: 10000,
     }).should('exist');
@@ -676,6 +684,8 @@ describe('Data package rehydration robustness fixes (#174)', () => {
     cy.wait('@preflight');
     cy.wait('@around');
 
+    // Expand the panel first — #183 unmounts collapsed status rows.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains(/Rich data loaded for/i, { timeout: 10000 }).should('exist');
 
     // Exactly ONE AROUND call: for the type-19 reply that the cache skipped.
@@ -737,6 +747,8 @@ describe('Data package rehydration robustness fixes (#174)', () => {
     cy.wait('@around');
     cy.wait('@around');
     cy.wait('@around');
+    // Expand the panel first — #183 unmounts collapsed status rows.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains(/Rich data loaded for/i, { timeout: 10000 }).should('exist');
 
     cy.then(() => {

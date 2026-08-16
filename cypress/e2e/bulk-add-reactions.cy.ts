@@ -73,7 +73,9 @@ describe('Bulk Add Reactions', () => {
     cy.get('[role="dialog"]').contains('button', /^Add 1/).click();
 
     cy.wait('@addReactionForbidden');
-    // Plain-language skip copy is logged (status panel may be collapsed, so assert existence).
+    // Plain-language skip copy is logged. Expand the status panel first — #183
+    // unmounts collapsed rows, so the text is only in the DOM when expanded.
+    cy.get('[aria-label="Expand log"]').click();
     cy.contains('no permission to react').should('exist');
   });
 });
