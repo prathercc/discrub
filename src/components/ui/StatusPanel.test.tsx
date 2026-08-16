@@ -244,6 +244,28 @@ describe('StatusPanel', () => {
     vi.useRealTimers();
   });
 
+  it('renders no entry rows while collapsed (#183 unmountOnExit)', () => {
+    // MUI Collapse keeps children mounted by default; with the panel
+    // collapsed, every addStatusEntry then re-rendered up to PAGE_SIZE
+    // hidden terminal rows — the main-thread stall source during
+    // high-rate operations (reactions purge logs each removal).
+    renderWithProviders(<StatusPanel />, {
+      preloadedState: createBaseState({
+        status: {
+          ...initialStatusState,
+          entries: [
+            { id: '1', timestamp: Date.now(), level: 'info', message: 'Hidden while collapsed' },
+          ],
+        },
+      }),
+    });
+    expect(screen.queryByText('Hidden while collapsed')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('status-panel-scroll')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('STATUS LOG'));
+    expect(screen.getByTestId('status-panel-scroll')).toBeInTheDocument();
+  });
+
   it('toggles expand/collapse when clicking header', () => {
     renderWithProviders(<StatusPanel />, {
       preloadedState: createBaseState({
@@ -430,11 +452,15 @@ describe('StatusPanel', () => {
 
     it('renders the resize handle inside the expanded panel', () => {
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       expect(screen.getByTestId('status-panel-resize-handle')).toBeInTheDocument();
     });
 
     it('uses the default panel height when storage has no stored value', async () => {
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       const scroll = screen.getByTestId('status-panel-scroll');
       // Hydration runs in a useEffect; nothing in IDB → height stays at default.
       await waitFor(() =>
@@ -445,6 +471,8 @@ describe('StatusPanel', () => {
     it('hydrates the panel height from storage on mount', async () => {
       await storage.state.set(HEIGHT_KEY, 320);
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       const scroll = screen.getByTestId('status-panel-scroll');
       await waitFor(() =>
         expect(scroll.getAttribute('data-height')).toBe('320'),
@@ -455,6 +483,8 @@ describe('StatusPanel', () => {
       // viewport - 80 = 688; a 9999 stored value should land at the clamp.
       await storage.state.set(HEIGHT_KEY, 9999);
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       const scroll = screen.getByTestId('status-panel-scroll');
       await waitFor(() =>
         expect(Number(scroll.getAttribute('data-height'))).toBe(768 - 80),
@@ -464,6 +494,8 @@ describe('StatusPanel', () => {
     it('ignores a stored value below the minimum panel height', async () => {
       await storage.state.set(HEIGHT_KEY, 50);
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       const scroll = screen.getByTestId('status-panel-scroll');
       // Still default — sub-minimum stored values are rejected on hydrate.
       await waitFor(() =>
@@ -474,6 +506,8 @@ describe('StatusPanel', () => {
     it('grows the panel when the user drags the handle upward and persists on release', async () => {
       const setSpy = vi.spyOn(storage.state, 'set');
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       const handle = screen.getByTestId('status-panel-resize-handle');
       const scroll = screen.getByTestId('status-panel-scroll');
 
@@ -490,6 +524,8 @@ describe('StatusPanel', () => {
     it('clamps to the minimum panel height when the user drags downward past the floor', async () => {
       const setSpy = vi.spyOn(storage.state, 'set');
       renderWithProviders(<StatusPanel />, { preloadedState: createBaseState() });
+      // unmountOnExit (#183): panel internals only exist while expanded.
+      fireEvent.click(screen.getByText('STATUS LOG'));
       const handle = screen.getByTestId('status-panel-resize-handle');
       const scroll = screen.getByTestId('status-panel-scroll');
 

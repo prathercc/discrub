@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo, memo } from 'react';
 import {
   Typography, Box, IconButton, Tooltip, Chip, CircularProgress, Collapse, keyframes,
 } from '@mui/material';
@@ -14,7 +14,7 @@ import { selectStatusEntries, selectStatusCount, clearStatusLog, getCurrentSessi
 import { groupEntriesBySession, LEGACY_SESSION_ID } from '@features/status/statusGrouping';
 import { storage } from '@/extension/storage';
 import { selectOperationSummary } from '@features/app/operationSelectors';
-import type { StatusLevel } from '@features/status/statusTypes';
+import type { StatusLevel, StatusLogEntry } from '@features/status/statusTypes';
 import PauseResumeControls from './PauseResumeControls';
 import OperationTip from './OperationTip';
 
@@ -50,6 +50,87 @@ const terminalColors: Record<StatusLevel, string> = {
   success: '#3fb950',
   session: '#bc8cff',
 };
+
+// #183: one shared formatter — toLocaleTimeString() constructs an
+// Intl.DateTimeFormat on every call, which profiled as the single
+// hottest leaf during a high-rate operation (7% of total CPU).
+const timeFormatter = new Intl.DateTimeFormat(undefined, {
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+});
+const formatTime = (ts: number) => timeFormatter.format(ts);
+
+/**
+ * One terminal log line. Memoized (#183): appending an entry must not
+ * re-render every already-visible row — with rows re-rendering per push,
+ * a high-rate operation (reactions purge logs each removal) spent more
+ * main-thread time re-creating identical rows than doing its own work.
+ * Entry objects are immutable in the store, so identity comparison is
+ * exact; only the previous last row (loses the cursor) and the new one
+ * actually re-render.
+ */
+const EntryRow = memo(({ entry, isLast }: { entry: StatusLogEntry; isLast: boolean }) => {
+  const isSession = entry.level === 'session';
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        gap: 0.75,
+        py: '1px',
+        fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
+        fontSize: '0.68rem',
+        lineHeight: 1.5,
+        ...(isSession && {
+          borderTop: '1px solid #21262d',
+          borderBottom: '1px solid #21262d',
+          my: 0.25,
+          py: '3px',
+          bgcolor: 'rgba(188, 140, 255, 0.04)',
+        }),
+      }}
+    >
+      <Box
+        component="span"
+        sx={{ color: '#484f58', flexShrink: 0, whiteSpace: 'nowrap' }}
+      >
+        {formatTime(entry.timestamp)}
+      </Box>
+      <Box
+        component="span"
+        sx={{
+          color: terminalColors[entry.level],
+          flexShrink: 0,
+          fontWeight: 600,
+          minWidth: 65,
+        }}
+      >
+        {levelPrefixes[entry.level]}
+      </Box>
+      <Box
+        component="span"
+        sx={{ color: isSession ? '#bc8cff' : '#c9d1d9' }}
+      >
+        {entry.message}
+        {isLast && (
+          <Box
+            component="span"
+            sx={{
+              display: 'inline-block',
+              width: 6,
+              height: 12,
+              bgcolor: '#58a6ff',
+              ml: 0.5,
+              verticalAlign: 'middle',
+              animation: `${blink} 1s step-end infinite`,
+            }}
+          />
+        )}
+      </Box>
+    </Box>
+  );
+});
+EntryRow.displayName = 'EntryRow';
 
 /**
  * Terminal-style status log panel with fixed height.
@@ -201,8 +282,7 @@ const StatusPanel = () => {
     }
   }, [hasMore, count]);
 
-  const formatTime = (ts: number) =>
-    new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  // (time formatting hoisted to module scope — see `timeFormatter`)
 
   return (
     <Box sx={{ position: 'relative' }} data-tour="status-panel">
@@ -349,8 +429,11 @@ const StatusPanel = () => {
           </Tooltip>
         </Box>
 
-        {/* Log content */}
-        <Collapse in={expanded} timeout={350}>
+        {/* Log content. unmountOnExit (#183): while collapsed, the row
+            list must not exist at all — MUI Collapse keeps children
+            mounted by default, so every status entry re-rendered up to
+            PAGE_SIZE hidden terminal rows during high-rate operations. */}
+        <Collapse in={expanded} timeout={350} unmountOnExit>
           {/* Resize handle (#136) — drag up to grow, down to shrink.
               CSS max-height keeps the panel inside the viewport even if
               `panelHeight` was set by an old window size. */}
@@ -469,68 +552,13 @@ const StatusPanel = () => {
                         </Box>
                       </Box>
                       {expanded &&
-                        group.entries.map((entry) => {
-                          const isLast = entry.id === lastVisibleEntryId;
-                          const isSession = entry.level === 'session';
-                          return (
-                            <Box
-                              key={entry.id}
-                              sx={{
-                                display: 'flex',
-                                gap: 0.75,
-                                py: '1px',
-                                fontFamily: '"JetBrains Mono", "Fira Code", "Cascadia Code", monospace',
-                                fontSize: '0.68rem',
-                                lineHeight: 1.5,
-                                ...(isSession && {
-                                  borderTop: '1px solid #21262d',
-                                  borderBottom: '1px solid #21262d',
-                                  my: 0.25,
-                                  py: '3px',
-                                  bgcolor: 'rgba(188, 140, 255, 0.04)',
-                                }),
-                              }}
-                            >
-                              <Box
-                                component="span"
-                                sx={{ color: '#484f58', flexShrink: 0, whiteSpace: 'nowrap' }}
-                              >
-                                {formatTime(entry.timestamp)}
-                              </Box>
-                              <Box
-                                component="span"
-                                sx={{
-                                  color: terminalColors[entry.level],
-                                  flexShrink: 0,
-                                  fontWeight: 600,
-                                  minWidth: 65,
-                                }}
-                              >
-                                {levelPrefixes[entry.level]}
-                              </Box>
-                              <Box
-                                component="span"
-                                sx={{ color: isSession ? '#bc8cff' : '#c9d1d9' }}
-                              >
-                                {entry.message}
-                                {isLast && (
-                                  <Box
-                                    component="span"
-                                    sx={{
-                                      display: 'inline-block',
-                                      width: 6,
-                                      height: 12,
-                                      bgcolor: '#58a6ff',
-                                      ml: 0.5,
-                                      verticalAlign: 'middle',
-                                      animation: `${blink} 1s step-end infinite`,
-                                    }}
-                                  />
-                                )}
-                              </Box>
-                            </Box>
-                          );
-                        })}
+                        group.entries.map((entry) => (
+                          <EntryRow
+                            key={entry.id}
+                            entry={entry}
+                            isLast={entry.id === lastVisibleEntryId}
+                          />
+                        ))}
                     </Box>
                   );
                 })}

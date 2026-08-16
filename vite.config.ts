@@ -39,5 +39,10 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    headers: {
+      // Enables the JS self-profiling API (new Profiler(...)) in dev for
+      // main-thread jank hunts (#183). No effect on production builds.
+      'Document-Policy': 'js-profiling',
+    },
   },
 })

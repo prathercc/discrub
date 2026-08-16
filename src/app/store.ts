@@ -44,14 +44,24 @@ export const store = configureStore({
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
-      serializableCheck: {
-        // Ignore these paths in the state for serializability checks
-        // This is useful for storing Date objects or other non-serializable data
-        // export.exportCriteria holds Date bounds (#207 Arm B), like search
-        // criteria elsewhere; exclude it from the dev-only serializability check.
-        ignoredActions: ['auth/setToken', 'export/setExportCriteria', 'export/applyPreset'],
-        ignoredPaths: ['auth.token', 'export.exportCriteria'],
-      },
+      // RTK's dev-only immutable/serializable checks deep-walk the entire
+      // state tree on EVERY dispatch — O(state size) per action. They are
+      // stripped from production builds, so with Cypress driving the dev
+      // server they make the app measurably jankier than what users run
+      // (the #183 perf spec's main-thread-stall measurement was dominated
+      // by them). Disable both under Cypress for production-fidelity E2E;
+      // dev sessions and Vitest stores keep them.
+      immutableCheck: typeof window !== 'undefined' && 'Cypress' in window ? false : true,
+      serializableCheck: typeof window !== 'undefined' && 'Cypress' in window
+        ? false
+        : {
+            // Ignore these paths in the state for serializability checks
+            // This is useful for storing Date objects or other non-serializable data
+            // export.exportCriteria holds Date bounds (#207 Arm B), like search
+            // criteria elsewhere; exclude it from the dev-only serializability check.
+            ignoredActions: ['auth/setToken', 'export/setExportCriteria', 'export/applyPreset'],
+            ignoredPaths: ['auth.token', 'export.exportCriteria'],
+          },
     }).concat(settingsChangeMiddleware, errorLoggingMiddleware),
 });
 
