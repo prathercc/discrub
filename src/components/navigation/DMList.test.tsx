@@ -635,6 +635,37 @@ describe('DMList', () => {
       expect(screen.getByTestId('open-dm-by-id-input')).toBeInTheDocument();
     });
 
+    it('rejects unparseable input locally in user mode with the user-flavored message', () => {
+      const { createDm } = mockService(vi.fn(), vi.fn());
+      renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      submitUserId('not-a-user-id');
+      expect(
+        screen.getByText('Enter a 17-20 digit user ID or a discord.com/users link.')
+      ).toBeInTheDocument();
+      expect(createDm).not.toHaveBeenCalled();
+    });
+
+    it('resets to channel mode when the dialog is cancelled', () => {
+      mockService(vi.fn(), vi.fn());
+      renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      // Switch to user mode, cancel, reopen — the toggle must be back on
+      // channel mode (aria-pressed reflects MUI ToggleButton selection).
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.click(screen.getByTestId('open-dm-by-id-mode-user'));
+      expect(screen.getByTestId('open-dm-by-id-mode-user')).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(screen.getByText('Cancel'));
+
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      expect(screen.getByTestId('open-dm-by-id-mode-channel')).toHaveAttribute('aria-pressed', 'true');
+      expect(screen.getByTestId('open-dm-by-id-mode-user')).toHaveAttribute('aria-pressed', 'false');
+    });
+
     it('auto-switches to user mode when a discord.com/users link is pasted', async () => {
       const { createDm } = mockService(
         vi.fn(),
