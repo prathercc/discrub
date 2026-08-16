@@ -54,7 +54,7 @@ Multi-select mode is available across the Server, Channel, and DM lists, with a 
 
 Group DMs are visually distinct from one-on-one conversations: they carry a Group chip in the DM list, show the group's own name when one is set, and purge confirmations label them as groups so you always know how many people a bulk action touches.
 
-Conversations Discord no longer lists can still be reached: **Open DM by ID** (in the DM list) accepts a DM channel ID and opens the conversation directly, including closed DMs and DMs with deleted accounts, so their history stays exportable and purgeable.
+Conversations Discord no longer lists can still be reached: **Open DM by ID** (in the DM list) accepts a DM channel ID or a user ID and opens the conversation directly, including closed DMs and DMs with deleted accounts, so their history stays exportable and purgeable.
 
 ![Server & Channel Browsing](docs/screenshots/browsing/channel-list.png)
 ![DM Browsing](docs/screenshots/browsing/dm-list.png)

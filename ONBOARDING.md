@@ -54,7 +54,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Status Log** — Terminal-style real-time operation log with color-coded entries, downloadable as a `.log` file. The panel is resizable (drag the top edge), persists history across sessions, and groups entries by session for easy review.
 - **Range Selection** — Shift+Click selects a range in the server, channel, and DM lists. In the message feed, click a checkbox and drag to sweep a range of messages, with edge auto-scroll and thread-tab support.
 - **Group DM Distinction** — Group DMs carry a Group chip, show the group's own name when one is set, and are labeled as groups in purge confirmations.
-- **Open DM by ID** — Paste a DM channel ID to open conversations Discord no longer lists, including closed DMs and DMs with deleted accounts, keeping their history exportable and purgeable.
+- **Open DM by ID** — Paste a DM channel ID or a user ID to open conversations Discord no longer lists, including closed DMs and DMs with deleted accounts, keeping their history exportable and purgeable.
 - **Skeleton Loading** — Smooth placeholder loading states instead of blank screens.
 - **Error Recovery** — Persistent error logging with crash recovery and downloadable error reports.
 
