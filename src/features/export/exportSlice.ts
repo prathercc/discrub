@@ -75,6 +75,26 @@ export function buildUniqueFolderNames(items: { id: string; name: string }[]): M
 }
 
 /**
+ * Milestone logger for reaction enrichment (#243). ReactionEnrichmentService
+ * fires onProgress once per REACTION while `progress.current` counts
+ * MESSAGES, so a milestone message with N reactions would log the same line
+ * N times — the returned callback dedupes on the last logged value.
+ */
+export function createReactionProgressLogger(dispatch: ExportDispatch) {
+  let lastLogged = 0;
+  return (progress: { current: number; total: number }) => {
+    const milestone = progress.current === 1 || progress.current === progress.total || progress.current % 10 === 0;
+    if (milestone && progress.current !== lastLogged) {
+      lastLogged = progress.current;
+      dispatch(addStatusEntry({
+        level: 'info',
+        message: `Reactions: ${progress.current}/${progress.total} messages processed`,
+      }));
+    }
+  };
+}
+
+/**
  * Fetch reaction user data for messages if REACTIONS_ENABLED setting is true.
  * Returns the ExportReactionMap or undefined if disabled/unavailable.
  */
@@ -115,15 +135,7 @@ async function fetchReactionData(
         serverNickNameLookup: false,
         userDataRefreshRate: 0,
       },
-      onProgress: (progress) => {
-        // Only log milestones to avoid flooding the status log
-        if (progress.current === 1 || progress.current === progress.total || progress.current % 10 === 0) {
-          dispatch(addStatusEntry({
-            level: 'info',
-            message: `Reactions: ${progress.current}/${progress.total} messages processed`,
-          }));
-        }
-      },
+      onProgress: createReactionProgressLogger(dispatch),
       shouldStop: async () => {
         // Wait while paused, return true if cancelled
         await waitWhilePaused(getState);

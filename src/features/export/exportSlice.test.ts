@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import exportReducer, {
   buildUniqueFolderNames,
+  createReactionProgressLogger,
   dmExportName,
   exportMessages,
   setExportFormat,
@@ -2172,6 +2173,45 @@ describe('exportSlice', () => {
       const summaryEntry = entries.find((e) => e.message.includes('0 channels exported'));
       expect(summaryEntry?.level).toBe('warning');
       expect(summaryEntry?.message).toContain('README');
+    });
+  });
+
+  describe('createReactionProgressLogger (#243)', () => {
+    const loggedMessages = (dispatch: ReturnType<typeof vi.fn>) =>
+      dispatch.mock.calls.map(([action]) => action.payload.message);
+
+    it('logs each milestone exactly once even when onProgress repeats per reaction', () => {
+      const dispatch = vi.fn();
+      const onProgress = createReactionProgressLogger(dispatch as any);
+
+      // The service reports per REACTION: message 1 has 3 reactions, then
+      // messages 2-9 advance normally, message 10 has 5 reactions, and the
+      // final message reports twice.
+      [1, 1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 10, 11, 12, 12].forEach(
+        (current) => onProgress({ current, total: 12 }),
+      );
+
+      expect(loggedMessages(dispatch)).toEqual([
+        'Reactions: 1/12 messages processed',
+        'Reactions: 10/12 messages processed',
+        'Reactions: 12/12 messages processed',
+      ]);
+    });
+
+    it('keeps the milestone cadence (first, every 10th, last)', () => {
+      const dispatch = vi.fn();
+      const onProgress = createReactionProgressLogger(dispatch as any);
+
+      for (let current = 1; current <= 25; current++) {
+        onProgress({ current, total: 25 });
+      }
+
+      expect(loggedMessages(dispatch)).toEqual([
+        'Reactions: 1/25 messages processed',
+        'Reactions: 10/25 messages processed',
+        'Reactions: 20/25 messages processed',
+        'Reactions: 25/25 messages processed',
+      ]);
     });
   });
 });
