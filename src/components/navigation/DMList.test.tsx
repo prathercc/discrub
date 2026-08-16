@@ -430,13 +430,17 @@ describe('DMList', () => {
         dm: { dms, selectedDm: null, selectedDms: [], isLoading: false, error: null },
       });
 
-    const mockService = (fetchChannel: ReturnType<typeof vi.fn>) => {
+    const mockService = (
+      fetchChannel: ReturnType<typeof vi.fn>,
+      createDm: ReturnType<typeof vi.fn> = vi.fn(),
+    ) => {
       vi.mocked(getDiscordService).mockReturnValue({
         fetchChannel,
+        createDm,
         fetchDirectMessages: vi.fn().mockResolvedValue({ success: true, data: [] }),
         fetchMessageData: vi.fn().mockResolvedValue({ success: true, data: [] }),
       } as any);
-      return fetchChannel;
+      return { fetchChannel, createDm };
     };
 
     it('renders the Open DM by ID button in the header', () => {
@@ -459,7 +463,7 @@ describe('DMList', () => {
     });
 
     it('opens a closed DM from a pasted URL, selects it, and lists it for the session', async () => {
-      const fetchChannel = mockService(
+      const { fetchChannel } = mockService(
         vi.fn().mockResolvedValue({ success: true, data: closedDm })
       );
       const { store } = renderWithProviders(<DMList />, {
@@ -496,7 +500,7 @@ describe('DMList', () => {
     });
 
     it('accepts a raw snowflake as input', async () => {
-      const fetchChannel = mockService(
+      const { fetchChannel } = mockService(
         vi.fn().mockResolvedValue({ success: true, data: closedDm })
       );
       const { store } = renderWithProviders(<DMList />, {
@@ -591,8 +595,70 @@ describe('DMList', () => {
       expect(store.getState().dm.dms).toHaveLength(1);
     });
 
+    // #223 Facet B: user-id mode resolves the person's DM channel through
+    // createDm and rides the identical select-and-load path.
+    const submitUserId = (id: string) => {
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.click(screen.getByTestId('open-dm-by-id-mode-user'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: id },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+    };
+
+    it('opens a DM by user ID in user mode, selecting the resolved channel', async () => {
+      const { createDm } = mockService(
+        vi.fn(),
+        vi.fn().mockResolvedValue({ success: true, data: closedDm })
+      );
+      const { store } = renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      submitUserId('999888777666555444');
+      await waitFor(() => {
+        expect(store.getState().dm.selectedDm?.id).toBe(closedDm.id);
+      });
+      expect(createDm).toHaveBeenCalledWith('test-token', '999888777666555444');
+    });
+
+    it('shows the cannot-open guidance when Discord rejects the recipient', async () => {
+      mockService(vi.fn(), vi.fn().mockResolvedValue({ success: false, status: 400 }));
+      renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      submitUserId('999888777666555444');
+      expect(
+        await screen.findByText(/deleted accounts can't be messaged/)
+      ).toBeInTheDocument();
+      expect(screen.getByTestId('open-dm-by-id-input')).toBeInTheDocument();
+    });
+
+    it('auto-switches to user mode when a discord.com/users link is pasted', async () => {
+      const { createDm } = mockService(
+        vi.fn(),
+        vi.fn().mockResolvedValue({ success: true, data: closedDm })
+      );
+      const { store } = renderWithProviders(<DMList />, {
+        preloadedState: authedState([dmWithRecipient]),
+      });
+
+      // No toggle click — the pasted profile URL should flip the mode.
+      fireEvent.click(screen.getByTestId('open-dm-by-id-button'));
+      fireEvent.change(screen.getByTestId('open-dm-by-id-input'), {
+        target: { value: 'https://discord.com/users/999888777666555444' },
+      });
+      fireEvent.click(screen.getByTestId('open-dm-by-id-confirm'));
+
+      await waitFor(() => {
+        expect(store.getState().dm.selectedDm?.id).toBe(closedDm.id);
+      });
+      expect(createDm).toHaveBeenCalledWith('test-token', '999888777666555444');
+    });
+
     it('rejects unparseable input client-side without calling the API', async () => {
-      const fetchChannel = mockService(vi.fn());
+      const { fetchChannel } = mockService(vi.fn());
       renderWithProviders(<DMList />, {
         preloadedState: authedState([dmWithRecipient]),
       });

@@ -8,7 +8,10 @@ import dmReducer, {
   deselectAllDms,
   fetchDMs,
   fetchDmById,
+  fetchDmByUserId,
   parseDmChannelInput,
+  parseDmUserInput,
+  detectDmInputKind,
   selectDm,
   selectDMs,
   selectSelectedDm,
@@ -451,6 +454,123 @@ describe('dmSlice', () => {
       await store.dispatch(fetchDmById({ channelId: 'dm-y', token: 'test-token' }));
       expect(store.getState().dm.isLoading).toBe(false);
       expect(store.getState().dm.error).toBeNull();
+    });
+  });
+
+  describe('fetchDmByUserId async thunk (#223 Facet B)', () => {
+    const userDm = {
+      id: 'dm-from-user',
+      type: 1,
+      recipients: [{ id: 'user-9', username: 'ghost' }],
+    } as unknown as Channel;
+
+    const mockCreateDm = (createDm: ReturnType<typeof vi.fn>) => {
+      const svc = { createDm };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(svc as any);
+      return svc;
+    };
+
+    it('resolves the user to their DM channel and prepends it to state.dms', async () => {
+      store = createTestStore({ dm: dmReducer }, { dm: { ...initialDmState, dms: mockDMs } });
+      const svc = mockCreateDm(
+        vi.fn().mockResolvedValue({ success: true, data: userDm })
+      );
+
+      const result = await store.dispatch(
+        fetchDmByUserId({ userId: 'user-9', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmByUserId/fulfilled');
+      expect(result.payload).toEqual(userDm);
+      expect(svc.createDm).toHaveBeenCalledWith('test-token', 'user-9');
+
+      const state = store.getState().dm;
+      expect(state.dms).toHaveLength(4);
+      expect(state.dms[0]).toEqual(userDm);
+    });
+
+    it('dedupes by channel id when the DM is already listed', async () => {
+      store = createTestStore({ dm: dmReducer }, { dm: { ...initialDmState, dms: mockDMs } });
+      const existing = { ...mockDMs[1] } as Channel;
+      mockCreateDm(vi.fn().mockResolvedValue({ success: true, data: existing }));
+
+      await store.dispatch(fetchDmByUserId({ userId: 'user-2', token: 'test-token' }));
+
+      const state = store.getState().dm;
+      expect(state.dms).toHaveLength(3);
+      expect(state.dms.filter((dm: Channel) => dm.id === existing.id)).toHaveLength(1);
+    });
+
+    it('rejects with the distinguishable payload on a 400 (invalid or deleted recipient)', async () => {
+      store = createTestStore({ dm: dmReducer }, { dm: { ...initialDmState, dms: mockDMs } });
+      mockCreateDm(vi.fn().mockResolvedValue({ success: false, status: 400 }));
+
+      const result = await store.dispatch(
+        fetchDmByUserId({ userId: 'user-x', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmByUserId/rejected');
+      expect(result.payload).toBe('Cannot open a DM with this user');
+      expect(store.getState().dm.dms).toEqual(mockDMs);
+    });
+
+    it('rejects generically on other unsuccessful responses', async () => {
+      mockCreateDm(vi.fn().mockResolvedValue({ success: false, status: 500 }));
+
+      const result = await store.dispatch(
+        fetchDmByUserId({ userId: 'user-x', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmByUserId/rejected');
+      expect(result.payload).toBe('Failed to open DM');
+    });
+
+    it('rejects a non-DM response channel', async () => {
+      const guildText = { id: 'chan-1', type: 0 } as unknown as Channel;
+      mockCreateDm(vi.fn().mockResolvedValue({ success: true, data: guildText }));
+
+      const result = await store.dispatch(
+        fetchDmByUserId({ userId: 'user-x', token: 'test-token' })
+      );
+
+      expect(result.type).toBe('dm/fetchDmByUserId/rejected');
+      expect(result.payload).toBe('Channel is not a DM');
+    });
+
+    it('never touches the shared isLoading/error state', async () => {
+      mockCreateDm(vi.fn().mockImplementation(() => new Promise(() => {})));
+      store.dispatch(fetchDmByUserId({ userId: 'user-x', token: 'test-token' }));
+      expect(store.getState().dm.isLoading).toBe(false);
+
+      mockCreateDm(vi.fn().mockRejectedValue(new Error('Request failed: 400')));
+      await store.dispatch(fetchDmByUserId({ userId: 'user-y', token: 'test-token' }));
+      expect(store.getState().dm.isLoading).toBe(false);
+      expect(store.getState().dm.error).toBeNull();
+    });
+  });
+
+  describe('parseDmUserInput / detectDmInputKind (#223 Facet B)', () => {
+    it('accepts a raw 17-20 digit snowflake', () => {
+      expect(parseDmUserInput('10293847561029384')).toBe('10293847561029384');
+      expect(parseDmUserInput('10293847561029384756')).toBe('10293847561029384756');
+    });
+
+    it('extracts the user id from a discord.com/users URL', () => {
+      expect(parseDmUserInput('https://discord.com/users/1029384756102938475')).toBe('1029384756102938475');
+      expect(parseDmUserInput('https://ptb.discordapp.com/users/1029384756102938475/')).toBe('1029384756102938475');
+    });
+
+    it('rejects non-user input', () => {
+      expect(parseDmUserInput('not-an-id')).toBeNull();
+      expect(parseDmUserInput('12345')).toBeNull();
+      expect(parseDmUserInput('https://discord.com/channels/@me/1029384756102938475')).toBeNull();
+    });
+
+    it('detects URL kind, leaving raw snowflakes ambiguous', () => {
+      expect(detectDmInputKind('https://discord.com/channels/@me/1029384756102938475')).toBe('channel');
+      expect(detectDmInputKind('https://discord.com/users/1029384756102938475')).toBe('user');
+      expect(detectDmInputKind('1029384756102938475')).toBeNull();
+      expect(detectDmInputKind('gibberish')).toBeNull();
     });
   });
 

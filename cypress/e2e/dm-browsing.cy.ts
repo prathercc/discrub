@@ -237,5 +237,70 @@ describe('DM Browsing', () => {
       ).should('be.visible');
       cy.get('[data-testid="open-dm-by-id-input"]').should('exist');
     });
+
+    // #223 Facet B: user-id mode. createDm (POST /users/@me/channels)
+    // returns the existing DM channel or creates one, so a single call
+    // covers both closed and never-opened conversations.
+    describe('user-id mode (#223 Facet B)', () => {
+      const GHOST_USER_ID = '999888777666555444';
+
+      const submitUserInput = (input: string, toggleMode = true) => {
+        cy.get('[data-testid="open-dm-by-id-button"]').click({ force: true });
+        if (toggleMode) {
+          cy.get('[data-testid="open-dm-by-id-mode-user"]').click();
+        }
+        cy.get('[data-testid="open-dm-by-id-input"]').type(input);
+        cy.get('[data-testid="open-dm-by-id-confirm"]').click();
+      };
+
+      it('opens the DM for a user ID: resolves the channel, upserts and selects it', () => {
+        cy.intercept('POST', `${API}/users/@me/channels`, {
+          statusCode: 200,
+          body: closedDm,
+        }).as('createDm');
+
+        submitUserInput(GHOST_USER_ID);
+        cy.wait('@createDm').its('request.body').should('deep.equal', {
+          recipient_id: GHOST_USER_ID,
+        });
+
+        cy.get('[data-testid="open-dm-by-id-input"]').should('not.exist');
+        cy.contains('ghost_user').should('be.visible');
+        cy.wait('@getMessages');
+        cy.window().then((win) => {
+          const state = (win as any).__store__.getState().dm;
+          expect(state.selectedDm?.id).to.equal(CLOSED_DM_ID);
+        });
+      });
+
+      it('shows the cannot-open guidance on a 400 (invalid or deleted recipient)', () => {
+        cy.intercept('POST', `${API}/users/@me/channels`, {
+          statusCode: 400,
+          body: { message: 'Invalid Recipient(s)', code: 50033 },
+        }).as('createDmRejected');
+
+        submitUserInput(GHOST_USER_ID);
+        cy.wait('@createDmRejected');
+
+        cy.contains("deleted accounts can't be messaged").should('be.visible');
+        cy.get('[data-testid="open-dm-by-id-input"]').should('exist');
+        cy.window().then((win) => {
+          const state = (win as any).__store__.getState().dm;
+          expect(state.selectedDm).to.equal(null);
+        });
+      });
+
+      it('auto-switches to user mode for a pasted discord.com/users link', () => {
+        cy.intercept('POST', `${API}/users/@me/channels`, {
+          statusCode: 200,
+          body: closedDm,
+        }).as('createDm');
+
+        // No toggle click — the profile URL flips the mode by itself.
+        submitUserInput(`https://discord.com/users/${GHOST_USER_ID}`, false);
+        cy.wait('@createDm');
+        cy.contains('ghost_user').should('be.visible');
+      });
+    });
   });
 });

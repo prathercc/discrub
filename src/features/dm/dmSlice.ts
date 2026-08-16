@@ -53,6 +53,36 @@ export const parseDmChannelInput = (raw: string): string | null => {
 };
 
 /**
+ * Extract a USER snowflake from user input (#223 Facet B).
+ *
+ * Accepts either a raw 17-20 digit user ID or a pasted
+ * `discord.com/users/<id>` profile URL (discordapp.com and PTB/Canary
+ * subdomains included). Raw snowflakes are indistinguishable from channel
+ * IDs, which is why the dialog carries an explicit mode toggle — this
+ * parser just trusts the caller's choice of mode.
+ */
+export const parseDmUserInput = (raw: string): string | null => {
+  const input = raw.trim();
+  if (/^\d{17,20}$/.test(input)) return input;
+  const match = input.match(
+    /discord(?:app)?\.com\/users\/(\d{17,20})(?:[/?#]|$)/i,
+  );
+  return match ? match[1] : null;
+};
+
+/**
+ * Classify pasted input as channel- or user-flavored when it is UNAMBIGUOUS
+ * (a URL). Raw snowflakes return null — only the user knows which kind they
+ * copied, so the dialog's mode toggle decides those.
+ */
+export const detectDmInputKind = (raw: string): 'channel' | 'user' | null => {
+  const input = raw.trim();
+  if (/discord(?:app)?\.com\/channels\/@me\//i.test(input)) return 'channel';
+  if (/discord(?:app)?\.com\/users\//i.test(input)) return 'user';
+  return null;
+};
+
+/**
  * Fetch a single DM channel by ID (#240).
  *
  * GET /users/@me/channels only returns OPEN DMs — a conversation the user
@@ -110,6 +140,74 @@ export const fetchDmById = createAsyncThunk(
   }
 );
 
+/**
+ * Open (or create) the 1:1 DM channel for a USER id (#223 Facet B).
+ *
+ * `POST /users/@me/channels` with a `recipient_id` returns the existing DM
+ * channel when one exists and creates it otherwise, so this single call
+ * covers both "closed years ago" and "never messaged them" — the cases the
+ * channel-ID path (#240) can't reach without the user hunting down a
+ * channel snowflake.
+ *
+ * Same contract as fetchDmById: session-only, never touches the shared
+ * `isLoading`/`error` fields, dialog owns busy/error presentation via
+ * `.unwrap()`. Distinguishable rejection payload: 'Cannot open a DM with
+ * this user' (Discord 400, i.e. an invalid ID or a deleted account —
+ * deleted accounts cannot be messaged, which is exactly when users reach
+ * for this affordance, so the error copy calls it out).
+ */
+export const fetchDmByUserId = createAsyncThunk(
+  'dm/fetchDmByUserId',
+  async (
+    { userId, token }: { userId: string; token: string },
+    { rejectWithValue }
+  ) => {
+    try {
+      const discordService = getDiscordService();
+      const response = await discordService.createDm(token, userId);
+
+      if (!response.success || !response.data) {
+        // Discord answers an unknown or deleted recipient with a 400
+        // (Invalid Recipient), not a 404.
+        if (response.status === 400 || response.status === 403) {
+          return rejectWithValue('Cannot open a DM with this user');
+        }
+        return rejectWithValue('Failed to open DM');
+      }
+
+      const channel = response.data as Channel;
+      if (
+        channel.type !== ChannelType.DM &&
+        channel.type !== ChannelType.GROUP_DM
+      ) {
+        return rejectWithValue('Channel is not a DM');
+      }
+
+      return channel;
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to open DM'
+      );
+    }
+  }
+);
+
+// Shared fulfilled handler for the two open-DM escape hatches (#240 channel
+// id, #223B user id): dedupe by id, prepend when new.
+const upsertDmChannel = (
+  state: typeof initialDmState,
+  action: PayloadAction<Channel>,
+) => {
+  const index = state.dms.findIndex(
+    (dm: Channel) => dm.id === action.payload.id,
+  );
+  if (index >= 0) {
+    state.dms[index] = action.payload;
+  } else {
+    state.dms.unshift(action.payload);
+  }
+};
+
 const dmSlice = createSlice({
   name: 'dm',
   initialState: initialDmState,
@@ -164,20 +262,12 @@ const dmSlice = createSlice({
         state.isLoading = false;
         state.error = action.payload as string;
       })
-      // #240: upsert the fetched channel — replace in place when the DM is
-      // already listed (dedupe by id), otherwise prepend so the just-opened
-      // conversation is immediately visible at the top of the sidebar.
-      // No pending/rejected handlers on purpose (see thunk doc comment).
-      .addCase(fetchDmById.fulfilled, (state, action) => {
-        const index = state.dms.findIndex(
-          (dm: Channel) => dm.id === action.payload.id,
-        );
-        if (index >= 0) {
-          state.dms[index] = action.payload;
-        } else {
-          state.dms.unshift(action.payload);
-        }
-      });
+      // #240/#223B: upsert the fetched channel — replace in place when the
+      // DM is already listed (dedupe by id), otherwise prepend so the
+      // just-opened conversation is immediately visible at the top of the
+      // sidebar. No pending/rejected handlers on purpose (see thunk docs).
+      .addCase(fetchDmById.fulfilled, upsertDmChannel)
+      .addCase(fetchDmByUserId.fulfilled, upsertDmChannel);
   },
 });
 

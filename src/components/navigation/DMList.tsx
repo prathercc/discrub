@@ -16,6 +16,8 @@ import {
   DialogActions,
   TextField,
   Button,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import DmAvatar from '@/components/ui/DmAvatar';
 import {
@@ -36,7 +38,10 @@ import {
   selectSelectedDms,
   fetchDMs,
   fetchDmById,
+  fetchDmByUserId,
   parseDmChannelInput,
+  parseDmUserInput,
+  detectDmInputKind,
   setSelectedDm,
   toggleDmSelection,
   selectAllDms,
@@ -67,20 +72,30 @@ const OPEN_DM_ERROR_GUIDANCE: Record<string, string> = {
     'Discord has no channel with that ID. Check it for typos, or the conversation may have been deleted entirely.',
   'Channel is not a DM':
     'That ID belongs to a server channel, not a DM. Only direct message and group DM channels can be opened here.',
+  // #223B user-id mode
+  'Cannot open a DM with this user':
+    "Discord couldn't open a conversation with that user. Check the ID, and note that deleted accounts can't be messaged.",
 };
 
-const FALLBACK_OPEN_DM_ERROR =
-  "Couldn't open that channel. Check the ID and that you were a member of the conversation.";
+const OPEN_DM_FALLBACK_ERROR: Record<OpenDmInputMode, string> = {
+  channel:
+    "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
+  user: "Couldn't open a DM with that user. Check the ID and try again.",
+};
 
-const describeOpenDmError = (err: unknown): string =>
+const describeOpenDmError = (err: unknown, mode: OpenDmInputMode): string =>
   (typeof err === 'string' && OPEN_DM_ERROR_GUIDANCE[err]) ||
-  FALLBACK_OPEN_DM_ERROR;
+  OPEN_DM_FALLBACK_ERROR[mode];
+
+type OpenDmInputMode = 'channel' | 'user';
 
 interface OpenDmByIdDialogProps {
   open: boolean;
   onClose: () => void;
   /** Resolve = channel opened + selected; reject = show the inline error. */
   onOpenChannel: (channelId: string) => Promise<void>;
+  /** Same contract, user-id mode (#223B): resolves the user's DM channel. */
+  onOpenUser: (userId: string) => Promise<void>;
 }
 
 /**
@@ -95,36 +110,43 @@ const OpenDmByIdDialog = ({
   open,
   onClose,
   onOpenChannel,
+  onOpenUser,
 }: OpenDmByIdDialogProps) => {
   const [value, setValue] = useState('');
+  const [mode, setMode] = useState<OpenDmInputMode>('channel');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const handleClose = () => {
     if (busy) return;
     setValue('');
+    setMode('channel');
     setError(null);
     onClose();
   };
 
   const handleConfirm = async () => {
-    const channelId = parseDmChannelInput(value);
-    if (!channelId) {
+    const parse = mode === 'channel' ? parseDmChannelInput : parseDmUserInput;
+    const id = parse(value);
+    if (!id) {
       setError(
-        'Enter a 17-20 digit channel ID or a discord.com/channels/@me link.',
+        mode === 'channel'
+          ? 'Enter a 17-20 digit channel ID or a discord.com/channels/@me link.'
+          : 'Enter a 17-20 digit user ID or a discord.com/users link.',
       );
       return;
     }
     setBusy(true);
     setError(null);
     try {
-      await onOpenChannel(channelId);
+      await (mode === 'channel' ? onOpenChannel(id) : onOpenUser(id));
       setBusy(false);
       setValue('');
+      setMode('channel');
       onClose();
     } catch (err) {
       setBusy(false);
-      setError(describeOpenDmError(err));
+      setError(describeOpenDmError(err, mode));
     }
   };
 
@@ -134,19 +156,47 @@ const OpenDmByIdDialog = ({
       <DialogContent>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
           Closed conversations (for example, with a deleted account) never
-          appear in the DM list, but one can be opened directly using its
-          channel ID or a discord.com/channels/@me link.
+          appear in the DM list, but one can be opened directly. Use the
+          conversation's channel ID (or a discord.com/channels/@me link), or
+          the other person's user ID to open your DM with them.
         </Typography>
+        <ToggleButtonGroup
+          value={mode}
+          exclusive
+          size="small"
+          fullWidth
+          disabled={busy}
+          sx={{ mb: 1.5 }}
+          onChange={(_, next: OpenDmInputMode | null) => {
+            if (next) {
+              setMode(next);
+              setError(null);
+            }
+          }}
+        >
+          <ToggleButton
+            value="channel"
+            data-testid="open-dm-by-id-mode-channel"
+          >
+            Channel ID
+          </ToggleButton>
+          <ToggleButton value="user" data-testid="open-dm-by-id-mode-user">
+            User ID
+          </ToggleButton>
+        </ToggleButtonGroup>
         <TextField
           autoFocus
           fullWidth
           size="small"
-          label="Channel ID or link"
+          label={mode === 'channel' ? 'Channel ID or link' : 'User ID or link'}
           placeholder="e.g. 1029384756102938475"
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
             setError(null);
+            // A pasted URL is unambiguous — switch the mode to match it.
+            const detected = detectDmInputKind(e.target.value);
+            if (detected) setMode(detected);
           }}
           onKeyDown={(e) => {
             if (e.key === 'Enter') {
@@ -332,6 +382,16 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     if (!token) throw new Error('Not authenticated');
     const channel = await dispatch(fetchDmById({ channelId, token })).unwrap();
     dispatch(addStatusEntry({ level: 'info', message: `Opened DM channel ${channel.id} by ID` }));
+    void selectDmAndLoad(channel);
+  };
+
+  // #223 Facet B: resolve a USER id to their 1:1 DM channel (createDm
+  // returns the existing channel or creates one), then the identical
+  // select-and-load path as the channel-ID case.
+  const handleOpenUserById = async (userId: string) => {
+    if (!token) throw new Error('Not authenticated');
+    const channel = await dispatch(fetchDmByUserId({ userId, token })).unwrap();
+    dispatch(addStatusEntry({ level: 'info', message: `Opened DM with user ${userId}` }));
     void selectDmAndLoad(channel);
   };
 
@@ -535,6 +595,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         open={openByIdOpen}
         onClose={() => setOpenByIdOpen(false)}
         onOpenChannel={handleOpenChannelById}
+        onOpenUser={handleOpenUserById}
       />
 
     </Box>
