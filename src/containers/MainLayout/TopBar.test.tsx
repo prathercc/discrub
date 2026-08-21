@@ -3,6 +3,7 @@ import { renderWithProviders, screen, fireEvent, waitFor } from '../../test/test
 import TopBar from './TopBar';
 import { createBaseState } from '../../test/state-factories';
 import { createMockUser } from '../../test/fixtures';
+import { initialSupporterState } from '@features/supporter/supporterTypes';
 
 vi.mock('@services/discordService', () => ({
   getDiscordService: vi.fn(() => ({})),
@@ -474,6 +475,46 @@ describe('TopBar', () => {
       await waitFor(() => {
         expect(screen.getByTestId('supporter-dialog')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Supporter Badge', () => {
+    const renderWithKeyStatus = (keyStatus: 'none' | 'valid' | 'expired') =>
+      renderWithProviders(<TopBar />, {
+        preloadedState: createBaseState({
+          user: { currentUser, isLoading: false, error: null },
+          supporter: { ...initialSupporterState, initialized: true, keyStatus },
+        }),
+      });
+
+    it('should show the gift icon and no ring pip for non-supporters', () => {
+      renderWithKeyStatus('none');
+      expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
+      expect(screen.queryByTestId('supporter-avatar-pip')).toBeNull();
+      expect(screen.getByLabelText('Support Discrub')).toBeInTheDocument();
+    });
+
+    it('should swap the gift for the supporter star and show the avatar pip with a valid key', () => {
+      renderWithKeyStatus('valid');
+      expect(screen.getByTestId('supporter-badge-star')).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-avatar-pip')).toBeVisible();
+      expect(screen.getByLabelText('Discrub Supporter')).toBeInTheDocument();
+      expect(screen.queryByLabelText('Support Discrub')).toBeNull();
+    });
+
+    it('should still open the Supporter dialog from the badge', async () => {
+      const { store } = renderWithKeyStatus('valid');
+      fireEvent.click(screen.getByTestId('gift-button'));
+      expect(store.getState().supporter.dialogOpen).toBe(true);
+      await waitFor(() => {
+        expect(screen.getByTestId('supporter-dialog')).toBeInTheDocument();
+      });
+    });
+
+    it('should treat an expired key as non-supporter', () => {
+      renderWithKeyStatus('expired');
+      expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
+      expect(screen.getByLabelText('Support Discrub')).toBeInTheDocument();
     });
   });
 });

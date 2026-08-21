@@ -20,6 +20,7 @@ import {
   WarningAmber as WarningIcon,
   MoreVert as MoreIcon,
   CardGiftcard as GiftIcon,
+  Star as StarIcon,
 } from '@mui/icons-material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -38,6 +39,7 @@ import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messag
 import { findThemeDescriptor, DISCORD_DARK_ID, DISCORD_LIGHT_ID } from '@/theme/theme';
 import {
   selectGiftAttentionSeen,
+  selectIsSupporter,
   markGiftAttentionSeen,
   setSupporterDialogOpen,
 } from '@features/supporter/supporterSlice';
@@ -64,6 +66,7 @@ const TopBar = () => {
   const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
   const operationSummary = useAppSelector(selectOperationSummary);
   const giftAttentionSeen = useAppSelector(selectGiftAttentionSeen);
+  const isSupporter = useAppSelector(selectIsSupporter);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -219,21 +222,47 @@ const TopBar = () => {
                 },
               }}
             >
-              <Avatar
-                src={
-                  currentUser.avatar
-                    ? `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png`
-                    : undefined
-                }
-                sx={{
-                  width: 36,
-                  height: 36,
-                  border: (theme: Theme) => `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
-                  transition: 'border-color 200ms ease',
-                }}
-              >
-                {currentUser.username?.[0]?.toUpperCase()}
-              </Avatar>
+              <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+                <Avatar
+                  src={
+                    currentUser.avatar
+                      ? `https://cdn.discordapp.com/avatars/${currentUser.id}/${currentUser.avatar}.png`
+                      : undefined
+                  }
+                  data-supporter-ring={isSupporter || undefined}
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    // Supporter ring: the avatar border tints to the theme's
+                    // CTA accent while a valid key is present.
+                    border: (theme: Theme) =>
+                      `2px solid ${isSupporter ? theme.palette.cta.main : alpha(theme.palette.primary.main, 0.3)}`,
+                    transition: 'border-color 200ms ease',
+                  }}
+                >
+                  {currentUser.username?.[0]?.toUpperCase()}
+                </Avatar>
+                {isSupporter && (
+                  <Box
+                    data-testid="supporter-avatar-pip"
+                    sx={(theme: Theme) => ({
+                      position: 'absolute',
+                      bottom: -2,
+                      right: -2,
+                      width: 14,
+                      height: 14,
+                      borderRadius: '50%',
+                      bgcolor: 'background.paper',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: `1px solid ${alpha(theme.palette.cta.main, 0.5)}`,
+                    })}
+                  >
+                    <StarIcon sx={{ fontSize: 10, color: 'cta.main' }} />
+                  </Box>
+                )}
+              </Box>
               <Typography
                 variant="body2"
                 sx={{
@@ -244,19 +273,20 @@ const TopBar = () => {
               </Typography>
             </Box>
 
-            <Tooltip title="Support Discrub" enterDelay={0} arrow>
+            <Tooltip title={isSupporter ? 'Discrub Supporter' : 'Support Discrub'} enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={handleGiftClick}
-                aria-label="Support Discrub"
+                aria-label={isSupporter ? 'Discrub Supporter' : 'Support Discrub'}
                 data-testid="gift-button"
                 sx={(theme: Theme) => ({
                   color: 'cta.main',
                   // "Glowing gift" intrigue: subtle glow pulse plus an
                   // occasional gentle wiggle. Calms permanently after
-                  // the first open, and never plays for users who
-                  // prefer reduced motion.
-                  ...(giftAttentionSeen
+                  // the first open, never plays for users who prefer
+                  // reduced motion, and retires with the gift once the
+                  // button becomes the supporter badge.
+                  ...(giftAttentionSeen || isSupporter
                     ? {}
                     : {
                         '@keyframes giftGlow': {
@@ -276,7 +306,7 @@ const TopBar = () => {
                       }),
                 })}
               >
-                <GiftIcon />
+                {isSupporter ? <StarIcon data-testid="supporter-badge-star" /> : <GiftIcon />}
               </IconButton>
             </Tooltip>
 

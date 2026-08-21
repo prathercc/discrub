@@ -153,6 +153,30 @@ describe('Supporter platform', () => {
     cy.get('body').should('have.css', 'background-color', AMOLED_BG);
   });
 
+  it('the gift button becomes the supporter badge and the avatar gains its ring', () => {
+    visitApp();
+    cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
+    cy.get('[data-testid="supporter-avatar-pip"]').should('not.exist');
+    cy.then(() => signKey()).then((key) => {
+      claimViaDialog(key as string);
+    });
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+
+    cy.get('[data-testid="supporter-badge-star"]').should('be.visible');
+    cy.get('[data-testid="supporter-avatar-pip"]').should('be.visible');
+    cy.get('[data-testid="gift-button"]')
+      .should('have.attr', 'aria-label', 'Discrub Supporter')
+      .and('have.css', 'animation-name', 'none');
+
+    // The badge still opens the dialog, and removing the key restores the gift.
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-remove-key"]').click();
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+    cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
+    cy.get('[data-testid="supporter-avatar-pip"]').should('not.exist');
+    cy.get('[data-testid="gift-button"]').should('have.attr', 'aria-label', 'Support Discrub');
+  });
+
   it('a claimed key and theme survive a reload without contacting the server', () => {
     visitApp();
     cy.then(() => signKey()).then((key) => {
