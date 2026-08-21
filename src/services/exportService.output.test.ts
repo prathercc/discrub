@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getExportService } from './exportService';
 import { resolveExportThemeSet, defaultExportThemeSet } from './exportThemes';
+import { defaultExportFooterConfig } from './exportFooter';
 import {
   EXPORT_MESSAGES,
   EXPORT_USER_MAP,
@@ -2699,6 +2700,34 @@ describe('Phase 9: Dark/Light Mode & Responsive', () => {
       } finally {
         service.setExportThemeSet(defaultExportThemeSet());
       }
+    });
+
+    it('bakes a customized supporter footer and honors removal (slot F)', () => {
+      const service = getExportService();
+      service.setExportFooterConfig({
+        removed: false,
+        text: 'Archived by Aaron',
+        iconDataUri: 'data:image/png;base64,abc123',
+      });
+      try {
+        const html = generateHTML(EXPORT_MESSAGES);
+        expect(html).toContain('Archived by Aaron on ');
+        expect(html).toContain('src="data:image/png;base64,abc123"');
+        expect(html).not.toContain('Exported with <strong>Discrub</strong>');
+
+        service.setExportFooterConfig({ removed: true, text: '', iconDataUri: null });
+        const removedHtml = generateHTML(EXPORT_MESSAGES);
+        // The CSS rules remain; the element itself must be gone.
+        expect(removedHtml).not.toContain('<footer class="export-footer">');
+      } finally {
+        service.setExportFooterConfig(defaultExportFooterConfig());
+      }
+    });
+
+    it('default footer keeps the Discrub emphasis line', () => {
+      const html = generateHTML(EXPORT_MESSAGES);
+      expect(html).toContain('Exported with <strong>Discrub</strong> on ');
+      expect(html).toContain('export-footer-meta');
     });
 
     it('a supporter set embeds all themes in the dropdown', () => {

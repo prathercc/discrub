@@ -17,8 +17,13 @@ export type ExportDispatch = ThunkDispatch<RootState, unknown, UnknownAction>;
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
-import { selectIsSupporter } from '@features/supporter/supporterSlice';
+import { selectIsSupporter, selectSupporterFooter } from '@features/supporter/supporterSlice';
 import { resolveExportThemeSet } from '@services/exportThemes';
+import {
+  resolveExportFooterConfig,
+  defaultExportFooterConfig,
+  getDefaultFooterIconDataUri,
+} from '@services/exportFooter';
 import { addRecentExport } from '@features/history/historySlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { IsPinnedType, ChannelType } from 'discrub-core/discord-enum';
@@ -387,6 +392,31 @@ export const applyExportThemeSetFromState = (state: RootState) => {
   return themeSet;
 };
 
+/**
+ * Bake the export footer (slot F) alongside the theme set: default
+ * branding for everyone, supporter customization only with a valid key
+ * right now. Same never-fail contract as the theme helper.
+ */
+export const applyExportFooterFromState = async (state: RootState) => {
+  let config = defaultExportFooterConfig();
+  try {
+    const defaultIcon = await getDefaultFooterIconDataUri();
+    config = resolveExportFooterConfig({
+      isSupporter: selectIsSupporter(state),
+      preferences: selectSupporterFooter(state),
+      defaultIconDataUri: defaultIcon,
+    });
+  } catch {
+    /* partial store (tests) — keep the plain default */
+  }
+  try {
+    getExportService().setExportFooterConfig(config);
+  } catch {
+    /* minimal service mocks (tests) may lack the setter */
+  }
+  return config;
+};
+
 export const exportMessages = createAsyncThunk<
   { success: true },
   ExportMessagesParams,
@@ -407,6 +437,7 @@ export const exportMessages = createAsyncThunk<
     try {
       const exportService = getExportService();
       applyExportThemeSetFromState(getState());
+      await applyExportFooterFromState(getState());
 
       // Get cached user map from state
       const state = getState();
@@ -951,6 +982,7 @@ export const bulkExportChannels = createAsyncThunk<
     // Snapshot settings at start — prevents mid-operation changes from causing inconsistency
     const initialState = getState();
     const exportThemeSet = applyExportThemeSetFromState(initialState);
+    await applyExportFooterFromState(initialState);
     const searchDelay = selectSearchDelay(initialState);
     const delayModifier = selectDelayModifier(initialState);
     const cachedUserMap = selectCachedUserMap(initialState);
@@ -1283,6 +1315,7 @@ export const bulkExportDMs = createAsyncThunk<
     // Snapshot settings at start — prevents mid-operation changes from causing inconsistency
     const initialState = getState();
     const exportThemeSet = applyExportThemeSetFromState(initialState);
+    await applyExportFooterFromState(initialState);
     const searchDelay = selectSearchDelay(initialState);
     const delayModifier = selectDelayModifier(initialState);
     const cachedUserMap = selectCachedUserMap(initialState);

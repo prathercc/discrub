@@ -6,14 +6,15 @@ import { initialSupporterState } from '@features/supporter/supporterTypes';
 import { THEME_DESCRIPTORS } from '@/theme/theme';
 import type { SupporterKeyPayload } from '@services/supporterKeyService';
 
-const { stateStore } = vi.hoisted(() => ({
-  stateStore: {
+const { stateStore, mediaStore } = vi.hoisted(() => {
+  const makeAdapter = () => ({
     get: vi.fn(async () => null),
     set: vi.fn(async () => {}),
     remove: vi.fn(async () => {}),
-  },
-}));
-vi.mock('@/extension/storage', () => ({ storage: { state: stateStore } }));
+  });
+  return { stateStore: makeAdapter(), mediaStore: makeAdapter() };
+});
+vi.mock('@/extension/storage', () => ({ storage: { state: stateStore, media: mediaStore } }));
 
 const { mockVerify } = vi.hoisted(() => ({ mockVerify: vi.fn() }));
 vi.mock('@services/supporterKeyService', () => ({ verifySupporterKey: mockVerify }));
@@ -188,6 +189,54 @@ describe('SupporterDialog', () => {
     it('disables refresh when no email is stored (pasted key)', () => {
       renderDialog({ keyStatus: 'valid', payload, hasStoredEmail: false });
       expect(screen.getByTestId('supporter-refresh-key')).toBeDisabled();
+    });
+
+    it('shows footer controls with working text, toggle, and icon-clear actions', async () => {
+      const { store } = renderDialog({
+        keyStatus: 'valid',
+        payload,
+        footer: { text: null, removed: false, iconDataUri: 'data:image/png;base64,abc' },
+      });
+
+      expect(screen.getByTestId('supporter-footer-controls')).toBeInTheDocument();
+
+      fireEvent.change(screen.getByTestId('supporter-footer-text'), {
+        target: { value: 'My archive' },
+      });
+      fireEvent.blur(screen.getByTestId('supporter-footer-text'));
+      await waitFor(() => {
+        expect(store.getState().supporter.footer.text).toBe('My archive');
+      });
+
+      fireEvent.click(screen.getByTestId('supporter-footer-enabled'));
+      await waitFor(() => {
+        expect(store.getState().supporter.footer.removed).toBe(true);
+      });
+
+      expect(screen.getByTestId('supporter-footer-icon-preview')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('supporter-footer-icon-remove'));
+      await waitFor(() => {
+        expect(store.getState().supporter.footer.iconDataUri).toBeNull();
+      });
+    });
+
+    it('shows an error for a rejected icon upload (SVG)', async () => {
+      renderDialog({ keyStatus: 'valid', payload });
+
+      const input = screen.getByTestId('supporter-footer-icon-input');
+      const svg = new File(['<svg/>'], 'icon.svg', { type: 'image/svg+xml' });
+      fireEvent.change(input, { target: { files: [svg] } });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('supporter-footer-icon-error')).toHaveTextContent(
+          /PNG, JPEG, or WebP/,
+        );
+      });
+    });
+
+    it('hides footer controls from non-supporters', () => {
+      renderDialog();
+      expect(screen.queryByTestId('supporter-footer-controls')).not.toBeInTheDocument();
     });
 
     it('remove key clears supporter state back to the pitch', async () => {

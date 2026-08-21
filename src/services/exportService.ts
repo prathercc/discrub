@@ -79,6 +79,11 @@ import {
   buildContentThemeCSS,
   buildThemeSelectHtml,
 } from './exportThemes';
+import {
+  type ExportFooterConfig,
+  defaultExportFooterConfig,
+  buildExportFooterHtml,
+} from './exportFooter';
 import { getUserRoleColor, getUserRoleIcon } from '@/utils/roleColorUtils';
 
 /**
@@ -208,6 +213,20 @@ class ExportService {
 
   getExportThemeSet(): ExportThemeSet {
     return this.exportThemeSet;
+  }
+
+  /**
+   * Footer baked into generated HTML (slot F) — same baked-field
+   * pattern and lifecycle as the theme set above.
+   */
+  private exportFooterConfig: ExportFooterConfig = defaultExportFooterConfig();
+
+  setExportFooterConfig(config: ExportFooterConfig): void {
+    this.exportFooterConfig = config;
+  }
+
+  getExportFooterConfig(): ExportFooterConfig {
+    return this.exportFooterConfig;
   }
 
   /**
@@ -3199,10 +3218,25 @@ ${buildContentThemeCSS(themeSet)}
 
     /* ==== EXPORT FOOTER ==== */
     .export-footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
       text-align: center;
       padding: 32px 20px 80px;
       border-top: 1px solid var(--border-color);
       margin-top: 24px;
+    }
+
+    .export-footer-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 6px;
+      flex-shrink: 0;
+    }
+
+    .export-footer-lines {
+      text-align: left;
     }
 
     .export-footer-text {
@@ -3720,10 +3754,10 @@ ${buildContentThemeCSS(themeSet)}
       ? `<a class="nav-btn" href="${sanitizedName || channelName}-page-${pageNumber + 1}.html">Next \u2192</a>`
       : '<span class="nav-btn disabled">Next \u2192</span>'}
   </nav>` : ''}
-  <footer class="export-footer">
-    <div class="export-footer-text">Exported with <strong>Discrub</strong> on ${format(new Date(), 'MMMM d, yyyy')}</div>
-    <div class="export-footer-meta">${(exportConfig as any)?.exportFormat || 'html'} &middot; ${messages.length} messages${totalPages > 1 ? ` &middot; Page ${pageNumber} of ${totalPages}` : ''}${(exportConfig?.previewMedia !== false) ? ' &middot; Media included' : ''}</div>
-  </footer>
+${buildExportFooterHtml(this.exportFooterConfig, {
+    dateText: format(new Date(), 'MMMM d, yyyy'),
+    metaLine: `${(exportConfig as any)?.exportFormat || 'html'} &middot; ${messages.length} messages${totalPages > 1 ? ` &middot; Page ${pageNumber} of ${totalPages}` : ''}${(exportConfig?.previewMedia !== false) ? ' &middot; Media included' : ''}`,
+  })}
   <button class="jump-top" id="jump-top" title="Scroll to top" aria-label="Scroll to top">\u2191</button>
   <script type="application/json" id="export-data">${JSON.stringify(buildExportPageData(messages, pageNumber, totalPages, sanitizedName || channelName, formattingContext, reactionMap, mediaMaps?.avatarMap, cachedUserMap, guildId, formattingContext?.guildRoles as any, mediaMaps?.emojiMap, mediaMaps?.roleMap))}</script>
   <script>${generateEmbeddedJs(themeSet)}</script>

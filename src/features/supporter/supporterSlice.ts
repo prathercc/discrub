@@ -11,11 +11,15 @@ import {
   requestSupporterKey,
   SupporterClaimError,
 } from '@services/supporterClaimService';
+import type { SupporterFooterPreferences } from '@services/exportFooter';
 import {
   initialSupporterState,
   SUPPORTER_KEY_STORAGE_KEY,
   SUPPORTER_EMAIL_STORAGE_KEY,
   GIFT_ATTENTION_SEEN_STORAGE_KEY,
+  FOOTER_TEXT_STORAGE_KEY,
+  FOOTER_REMOVED_STORAGE_KEY,
+  FOOTER_ICON_MEDIA_KEY,
 } from './supporterTypes';
 
 /**
@@ -51,15 +55,24 @@ const toVerifiedState = (verification: SupporterKeyVerification): VerifiedKeySta
 export const initializeSupporter = createAsyncThunk(
   'supporter/initialize',
   async () => {
-    const [storedKey, storedEmail, giftSeen] = await Promise.all([
-      storage.state.get<string>(SUPPORTER_KEY_STORAGE_KEY),
-      storage.state.get<string>(SUPPORTER_EMAIL_STORAGE_KEY),
-      storage.state.get<boolean>(GIFT_ATTENTION_SEEN_STORAGE_KEY),
-    ]);
+    const [storedKey, storedEmail, giftSeen, footerText, footerRemoved, footerIcon] =
+      await Promise.all([
+        storage.state.get<string>(SUPPORTER_KEY_STORAGE_KEY),
+        storage.state.get<string>(SUPPORTER_EMAIL_STORAGE_KEY),
+        storage.state.get<boolean>(GIFT_ATTENTION_SEEN_STORAGE_KEY),
+        storage.state.get<string>(FOOTER_TEXT_STORAGE_KEY),
+        storage.state.get<boolean>(FOOTER_REMOVED_STORAGE_KEY),
+        storage.media.get<string>(FOOTER_ICON_MEDIA_KEY),
+      ]);
 
     const base = {
       giftAttentionSeen: giftSeen === true,
       hasStoredEmail: typeof storedEmail === 'string' && storedEmail.length > 0,
+      footer: {
+        text: typeof footerText === 'string' && footerText ? footerText : null,
+        removed: footerRemoved === true,
+        iconDataUri: typeof footerIcon === 'string' && footerIcon ? footerIcon : null,
+      } as SupporterFooterPreferences,
     };
 
     if (!storedKey) {
@@ -207,6 +220,52 @@ export const markGiftAttentionSeen = createAsyncThunk(
   },
 );
 
+/**
+ * Persist export-footer text/removed preferences (slot F). Empty text
+ * clears the stored value back to the default.
+ */
+export const updateFooterPreferences = createAsyncThunk(
+  'supporter/updateFooterPreferences',
+  async (prefs: { text?: string; removed?: boolean }) => {
+    const writes: Promise<void>[] = [];
+    let text: string | null | undefined;
+    if (prefs.text !== undefined) {
+      text = prefs.text.trim() || null;
+      writes.push(
+        text === null
+          ? storage.state.remove(FOOTER_TEXT_STORAGE_KEY)
+          : storage.state.set(FOOTER_TEXT_STORAGE_KEY, text),
+      );
+    }
+    if (prefs.removed !== undefined) {
+      writes.push(
+        prefs.removed
+          ? storage.state.set(FOOTER_REMOVED_STORAGE_KEY, true)
+          : storage.state.remove(FOOTER_REMOVED_STORAGE_KEY),
+      );
+    }
+    await Promise.all(writes);
+    return { text, removed: prefs.removed };
+  },
+);
+
+/**
+ * Persist (or clear, with null) the custom footer icon. The caller has
+ * already validated and downscaled the image to a small data URI
+ * (processFooterIconFile); the payload lives in Discrub-media.
+ */
+export const setFooterIcon = createAsyncThunk(
+  'supporter/setFooterIcon',
+  async (dataUri: string | null) => {
+    if (dataUri === null) {
+      await storage.media.remove(FOOTER_ICON_MEDIA_KEY);
+    } else {
+      await storage.media.set(FOOTER_ICON_MEDIA_KEY, dataUri);
+    }
+    return dataUri;
+  },
+);
+
 const supporterSlice = createSlice({
   name: 'supporter',
   initialState: initialSupporterState,
@@ -227,6 +286,7 @@ const supporterSlice = createSlice({
         state.payload = action.payload.payload;
         state.hasStoredEmail = action.payload.hasStoredEmail;
         state.giftAttentionSeen = action.payload.giftAttentionSeen;
+        state.footer = action.payload.footer;
       })
       .addCase(initializeSupporter.rejected, (state) => {
         // Storage failure — behave as a fresh install (free experience).
@@ -285,6 +345,13 @@ const supporterSlice = createSlice({
         // Optimistic — the animation should calm the moment the dialog
         // opens, not after the IDB write lands.
         state.giftAttentionSeen = true;
+      })
+      .addCase(updateFooterPreferences.fulfilled, (state, action) => {
+        if (action.payload.text !== undefined) state.footer.text = action.payload.text;
+        if (action.payload.removed !== undefined) state.footer.removed = action.payload.removed;
+      })
+      .addCase(setFooterIcon.fulfilled, (state, action) => {
+        state.footer.iconDataUri = action.payload;
       });
   },
 });
@@ -305,5 +372,6 @@ export const selectSupporterClaimInProgress = (state: RootState) =>
 export const selectSupporterClaimError = (state: RootState) => state.supporter.claimError;
 export const selectSupporterHasStoredEmail = (state: RootState) =>
   state.supporter.hasStoredEmail;
+export const selectSupporterFooter = (state: RootState) => state.supporter.footer;
 
 export default supporterSlice.reducer;

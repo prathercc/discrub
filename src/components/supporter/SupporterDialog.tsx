@@ -1,11 +1,14 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Box,
   Button,
+  Checkbox,
   CircularProgress,
   Collapse,
   Dialog,
   DialogContent,
+  Divider,
+  FormControlLabel,
   TextField,
   Tooltip,
   Typography,
@@ -18,6 +21,7 @@ import {
   Autorenew as RefreshIcon,
   DeleteOutline as RemoveIcon,
   VpnKey as KeyIcon,
+  FileUpload as UploadIcon,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
@@ -27,12 +31,21 @@ import {
   selectSupporterClaimInProgress,
   selectSupporterClaimError,
   selectSupporterHasStoredEmail,
+  selectSupporterFooter,
   setSupporterDialogOpen,
   claimSupporterKey,
   refreshSupporterKey,
   applyPastedSupporterKey,
   removeSupporterKey,
+  updateFooterPreferences,
+  setFooterIcon,
 } from '@features/supporter/supporterSlice';
+import {
+  DEFAULT_FOOTER_TEXT,
+  FOOTER_TEXT_MAX_LENGTH,
+  FOOTER_ICON_ACCEPTED_TYPES,
+  processFooterIconFile,
+} from '@services/exportFooter';
 import { THEME_DESCRIPTORS } from '@/theme/theme';
 import { Swatch } from '@components/settings/tabs/ThemePicker';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
@@ -59,10 +72,15 @@ const SupporterDialog = () => {
   const claimError = useAppSelector(selectSupporterClaimError);
   const hasStoredEmail = useAppSelector(selectSupporterHasStoredEmail);
 
+  const footer = useAppSelector(selectSupporterFooter);
+
   const [email, setEmail] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pastedKey, setPastedKey] = useState('');
+  const [footerTextDraft, setFooterTextDraft] = useState<string | null>(null);
+  const [iconError, setIconError] = useState<string | null>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
 
   const isSupporter = keyStatus === 'valid';
   const supporterThemes = THEME_DESCRIPTORS.filter((d) => d.tier === 'supporter');
@@ -82,6 +100,24 @@ const SupporterDialog = () => {
   const handleRefresh = () => {
     if (claimInProgress) return;
     dispatch(refreshSupporterKey());
+  };
+
+  const commitFooterText = () => {
+    if (footerTextDraft === null) return;
+    dispatch(updateFooterPreferences({ text: footerTextDraft }));
+    setFooterTextDraft(null);
+  };
+
+  const handleIconFile = async (file: File | undefined) => {
+    if (!file) return;
+    setIconError(null);
+    try {
+      const dataUri = await processFooterIconFile(file);
+      dispatch(setFooterIcon(dataUri));
+    } catch (error) {
+      setIconError(error instanceof Error ? error.message : 'That image could not be used.');
+    }
+    if (iconInputRef.current) iconInputRef.current.value = '';
   };
 
   const expiryLabel = (() => {
@@ -183,6 +219,103 @@ const SupporterDialog = () => {
                 {claimError}
               </Typography>
             )}
+
+            <Divider />
+
+            <Box data-testid="supporter-footer-controls">
+              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                Export footer
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
+                HTML exports carry a small footer line. As a supporter you can reword it,
+                give it your own icon, or turn it off.
+              </Typography>
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!footer.removed}
+                    onChange={(e) =>
+                      dispatch(updateFooterPreferences({ removed: !e.target.checked }))
+                    }
+                    inputProps={{ 'data-testid': 'supporter-footer-enabled' } as object}
+                  />
+                }
+                label={<Typography variant="body2">Include the footer in exports</Typography>}
+              />
+
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
+                <TextField
+                  size="small"
+                  label="Footer text"
+                  placeholder={DEFAULT_FOOTER_TEXT}
+                  value={footerTextDraft ?? footer.text ?? ''}
+                  onChange={(e) => setFooterTextDraft(e.target.value)}
+                  onBlur={commitFooterText}
+                  onKeyDown={(e) => e.key === 'Enter' && commitFooterText()}
+                  disabled={footer.removed}
+                  inputProps={
+                    {
+                      'data-testid': 'supporter-footer-text',
+                      maxLength: FOOTER_TEXT_MAX_LENGTH,
+                    } as object
+                  }
+                  helperText="Leave blank for the default line"
+                  fullWidth
+                />
+
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                  {footer.iconDataUri ? (
+                    <Box
+                      component="img"
+                      src={footer.iconDataUri}
+                      alt="Custom footer icon"
+                      data-testid="supporter-footer-icon-preview"
+                      sx={{ width: 32, height: 32, borderRadius: 1, flexShrink: 0 }}
+                    />
+                  ) : (
+                    <Box
+                      component="img"
+                      src="/icons/icon-48.png"
+                      alt="Default Discrub footer icon"
+                      sx={{ width: 32, height: 32, borderRadius: 1, flexShrink: 0, opacity: 0.7 }}
+                    />
+                  )}
+                  <Button
+                    size="small"
+                    startIcon={<UploadIcon />}
+                    onClick={() => iconInputRef.current?.click()}
+                    disabled={footer.removed}
+                    data-testid="supporter-footer-upload"
+                  >
+                    Custom icon
+                  </Button>
+                  {footer.iconDataUri && (
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => dispatch(setFooterIcon(null))}
+                      data-testid="supporter-footer-icon-remove"
+                    >
+                      Use default
+                    </Button>
+                  )}
+                  <input
+                    ref={iconInputRef}
+                    type="file"
+                    accept={FOOTER_ICON_ACCEPTED_TYPES.join(',')}
+                    style={{ display: 'none' }}
+                    data-testid="supporter-footer-icon-input"
+                    onChange={(e) => handleIconFile(e.target.files?.[0])}
+                  />
+                </Box>
+                {iconError && (
+                  <Typography variant="caption" color="error" data-testid="supporter-footer-icon-error">
+                    {iconError}
+                  </Typography>
+                )}
+              </Box>
+            </Box>
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>

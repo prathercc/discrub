@@ -193,6 +193,69 @@ describe('Export theming (slot E)', () => {
     });
   });
 
+  it('free exports carry the default Discrub footer with the bundled icon (slot F)', () => {
+    cy.task('downloads:clean');
+    visitApp();
+
+    openGeneralAndExport();
+    cy.waitForDownload(/^general\.zip$/i, 60000).then((zipName) => {
+      cy.task<string>('zip:read', {
+        fileName: zipName,
+        entry: 'general/general-page-1.html',
+      }).then((page) => {
+        expect(page).to.contain('<footer class="export-footer">');
+        expect(page).to.contain('Exported with <strong>Discrub</strong> on ');
+        // The bundled 48px icon embeds as a data URI.
+        expect(page).to.match(/export-footer-icon" src="data:image\/png;base64,/);
+      });
+    });
+  });
+
+  it('a supporter can reword the footer, upload an icon, and turn it off (slot F)', () => {
+    cy.task('downloads:clean');
+    visitApp();
+    pasteSupporterKey();
+
+    // Customize: text + uploaded icon.
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-footer-text"]').type('Archived by Cy{enter}');
+    cy.get('[data-testid="supporter-footer-icon-input"]').selectFile(
+      'cypress/fixtures/footer-icon-sample.png',
+      { force: true },
+    );
+    cy.get('[data-testid="supporter-footer-icon-preview"]').should('be.visible');
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+
+    openGeneralAndExport();
+    cy.waitForDownload(/^general\.zip$/i, 60000).then((zipName) => {
+      cy.task<string>('zip:read', {
+        fileName: zipName,
+        entry: 'general/general-page-1.html',
+      }).then((page) => {
+        expect(page).to.contain('Archived by Cy on ');
+        expect(page).to.not.contain('Exported with <strong>Discrub</strong>');
+        expect(page).to.match(/export-footer-icon" src="data:image\/png;base64,/);
+      });
+    });
+
+    // Turn the footer off entirely and export again.
+    cy.task('downloads:clean');
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-footer-enabled"]').click();
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+
+    cy.contains('button', 'Export').click();
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click();
+    cy.waitForDownload(/^general\.zip$/i, 60000).then((zipName) => {
+      cy.task<string>('zip:read', {
+        fileName: zipName,
+        entry: 'general/general-page-1.html',
+      }).then((page) => {
+        expect(page).to.not.contain('<footer class="export-footer">');
+      });
+    });
+  });
+
   it('a light-base theme bakes the light structural class', () => {
     cy.task('downloads:clean');
     visitApp();

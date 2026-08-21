@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { configureStore } from '@reduxjs/toolkit';
 import supporterReducer, {
   initializeSupporter,
+  updateFooterPreferences,
+  setFooterIcon,
   claimSupporterKey,
   refreshSupporterKey,
   applyPastedSupporterKey,
@@ -15,29 +17,42 @@ import {
   SUPPORTER_KEY_STORAGE_KEY,
   SUPPORTER_EMAIL_STORAGE_KEY,
   GIFT_ATTENTION_SEEN_STORAGE_KEY,
+  FOOTER_TEXT_STORAGE_KEY,
+  FOOTER_REMOVED_STORAGE_KEY,
+  FOOTER_ICON_MEDIA_KEY,
 } from './supporterTypes';
 import type { SupporterKeyPayload } from '@services/supporterKeyService';
 
 // In-memory stand-in for the Discrub-state store (same shape the
 // appSlice tests use).
-const { stateStore, stateData } = vi.hoisted(() => {
-  const data: Record<string, unknown> = {};
+const { stateStore, stateData, mediaStore, mediaData } = vi.hoisted(() => {
+  const makeStore = () => {
+    const data: Record<string, unknown> = {};
+    return {
+      data,
+      adapter: {
+        get: vi.fn(async (key: string) => data[key] ?? null),
+        set: vi.fn(async (key: string, value: unknown) => {
+          data[key] = value;
+        }),
+        remove: vi.fn(async (key: string) => {
+          delete data[key];
+        }),
+      },
+    };
+  };
+  const state = makeStore();
+  const media = makeStore();
   return {
-    stateData: data,
-    stateStore: {
-      get: vi.fn(async (key: string) => data[key] ?? null),
-      set: vi.fn(async (key: string, value: unknown) => {
-        data[key] = value;
-      }),
-      remove: vi.fn(async (key: string) => {
-        delete data[key];
-      }),
-    },
+    stateData: state.data,
+    stateStore: state.adapter,
+    mediaData: media.data,
+    mediaStore: media.adapter,
   };
 });
 
 vi.mock('@/extension/storage', () => ({
-  storage: { state: stateStore },
+  storage: { state: stateStore, media: mediaStore },
 }));
 
 const { mockFetchRevoked } = vi.hoisted(() => ({
@@ -93,6 +108,7 @@ describe('supporterSlice', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     for (const key of Object.keys(stateData)) delete stateData[key];
+    for (const key of Object.keys(mediaData)) delete mediaData[key];
     mockFetchRevoked.mockResolvedValue([]);
   });
 
@@ -340,6 +356,73 @@ describe('supporterSlice', () => {
       expect(state.payload).toBeNull();
       expect(state.hasStoredEmail).toBe(false);
       expect(selectSupporterKeyStatus(rootState(store))).toBe('none');
+    });
+  });
+
+  describe('export footer preferences (slot F)', () => {
+    it('loads stored footer preferences on init', async () => {
+      stateData[FOOTER_TEXT_STORAGE_KEY] = 'My archive';
+      stateData[FOOTER_REMOVED_STORAGE_KEY] = true;
+      mediaData[FOOTER_ICON_MEDIA_KEY] = 'data:image/png;base64,abc';
+
+      const store = makeStore();
+      await store.dispatch(initializeSupporter());
+
+      expect(store.getState().supporter.footer).toEqual({
+        text: 'My archive',
+        removed: true,
+        iconDataUri: 'data:image/png;base64,abc',
+      });
+    });
+
+    it('persists text and removed preferences', async () => {
+      const store = makeStore();
+      await store.dispatch(updateFooterPreferences({ text: '  My archive  ', removed: true }));
+
+      expect(stateData[FOOTER_TEXT_STORAGE_KEY]).toBe('My archive');
+      expect(stateData[FOOTER_REMOVED_STORAGE_KEY]).toBe(true);
+      expect(store.getState().supporter.footer.text).toBe('My archive');
+      expect(store.getState().supporter.footer.removed).toBe(true);
+    });
+
+    it('blank text clears the stored value back to the default', async () => {
+      stateData[FOOTER_TEXT_STORAGE_KEY] = 'old';
+      const store = makeStore();
+      await store.dispatch(updateFooterPreferences({ text: '   ' }));
+
+      expect(stateData[FOOTER_TEXT_STORAGE_KEY]).toBeUndefined();
+      expect(store.getState().supporter.footer.text).toBeNull();
+    });
+
+    it('re-enabling the footer removes the stored flag', async () => {
+      stateData[FOOTER_REMOVED_STORAGE_KEY] = true;
+      const store = makeStore();
+      await store.dispatch(updateFooterPreferences({ removed: false }));
+      expect(stateData[FOOTER_REMOVED_STORAGE_KEY]).toBeUndefined();
+    });
+
+    it('stores and clears the custom icon in Discrub-media', async () => {
+      const store = makeStore();
+      await store.dispatch(setFooterIcon('data:image/png;base64,xyz'));
+      expect(mediaData[FOOTER_ICON_MEDIA_KEY]).toBe('data:image/png;base64,xyz');
+      expect(store.getState().supporter.footer.iconDataUri).toBe('data:image/png;base64,xyz');
+
+      await store.dispatch(setFooterIcon(null));
+      expect(mediaData[FOOTER_ICON_MEDIA_KEY]).toBeUndefined();
+      expect(store.getState().supporter.footer.iconDataUri).toBeNull();
+    });
+
+    it('preferences survive removeSupporterKey (return on re-claim)', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-key';
+      stateData[FOOTER_TEXT_STORAGE_KEY] = 'My archive';
+      mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
+
+      const store = makeStore();
+      await store.dispatch(initializeSupporter());
+      await store.dispatch(removeSupporterKey());
+
+      expect(stateData[FOOTER_TEXT_STORAGE_KEY]).toBe('My archive');
+      expect(store.getState().supporter.footer.text).toBe('My archive');
     });
   });
 
