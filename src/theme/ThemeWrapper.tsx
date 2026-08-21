@@ -4,6 +4,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { GlobalStyles } from '@mui/material';
 import { useAppSelector } from '@/app/hooks';
 import { selectSettings, selectPreviewThemeId } from '@features/app/appSlice';
+import { selectIsSupporter, selectSupporter } from '@features/supporter/supporterSlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { getThemeById, findThemeDescriptor, DISCORD_DARK_ID, DISCORD_LIGHT_ID } from './theme';
 import { globalStyles } from './globalStyles';
@@ -50,11 +51,23 @@ const ThemeWrapper = ({ children }: ThemeWrapperProps) => {
   // Transient override from the Settings theme picker's live preview.
   // 'auto' previews through the same detection path as the saved setting.
   const previewThemeId = useAppSelector(selectPreviewThemeId);
+  const isSupporter = useAppSelector(selectIsSupporter);
+  const supporterInitialized = useAppSelector(selectSupporter).initialized;
 
-  const theme = useMemo(
-    () => getThemeById(resolveThemeId(previewThemeId ?? themeModeSetting)),
-    [previewThemeId, themeModeSetting]
-  );
+  const theme = useMemo(() => {
+    let id = resolveThemeId(previewThemeId ?? themeModeSetting);
+    // A stored supporter theme without a valid key falls back to auto
+    // (setting untouched — re-claiming brings the theme straight back).
+    // Previews stay unrestricted: hovering locked themes is the pitch.
+    // Until key verification resolves on boot, honor the stored choice
+    // so legitimate supporters never see a theme flash.
+    if (!previewThemeId && supporterInitialized && !isSupporter) {
+      if (findThemeDescriptor(id)?.tier === 'supporter') {
+        id = resolveThemeId('auto');
+      }
+    }
+    return getThemeById(id);
+  }, [previewThemeId, themeModeSetting, supporterInitialized, isSupporter]);
 
   return (
     <ThemeProvider theme={theme}>

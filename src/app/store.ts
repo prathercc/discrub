@@ -17,6 +17,7 @@ import historyReducer from '@features/history/historySlice';
 import packageReducer from '@features/package/packageSlice';
 import hotkeysReducer from '@features/hotkeys/hotkeysSlice';
 import devReducer from '@features/dev/devSlice';
+import supporterReducer from '@features/supporter/supporterSlice';
 
 /**
  * Redux store configuration
@@ -41,6 +42,7 @@ export const store = configureStore({
     package: packageReducer,
     hotkeys: hotkeysReducer,
     dev: devReducer,
+    supporter: supporterReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

@@ -7,6 +7,7 @@ import {
 } from '@mui/icons-material';
 import { useAppDispatch } from '@/app/hooks';
 import { setPreviewThemeId } from '@features/app/appSlice';
+import { setSupporterDialogOpen } from '@features/supporter/supporterSlice';
 import {
   THEME_DESCRIPTORS,
   findThemeDescriptor,
@@ -22,9 +23,9 @@ interface ThemePickerProps {
   animationsValue: string;
   onAnimationsChange: (value: string) => void;
   /**
-   * Supporter unlock state. Locked themes hover-preview but can't be
-   * selected. Wired to real key verification in the supporter-platform
-   * slot; until then the caller passes false.
+   * Supporter unlock state (from selectIsSupporter). Locked themes
+   * hover-preview but can't be selected; clicking one opens the
+   * Supporter dialog.
    */
   isSupporter?: boolean;
   /** Injectable for tests; defaults to the app registry. */
@@ -34,7 +35,7 @@ interface ThemePickerProps {
 const CARD_WIDTH = 132;
 
 /** Miniature palette preview: default background, paper stripe, accent dots. */
-const Swatch = ({ descriptor }: { descriptor: ThemeDescriptor }) => {
+export const Swatch = ({ descriptor }: { descriptor: ThemeDescriptor }) => {
   const p = descriptor.palette;
   return (
     <Box
@@ -133,12 +134,15 @@ export const ThemePicker = ({
         onFocus={() => preview(id)}
         onBlur={revertToSelection}
         onClick={() => {
-          if (!locked) pick(id);
+          // Locked cards route to the Supporter dialog — the unlock
+          // pitch right where the interest was expressed.
+          if (locked) dispatch(setSupporterDialogOpen(true));
+          else pick(id);
         }}
         sx={{
           width: CARD_WIDTH,
           textAlign: 'left',
-          cursor: locked ? 'default' : 'pointer',
+          cursor: 'pointer',
           font: 'inherit',
           color: 'inherit',
           p: 0.75,
@@ -198,7 +202,7 @@ export const ThemePicker = ({
             label: d.name,
             locked,
             tooltip: locked
-              ? 'Supporter theme. Support Discrub to unlock it. Hover to preview.'
+              ? 'Supporter theme. Hover to preview, click to learn more.'
               : undefined,
             swatch: <Swatch descriptor={d} />,
           });

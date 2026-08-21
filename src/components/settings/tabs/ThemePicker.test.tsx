@@ -94,6 +94,12 @@ describe('ThemePicker', () => {
     expect(store.getState().app.previewThemeId).toBe('auto');
   });
 
+  it('clicking a locked card opens the Supporter dialog', () => {
+    const { store } = renderPicker({ descriptors: rosterWithSupporter, isSupporter: false });
+    fireEvent.click(screen.getByTestId('theme-card-test-supporter'));
+    expect(store.getState().supporter.dialogOpen).toBe(true);
+  });
+
   it('supporter themes unlock when isSupporter is true', () => {
     renderPicker({ descriptors: rosterWithSupporter, isSupporter: true });
     expect(screen.queryByTestId('theme-locked-test-supporter')).not.toBeInTheDocument();

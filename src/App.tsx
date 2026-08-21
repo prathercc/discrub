@@ -8,6 +8,7 @@ import { loadPresets } from '@features/presets/presetsSlice';
 import { loadRecentExports } from '@features/history/historySlice';
 import { loadStatusLog } from '@features/status/statusSlice';
 import { loadHotkeys } from '@features/hotkeys/hotkeysSlice';
+import { initializeSupporter } from '@features/supporter/supporterSlice';
 import { isOverlayMode } from '@/extension/messaging';
 import LandingPage from '@containers/LandingPage/LandingPage';
 import MainLayout from '@containers/MainLayout/MainLayout';
@@ -38,6 +39,10 @@ function App() {
       dispatch(loadRecentExports());
       dispatch(loadStatusLog());
       dispatch(loadHotkeys());
+      // Verifies any stored supporter key locally and, for monthly
+      // keys near expiry with a stored email, silently refreshes it
+      // (at most one attempt per app-open).
+      dispatch(initializeSupporter());
     });
   }, [dispatch]);
 

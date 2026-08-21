@@ -19,6 +19,7 @@ import {
   Email as EmailIcon,
   WarningAmber as WarningIcon,
   MoreVert as MoreIcon,
+  CardGiftcard as GiftIcon,
 } from '@mui/icons-material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -35,7 +36,13 @@ import { selectIsHeavyOperationRunning, selectOperationSummary } from '@features
 import { reopenAnnouncement, fetchAnnouncementMarkdownThunk } from '@features/announcement/announcementSlice';
 import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messaging';
 import { findThemeDescriptor, DISCORD_DARK_ID, DISCORD_LIGHT_ID } from '@/theme/theme';
+import {
+  selectGiftAttentionSeen,
+  markGiftAttentionSeen,
+  setSupporterDialogOpen,
+} from '@features/supporter/supporterSlice';
 import SettingsModal from '@components/settings/SettingsModal';
+import SupporterDialog from '@components/supporter/SupporterDialog';
 import UserProfileModal from '@components/modals/UserProfileModal';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
@@ -56,6 +63,7 @@ const TopBar = () => {
   const themeDescriptor = themeSetting === 'auto' ? undefined : findThemeDescriptor(themeSetting);
   const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
   const operationSummary = useAppSelector(selectOperationSummary);
+  const giftAttentionSeen = useAppSelector(selectGiftAttentionSeen);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
@@ -99,6 +107,13 @@ const TopBar = () => {
 
   const handleProfileClick = () => {
     setProfileModalOpen(true);
+  };
+
+  const handleGiftClick = () => {
+    // Attention animation calms permanently after the first open —
+    // intrigue once, never nag.
+    if (!giftAttentionSeen) dispatch(markGiftAttentionSeen());
+    dispatch(setSupporterDialogOpen(true));
   };
 
   const handleMinimize = async () => {
@@ -228,6 +243,42 @@ const TopBar = () => {
                 {currentUser.global_name || currentUser.username}
               </Typography>
             </Box>
+
+            <Tooltip title="Support Discrub" enterDelay={0} arrow>
+              <IconButton
+                color="inherit"
+                onClick={handleGiftClick}
+                aria-label="Support Discrub"
+                data-testid="gift-button"
+                sx={(theme: Theme) => ({
+                  color: 'cta.main',
+                  // "Glowing gift" intrigue: subtle glow pulse plus an
+                  // occasional gentle wiggle. Calms permanently after
+                  // the first open, and never plays for users who
+                  // prefer reduced motion.
+                  ...(giftAttentionSeen
+                    ? {}
+                    : {
+                        '@keyframes giftGlow': {
+                          '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.cta.main, 0)}` },
+                          '50%': { boxShadow: `0 0 12px 2px ${alpha(theme.palette.cta.main, 0.35)}` },
+                        },
+                        '@keyframes giftWiggle': {
+                          '0%, 92%, 100%': { transform: 'rotate(0deg)' },
+                          '94%': { transform: 'rotate(-8deg)' },
+                          '96%': { transform: 'rotate(8deg)' },
+                          '98%': { transform: 'rotate(-4deg)' },
+                        },
+                        animation: 'giftGlow 3s ease-in-out infinite, giftWiggle 7s ease-in-out infinite',
+                        '@media (prefers-reduced-motion: reduce)': {
+                          animation: 'none',
+                        },
+                      }),
+                })}
+              >
+                <GiftIcon />
+              </IconButton>
+            </Tooltip>
 
             <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
               <IconButton
@@ -375,6 +426,8 @@ const TopBar = () => {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+
+      <SupporterDialog />
 
       <UserProfileModal
         open={profileModalOpen}

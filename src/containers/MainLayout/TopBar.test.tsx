@@ -450,4 +450,30 @@ describe('TopBar', () => {
       });
     });
   });
+
+  describe('Gift Button', () => {
+    const renderLoggedIn = () => renderWithProviders(<TopBar />, {
+      preloadedState: createBaseState({
+        user: { currentUser, isLoading: false, error: null },
+      }),
+    });
+
+    it('should show the gift button when logged in', () => {
+      renderLoggedIn();
+      expect(screen.getByTestId('gift-button')).toBeInTheDocument();
+    });
+
+    it('should open the Supporter dialog and calm the attention animation on click', async () => {
+      const { store } = renderLoggedIn();
+      expect(store.getState().supporter.giftAttentionSeen).toBe(false);
+
+      fireEvent.click(screen.getByTestId('gift-button'));
+
+      expect(store.getState().supporter.dialogOpen).toBe(true);
+      expect(store.getState().supporter.giftAttentionSeen).toBe(true);
+      await waitFor(() => {
+        expect(screen.getByTestId('supporter-dialog')).toBeInTheDocument();
+      });
+    });
+  });
 });

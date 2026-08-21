@@ -7,6 +7,13 @@ import { cleanup } from '@testing-library/react';
 import { afterEach, beforeAll, afterAll } from 'vitest';
 import { installChromeMocks, cleanupChromeMocks } from './chrome-mocks';
 import { server as mswServer } from './msw/server';
+import { webcrypto } from 'node:crypto';
+
+// jsdom's crypto has getRandomValues but no SubtleCrypto; the supporter
+// key verification needs WebCrypto Ed25519, so borrow Node's.
+if (!globalThis.crypto?.subtle) {
+  Object.defineProperty(globalThis.crypto, 'subtle', { value: webcrypto.subtle });
+}
 
 // Install Chrome extension API mocks globally
 beforeAll(() => {

@@ -14,11 +14,15 @@ Features
 
 Privacy
 - Discord token stays in the browser
-- No data sent to external servers
 - All processing is local
+- Your Discord data is never sent to any server of ours
+- One optional exception. If you claim a supporter key, the extension contacts api.pratherbytecraft.com at claim time and periodically to refresh the key while a monthly membership is active. Only the email you typed is sent, and removing your key stops this entirely.
+
+Supporter themes
+- Every feature is free and always will be. Supporters unlock a pack of extra cosmetic themes as a thank you.
 
 Additional
-- Dark and light mode (matches Discord theme)
+- Theme picker with live preview, from Discord-style dark and light to terminal, high contrast, and more
 - Forum channel support showing both active and archived posts
 - Guided tour and contextual help icons
 - Pause, resume, and cancel for long operations

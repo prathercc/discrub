@@ -24,6 +24,7 @@ import historyReducer from '@features/history/historySlice';
 import packageReducer from '@features/package/packageSlice';
 import hotkeysReducer from '@features/hotkeys/hotkeysSlice';
 import devReducer from '@features/dev/devSlice';
+import supporterReducer from '@features/supporter/supporterSlice';
 
 interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
   preloadedState?: Partial<RootState>;
@@ -53,6 +54,7 @@ export function renderWithProviders(
         package: packageReducer,
         hotkeys: hotkeysReducer,
         dev: devReducer,
+        supporter: supporterReducer,
       } as any,
       preloadedState,
     }),
