@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('drip-fs', () => ({ createStreamingDownload: vi.fn(async () => ({ tag: 'drip' })) }));
 
 import { createStreamingDownload } from 'drip-fs';
-import { createBlobDownloadWriter, createDownloadWriter, createTabStreamWriter, isIOSSafari } from './downloadWriter';
+import { createBlobDownloadWriter, createDownloadWriter, isIOSSafari } from './downloadWriter';
 
 const nav = (overrides: Partial<Navigator>): Navigator =>
   ({ userAgent: '', platform: '', maxTouchPoints: 0, ...overrides }) as Navigator;
@@ -40,65 +40,11 @@ describe('createDownloadWriter', () => {
     expect((w as unknown as { tag: string }).tag).toBe('drip');
   });
 
-  it('on iOS without a controlling service worker, uses the Blob writer and never calls drip-fs', async () => {
-    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) CriOS/126', configurable: true });
+  it('uses the Blob writer on iOS and never touches the service-worker stream', async () => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)', configurable: true });
     const w = await createDownloadWriter('x.zip');
     expect(createStreamingDownload).not.toHaveBeenCalled();
     expect(w.bytesWritten).toBe(0);
-  });
-});
-
-describe('createTabStreamWriter (iOS new-tab stream)', () => {
-  const installSW = (respond: (port: MessagePort) => void) => {
-    const postMessage = vi.fn((_: unknown, transfer: Transferable[]) => {
-      respond(transfer[0] as MessagePort);
-    });
-    Object.defineProperty(navigator, 'serviceWorker', {
-      value: { controller: { postMessage } },
-      configurable: true,
-    });
-    return postMessage;
-  };
-  afterEach(() => {
-    Object.defineProperty(navigator, 'serviceWorker', { value: undefined, configurable: true });
-    vi.restoreAllMocks();
-  });
-
-  it('returns null when no service worker controls the page', async () => {
-    Object.defineProperty(navigator, 'serviceWorker', { value: undefined, configurable: true });
-    expect(await createTabStreamWriter('x.zip')).toBeNull();
-  });
-
-  it('opens the SW download URL in a new tab and streams chunks over the port', async () => {
-    const swPost = installSW((port) => port.postMessage({ download: 'https://app/sw/123/x.zip' }));
-    const opened = vi.spyOn(window, 'open').mockReturnValue({} as Window);
-    const w = await createTabStreamWriter('x.zip');
-    expect(w).not.toBeNull();
-    expect(swPost).toHaveBeenCalledWith({ filename: 'x.zip' }, [expect.any(MessagePort)]);
-    expect(opened).toHaveBeenCalledWith('https://app/sw/123/x.zip', '_blank');
-
-    const received: unknown[] = [];
-    const clientPort = (swPost.mock.calls[0][1] as MessagePort[])[0];
-    clientPort.onmessage = (e) => received.push(e.data);
-    await w!.write(new Uint8Array([1, 2]));
-    await w!.close();
-    await new Promise((r) => setTimeout(r, 20));
-    expect(w!.bytesWritten).toBe(2);
-    expect(ArrayBuffer.isView(received[0] as ArrayBufferView)).toBe(true);
-    expect((received[0] as Uint8Array).byteLength).toBe(2);
-    expect(received[1]).toBe('end');
-  });
-
-  it('returns null and aborts the pending stream when the popup is blocked', async () => {
-    const swPost = installSW((port) => port.postMessage({ download: 'https://app/sw/1/x.zip' }));
-    vi.spyOn(window, 'open').mockReturnValue(null);
-    const received: unknown[] = [];
-    const w = await createTabStreamWriter('x.zip');
-    const clientPort = (swPost.mock.calls[0][1] as MessagePort[])[0];
-    clientPort.onmessage = (e) => received.push(e.data);
-    await new Promise((r) => setTimeout(r, 20));
-    expect(w).toBeNull();
-    expect(received).toContain('abort');
   });
 });
 

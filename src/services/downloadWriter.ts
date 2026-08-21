@@ -58,79 +58,8 @@ export const createBlobDownloadWriter = (
   } as StreamDownloadWriter;
 };
 
-/**
- * iOS experiment (Option A): the same service-worker stream drip-fs uses,
- * but the download URL is opened in a NEW TAB instead of a hidden iframe.
- * iOS forbids iframe downloads (it promotes them to a tab navigation that
- * unloads the app); a top-level navigation to the attachment response
- * should land in the WebKit download manager while this tab keeps
- * streaming. Speaks drip-fs's SW protocol directly so no lib release is
- * needed for the trial. Returns null when the popup is blocked or no SW
- * controls the page, so the caller can fall back to the Blob writer.
- */
-export const createTabStreamWriter = async (
-  filename: string,
-  onProgress?: (bytes: number) => void,
-): Promise<StreamDownloadWriter | null> => {
-  const controller = navigator.serviceWorker?.controller;
-  if (!controller) return null;
-  const channel = new MessageChannel();
-  const port = channel.port1;
-  controller.postMessage({ filename }, [channel.port2]);
-  let url: string;
-  try {
-    url = await new Promise<string>((resolve, reject) => {
-      port.onmessage = (event: MessageEvent) => {
-        if (event.data?.download) resolve(event.data.download as string);
-        else if (event.data?.error) reject(new Error(String(event.data.error)));
-      };
-      setTimeout(() => reject(new Error('Failed to get download URL from service worker')), 5000);
-    });
-  } catch {
-    port.close();
-    return null;
-  }
-  const tab = window.open(url, '_blank');
-  if (!tab) {
-    // Popup blocked (the export finishes long after the tap): tell the SW
-    // to drop the pending stream and let the caller fall back.
-    port.postMessage('abort');
-    port.close();
-    return null;
-  }
-  let bytesWritten = 0;
-  let closed = false;
-  return {
-    async write(chunk: Uint8Array) {
-      if (closed) throw new Error('Cannot write to closed stream');
-      port.postMessage(chunk);
-      bytesWritten += chunk.byteLength;
-      onProgress?.(bytesWritten);
-    },
-    async close() {
-      if (closed) return;
-      closed = true;
-      port.postMessage('end');
-      port.close();
-    },
-    async abort() {
-      if (closed) return;
-      closed = true;
-      port.postMessage('abort');
-      port.close();
-    },
-    get bytesWritten() {
-      return bytesWritten;
-    },
-  } as StreamDownloadWriter;
-};
-
-/**
- * drip-fs streaming everywhere except iOS WebKit (Safari AND Chrome/Firefox
- * on iPhone, which are WebKit too), which tries the new-tab stream first and
- * falls back to the buffered Blob writer.
- */
-export const createDownloadWriter = async (filename: string): Promise<StreamDownloadWriter> => {
-  if (!isIOSSafari()) return createStreamingDownload(filename);
-  return (await createTabStreamWriter(filename)) ?? createBlobDownloadWriter(filename);
-};
+/** drip-fs streaming everywhere except iOS Safari, which gets the Blob writer. */
+export const createDownloadWriter = (filename: string): Promise<StreamDownloadWriter> =>
+  isIOSSafari()
+    ? Promise.resolve(createBlobDownloadWriter(filename))
+    : createStreamingDownload(filename);
