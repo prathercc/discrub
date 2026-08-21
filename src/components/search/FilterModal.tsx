@@ -32,6 +32,7 @@ import { defaultCriteria } from './searchConstants';
 import type { AuthorType } from 'discrub-core/discord-enum';
 import { countActiveFilters } from 'discrub-core/filtering';
 import type { RefineCriteria, SystemMessageRefineMode } from '@features/message/messageFiltering';
+import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
 
 interface FilterModalProps {
   open: boolean;
@@ -227,8 +228,9 @@ const FilterModal = ({
       : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)'),
   });
 
+  const fullScreen = useFullScreenDialog();
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
         <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
           Filters

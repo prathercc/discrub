@@ -41,6 +41,7 @@ import { countActiveFilters } from 'discrub-core/filtering';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
+import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
 
 interface BulkExportDialogProps {
   open: boolean;
@@ -153,8 +154,9 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
     onClose();
   };
 
+  const fullScreen = useFullScreenDialog();
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
         Bulk Export {mode === 'channels' ? 'Channels' : 'DMs'}
         <Chip
@@ -170,7 +172,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
         />
         <DialogCloseIcon onClose={handleClose} />
       </DialogTitle>
-      <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+      <DialogContent sx={{ maxHeight: fullScreen ? undefined : '70vh', overflowY: 'auto' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
           <SelectedChannelsPill channels={channels} mode={mode} />
 

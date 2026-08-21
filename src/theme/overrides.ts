@@ -210,6 +210,12 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
       root: ({ theme }) => ({
         padding: '6px',
         transition: 'background-color 150ms ease',
+        // Touch devices: grow the hit area to the 44px guideline without
+        // changing the visual icon size on pointer-fine desktops.
+        '@media (pointer: coarse)': {
+          minWidth: 44,
+          minHeight: 44,
+        },
         '&:hover': {
           backgroundColor: theme.palette.mode === 'dark'
             ? 'rgba(255, 255, 255, 0.08)'

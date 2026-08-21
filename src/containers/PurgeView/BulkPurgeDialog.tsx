@@ -44,6 +44,7 @@ import { countActiveFilters } from 'discrub-core/filtering';
 import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
 import { canManageMessages as channelCanManageMessages } from '@/utils/permissionUtils';
+import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
 
 // UI-level mode — promotes "Attachments Only" to a first-class choice.
 // Maps to the underlying PurgeMode + deleteAttachmentsOnly flag on dispatch.
@@ -282,8 +283,9 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
     return 'You can only remove your own reactions without Manage Messages permission.';
   };
 
+  const fullScreen = useFullScreenDialog();
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
         Purge {isDmMode ? 'DMs' : 'Channels'}
         <Chip

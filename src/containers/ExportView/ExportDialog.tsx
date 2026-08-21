@@ -39,6 +39,7 @@ import ExportSettingsAccordion from './ExportSettingsAccordion';
 import ExportSummaryChip from './ExportSummaryChip';
 import PresetSelector from './PresetSelector';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
 
 /**
  * Where the messages being exported come from.
@@ -214,13 +215,14 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
     onClose();
   };
 
+  const fullScreen = useFullScreenDialog();
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
         Export Messages
         <DialogCloseIcon onClose={handleClose} />
       </DialogTitle>
-      <DialogContent sx={{ maxHeight: '70vh', overflowY: 'auto' }}>
+      <DialogContent sx={{ maxHeight: fullScreen ? undefined : '70vh', overflowY: 'auto' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1 }}>
           <Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>

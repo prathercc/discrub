@@ -926,7 +926,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
               )}
             </Box>
           </Box>
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', maxWidth: '100%', whiteSpace: 'nowrap' }}>
+          <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, flexWrap: 'wrap', maxWidth: { xs: '100%', md: 'none' }, whiteSpace: 'nowrap' }}>
             {!isForumChannel && pagination.hasMore &&
               (pagination.mode === 'paginated' || pagination.mode === 'search') && (
               <HotkeyTooltip actionId="loadAll" label="Load all messages" arrow>

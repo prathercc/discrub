@@ -67,6 +67,7 @@ import {
   KOFI_BLEEDING_EDGE_YEARLY_URL,
   HOSTED_URL,
 } from '@services/kofiLinks';
+import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
 
 export { KOFI_MONTHLY_URL, KOFI_SUPPORTER_YEARLY_URL, KOFI_BLEEDING_EDGE_YEARLY_URL, HOSTED_URL };
 
@@ -119,6 +120,7 @@ const kofiButtonSx = {
  */
 const SupporterDialog = () => {
   const dispatch = useAppDispatch();
+  const fullScreen = useFullScreenDialog();
   const open = useAppSelector(selectSupporterDialogOpen);
   const keyStatus = useAppSelector(selectSupporterKeyStatus);
   const payload = useAppSelector(selectSupporterPayload);
@@ -197,6 +199,7 @@ const SupporterDialog = () => {
       onClose={handleClose}
       maxWidth="sm"
       fullWidth
+      fullScreen={fullScreen}
       PaperProps={{ sx: { bgcolor: 'background.paper' }, 'data-testid': 'supporter-dialog' } as object}
     >
       <Box sx={{ px: 3, pt: 3, pb: 1, textAlign: 'center', position: 'relative', flexShrink: 0 }}>

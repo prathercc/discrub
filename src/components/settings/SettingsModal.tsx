@@ -32,6 +32,7 @@ import { HotkeysTab } from './tabs/HotkeysTab';
 import ResetDiscrubButton from './ResetDiscrubButton';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { hasUnsavedSettingsChanges } from './dirtyDetection';
+import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
 
 interface SettingsModalProps {
   open: boolean;
@@ -168,17 +169,16 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
     performClose();
   };
 
+  const fullScreen = useFullScreenDialog();
   return (
     <Dialog
       open={open}
       onClose={handleClose}
       maxWidth="md"
       fullWidth
+      fullScreen={fullScreen}
       PaperProps={{
-        sx: {
-          height: '80vh',
-          maxHeight: 600,
-        },
+        sx: fullScreen ? undefined : { height: '80vh', maxHeight: 600 },
       }}
     >
       <DialogTitle sx={{ pr: 5 }}>
