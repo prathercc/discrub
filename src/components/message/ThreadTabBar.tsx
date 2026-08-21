@@ -1,5 +1,5 @@
 import { Tabs, Tab, Box, IconButton } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
@@ -47,17 +47,17 @@ const ThreadTabBar = ({ channelName }: ThreadTabBarProps) => {
       ? (isDark ? 'rgba(255, 255, 255, 0.95)' : 'rgba(0, 0, 0, 0.87)')
       : (isDark ? 'rgba(255, 255, 255, 0.55)' : 'rgba(0, 0, 0, 0.55)'),
     backgroundColor: isActive
-      ? (isDark ? 'rgba(114, 137, 218, 0.15)' : 'rgba(88, 101, 242, 0.1)')
+      ? alpha(theme.palette.primary.main, isDark ? 0.15 : 0.1)
       : 'transparent',
     border: isActive
-      ? `1px solid ${isDark ? 'rgba(114, 137, 218, 0.3)' : 'rgba(88, 101, 242, 0.25)'}`
+      ? `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.3 : 0.25)}`
       : '1px solid transparent',
     borderBottom: isActive ? '1px solid transparent' : '1px solid transparent',
     mr: 0.25,
     transition: 'all 150ms ease',
     '&:hover': {
       backgroundColor: isActive
-        ? (isDark ? 'rgba(114, 137, 218, 0.2)' : 'rgba(88, 101, 242, 0.15)')
+        ? alpha(theme.palette.primary.main, isDark ? 0.2 : 0.15)
         : (isDark ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.04)'),
       color: isDark ? 'rgba(255, 255, 255, 0.85)' : 'rgba(0, 0, 0, 0.8)',
     },
@@ -67,7 +67,7 @@ const ThreadTabBar = ({ channelName }: ThreadTabBarProps) => {
     <Box
       data-testid="thread-tab-bar"
       sx={{
-        borderBottom: `1px solid ${isDark ? 'rgba(114, 137, 218, 0.2)' : 'rgba(88, 101, 242, 0.15)'}`,
+        borderBottom: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.2 : 0.15)}`,
         mb: 1,
         backgroundColor: isDark ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.03)',
         px: 0.5,

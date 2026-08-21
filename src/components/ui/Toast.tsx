@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
-import { Box, Typography, IconButton, Button } from '@mui/material';
+import { Box, Typography, IconButton, Button, useTheme } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import {
   CheckCircle as SuccessIcon,
   Error as ErrorIcon,
@@ -20,12 +21,11 @@ const LEVEL_ICONS: Record<string, typeof SuccessIcon> = {
   session: InfoIcon,
 };
 
-const LEVEL_COLORS: Record<string, string> = {
-  success: '#43b581',
-  error: '#f04747',
-  warning: '#faa61a',
-  info: '#5865f2',
-  session: '#5865f2',
+const getLevelColor = (level: string, theme: Theme): string => {
+  if (level === 'success') return theme.palette.success.main;
+  if (level === 'error') return theme.palette.error.main;
+  if (level === 'warning') return theme.palette.warning.main;
+  return theme.palette.cta.main; // info / session
 };
 
 /**
@@ -35,6 +35,7 @@ const LEVEL_COLORS: Record<string, string> = {
  */
 const Toast = () => {
   const dispatch = useAppDispatch();
+  const theme = useTheme();
   const toast = useAppSelector(selectToast);
   const token = useAppSelector(selectAuthToken);
 
@@ -47,7 +48,7 @@ const Toast = () => {
   if (!toast.isVisible) return null;
 
   const Icon = LEVEL_ICONS[toast.level] || InfoIcon;
-  const color = LEVEL_COLORS[toast.level] || LEVEL_COLORS.info;
+  const color = getLevelColor(toast.level, theme);
 
   const handleAction = () => {
     if (toast.action?.type === 'reloadChannel' && token) {

@@ -5,7 +5,9 @@ import {
   DialogActions,
   Button,
   Typography,
+  alpha,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
 interface DeleteConfirmModalProps {
@@ -33,8 +35,8 @@ const DeleteConfirmModal = ({
       sx={{
         '& .MuiDialog-paper': {
           animation: 'fade-in-scale 300ms ease',
-          backgroundImage:
-            'linear-gradient(135deg, rgba(240, 71, 71, 0.08) 0%, transparent 100%), linear-gradient(135deg, rgba(114, 137, 218, 0.08) 0%, transparent 100%)',
+          backgroundImage: (theme: Theme) =>
+            `linear-gradient(135deg, ${alpha(theme.palette.error.main, 0.08)} 0%, transparent 100%), linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 100%)`,
         },
       }}
     >

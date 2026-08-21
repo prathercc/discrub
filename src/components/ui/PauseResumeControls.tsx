@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { ButtonGroup, Button, Box, Typography, LinearProgress, Popover, useTheme, keyframes } from '@mui/material';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { ButtonGroup, Button, Box, Typography, LinearProgress, Popover, useTheme, keyframes, alpha } from '@mui/material';
 import {
   Pause as PauseIcon,
   PlayArrow as ResumeIcon,
@@ -26,10 +26,10 @@ interface PauseResumeControlsProps {
  * the label is visible. Honors prefers-reduced-motion via the wrapping
  * `@media` query.
  */
-const labelPulse = keyframes`
-  0%   { color: var(--mui-palette-primary-main, #5865f2); }
-  60%  { color: var(--mui-palette-primary-main, #5865f2); }
-  100% { color: var(--mui-palette-text-secondary, #8b949e); }
+const buildLabelPulse = (pulseColor: string, restColor: string) => keyframes`
+  0%   { color: ${pulseColor}; }
+  60%  { color: ${pulseColor}; }
+  100% { color: ${restColor}; }
 `;
 
 /**
@@ -39,6 +39,10 @@ const labelPulse = keyframes`
 const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const labelPulse = useMemo(
+    () => buildLabelPulse(theme.palette.primary.main, theme.palette.text.secondary),
+    [theme],
+  );
   const dispatch = useAppDispatch();
   const isRunning = useAppSelector(selectIsHeavyOperationRunning);
   const isPaused = useAppSelector(selectDiscrubPaused);
@@ -101,7 +105,7 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
           <Button
             onClick={handlePauseResume}
             aria-label={isPaused ? 'Resume' : 'Pause'}
-            sx={{ minWidth: 32, px: 0.5, '&:hover': { backgroundColor: 'rgba(114, 137, 218, 0.15)' } }}
+            sx={{ minWidth: 32, px: 0.5, '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.15) } }}
           >
             {isPaused ? <ResumeIcon /> : <PauseIcon />}
           </Button>

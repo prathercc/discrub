@@ -1,5 +1,5 @@
 import { memo, useCallback } from 'react';
-import { Box, Checkbox, Typography, useTheme } from '@mui/material';
+import { Box, Checkbox, Typography, useTheme, alpha } from '@mui/material';
 import { format } from 'date-fns';
 import type { Message } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
@@ -183,14 +183,14 @@ const SystemMessageRow = memo(function SystemMessageRow({
         borderRadius: 0.5,
         cursor: interactive ? 'pointer' : 'default',
         ...(selected && {
-          backgroundColor: 'rgba(88, 101, 242, 0.16)',
+          backgroundColor: alpha(theme.palette.primary.main, 0.16),
         }),
         '&:hover .system-row-hover-actions': { opacity: 1 },
         ...(interactive && {
           '&:hover': {
             backgroundColor: selected
-              ? 'rgba(88, 101, 242, 0.22)'
-              : 'rgba(114, 137, 218, 0.06)',
+              ? alpha(theme.palette.primary.main, 0.22)
+              : alpha(theme.palette.primary.main, 0.06),
           },
         }),
         ...(highlighted && {

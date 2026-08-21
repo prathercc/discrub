@@ -64,7 +64,7 @@ function getFileTypeIcon(contentType?: string, filename?: string) {
     return <ArchiveIcon sx={{ color: '#ff9800' }} />;
   }
   if (['json', 'xml', 'html', 'css', 'js', 'ts', 'py', 'java', 'c', 'cpp', 'txt', 'md'].includes(ext) || ct.startsWith('text/')) {
-    return <CodeIcon sx={{ color: '#5865f2' }} />;
+    return <CodeIcon sx={(theme) => ({ color: theme.palette.cta.main })} />;
   }
   return <FileIcon sx={{ color: 'text.secondary' }} />;
 }

@@ -54,11 +54,11 @@ function getFlameIntensity(months: number) {
   };
 }
 
-function getRankColor(rank: number): string {
+function getRankColor(rank: number, accentFallback: string): string {
   if (rank === 1) return '#ffd700';
   if (rank === 2) return '#c0c0c0';
   if (rank === 3) return '#cd7f32';
-  return '#7289da';
+  return accentFallback;
 }
 
 function getRankTextColor(rank: number): string {
@@ -138,7 +138,7 @@ const DonationCard = ({ donation, donations, index, supporterRank, initialExpand
             position: 'absolute',
             top: 0,
             right: 40,
-            backgroundColor: getRankColor(supporterRank),
+            backgroundColor: getRankColor(supporterRank, theme.palette.primary.main),
             color: getRankTextColor(supporterRank),
             fontSize: '0.55rem',
             fontWeight: 800,

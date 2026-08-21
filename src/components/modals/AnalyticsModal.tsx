@@ -15,6 +15,7 @@ import {
   TableSortLabel,
   Paper,
   Chip,
+  alpha,
 } from '@mui/material';
 import {
   FileDownload as DownloadIcon,
@@ -131,7 +132,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap }: AnalyticsModalProp
             <Typography color="text.secondary">No mentions found</Typography>
           </Box>
         ) : (
-          <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 400, borderColor: 'rgba(114, 137, 218, 0.2)' }}>
+          <TableContainer component={Paper} variant="outlined" sx={(theme) => ({ maxHeight: 400, borderColor: alpha(theme.palette.primary.main, 0.2) })}>
             <Table stickyHeader size="small">
               <TableHead>
                 <TableRow sx={{ '& th': { bgcolor: 'background.paper', fontWeight: 600, fontSize: '0.8rem' } }}>

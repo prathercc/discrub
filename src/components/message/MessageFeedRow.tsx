@@ -7,6 +7,7 @@ import {
   Tooltip,
   Typography,
   useTheme,
+  alpha,
 } from '@mui/material';
 import { ContentCopy as CopyIcon, Reply as ReplyIcon } from '@mui/icons-material';
 import { format } from 'date-fns';
@@ -293,7 +294,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
         transition: 'background-color 100ms ease',
         ...(selected
           ? {
-              backgroundColor: 'rgba(114, 137, 218, 0.16)',
+              backgroundColor: alpha(theme.palette.primary.main, 0.16),
               borderLeft: '3px solid',
               borderLeftColor: 'primary.main',
             }
@@ -306,15 +307,15 @@ const MessageFeedRow = memo(function MessageFeedRow({
             '0%': { backgroundColor: 'rgba(250, 166, 26, 0.45)' },
             '100%': {
               backgroundColor: selected
-                ? 'rgba(114, 137, 218, 0.16)'
+                ? alpha(theme.palette.primary.main, 0.16)
                 : 'transparent',
             },
           },
         }),
         '&:hover': {
           backgroundColor: selected
-            ? 'rgba(114, 137, 218, 0.2)'
-            : 'rgba(114, 137, 218, 0.06)',
+            ? alpha(theme.palette.primary.main, 0.2)
+            : alpha(theme.palette.primary.main, 0.06),
           '& .feed-row-hover-actions': {
             opacity: 1,
           },
@@ -355,7 +356,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
               opacity: 0.75,
               cursor: 'pointer',
               borderRadius: 0.5,
-              '&:hover': { opacity: 1, backgroundColor: 'rgba(114, 137, 218, 0.08)' },
+              '&:hover': { opacity: 1, backgroundColor: alpha(theme.palette.primary.main, 0.08) },
               '&:focus-visible': { outline: '2px solid', outlineColor: 'primary.main', outlineOffset: 1 },
             }}
           >

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Tabs, Tab, Drawer, useMediaQuery, useTheme, TextField, InputAdornment, IconButton, Typography } from '@mui/material';
+import { Box, Tabs, Tab, Drawer, useMediaQuery, useTheme, TextField, InputAdornment, IconButton, Typography, alpha } from '@mui/material';
 import { Search as SearchIcon, ArrowBack as ArrowBackIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectSelectedGuild, setSelectedGuild } from '@features/guild/guildSlice';
@@ -95,7 +95,7 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
           transition: 'all 200ms ease',
           '&:hover': {
             color: 'primary.main',
-            backgroundColor: 'rgba(114, 137, 218, 0.1)',
+            backgroundColor: alpha(theme.palette.primary.main, 0.1),
             transform: 'scale(1.05)',
           },
         }}
@@ -164,10 +164,10 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
             fontSize: '1rem',
             transition: 'background-color 200ms ease',
             '&:hover': {
-              backgroundColor: 'rgba(114, 137, 218, 0.08)',
+              backgroundColor: alpha(theme.palette.primary.main, 0.08),
             },
             '&.Mui-selected': {
-              background: 'linear-gradient(135deg, rgba(114, 137, 218, 0.15) 0%, rgba(88, 101, 242, 0.1) 100%)',
+              background: `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.15)} 0%, ${alpha(theme.palette.primary.dark, 0.1)} 100%)`,
             },
           },
           '& .MuiTabs-indicator': {
@@ -225,15 +225,15 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
               '&:hover': {
                 backgroundColor: 'action.selected',
                 '& fieldset': {
-                  borderColor: 'rgba(114, 137, 218, 0.5)',
+                  borderColor: alpha(theme.palette.primary.main, 0.5),
                 },
               },
               '&.Mui-focused': {
-                backgroundColor: 'rgba(114, 137, 218, 0.05)',
+                backgroundColor: alpha(theme.palette.primary.main, 0.05),
                 boxShadow: 'none !important',
                 outline: 'none !important',
                 '& fieldset': {
-                  borderColor: 'rgba(114, 137, 218, 0.8)',
+                  borderColor: alpha(theme.palette.primary.main, 0.8),
                 },
                 '& .MuiOutlinedInput-notchedOutline': {
                   borderWidth: '1px',

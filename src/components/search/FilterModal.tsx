@@ -12,6 +12,7 @@ import {
   Collapse,
   ToggleButton,
   ToggleButtonGroup,
+  alpha,
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -184,7 +185,7 @@ const FilterModal = ({
   // --- Shared styles ---
   const sectionContainerSx = (isSearch: boolean) => (theme: any) => ({
     borderRadius: 2,
-    border: `1px solid ${isSearch ? (theme.palette.mode === 'dark' ? 'rgba(114, 137, 218, 0.25)' : theme.palette.primary.light) : theme.palette.divider}`,
+    border: `1px solid ${isSearch ? (theme.palette.mode === 'dark' ? alpha(theme.palette.primary.main, 0.25) : theme.palette.primary.light) : theme.palette.divider}`,
     backgroundColor: isSearch ? 'transparent' : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)'),
   });
 
@@ -196,11 +197,11 @@ const FilterModal = ({
     py: 1,
     cursor: 'pointer',
     backgroundColor: isSearch
-      ? (theme.palette.mode === 'dark' ? 'rgba(114, 137, 218, 0.08)' : 'rgba(88, 101, 242, 0.04)')
+      ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.08 : 0.04)
       : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
     '&:hover': {
       backgroundColor: isSearch
-        ? (theme.palette.mode === 'dark' ? 'rgba(114, 137, 218, 0.12)' : 'rgba(88, 101, 242, 0.06)')
+        ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.06)
         : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)'),
     },
     transition: 'background-color 150ms ease',
@@ -222,7 +223,7 @@ const FilterModal = ({
     py: 1.5,
     borderTop: `1px solid ${theme.palette.divider}`,
     backgroundColor: isSearch
-      ? (theme.palette.mode === 'dark' ? 'rgba(114, 137, 218, 0.05)' : 'rgba(88, 101, 242, 0.02)')
+      ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.05 : 0.02)
       : (theme.palette.mode === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.01)'),
   });
 

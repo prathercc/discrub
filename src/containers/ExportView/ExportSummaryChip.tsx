@@ -1,5 +1,6 @@
 import { memo } from 'react';
-import { Box, Typography } from '@mui/material';
+import { Box, Typography, alpha } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import { useAppSelector } from '@/app/hooks';
 import { selectExport } from '@features/export/exportSlice';
 import { selectSettings } from '@features/app/appSlice';
@@ -72,9 +73,9 @@ const ExportSummaryChip = memo(() => {
         textAlign: 'center',
         py: 0.75,
         px: 1.5,
-        backgroundColor: 'rgba(114, 137, 218, 0.06)',
+        backgroundColor: (theme: Theme) => alpha(theme.palette.primary.main, 0.06),
         border: '1px solid',
-        borderColor: 'rgba(114, 137, 218, 0.3)',
+        borderColor: (theme: Theme) => alpha(theme.palette.primary.main, 0.3),
         borderRadius: 1,
       }}
     >

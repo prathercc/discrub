@@ -1,6 +1,18 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/theme/theme';
 import { OperationDelaysTab } from './OperationDelaysTab';
+
+// The tabs read custom palette tokens (cta) that only exist on the app's
+// registry themes, so render under the real dark theme instead of MUI's default.
+const render = (ui: ReactElement) =>
+  rtlRender(ui, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>
+    ),
+  });
 import { ExportPreferencesTab } from './ExportPreferencesTab';
 import { DisplayTab } from './DisplayTab';
 import { UserDataTab } from './UserDataTab';

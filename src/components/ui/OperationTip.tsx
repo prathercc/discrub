@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Box, Typography } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { alpha, useTheme } from '@mui/material/styles';
 import { InfoOutlined as InfoIcon } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectOperationTip, hideOperationTip } from '@features/status/statusSlice';
@@ -73,7 +73,7 @@ const OperationTip = () => {
         py: 0.5,
         backgroundColor: isDark ? 'rgba(40, 43, 48, 0.95)' : 'rgba(255, 255, 255, 0.95)',
         backdropFilter: 'blur(10px)',
-        border: `1px solid ${isDark ? 'rgba(114, 137, 218, 0.3)' : 'rgba(88, 101, 242, 0.25)'}`,
+        border: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.3 : 0.25)}`,
         borderRadius: 1.5,
         boxShadow: isDark ? '0 2px 8px rgba(0, 0, 0, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.12)',
         cursor: 'pointer',
@@ -84,7 +84,7 @@ const OperationTip = () => {
           ? 'opacity 300ms ease-out, transform 300ms ease-out'
           : 'opacity 250ms ease-in, transform 250ms ease-in',
         '&:hover': {
-          borderColor: isDark ? 'rgba(114, 137, 218, 0.5)' : 'rgba(88, 101, 242, 0.4)',
+          borderColor: alpha(theme.palette.primary.main, isDark ? 0.5 : 0.4),
         },
       }}
     >

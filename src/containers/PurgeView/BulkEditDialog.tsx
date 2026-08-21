@@ -11,7 +11,10 @@ import {
   Alert,
   TextField,
   useTheme,
+  alpha,
+  lighten,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import { Edit as EditIcon } from '@mui/icons-material';
 import type { Channel } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
@@ -93,8 +96,8 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
           sx={{
             ml: 1,
             verticalAlign: 'middle',
-            backgroundColor: 'rgba(88, 101, 242, 0.2)',
-            color: isDark ? '#b9c0ff' : 'primary.main',
+            backgroundColor: (theme: Theme) => alpha(theme.palette.cta.main, 0.2),
+            color: (theme: Theme) => (isDark ? lighten(theme.palette.primary.main, 0.4) : theme.palette.primary.main),
             fontWeight: 500,
           }}
         />

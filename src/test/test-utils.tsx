@@ -1,6 +1,8 @@
 import { ReactElement, ReactNode } from 'react';
 import { render, RenderOptions } from '@testing-library/react';
 import { Provider } from 'react-redux';
+import { ThemeProvider } from '@mui/material/styles';
+import { darkTheme } from '@/theme/theme';
 import { configureStore, Middleware, Reducer, ThunkDispatch, UnknownAction } from '@reduxjs/toolkit';
 import { RootState, AppStore } from '@/app/store';
 
@@ -58,7 +60,14 @@ export function renderWithProviders(
   }: ExtendedRenderOptions = {}
 ) {
   function Wrapper({ children }: { children: ReactNode }) {
-    return <Provider store={store}>{children}</Provider>;
+    // Components read custom palette tokens (cta, backgroundDialog, ...)
+    // that only exist on the app's themes, so tests must render under a
+    // real registry theme rather than MUI's default.
+    return (
+      <Provider store={store}>
+        <ThemeProvider theme={darkTheme}>{children}</ThemeProvider>
+      </Provider>
+    );
   }
 
   return { store, ...render(ui, { wrapper: Wrapper, ...renderOptions }) };

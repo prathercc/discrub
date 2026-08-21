@@ -9,7 +9,10 @@ import {
   Typography,
   Chip,
   useTheme,
+  alpha,
+  lighten,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import {
   Download as DownloadIcon,
 } from '@mui/icons-material';
@@ -160,8 +163,8 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
           sx={{
             ml: 1,
             verticalAlign: 'middle',
-            backgroundColor: 'rgba(88, 101, 242, 0.2)',
-            color: isDark ? '#c9d1ff' : 'primary.main',
+            backgroundColor: (theme: Theme) => alpha(theme.palette.cta.main, 0.2),
+            color: (theme: Theme) => (isDark ? lighten(theme.palette.primary.main, 0.4) : theme.palette.primary.main),
             fontWeight: 500,
           }}
         />

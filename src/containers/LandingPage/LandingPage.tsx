@@ -9,7 +9,9 @@ import {
   CircularProgress,
   Link,
   Stack,
+  alpha,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   authenticateWithToken,
@@ -165,9 +167,9 @@ const LandingPage = () => {
         justifyContent: 'center',
         minHeight: '100vh',
         background: (theme) => `linear-gradient(135deg, ${theme.palette.background.default} 0%, ${theme.palette.background.paper} 100%)`,
-        backgroundImage: `
-          radial-gradient(circle at 20% 50%, rgba(114, 137, 218, 0.1) 0%, transparent 50%),
-          radial-gradient(circle at 80% 80%, rgba(88, 101, 242, 0.1) 0%, transparent 50%)
+        backgroundImage: (theme: Theme) => `
+          radial-gradient(circle at 20% 50%, ${alpha(theme.palette.primary.main, 0.1)} 0%, transparent 50%),
+          radial-gradient(circle at 80% 80%, ${alpha(theme.palette.primary.dark, 0.1)} 0%, transparent 50%)
         `,
         padding: 2,
       }}
@@ -179,9 +181,9 @@ const LandingPage = () => {
           maxWidth: 500,
           width: '100%',
           backgroundColor: (theme) => theme.palette.backgroundGlass,
-          border: '1px solid rgba(114, 137, 218, 0.2)',
+          border: (theme: Theme) => `1px solid ${alpha(theme.palette.primary.main, 0.2)}`,
           borderRadius: 4,
-          boxShadow: '0 0 20px rgba(114, 137, 218, 0.1)',
+          boxShadow: (theme: Theme) => `0 0 20px ${alpha(theme.palette.primary.main, 0.1)}`,
           animation: 'fade-in-scale 600ms ease',
         }}
       >
@@ -195,7 +197,7 @@ const LandingPage = () => {
               sx={{
                 width: 80,
                 height: 80,
-                filter: 'drop-shadow(0 8px 16px rgba(114, 137, 218, 0.4))',
+                filter: (theme: Theme) => `drop-shadow(0 8px 16px ${alpha(theme.palette.primary.main, 0.4)})`,
               }}
             />
 

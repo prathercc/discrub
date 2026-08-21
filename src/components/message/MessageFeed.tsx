@@ -1,5 +1,5 @@
 import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
-import { Box, Button, Paper, Skeleton } from '@mui/material';
+import { Box, Button, Paper, Skeleton, alpha } from '@mui/material';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import type { Message, User, Attachment } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
@@ -427,18 +427,18 @@ const MessageFeed = ({
         <Box
           ref={parentRef}
           onMouseMove={handleDragAutoScroll}
-          sx={{
+          sx={(theme) => ({
             flex: 1,
             minHeight: 0,
             overflow: 'auto',
             '&::-webkit-scrollbar': { width: 8 },
             '&::-webkit-scrollbar-track': { backgroundColor: 'transparent', borderRadius: 3 },
             '&::-webkit-scrollbar-thumb': {
-              backgroundColor: 'rgba(114, 137, 218, 0.25)',
+              backgroundColor: alpha(theme.palette.primary.main, 0.25),
               borderRadius: 4,
-              '&:hover': { backgroundColor: 'rgba(114, 137, 218, 0.4)' },
+              '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.4) },
             },
-          }}
+          })}
         >
           <Box
             data-testid="message-feed-items"

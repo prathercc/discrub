@@ -1,4 +1,5 @@
 import { Box, CircularProgress, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 
 interface LoadingSpinnerProps {
   message?: string;
@@ -9,6 +10,7 @@ interface LoadingSpinnerProps {
  * Loading spinner component with optional message
  */
 const LoadingSpinner = ({ message, size = 40 }: LoadingSpinnerProps) => {
+  const theme = useTheme();
   return (
     <Box
       sx={{
@@ -24,15 +26,15 @@ const LoadingSpinner = ({ message, size = 40 }: LoadingSpinnerProps) => {
         <svg width="0" height="0">
           <defs>
             <linearGradient id="spinner-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#7289da" />
-              <stop offset="100%" stopColor="#5865f2" />
+              <stop offset="0%" stopColor={theme.palette.primary.main} />
+              <stop offset="100%" stopColor={theme.palette.primary.dark} />
             </linearGradient>
           </defs>
         </svg>
         <CircularProgress
           size={size}
           sx={{
-            color: '#7289da',
+            color: 'primary.main',
             '& .MuiCircularProgress-circle': {
               strokeLinecap: 'round',
               stroke: 'url(#spinner-gradient)',

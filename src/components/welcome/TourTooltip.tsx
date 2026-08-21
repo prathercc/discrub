@@ -1,4 +1,5 @@
 import { Box, Typography, Button, IconButton, LinearProgress } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import { Close as CloseIcon } from '@mui/icons-material';
 import type { TooltipRenderProps } from 'react-joyride';
 
@@ -36,7 +37,8 @@ const TourTooltip = ({
         sx={{
           height: 3,
           '& .MuiLinearProgress-bar': {
-            background: 'linear-gradient(90deg, #7289da, #5865f2)',
+            background: (theme: Theme) =>
+              `linear-gradient(90deg, ${theme.palette.primary.main}, ${theme.palette.primary.dark})`,
           },
           backgroundColor: 'divider',
         }}

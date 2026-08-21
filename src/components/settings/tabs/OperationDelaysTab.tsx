@@ -1,4 +1,4 @@
-import { Box, Slider, Typography, Alert } from '@mui/material';
+import { Box, Slider, Typography, Alert, useTheme } from '@mui/material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import TourFootnote from '@components/welcome/TourFootnote';
@@ -50,11 +50,11 @@ const MODIFIER_CONFIG: DelaySliderConfig = {
  * - Green (recommended range): Recommended — balanced speed and safety
  * - Blue (above recommended): Safe — very safe but slower operations
  */
-const getZoneColor = (value: number, config: DelaySliderConfig): string => {
+const getZoneColor = (value: number, config: DelaySliderConfig, safeColor: string): string => {
   if (value === 0) return '#f44336';
   if (value < config.recommendedMin) return '#ff9800';
   if (value <= config.recommendedMax) return '#4caf50';
-  return '#5865f2'; // blurple — safe but slow
+  return safeColor; // theme accent — safe but slow
 };
 
 const getZoneLabel = (value: number, config: DelaySliderConfig): string => {
@@ -68,7 +68,7 @@ const getZoneLabel = (value: number, config: DelaySliderConfig): string => {
  * Build a CSS linear-gradient for the slider rail with blended transitions.
  * Red → amber → green → blue, with smooth color transitions between zones.
  */
-const buildRailGradient = (config: DelaySliderConfig): string => {
+const buildRailGradient = (config: DelaySliderConfig, safeColor: string): string => {
   const { min, max, recommendedMin, recommendedMax } = config;
   const range = max - min;
   const toPct = (v: number) => ((v - min) / range) * 100;
@@ -86,8 +86,8 @@ const buildRailGradient = (config: DelaySliderConfig): string => {
     + `#ff9800 ${redMid}%, `
     + `#4caf50 ${amberToGreen}%, `
     + `#4caf50 ${greenToBlue}%, `
-    + `#5865f2 ${blueMid}%, `
-    + `#5865f2 100%)`;
+    + `${safeColor} ${blueMid}%, `
+    + `${safeColor} 100%)`;
 };
 
 const DelaySlider = ({
@@ -99,7 +99,9 @@ const DelaySlider = ({
   value: number;
   onChange: (key: DiscrubSetting, value: string) => void;
 }) => {
-  const thumbColor = getZoneColor(value, config);
+  const theme = useTheme();
+  const safeColor = theme.palette.cta.main;
+  const thumbColor = getZoneColor(value, config, safeColor);
   const zoneLabel = getZoneLabel(value, config);
 
   return (
@@ -142,7 +144,7 @@ const DelaySlider = ({
           },
           '& .MuiSlider-rail': {
             opacity: 1,
-            background: buildRailGradient(config),
+            background: buildRailGradient(config, safeColor),
             height: 6,
           },
         }}

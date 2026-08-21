@@ -1,4 +1,4 @@
-import { Box, FormControl, InputLabel, MenuItem, Select, FormControlLabel, Checkbox, Chip, Slider, Typography, Divider } from '@mui/material';
+import { Box, FormControl, InputLabel, MenuItem, Select, FormControlLabel, Checkbox, Chip, Slider, Typography, Divider, useTheme } from '@mui/material';
 import {
   Image as ImageIcon,
   Videocam as VideoIcon,
@@ -27,13 +27,13 @@ const MESSAGES_PER_PAGE_STEP = 10;
 const MESSAGES_PER_PAGE_REC_MIN = 100;
 const MESSAGES_PER_PAGE_REC_MAX = 500;
 
-const getPageZoneColor = (value: number): string => {
+const getPageZoneColor = (value: number, safeColor: string): string => {
   if (value >= MESSAGES_PER_PAGE_REC_MIN && value <= MESSAGES_PER_PAGE_REC_MAX) return '#4caf50';
   if (value < MESSAGES_PER_PAGE_REC_MIN) return '#ff9800';
-  return '#5865f2';
+  return safeColor;
 };
 
-const buildPageGradient = (): string => {
+const buildPageGradient = (safeColor: string): string => {
   const range = MESSAGES_PER_PAGE_MAX - MESSAGES_PER_PAGE_MIN;
   const toPct = (v: number) => ((v - MESSAGES_PER_PAGE_MIN) / range) * 100;
   const recStart = toPct(MESSAGES_PER_PAGE_REC_MIN);
@@ -44,13 +44,15 @@ const buildPageGradient = (): string => {
     + `#ff9800 0%, `
     + `#4caf50 ${recStart}%, `
     + `#4caf50 ${recEnd}%, `
-    + `#5865f2 ${blueMid}%, `
-    + `#5865f2 100%)`;
+    + `${safeColor} ${blueMid}%, `
+    + `${safeColor} 100%)`;
 };
 
 export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferencesTabProps) => {
+  const theme = useTheme();
+  const safeColor = theme.palette.cta.main;
   const messagesPerPage = parseInt(formValues[DiscrubSetting.EXPORT_MESSAGES_PER_PAGE]) || 50;
-  const pageColor = getPageZoneColor(messagesPerPage);
+  const pageColor = getPageZoneColor(messagesPerPage, safeColor);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
@@ -98,7 +100,7 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
           sx={{
             '& .MuiSlider-track': { display: 'none' },
             '& .MuiSlider-thumb': { backgroundColor: pageColor, borderColor: pageColor, border: '2px solid', zIndex: 1 },
-            '& .MuiSlider-rail': { opacity: 1, background: buildPageGradient(), height: 6 },
+            '& .MuiSlider-rail': { opacity: 1, background: buildPageGradient(safeColor), height: 6 },
           }}
         />
         <Typography variant="caption" color="text.secondary">

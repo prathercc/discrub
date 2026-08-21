@@ -139,8 +139,8 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             fontWeight: 700,
             background: (theme) =>
               theme.palette.mode === 'dark'
-                ? 'linear-gradient(90deg, #ffffff, #d2d5f7)'
-                : 'linear-gradient(90deg, #2e3338, #5865f2)',
+                ? `linear-gradient(90deg, ${theme.palette.text.primary}, ${theme.palette.text.secondary})`
+                : `linear-gradient(90deg, ${theme.palette.text.primary}, ${theme.palette.cta.main})`,
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             mb: 1,
