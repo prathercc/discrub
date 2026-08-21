@@ -1,4 +1,4 @@
-import type { Theme } from '@mui/material/styles';
+import { alpha, type Theme } from '@mui/material/styles';
 
 /**
  * Global CSS styles for the application.
@@ -27,17 +27,17 @@ export const globalStyles = (theme: Theme) => ({
   },
   /* Selection color */
   '::selection': {
-    backgroundColor: 'rgba(114, 137, 218, 0.5)',
-    color: theme.palette.mode === 'dark' ? '#ffffff' : '#2e3338',
+    backgroundColor: alpha(theme.palette.primary.main, 0.5),
+    color: theme.palette.text.primary,
   },
   /* Link styling */
   a: {
-    color: theme.palette.mode === 'dark' ? '#00b0f4' : '#0067e0',
+    color: theme.palette.link,
     textDecoration: 'none',
     transition: 'color 200ms ease',
     '&:hover': {
       textDecoration: 'underline',
-      color: theme.palette.mode === 'dark' ? '#00d4ff' : '#004db3',
+      color: theme.palette.linkHover,
     },
   },
   /* Glassmorphism utility classes */
@@ -49,13 +49,13 @@ export const globalStyles = (theme: Theme) => ({
     boxShadow: theme.palette.mode === 'dark' ? '0 8px 32px rgba(0, 0, 0, 0.4)' : '0 8px 32px rgba(0, 0, 0, 0.08)',
   },
   '.glass-strong': {
-    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(40, 43, 48, 0.85)' : 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: theme.palette.backgroundGlassStrong,
     backdropFilter: 'blur(20px) saturate(180%)',
     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
     border: `1px solid ${theme.palette.divider}`,
   },
   '.glass-subtle': {
-    backgroundColor: theme.palette.mode === 'dark' ? 'rgba(40, 43, 48, 0.5)' : 'rgba(255, 255, 255, 0.6)',
+    backgroundColor: theme.palette.backgroundGlassSubtle,
     backdropFilter: 'blur(8px) saturate(120%)',
     WebkitBackdropFilter: 'blur(8px) saturate(120%)',
     border: `1px solid ${theme.palette.divider}`,
@@ -67,11 +67,11 @@ export const globalStyles = (theme: Theme) => ({
   },
   '@keyframes pulse-glow': {
     '0%, 100%': {
-      boxShadow: '0 0 20px rgba(114, 137, 218, 0.3)',
+      boxShadow: `0 0 20px ${alpha(theme.palette.primary.main, 0.3)}`,
       transform: 'scale(1)',
     },
     '50%': {
-      boxShadow: '0 0 40px rgba(114, 137, 218, 0.6)',
+      boxShadow: `0 0 40px ${alpha(theme.palette.primary.main, 0.6)}`,
       transform: 'scale(1.02)',
     },
   },
@@ -126,7 +126,7 @@ export const globalStyles = (theme: Theme) => ({
   '*:focus-visible': {
     outline: `2px solid ${theme.palette.primary.main}`,
     outlineOffset: '2px',
-    boxShadow: `0 0 0 4px ${theme.palette.mode === 'dark' ? 'rgba(114, 137, 218, 0.3)' : 'rgba(88, 101, 242, 0.2)'}`,
+    boxShadow: `0 0 0 4px ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.3 : 0.2)}`,
   },
 });
 

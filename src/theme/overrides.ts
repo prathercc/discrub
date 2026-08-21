@@ -1,4 +1,4 @@
-import { Components, Theme } from '@mui/material/styles';
+import { alpha, Components, Theme } from '@mui/material/styles';
 
 /**
  * Component style overrides for Discord-inspired appearance.
@@ -17,7 +17,7 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
       // Themed text selection
       '::selection': {
         backgroundColor: (theme as Theme).palette.primary.main,
-        color: '#fff',
+        color: (theme as Theme).palette.primary.contrastText,
       },
       // Scrollbar styling
       body: {
@@ -72,14 +72,10 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
         margin: '4px 8px',
         transition: 'background-color 200ms ease',
         '&.Mui-selected': {
-          backgroundColor: theme.palette.mode === 'dark'
-            ? 'rgba(114, 137, 218, 0.15)'
-            : 'rgba(88, 101, 242, 0.08)',
+          backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.08),
           borderLeft: `3px solid ${theme.palette.primary.main}`,
           '&:hover': {
-            backgroundColor: theme.palette.mode === 'dark'
-              ? 'rgba(114, 137, 218, 0.22)'
-              : 'rgba(88, 101, 242, 0.14)',
+            backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.22 : 0.14),
           },
         },
         '&:hover': {
@@ -114,16 +110,12 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
               ? 'rgba(255, 255, 255, 0.04)'
               : 'rgba(0, 0, 0, 0.04)',
             '& fieldset': {
-              borderColor: `${theme.palette.primary.main}80`,
+              borderColor: alpha(theme.palette.primary.main, 0.5),
             },
           },
           '&.Mui-focused': {
-            backgroundColor: theme.palette.mode === 'dark'
-              ? 'rgba(114, 137, 218, 0.05)'
-              : 'rgba(88, 101, 242, 0.04)',
-            boxShadow: theme.palette.mode === 'dark'
-              ? '0 0 0 2px rgba(114, 137, 218, 0.15)'
-              : '0 0 0 2px rgba(88, 101, 242, 0.1)',
+            backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.05 : 0.04),
+            boxShadow: `0 0 0 2px ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.1)}`,
             '& fieldset': {
               borderColor: theme.palette.primary.main,
               borderWidth: '1px',
@@ -139,9 +131,7 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
   MuiDialog: {
     styleOverrides: {
       paper: ({ theme }) => ({
-        backgroundColor: theme.palette.mode === 'dark'
-          ? 'rgba(54, 57, 63, 0.95)'
-          : 'rgba(255, 255, 255, 0.98)',
+        backgroundColor: theme.palette.backgroundDialog,
         borderRadius: '8px',
         border: `1px solid ${theme.palette.divider}`,
         boxShadow: theme.palette.mode === 'dark'
@@ -261,9 +251,7 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
     styleOverrides: {
       root: ({ theme }) => ({
         '&.MuiTableRow-hover:hover': {
-          backgroundColor: theme.palette.mode === 'dark'
-            ? 'rgba(114, 137, 218, 0.04)'
-            : 'rgba(88, 101, 242, 0.03)',
+          backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.04 : 0.03),
         },
       }),
     },
@@ -285,7 +273,7 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
           fontSize: '0.875rem',
           transition: 'background-color 150ms ease, color 150ms ease',
           '&.Mui-selected': {
-            color: '#fff',
+            color: theme.palette.primary.contrastText,
             backgroundColor: theme.palette.primary.main,
             '&:hover': {
               backgroundColor: theme.palette.primary.dark,
@@ -308,10 +296,7 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
     },
     styleOverrides: {
       tooltip: ({ theme }) => ({
-        backgroundColor:
-          theme.palette.mode === 'dark'
-            ? 'rgba(40, 43, 48, 0.98)'
-            : 'rgba(255, 255, 255, 0.98)',
+        backgroundColor: theme.palette.backgroundTooltip,
         color: theme.palette.text.primary,
         border: `1px solid ${theme.palette.divider}`,
         backdropFilter: 'blur(8px)',
@@ -327,10 +312,7 @@ export const componentOverrides: Components<Omit<Theme, 'components'>> = {
             : '0 6px 20px rgba(0, 0, 0, 0.12)',
       }),
       arrow: ({ theme }) => ({
-        color:
-          theme.palette.mode === 'dark'
-            ? 'rgba(40, 43, 48, 0.98)'
-            : 'rgba(255, 255, 255, 0.98)',
+        color: theme.palette.backgroundTooltip,
         '&::before': {
           border: `1px solid ${theme.palette.divider}`,
         },

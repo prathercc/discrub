@@ -2,7 +2,9 @@ import { useState } from 'react';
 import {
   AppBar, Toolbar, Avatar, Typography, IconButton, Box, Tooltip,
   Dialog, DialogContent, Menu, MenuItem, ListItemIcon, ListItemText,
+  alpha,
 } from '@mui/material';
+import type { Theme } from '@mui/material/styles';
 import {
   Logout as LogoutIcon,
   Settings as SettingsIcon,
@@ -32,6 +34,7 @@ import { selectSetting, updateSetting, setMinimized } from '@features/app/appSli
 import { selectIsHeavyOperationRunning, selectOperationSummary } from '@features/app/operationSelectors';
 import { reopenAnnouncement, fetchAnnouncementMarkdownThunk } from '@features/announcement/announcementSlice';
 import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messaging';
+import { findThemeDescriptor, DISCORD_DARK_ID, DISCORD_LIGHT_ID } from '@/theme/theme';
 import SettingsModal from '@components/settings/SettingsModal';
 import UserProfileModal from '@components/modals/UserProfileModal';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
@@ -47,7 +50,10 @@ const TopBar = () => {
   const currentUser = useAppSelector(selectCurrentUser);
   const cachedUserMap = useAppSelector(selectCachedUserMap);
   const showKofiFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
-  const themeMode = useAppSelector(selectSetting(DiscrubSetting.APP_THEME_MODE)) || 'auto';
+  const themeSetting = useAppSelector(selectSetting(DiscrubSetting.APP_THEME_MODE)) || 'auto';
+  // Legacy 'dark'/'light' values resolve through the registry; anything
+  // unrecognized behaves as 'auto', matching ThemeWrapper's fallback.
+  const themeDescriptor = themeSetting === 'auto' ? undefined : findThemeDescriptor(themeSetting);
   const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
   const operationSummary = useAppSelector(selectOperationSummary);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -64,12 +70,14 @@ const TopBar = () => {
 
   const handleCycleTheme = () => {
     // Cycle: auto → dark → light → auto
-    const next = themeMode === 'auto' ? 'dark' : themeMode === 'dark' ? 'light' : 'auto';
+    const current = themeDescriptor?.id ?? 'auto';
+    const next =
+      current === 'auto' ? DISCORD_DARK_ID : current === DISCORD_DARK_ID ? DISCORD_LIGHT_ID : 'auto';
     dispatch(updateSetting({ key: DiscrubSetting.APP_THEME_MODE, value: next }));
   };
 
-  const themeIcon = themeMode === 'light' ? <LightModeIcon /> : themeMode === 'dark' ? <DarkModeIcon /> : <AutoModeIcon />;
-  const themeLabel = themeMode === 'light' ? 'Light mode' : themeMode === 'dark' ? 'Dark mode' : 'Auto (system)';
+  const themeIcon = !themeDescriptor ? <AutoModeIcon /> : themeDescriptor.base === 'light' ? <LightModeIcon /> : <DarkModeIcon />;
+  const themeLabel = !themeDescriptor ? 'Auto (system)' : themeDescriptor.base === 'light' ? 'Light mode' : 'Dark mode';
 
   const handleToggleKofi = () => {
     dispatch(
@@ -167,7 +175,7 @@ const TopBar = () => {
           <Typography
             variant="caption"
             sx={{
-              color: 'rgba(114, 137, 218, 0.7)',
+              color: (theme: Theme) => alpha(theme.palette.primary.main, 0.7),
               fontWeight: 500,
               fontSize: '0.7rem',
               letterSpacing: '0.5px',
@@ -192,7 +200,7 @@ const TopBar = () => {
                 borderRadius: '4px',
                 transition: 'background-color 200ms ease',
                 '&:hover': {
-                  backgroundColor: 'rgba(114, 137, 218, 0.1)',
+                  backgroundColor: (theme: Theme) => alpha(theme.palette.primary.main, 0.1),
                 },
               }}
             >
@@ -205,7 +213,7 @@ const TopBar = () => {
                 sx={{
                   width: 36,
                   height: 36,
-                  border: '2px solid rgba(114, 137, 218, 0.3)',
+                  border: (theme: Theme) => `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
                   transition: 'border-color 200ms ease',
                 }}
               >
