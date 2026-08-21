@@ -94,13 +94,6 @@ function visitApp({ freshDbs = true }: { freshDbs?: boolean } = {}) {
   cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
 }
 
-function openDisplayTab() {
-  cy.get('[aria-label="Settings"]').click();
-  cy.get('[role="dialog"]', { timeout: 5000 }).should('be.visible');
-  cy.contains('button', 'Display').click();
-  cy.get('[data-testid="theme-picker"]').should('be.visible');
-}
-
 /** Open the hub and apply a key through the paste box (the primary path). */
 function applyKeyViaDialog(key: string) {
   cy.get('[data-testid="gift-button"]').click();
@@ -123,17 +116,26 @@ describe('Supporter platform', () => {
       'have.length',
       8,
     );
-    cy.contains('a', 'Support on Ko-fi').should(
+    // Two purchase paths in the pinned footer, each on its final URL.
+    cy.get('[data-testid="supporter-kofi-monthly"]').should(
       'have.attr',
       'href',
-      'https://ko-fi.com/prathercc',
+      'https://ko-fi.com/prathercc/tiers',
     );
-    // The key delivery + renewal disclosure (below the fold now that
-    // the grid lives in the hub).
-    cy.contains('arrives by email right after you join').scrollIntoView().should('be.visible');
-    cy.contains('renew automatically while your membership is active')
-      .scrollIntoView()
-      .should('be.visible');
+    cy.get('[data-testid="supporter-kofi-lifetime"]').should(
+      'have.attr',
+      'href',
+      'https://ko-fi.com/s/0b4f9b2bdf',
+    );
+    // The key delivery + renewal disclosure, with the sender address
+    // as a mailto link.
+    cy.get('[data-testid="supporter-key-email-link"]').should(
+      'have.attr',
+      'href',
+      'mailto:keys@pratherbytecraft.com',
+    );
+    cy.contains('right after you join').should('be.visible');
+    cy.contains('Monthly keys renew automatically').should('be.visible');
   });
 
   it('applying a key unlocks supporter themes end to end', () => {
@@ -151,9 +153,8 @@ describe('Supporter platform', () => {
     cy.get('[aria-label="Close Supporter dialog"]').click();
     cy.get('body').should('have.css', 'background-color', AMOLED_BG);
 
-    // The Settings picker agrees.
-    openDisplayTab();
-    cy.get('[data-testid="theme-picker"] [data-testid^="theme-locked-"]').should('have.length', 0);
+    // Reopening the hub shows the applied pick as selected.
+    cy.get('[data-testid="gift-button"]').click();
     cy.get('[data-testid="theme-selected-amoled-void"]').should('exist');
   });
 
@@ -178,7 +179,7 @@ describe('Supporter platform', () => {
     cy.get('[aria-label="Close Supporter dialog"]').click();
     cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
     cy.get('[data-testid="supporter-avatar-pip"]').should('not.exist');
-    cy.get('[data-testid="gift-button"]').should('have.attr', 'aria-label', 'Themes and support');
+    cy.get('[data-testid="gift-button"]').should('have.attr', 'aria-label', 'Themes and Support');
   });
 
   it('an applied key and theme survive a reload without contacting the server', () => {
@@ -280,22 +281,18 @@ describe('Supporter platform', () => {
 
     // Theme falls back without touching the saved setting.
     cy.get('body').should('have.css', 'background-color', DARK_BG);
-    openDisplayTab();
-    cy.get('[data-testid="theme-picker"] [data-testid^="theme-locked-"]').should('have.length', 8);
-    cy.get('[data-testid="theme-selected-amoled-void"]').should('exist');
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-theme-showcase"] [data-testid^="theme-locked-"]').should(
+      'have.length',
+      8,
+    );
+    // The relocked-but-still-saved theme shows its lock (the corner
+    // badge shows lock over check; the selection border remains).
+    cy.get('[data-testid="theme-locked-amoled-void"]').should('exist');
+    cy.get('[data-testid="theme-selected-amoled-void"]').should('not.exist');
   });
 
-  it('clicking a locked theme card in Settings opens the hub', () => {
-    visitApp();
-    openDisplayTab();
-    cy.get('[data-testid="theme-picker"] [data-testid="theme-card-synthwave"]').click({
-      force: true,
-    });
-    cy.get('[data-testid="supporter-dialog"]').should('be.visible');
-    cy.contains('growing pack of cosmetic themes').should('be.visible');
-  });
-
-  it('gift attention animation calms permanently after the first open', () => {
+  it('gift attention animation calms for the session and re-arms on reload', () => {
     visitApp();
     cy.get('[data-testid="gift-button"]').should(
       'have.css',
@@ -306,8 +303,13 @@ describe('Supporter platform', () => {
     cy.get('[aria-label="Close Supporter dialog"]').click();
     cy.get('[data-testid="gift-button"]').should('have.css', 'animation-name', 'none');
 
-    // The calm persists across reloads.
+    // Per-session by design: a fresh app open re-arms the intrigue
+    // until the user becomes a supporter.
     visitApp({ freshDbs: false });
-    cy.get('[data-testid="gift-button"]').should('have.css', 'animation-name', 'none');
+    cy.get('[data-testid="gift-button"]').should(
+      'have.css',
+      'animation-name',
+      'giftGlow, giftWiggle',
+    );
   });
 });

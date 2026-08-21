@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen, fireEvent } from '../../test/test-utils';
+import { renderWithProviders, screen, fireEvent, waitFor } from '../../test/test-utils';
 import SettingsModal from './SettingsModal';
 import { createBaseState } from '../../test/state-factories';
 import { defaultSettings } from '@features/app/appSlice';
+import { DiscrubSetting } from 'discrub-core/discrub-enum';
 
 vi.mock('@services/discordService', () => ({
   getDiscordService: vi.fn(() => ({})),
@@ -118,6 +119,29 @@ describe('SettingsModal', () => {
       expect(screen.getByRole('button', { name: 'Save Settings' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Cancel' })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeInTheDocument();
+    });
+
+    it('Reset to defaults preserves the theme choices (they live in the hub now)', async () => {
+      const { store } = renderSettings({
+        ...defaultSettings,
+        [DiscrubSetting.APP_THEME_MODE]: 'synthwave',
+        [DiscrubSetting.APP_THEME_ANIMATIONS]: 'false',
+        [DiscrubSetting.DATE_FORMAT]: 'DD/MM/YYYY',
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+      fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }));
+
+      await waitFor(() => {
+        const settings = store.getState().app.settings;
+        // Non-theme settings reset...
+        expect(settings?.[DiscrubSetting.DATE_FORMAT]).toBe(
+          defaultSettings[DiscrubSetting.DATE_FORMAT],
+        );
+        // ...but the hub-owned theme keys must not be clobbered.
+        expect(settings?.[DiscrubSetting.APP_THEME_MODE]).toBe('synthwave');
+        expect(settings?.[DiscrubSetting.APP_THEME_ANIMATIONS]).toBe('false');
+      });
     });
 
     it('should call onClose when Cancel is clicked', () => {

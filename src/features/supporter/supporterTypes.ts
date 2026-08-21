@@ -14,6 +14,7 @@ import type { SupporterFooterPreferences } from '@services/exportFooter';
 export const SUPPORTER_KEY_STORAGE_KEY = 'supporter:key';
 /** Legacy (pre-release builds stored a claim email; scrubbed on boot). */
 export const SUPPORTER_EMAIL_STORAGE_KEY = 'supporter:email';
+/** Legacy (attention calm is per-session now; stored value is ignored). */
 export const GIFT_ATTENTION_SEEN_STORAGE_KEY = 'supporter:giftAttentionSeen';
 export const FOOTER_TEXT_STORAGE_KEY = 'supporter:footerText';
 export const FOOTER_REMOVED_STORAGE_KEY = 'supporter:footerRemoved';

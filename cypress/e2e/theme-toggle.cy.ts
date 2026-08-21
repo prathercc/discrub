@@ -1,7 +1,9 @@
 /**
  * Theme switching from the Themes hub (the gift-button dialog). The
  * old TopBar cycle button was retired when the hub took over as the
- * single theme-switching surface.
+ * single theme-switching surface. Previewing is deliberate and sticky:
+ * the per-card eye (or a click on a locked card) starts it, and it
+ * lasts until Stop, another preview, an apply, or the hub closing.
  */
 
 const DARK_BG = 'rgb(30, 33, 36)'; // discord-dark background.default
@@ -38,30 +40,48 @@ describe('Theme switching from the hub', () => {
     cy.get('body').should('have.css', 'background-color', LIGHT_BG);
   });
 
-  it('hover previews live and reverts only when the pointer leaves the grid', () => {
+  it('the eye starts a sticky preview; Stop reverts to the selection', () => {
     openHub();
     // Deterministic baseline — 'auto' resolves differently per browser.
     cy.get('[data-testid="theme-card-discord-dark"]').click();
     cy.get('body').should('have.css', 'background-color', DARK_BG);
 
-    cy.get('[data-testid="theme-card-terminal"]').trigger('mouseover');
+    cy.get('[data-testid="theme-preview-terminal"]').click();
     cy.get('body').should('have.css', 'background-color', TERMINAL_BG);
-    // Crossing to another card must NOT flash the saved theme in.
+    cy.get('[data-testid="theme-preview-bar"]').should('contain.text', 'Terminal');
+
+    // Sticky: pointer wandering over other cards must NOT change it.
     cy.get('[data-testid="theme-card-overcast"]').trigger('mouseover');
-    cy.get('body').should('not.have.css', 'background-color', DARK_BG);
-    // Leaving the grid entirely reverts to the selection.
-    cy.get('[data-testid="theme-card-overcast"]').trigger('mouseout');
+    cy.get('body').should('have.css', 'background-color', TERMINAL_BG);
+
+    cy.get('[data-testid="theme-preview-stop"]').click();
     cy.get('body').should('have.css', 'background-color', DARK_BG);
   });
 
-  it('locked supporter cards preview on hover but stay inert on click', () => {
+  it('Apply in the preview bar selects the previewed theme', () => {
     openHub();
     cy.get('[data-testid="theme-card-discord-dark"]').click();
-    cy.get('[data-testid="theme-card-amoled-void"]').trigger('mouseover');
-    cy.get('body').should('have.css', 'background-color', 'rgb(0, 0, 0)');
+    cy.get('[data-testid="theme-preview-discord-light"]').click();
+    cy.get('body').should('have.css', 'background-color', LIGHT_BG);
+
+    cy.get('[data-testid="theme-preview-apply"]').click();
+    cy.get('[data-testid="theme-selected-discord-light"]').should('exist');
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+    cy.get('body').should('have.css', 'background-color', LIGHT_BG);
+  });
+
+  it('locked supporter cards preview on click and revert when the hub closes', () => {
+    openHub();
+    cy.get('[data-testid="theme-card-discord-dark"]').click();
+
     cy.get('[data-testid="theme-card-amoled-void"]').click();
-    cy.get('[data-testid="supporter-dialog"]').should('be.visible');
-    cy.get('[data-testid="theme-card-amoled-void"]').trigger('mouseout');
+    cy.get('body').should('have.css', 'background-color', 'rgb(0, 0, 0)');
+    // The bar names it and marks it locked — no Apply offered.
+    cy.get('[data-testid="theme-preview-bar"]').should('contain.text', 'Locked');
+    cy.get('[data-testid="theme-preview-apply"]').should('not.exist');
+    cy.get('[data-testid="theme-selected-amoled-void"]').should('not.exist');
+
+    // Closing the hub always drops the preview.
     cy.get('[aria-label="Close Supporter dialog"]').click();
     cy.get('body').should('have.css', 'background-color', DARK_BG);
   });

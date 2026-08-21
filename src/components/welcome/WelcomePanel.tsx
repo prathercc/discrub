@@ -89,7 +89,7 @@ const FEATURE_CARDS: FeatureCard[] = [
     id: 'theme',
     icon: <ThemeIcon />,
     title: 'Themes',
-    description: 'A growing roster of themes behind the gift icon, with live hover previews. Exported HTML includes its own theme switcher.',
+    description: 'A growing roster of themes behind the gift icon, with live in-app previews. Exported HTML includes its own theme switcher.',
   },
   {
     id: 'status',

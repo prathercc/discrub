@@ -16,7 +16,6 @@ import {
   initialSupporterState,
   SUPPORTER_KEY_STORAGE_KEY,
   SUPPORTER_EMAIL_STORAGE_KEY,
-  GIFT_ATTENTION_SEEN_STORAGE_KEY,
   FOOTER_TEXT_STORAGE_KEY,
   FOOTER_REMOVED_STORAGE_KEY,
   FOOTER_ICON_MEDIA_KEY,
@@ -57,10 +56,9 @@ const toVerifiedState = (verification: SupporterKeyVerification): VerifiedKeySta
 export const initializeSupporter = createAsyncThunk(
   'supporter/initialize',
   async () => {
-    const [storedKey, giftSeen, footerText, footerRemoved, footerIcon] =
+    const [storedKey, footerText, footerRemoved, footerIcon] =
       await Promise.all([
         storage.state.get<string>(SUPPORTER_KEY_STORAGE_KEY),
-        storage.state.get<boolean>(GIFT_ATTENTION_SEEN_STORAGE_KEY),
         storage.state.get<string>(FOOTER_TEXT_STORAGE_KEY),
         storage.state.get<boolean>(FOOTER_REMOVED_STORAGE_KEY),
         storage.media.get<string>(FOOTER_ICON_MEDIA_KEY),
@@ -71,7 +69,6 @@ export const initializeSupporter = createAsyncThunk(
     storage.state.remove(SUPPORTER_EMAIL_STORAGE_KEY).catch(() => {});
 
     const base = {
-      giftAttentionSeen: giftSeen === true,
       footer: {
         text: typeof footerText === 'string' && footerText ? footerText : null,
         removed: footerRemoved === true,
@@ -181,14 +178,6 @@ export const removeSupporterKey = createAsyncThunk('supporter/removeKey', async 
   ]);
 });
 
-/** Calm the gift-button attention animation permanently. */
-export const markGiftAttentionSeen = createAsyncThunk(
-  'supporter/markGiftAttentionSeen',
-  async () => {
-    await storage.state.set(GIFT_ATTENTION_SEEN_STORAGE_KEY, true);
-  },
-);
-
 /**
  * Persist export-footer text/removed preferences (slot F). Empty text
  * clears the stored value back to the default.
@@ -246,6 +235,12 @@ const supporterSlice = createSlice({
     clearClaimError: (state) => {
       state.claimError = null;
     },
+    // Calm the gift-button attention animation for the rest of this
+    // session. Deliberately NOT persisted: the glow/wiggle re-arms on
+    // every app open until the user becomes a supporter.
+    markGiftAttentionSeen: (state) => {
+      state.giftAttentionSeen = true;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -253,7 +248,6 @@ const supporterSlice = createSlice({
         state.initialized = true;
         state.keyStatus = action.payload.keyStatus;
         state.payload = action.payload.payload;
-        state.giftAttentionSeen = action.payload.giftAttentionSeen;
         state.footer = action.payload.footer;
       })
       .addCase(initializeSupporter.rejected, (state) => {
@@ -293,11 +287,6 @@ const supporterSlice = createSlice({
         state.payload = null;
         state.claimError = null;
       })
-      .addCase(markGiftAttentionSeen.pending, (state) => {
-        // Optimistic — the animation should calm the moment the dialog
-        // opens, not after the IDB write lands.
-        state.giftAttentionSeen = true;
-      })
       .addCase(updateFooterPreferences.fulfilled, (state, action) => {
         if (action.payload.text !== undefined) state.footer.text = action.payload.text;
         if (action.payload.removed !== undefined) state.footer.removed = action.payload.removed;
@@ -308,7 +297,8 @@ const supporterSlice = createSlice({
   },
 });
 
-export const { setSupporterDialogOpen, clearClaimError } = supporterSlice.actions;
+export const { setSupporterDialogOpen, clearClaimError, markGiftAttentionSeen } =
+  supporterSlice.actions;
 
 // Selectors
 export const selectSupporter = (state: RootState) => state.supporter;

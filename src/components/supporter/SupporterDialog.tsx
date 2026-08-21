@@ -8,6 +8,7 @@ import {
   DialogContent,
   Divider,
   FormControlLabel,
+  Link,
   TextField,
   Typography,
   alpha,
@@ -19,6 +20,7 @@ import {
   Autorenew as RefreshIcon,
   DeleteOutline as RemoveIcon,
   FileUpload as UploadIcon,
+  FavoriteBorder as HeartIcon,
 } from '@mui/icons-material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -46,17 +48,25 @@ import {
 import { ThemeGrid } from '@components/settings/tabs/ThemePicker';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
-const KOFI_URL = 'https://ko-fi.com/prathercc';
+// Final links (products created 2026-08-19, hidden until launch):
+// monthly goes to the membership tiers page ("Discrub Supporter" is
+// the only tier), lifetime to the shop item's permanent direct link.
+// Both URLs are stable across the products' draft/published states.
+const KOFI_MONTHLY_URL = 'https://ko-fi.com/prathercc/tiers';
+const KOFI_LIFETIME_URL = 'https://ko-fi.com/s/0b4f9b2bdf';
 
 /**
  * The Themes and Supporter hub behind the toolbar gift button — the
  * one place for switching themes, supporting, and applying a key.
- * Everyone gets the full theme grid (instant apply, hover preview,
- * locks on supporter themes). Non-supporters also see the Ko-fi
- * button and the paste-a-key box; supporter keys arrive by email
- * after joining on Ko-fi, so the key itself is all we ever collect.
- * Supporters see their badge, name, and expiry, plus refresh/remove
- * and the export footer controls.
+ * Everyone gets the full theme grid (instant apply, per-card eye
+ * preview, locks on supporter themes). The dialog is structured as a
+ * pinned header, a scrolling grid, and a pinned action footer, so the
+ * support/key controls are always in view no matter the window height.
+ * Non-supporters get the paste-a-key row and the Ko-fi button in that
+ * footer; supporter keys arrive by email after joining on Ko-fi, so
+ * the key itself is all we ever collect. Supporters get their badge,
+ * name, expiry, and refresh/remove there instead, with the export
+ * footer controls in the scrolling area under the grid.
  */
 const SupporterDialog = () => {
   const dispatch = useAppDispatch();
@@ -66,6 +76,8 @@ const SupporterDialog = () => {
   const claimInProgress = useAppSelector(selectSupporterClaimInProgress);
   const claimError = useAppSelector(selectSupporterClaimError);
   const themeSetting = useAppSelector(selectSetting(DiscrubSetting.APP_THEME_MODE)) || 'auto';
+  const animationsSetting =
+    useAppSelector(selectSetting(DiscrubSetting.APP_THEME_ANIMATIONS)) || 'true';
 
   const footer = useAppSelector(selectSupporterFooter);
 
@@ -133,111 +145,88 @@ const SupporterDialog = () => {
       fullWidth
       PaperProps={{ sx: { bgcolor: 'background.paper' }, 'data-testid': 'supporter-dialog' } as object}
     >
-      <DialogContent sx={{ py: 4, px: 3, position: 'relative' }}>
+      <Box sx={{ px: 3, pt: 3, pb: 1, textAlign: 'center', position: 'relative', flexShrink: 0 }}>
         <DialogCloseIcon onClose={handleClose} label="Close Supporter dialog" />
 
-        <Box sx={{ textAlign: 'center', mb: 2 }}>
-          {isSupporter ? (
-            <BadgeIcon sx={{ fontSize: 40, color: 'cta.main', mb: 1 }} />
-          ) : (
-            <PaletteIcon sx={{ fontSize: 40, color: 'cta.main', mb: 1 }} />
-          )}
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {isSupporter ? 'Thank you for supporting Discrub' : 'Themes'}
+        {isSupporter ? (
+          <BadgeIcon sx={{ fontSize: 32, color: 'cta.main' }} />
+        ) : (
+          <PaletteIcon sx={{ fontSize: 32, color: 'cta.main' }} />
+        )}
+        <Typography variant="h6" sx={{ fontWeight: 700 }}>
+          {isSupporter ? 'Thank you for supporting Discrub' : 'Themes'}
+        </Typography>
+        {!isSupporter && (
+          <Typography
+            variant="body2"
+            sx={{
+              color: 'text.secondary',
+              mt: 0.5,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 0.5,
+            }}
+          >
+            Your support unlocks a growing pack of cosmetic themes
+            <HeartIcon sx={{ fontSize: 14, color: '#ff5e5b' }} />
           </Typography>
-          {!isSupporter && (
-            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-              Supporting unlocks a growing pack of cosmetic themes as a thank you.
-            </Typography>
-          )}
-        </Box>
+        )}
 
         {keyStatus === 'expired' && (
           <Typography
             variant="caption"
-            sx={{ color: 'warning.main', textAlign: 'center', display: 'block', mb: 1.5 }}
+            sx={{ color: 'warning.main', display: 'block', mt: 1 }}
             data-testid="supporter-lapsed-note"
           >
             Your membership lapsed, so supporter themes have relocked. Paste a fresh
             key below to pick up where you left off.
           </Typography>
         )}
+      </Box>
 
-        <Box data-testid="supporter-theme-showcase" sx={{ mb: 2 }}>
+      <DialogContent sx={{ px: 3, pt: 1, pb: 2 }}>
+        <Box data-testid="supporter-theme-showcase">
           <ThemeGrid
             value={themeSetting}
             onChange={handleThemePick}
             isSupporter={isSupporter}
-            onLockedClick={() => {}}
             cardWidth={104}
             centered
           />
         </Box>
 
-        {isSupporter && payload ? (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Box
-              data-testid="supporter-status"
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                p: 2,
-                borderRadius: 1.5,
-                bgcolor: (theme: Theme) => alpha(theme.palette.cta.main, 0.08),
-                border: '1px solid',
-                borderColor: (theme: Theme) => alpha(theme.palette.cta.main, 0.3),
-              }}
-            >
-              <BadgeIcon sx={{ color: 'cta.main', fontSize: 32 }} />
-              <Box>
-                <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                  Supporter key issued to {payload.name}
-                </Typography>
-                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                  {expiryLabel}
-                </Typography>
-              </Box>
-            </Box>
-
-            {payload.tier === 'monthly' && (
+        <FormControlLabel
+          sx={{ mt: 1.5, alignItems: 'flex-start' }}
+          control={
+            <Checkbox
+              size="small"
+              sx={{ mt: -0.5 }}
+              checked={animationsSetting === 'true'}
+              onChange={(e) =>
+                dispatch(
+                  updateSetting({
+                    key: DiscrubSetting.APP_THEME_ANIMATIONS,
+                    value: e.target.checked ? 'true' : 'false',
+                  }),
+                )
+              }
+              inputProps={{ 'data-testid': 'theme-animations-toggle' } as object}
+            />
+          }
+          label={
+            <Box>
+              <Typography variant="body2">Theme animations</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Your key renews automatically while your membership is active. Removing
-                it stops that.
+                Allow subtle animated accents on themes that include them.
               </Typography>
-            )}
-
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              {payload.tier === 'monthly' && (
-                <Button
-                  size="small"
-                  startIcon={<RefreshIcon />}
-                  onClick={handleRefresh}
-                  disabled={claimInProgress}
-                  data-testid="supporter-refresh-key"
-                >
-                  Refresh key
-                </Button>
-              )}
-              <Button
-                size="small"
-                color="error"
-                startIcon={<RemoveIcon />}
-                onClick={() => dispatch(removeSupporterKey())}
-                disabled={claimInProgress}
-                data-testid="supporter-remove-key"
-              >
-                Remove key
-              </Button>
             </Box>
-            {claimError && (
-              <Typography variant="caption" color="error" data-testid="supporter-claim-error">
-                {claimError}
-              </Typography>
-            )}
+          }
+        />
 
-            <Divider />
-
+        {isSupporter && payload && (
+          <>
+            <Divider sx={{ my: 2 }} />
             <Box data-testid="supporter-footer-controls">
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
                 Export footer
@@ -332,66 +321,164 @@ const SupporterDialog = () => {
                 )}
               </Box>
             </Box>
-          </Box>
-        ) : (
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
-              <Button
-                variant="contained"
-                href={KOFI_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                sx={{ bgcolor: 'cta.main', '&:hover': { bgcolor: 'cta.dark' } }}
-                data-testid="supporter-kofi-button"
-              >
-                Support on Ko-fi
-              </Button>
-            </Box>
+          </>
+        )}
+      </DialogContent>
 
-            <Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                Have a supporter key?
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-                Your key arrives by email right after you join on Ko-fi. Paste it here
-                and the supporter themes unlock instantly. Monthly keys renew
-                automatically while your membership is active.
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
-                <TextField
-                  size="small"
-                  label="Supporter key"
-                  placeholder="DSCRB-..."
-                  value={pastedKey}
-                  onChange={(e) => setPastedKey(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handlePasteApply()}
-                  inputProps={{ 'data-testid': 'supporter-paste-key' } as object}
-                  fullWidth
-                />
+      {/* Pinned action footer — always in view, never scrolled away. */}
+      <Box
+        data-testid="supporter-dialog-footer"
+        sx={{ px: 3, py: 2, borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}
+      >
+        {isSupporter && payload ? (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <Box
+              data-testid="supporter-status"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                p: 1.5,
+                borderRadius: 1.5,
+                bgcolor: (theme: Theme) => alpha(theme.palette.cta.main, 0.08),
+                border: '1px solid',
+                borderColor: (theme: Theme) => alpha(theme.palette.cta.main, 0.3),
+              }}
+            >
+              <BadgeIcon sx={{ color: 'cta.main', fontSize: 32, flexShrink: 0 }} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                  Supporter key issued to {payload.name}
+                </Typography>
+                <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                  {expiryLabel}
+                </Typography>
+              </Box>
+              <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+                {payload.tier === 'monthly' && (
+                  <Button
+                    size="small"
+                    startIcon={<RefreshIcon />}
+                    onClick={handleRefresh}
+                    disabled={claimInProgress}
+                    data-testid="supporter-refresh-key"
+                  >
+                    Refresh
+                  </Button>
+                )}
                 <Button
-                  variant="contained"
-                  onClick={handlePasteApply}
-                  disabled={!pastedKey.trim() || claimInProgress}
-                  startIcon={claimInProgress ? <CircularProgress size={16} /> : undefined}
-                  data-testid="supporter-paste-apply"
+                  size="small"
+                  color="error"
+                  startIcon={<RemoveIcon />}
+                  onClick={() => dispatch(removeSupporterKey())}
+                  disabled={claimInProgress}
+                  data-testid="supporter-remove-key"
                 >
-                  Apply
+                  Remove
                 </Button>
               </Box>
-              {claimError && (
-                <Typography
-                  variant="caption"
-                  color="error"
-                  sx={{ display: 'block', mt: 1 }}
-                  data-testid="supporter-claim-error"
-                >
-                  {claimError}
-                </Typography>
-              )}
+            </Box>
+            {payload.tier === 'monthly' && (
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Your key renews automatically while your membership is active. Removing
+                it stops that.
+              </Typography>
+            )}
+            {claimError && (
+              <Typography variant="caption" color="error" data-testid="supporter-claim-error">
+                {claimError}
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                size="small"
+                label="Supporter key"
+                placeholder="DSCRB-..."
+                value={pastedKey}
+                onChange={(e) => setPastedKey(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handlePasteApply()}
+                inputProps={{ 'data-testid': 'supporter-paste-key' } as object}
+                fullWidth
+              />
+              <Button
+                variant="contained"
+                onClick={handlePasteApply}
+                disabled={!pastedKey.trim() || claimInProgress}
+                startIcon={claimInProgress ? <CircularProgress size={16} /> : undefined}
+                data-testid="supporter-paste-apply"
+              >
+                Apply
+              </Button>
+            </Box>
+            {claimError && (
+              <Typography variant="caption" color="error" data-testid="supporter-claim-error">
+                {claimError}
+              </Typography>
+            )}
+            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+              Your key arrives from{' '}
+              <Link
+                href="mailto:keys@pratherbytecraft.com"
+                sx={{ color: 'cta.main' }}
+                data-testid="supporter-key-email-link"
+              >
+                keys@pratherbytecraft.com
+              </Link>{' '}
+              right after you join. Monthly keys renew automatically. Supporters can
+              also reword, rebrand, or remove the footer on HTML exports.
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', gap: 1, flexWrap: 'wrap' }}>
+              <Button
+                variant="contained"
+                href={KOFI_MONTHLY_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                startIcon={
+                  <Box component="img" src="/kofi.svg" alt="" sx={{ width: 18, height: 18 }} />
+                }
+                sx={{
+                  backgroundColor: '#ff5e5b',
+                  color: '#fff',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  boxShadow: '0 4px 16px rgba(255, 94, 91, 0.3)',
+                  '&:hover': {
+                    backgroundColor: '#e5524f',
+                    boxShadow: '0 6px 24px rgba(255, 94, 91, 0.45)',
+                  },
+                }}
+                data-testid="supporter-kofi-monthly"
+              >
+                Join monthly · $3
+              </Button>
+              <Button
+                variant="contained"
+                href={KOFI_LIFETIME_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                startIcon={<BadgeIcon sx={{ fontSize: 18 }} />}
+                sx={{
+                  backgroundColor: '#ff5e5b',
+                  color: '#fff',
+                  fontWeight: 700,
+                  textTransform: 'none',
+                  boxShadow: '0 4px 16px rgba(255, 94, 91, 0.3)',
+                  '&:hover': {
+                    backgroundColor: '#e5524f',
+                    boxShadow: '0 6px 24px rgba(255, 94, 91, 0.45)',
+                  },
+                }}
+                data-testid="supporter-kofi-lifetime"
+              >
+                Lifetime · $25
+              </Button>
             </Box>
           </Box>
         )}
-      </DialogContent>
+      </Box>
     </Dialog>
   );
 };

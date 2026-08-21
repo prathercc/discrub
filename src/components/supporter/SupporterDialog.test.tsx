@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { screen, fireEvent, waitFor, renderWithProviders } from '@/test/test-utils';
+import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import SupporterDialog from './SupporterDialog';
 import { createBaseState } from '@/test/state-factories';
 import { initialSupporterState } from '@features/supporter/supporterTypes';
@@ -77,9 +78,14 @@ describe('SupporterDialog', () => {
       expect(screen.getByTestId('theme-card-terminal')).toBeInTheDocument();
       expect(screen.getByTestId('theme-locked-amoled-void')).toBeInTheDocument();
 
-      expect(screen.getByRole('link', { name: 'Support on Ko-fi' })).toHaveAttribute(
+      // Two purchase paths, each pinned to its permanent Ko-fi URL.
+      expect(screen.getByTestId('supporter-kofi-monthly')).toHaveAttribute(
         'href',
-        'https://ko-fi.com/prathercc',
+        'https://ko-fi.com/prathercc/tiers',
+      );
+      expect(screen.getByTestId('supporter-kofi-lifetime')).toHaveAttribute(
+        'href',
+        'https://ko-fi.com/s/0b4f9b2bdf',
       );
     });
 
@@ -89,20 +95,40 @@ describe('SupporterDialog', () => {
       expect(store.getState().app.previewThemeId).toBe('terminal');
     });
 
-    it('does nothing when a locked theme card is clicked', () => {
+    it('clicking a locked theme card previews it without selecting', () => {
       const { store } = renderDialog();
       fireEvent.click(screen.getByTestId('theme-card-amoled-void'));
-      // The dialog stays open and nothing is selected.
+      // The dialog stays open, the theme previews, nothing is selected.
       expect(store.getState().supporter.dialogOpen).toBe(true);
+      expect(store.getState().app.previewThemeId).toBe('amoled-void');
       expect(screen.queryByTestId('theme-selected-amoled-void')).toBeNull();
     });
 
-    it('discloses the key delivery and renewal behavior', () => {
+    it('discloses key delivery, renewal, and the footer perk', () => {
       renderDialog();
-      expect(screen.getByText(/arrives by email right after you join/i)).toBeInTheDocument();
+      // The sender address is a mailto link for support questions.
+      expect(screen.getByTestId('supporter-key-email-link')).toHaveAttribute(
+        'href',
+        'mailto:keys@pratherbytecraft.com',
+      );
+      expect(screen.getByText(/right after you join/i)).toBeInTheDocument();
+      expect(screen.getByText(/Monthly keys renew automatically/i)).toBeInTheDocument();
       expect(
-        screen.getByText(/renew automatically while your membership is active/i),
+        screen.getByText(/reword, rebrand, or remove the footer on HTML exports/i),
       ).toBeInTheDocument();
+    });
+
+    it('toggles theme animations instantly from the hub', async () => {
+      const { store } = renderDialog();
+      const toggle = screen.getByTestId('theme-animations-toggle');
+      expect(toggle).toBeChecked();
+
+      fireEvent.click(toggle);
+      await waitFor(() => {
+        expect(
+          store.getState().app.settings?.[DiscrubSetting.APP_THEME_ANIMATIONS],
+        ).toBe('false');
+      });
     });
 
     it('disables Apply until a key is pasted, then unlocks', async () => {

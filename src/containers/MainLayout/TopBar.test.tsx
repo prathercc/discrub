@@ -491,7 +491,7 @@ describe('TopBar', () => {
       renderWithKeyStatus('none');
       expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
       expect(screen.queryByTestId('supporter-avatar-pip')).toBeNull();
-      expect(screen.getByLabelText('Themes and support')).toBeInTheDocument();
+      expect(screen.getByLabelText('Themes and Support')).toBeInTheDocument();
     });
 
     it('should swap the gift for the supporter star and show the avatar pip with a valid key', () => {
@@ -499,7 +499,7 @@ describe('TopBar', () => {
       expect(screen.getByTestId('supporter-badge-star')).toBeInTheDocument();
       expect(screen.getByTestId('supporter-avatar-pip')).toBeVisible();
       expect(screen.getByLabelText('Discrub Supporter')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Themes and support')).toBeNull();
+      expect(screen.queryByLabelText('Themes and Support')).toBeNull();
     });
 
     it('should still open the Supporter dialog from the badge', async () => {
@@ -514,7 +514,7 @@ describe('TopBar', () => {
     it('should treat an expired key as non-supporter', () => {
       renderWithKeyStatus('expired');
       expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
-      expect(screen.getByLabelText('Themes and support')).toBeInTheDocument();
+      expect(screen.getByLabelText('Themes and Support')).toBeInTheDocument();
     });
   });
 });

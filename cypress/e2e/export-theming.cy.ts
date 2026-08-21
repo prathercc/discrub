@@ -87,12 +87,11 @@ function pasteSupporterKey() {
 }
 
 function saveTheme(themeId: string) {
-  cy.get('[aria-label="Settings"]').click();
-  cy.get('[role="dialog"]', { timeout: 5000 }).should('be.visible');
-  cy.contains('button', 'Display').click();
+  // Themes live in the hub only; picks apply (and persist) instantly.
+  cy.get('[data-testid="gift-button"]').click();
+  cy.get('[data-testid="supporter-theme-showcase"]').should('be.visible');
   cy.get(`[data-testid="theme-card-${themeId}"]`).click();
-  cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
-  cy.get('[role="dialog"]').should('not.exist');
+  cy.get('[aria-label="Close Supporter dialog"]').click();
 }
 
 function openGeneralAndExport() {

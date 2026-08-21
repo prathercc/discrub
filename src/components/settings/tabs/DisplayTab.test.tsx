@@ -28,13 +28,20 @@ describe('DisplayTab', () => {
     expect(selects.length).toBe(2);
 
     // Description text
-    expect(screen.getByText(/Customize the app's theme and how dates, times/)).toBeInTheDocument();
+    expect(screen.getByText(/Customize how dates, times/)).toBeInTheDocument();
 
-    // Theme picker renders with the Auto card and both Discord themes
-    expect(screen.getByTestId('theme-picker')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-card-auto')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-card-discord-dark')).toBeInTheDocument();
-    expect(screen.getByTestId('theme-card-discord-light')).toBeInTheDocument();
+    // Themes moved to the hub; this tab only points there now.
+    expect(screen.queryByTestId('theme-picker')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('theme-card-auto')).not.toBeInTheDocument();
+    expect(screen.getByTestId('display-open-themes-hub')).toBeInTheDocument();
+  });
+
+  it('the themes pointer opens the Supporter hub dialog', () => {
+    const { store } = render(
+      <DisplayTab formValues={defaultSettings} onChange={onChange} />,
+    );
+    fireEvent.click(screen.getByTestId('display-open-themes-hub'));
+    expect(store.getState().supporter.dialogOpen).toBe(true);
   });
 
   it('displays default date format value', () => {

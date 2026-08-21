@@ -125,6 +125,8 @@ describe('supporterSlice', () => {
 
     it('verifies a stored key against the fetched revocation list', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-key';
+      // A legacy stored gift-attention flag is ignored: the calm is
+      // per-session now, so every boot starts un-seen.
       stateData[GIFT_ATTENTION_SEEN_STORAGE_KEY] = true;
       mockFetchRevoked.mockResolvedValue(['bad-jti']);
       mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
@@ -136,7 +138,7 @@ describe('supporterSlice', () => {
       const state = store.getState().supporter;
       expect(state.keyStatus).toBe('valid');
       expect(state.payload?.name).toBe('Aaron P.');
-      expect(state.giftAttentionSeen).toBe(true);
+      expect(state.giftAttentionSeen).toBe(false);
       expect(selectIsSupporter(rootState(store))).toBe(true);
     });
 
@@ -380,12 +382,13 @@ describe('supporterSlice', () => {
   });
 
   describe('gift attention + dialog', () => {
-    it('marks the gift attention seen optimistically and persists it', async () => {
+    it('marks the gift attention seen for this session only (nothing persisted)', () => {
       const store = makeStore();
-      const promise = store.dispatch(markGiftAttentionSeen());
+      store.dispatch(markGiftAttentionSeen());
       expect(store.getState().supporter.giftAttentionSeen).toBe(true);
-      await promise;
-      expect(stateData[GIFT_ATTENTION_SEEN_STORAGE_KEY]).toBe(true);
+      // Deliberately NOT written to storage: the attention animation
+      // re-arms on every app open until the user becomes a supporter.
+      expect(stateData[GIFT_ATTENTION_SEEN_STORAGE_KEY]).toBeUndefined();
     });
 
     it('closing the dialog clears any claim error', async () => {

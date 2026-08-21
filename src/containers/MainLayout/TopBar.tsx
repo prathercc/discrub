@@ -254,30 +254,48 @@ const TopBar = () => {
               </Typography>
             </Box>
 
-            <Tooltip title={isSupporter ? 'Discrub Supporter' : 'Themes and support'} enterDelay={0} arrow>
+            <Tooltip title={isSupporter ? 'Discrub Supporter' : 'Themes and Support'} enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={handleGiftClick}
-                aria-label={isSupporter ? 'Discrub Supporter' : 'Themes and support'}
+                aria-label={isSupporter ? 'Discrub Supporter' : 'Themes and Support'}
                 data-testid="gift-button"
                 sx={(theme: Theme) => ({
                   color: 'cta.main',
-                  transition: 'transform 200ms ease, box-shadow 200ms ease',
+                  transition:
+                    'transform 200ms ease, box-shadow 200ms ease, background-color 200ms ease',
+                  // Non-supporters get a permanent soft halo so the
+                  // themes entry reads as more than another toolbar
+                  // icon, even after the attention animation calms.
+                  ...(!isSupporter && {
+                    backgroundColor: alpha(theme.palette.cta.main, 0.1),
+                    boxShadow: `0 0 8px 1px ${alpha(theme.palette.cta.main, 0.25)}`,
+                  }),
                   '&:hover': {
                     transform: 'scale(1.12)',
-                    boxShadow: `0 0 10px 2px ${alpha(theme.palette.cta.main, 0.3)}`,
+                    boxShadow: `0 0 10px 2px ${alpha(theme.palette.cta.main, 0.35)}`,
+                    ...(!isSupporter && {
+                      backgroundColor: alpha(theme.palette.cta.main, 0.16),
+                    }),
                   },
-                  // First-open intrigue: subtle glow pulse plus an
-                  // occasional gentle wiggle. Calms permanently after
-                  // the first open, never plays for users who prefer
-                  // reduced motion, and retires once the button becomes
-                  // the supporter badge.
+                  // Attention intrigue: subtle glow pulse plus an
+                  // occasional gentle wiggle. Calms for the rest of
+                  // the session once the hub is opened (re-arms every
+                  // app open), never plays for users who prefer
+                  // reduced motion, and retires once the button
+                  // becomes the supporter badge.
                   ...(giftAttentionSeen || isSupporter
                     ? {}
                     : {
+                        // The pulse breathes from the resting halo so
+                        // the glow never blinks fully off.
                         '@keyframes giftGlow': {
-                          '0%, 100%': { boxShadow: `0 0 0 0 ${alpha(theme.palette.cta.main, 0)}` },
-                          '50%': { boxShadow: `0 0 12px 2px ${alpha(theme.palette.cta.main, 0.35)}` },
+                          '0%, 100%': {
+                            boxShadow: `0 0 8px 1px ${alpha(theme.palette.cta.main, 0.25)}`,
+                          },
+                          '50%': {
+                            boxShadow: `0 0 14px 3px ${alpha(theme.palette.cta.main, 0.45)}`,
+                          },
                         },
                         '@keyframes giftWiggle': {
                           '0%, 92%, 100%': { transform: 'rotate(0deg)' },
