@@ -4,6 +4,7 @@ import {
   generateDiscordShellBulk,
   type DiscordShellOptions,
 } from './exportDiscordShell';
+import { resolveExportThemeSet } from './exportThemes';
 
 const baseOptions: DiscordShellOptions = {
   serverName: 'Test Server',
@@ -81,9 +82,11 @@ describe('generateDiscordShellSingle', () => {
     expect(html).toContain('srcdoc=');
   });
 
-  it('contains theme toggle button', () => {
+  it('contains the theme dropdown', () => {
     const html = generateDiscordShellSingle('<p>Test</p>', baseOptions);
-    expect(html).toContain('id="shell-theme-toggle"');
+    expect(html).toContain('id="shell-theme-select"');
+    expect(html).toContain('<option value="discord-dark" selected>');
+    expect(html).toContain('<option value="discord-light">');
   });
 
   it('contains Discord-themed CSS with grid layout', () => {
@@ -231,10 +234,41 @@ describe('Disabled non-exported channels', () => {
   });
 });
 
+describe('Theme set embedding (slot E)', () => {
+  it('defaults to the free set with Discord Dark baked', () => {
+    const html = generateDiscordShellBulk(baseOptions);
+    expect(html).toContain('<option value="discord-dark" selected>');
+    expect(html).not.toContain('shell-theme-synthwave');
+  });
+
+  it('embeds a passed supporter set with its default selected', () => {
+    const themeSet = resolveExportThemeSet({ themeSetting: 'synthwave', isSupporter: true });
+    const html = generateDiscordShellBulk({ ...baseOptions, themeSet });
+    expect(html).toContain('<option value="synthwave" selected>');
+    expect(html).toContain('.shell-theme-synthwave {');
+    // The baked default lands on :root, not just in a class.
+    expect(html).toMatch(/:root \{[^}]*--shell-bg: #16102b/);
+  });
+
+  it('embeds the free-set default when the active theme is free', () => {
+    const themeSet = resolveExportThemeSet({ themeSetting: 'terminal', isSupporter: false });
+    const html = generateDiscordShellSingle('<p>Test</p>', { ...baseOptions, themeSet });
+    expect(html).toContain('<option value="terminal" selected>');
+    expect(html).toContain('.shell-theme-terminal {');
+  });
+
+  it('ships the theme id postMessage protocol with legacy value mapping', () => {
+    const html = generateDiscordShellBulk(baseOptions);
+    expect(html).toContain("type: 'discrub-theme', themeId:");
+    expect(html).toContain("if (id === 'light') id = 'discord-light'");
+    expect(html).toContain("localStorage.getItem(THEME_KEY)");
+  });
+});
+
 describe('Theme and responsive', () => {
   it('includes light theme CSS variables', () => {
     const html = generateDiscordShellSingle('<p>Test</p>', baseOptions);
-    expect(html).toContain('.light-shell');
+    expect(html).toContain('.shell-theme-discord-light');
     expect(html).toContain('--shell-bg: #e3e5e8');
   });
 

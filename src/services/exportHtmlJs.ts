@@ -15,6 +15,11 @@ import type { ExportReactionMap, ExportUserMap } from 'discrub-core/types/discru
 import { renderEmojiAsHtml } from 'discrub-core/export-utils';
 import { getUserRoleColor } from '@/utils/roleColorUtils';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
+import {
+  type ExportThemeSet,
+  defaultExportThemeSet,
+  buildThemeOptionsJson,
+} from './exportThemes';
 
 export interface ExportUserData {
   username: string;
@@ -248,7 +253,8 @@ export function buildExportPageData(
  * Generate the embedded JavaScript string for the exported HTML page.
  * This is a self-contained IIFE with no external dependencies.
  */
-export function generateEmbeddedJs(): string {
+export function generateEmbeddedJs(themeSet?: ExportThemeSet): string {
+  const resolvedThemeSet = themeSet ?? defaultExportThemeSet();
   // The JS is written as a template string that will be embedded in a <script> tag.
   // It reads data from <script type="application/json" id="export-data">.
   return `
@@ -866,52 +872,72 @@ export function generateEmbeddedJs(): string {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // ── Theme Toggle ──────────────────────────────────────────────
+  // ── Theme Switcher ────────────────────────────────────────────
+  // The export-time default is baked onto <html> (export-theme-<id>
+  // class + :root vars); switching swaps the class. The light-theme
+  // class carries structural light-base adjustments and follows the
+  // active theme's base. localStorage persistence is best-effort.
 
-  var themeToggle = document.getElementById('theme-toggle');
+  var themeSelect = document.getElementById('theme-select');
   var THEME_KEY = 'discrub-export-theme';
   var isEmbeddedInShell = window.parent !== window;
+  var themes = ${buildThemeOptionsJson(resolvedThemeSet)};
+  var defaultThemeId = ${JSON.stringify(resolvedThemeSet.defaultId)};
 
-  function applyTheme(isLight) {
-    if (isLight) {
-      document.documentElement.classList.add('light-theme');
-      if (themeToggle) themeToggle.innerHTML = '&#x2600;'; // sun
-    } else {
-      document.documentElement.classList.remove('light-theme');
-      if (themeToggle) themeToggle.innerHTML = '&#x263E;'; // moon
+  function findTheme(id) {
+    for (var i = 0; i < themes.length; i++) {
+      if (themes[i].id === id) return themes[i];
     }
+    return null;
   }
 
-  // Hide own theme toggle when embedded in Discord shell (shell has its own toggle)
-  if (isEmbeddedInShell && themeToggle) {
-    themeToggle.style.display = 'none';
+  // Legacy stored 'light'/'dark' values map onto the Discord themes;
+  // unknown ids (a theme this export doesn't embed) are ignored.
+  function normalizeThemeId(id) {
+    if (id === 'light') id = 'discord-light';
+    if (id === 'dark') id = 'discord-dark';
+    return findTheme(id) ? id : null;
+  }
+
+  function applyTheme(themeId) {
+    var theme = findTheme(themeId) || findTheme(defaultThemeId) || themes[0];
+    var htmlEl = document.documentElement;
+    htmlEl.className = htmlEl.className.replace(/\\bexport-theme-[\\w-]+/g, '').trim();
+    htmlEl.classList.add('export-theme-' + theme.id);
+    htmlEl.classList.toggle('light-theme', theme.base === 'light');
+    if (themeSelect) themeSelect.value = theme.id;
+    return theme.id;
+  }
+
+  // Hide own theme switcher when embedded in Discord shell (shell has its own)
+  if (isEmbeddedInShell && themeSelect) {
+    themeSelect.style.display = 'none';
   }
 
   // Load saved preference (only when standalone, not embedded)
   if (!isEmbeddedInShell) {
     try {
-      var saved = localStorage.getItem(THEME_KEY);
-      if (saved === 'light') applyTheme(true);
+      var saved = normalizeThemeId(localStorage.getItem(THEME_KEY));
+      if (saved && saved !== defaultThemeId) applyTheme(saved);
     } catch(e) {}
   }
 
-  if (themeToggle) {
-    themeToggle.addEventListener('click', function(e) {
-      e.stopPropagation();
-      var isLight = !document.documentElement.classList.contains('light-theme');
-      applyTheme(isLight);
-      try { localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark'); } catch(e) {}
-      // Notify parent shell if embedded
+  if (themeSelect) {
+    themeSelect.addEventListener('change', function() {
+      var applied = applyTheme(themeSelect.value);
+      try { localStorage.setItem(THEME_KEY, applied); } catch(e) {}
+      // Notify parent shell if embedded (switcher is hidden there, but
+      // keep the sync path symmetric)
       if (isEmbeddedInShell) {
-        try { window.parent.postMessage({ type: 'discrub-theme', isLight: isLight }, '*'); } catch(e) {}
+        try { window.parent.postMessage({ type: 'discrub-theme', themeId: applied }, '*'); } catch(e) {}
       }
     });
   }
 
   // Listen for theme changes from parent shell
   window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'discrub-theme' && typeof e.data.isLight === 'boolean') {
-      applyTheme(e.data.isLight);
+    if (e.data && e.data.type === 'discrub-theme' && typeof e.data.themeId === 'string') {
+      applyTheme(e.data.themeId);
     }
   });
 

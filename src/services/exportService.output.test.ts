@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { getExportService } from './exportService';
+import { resolveExportThemeSet, defaultExportThemeSet } from './exportThemes';
 import {
   EXPORT_MESSAGES,
   EXPORT_USER_MAP,
@@ -2670,14 +2671,51 @@ describe('Phase 9: Dark/Light Mode & Responsive', () => {
   });
 
   describe('Theme toggle', () => {
-    it('includes theme toggle button in header', () => {
+    it('includes the theme dropdown in header', () => {
       const html = generateHTML(EXPORT_MESSAGES);
-      expect(html).toContain('id="theme-toggle"');
+      expect(html).toContain('id="theme-select"');
     });
 
-    it('toggle button is hidden in print', () => {
+    it('bakes the export-time theme set onto :root and <html> (slot E)', () => {
+      const service = getExportService();
+      service.setExportThemeSet(resolveExportThemeSet({ themeSetting: 'terminal', isSupporter: false }));
+      try {
+        const html = generateHTML(EXPORT_MESSAGES);
+        expect(html).toContain('class="export-theme-terminal"');
+        expect(html).toMatch(/:root \{[^}]*--bg-primary: #0a0f0a/);
+        expect(html).toContain('<option value="terminal" selected>');
+        expect(html).not.toContain('export-theme-synthwave');
+      } finally {
+        service.setExportThemeSet(defaultExportThemeSet());
+      }
+    });
+
+    it('a light-base default also bakes the light-theme structural class', () => {
+      const service = getExportService();
+      service.setExportThemeSet(resolveExportThemeSet({ themeSetting: 'discord-light', isSupporter: false }));
+      try {
+        const html = generateHTML(EXPORT_MESSAGES);
+        expect(html).toContain('class="export-theme-discord-light light-theme"');
+      } finally {
+        service.setExportThemeSet(defaultExportThemeSet());
+      }
+    });
+
+    it('a supporter set embeds all themes in the dropdown', () => {
+      const service = getExportService();
+      service.setExportThemeSet(resolveExportThemeSet({ themeSetting: 'synthwave', isSupporter: true }));
+      try {
+        const html = generateHTML(EXPORT_MESSAGES);
+        expect(html).toContain('<option value="synthwave" selected>');
+        expect(html).toContain('.export-theme-abyss {');
+      } finally {
+        service.setExportThemeSet(defaultExportThemeSet());
+      }
+    });
+
+    it('theme dropdown is hidden in print', () => {
       const html = generateHTML(EXPORT_MESSAGES);
-      expect(html).toMatch(/@media print[\s\S]*\.theme-toggle/);
+      expect(html).toMatch(/@media print[\s\S]*\.theme-select/);
     });
 
     it('embedded JS includes theme toggle logic', () => {
@@ -2785,9 +2823,9 @@ describe('Phase 10: Final Polish', () => {
       expect(html).toContain('aria-live="polite"');
     });
 
-    it('theme toggle has aria-label', () => {
+    it('theme dropdown has aria-label', () => {
       const html = generateHTML(EXPORT_MESSAGES);
-      expect(html).toContain('aria-label="Toggle light/dark mode"');
+      expect(html).toContain('aria-label="Theme"');
     });
 
     it('jump-to-top button has aria-label', () => {

@@ -28,6 +28,8 @@ const mockExportToZip = vi.fn();
 vi.mock('@/services/exportService', () => ({
   getExportService: vi.fn(() => ({
     exportToZip: mockExportToZip,
+    setExportThemeSet: vi.fn(),
+    getExportThemeSet: vi.fn(() => ({ defaultId: 'discord-dark', themes: [] })),
   })),
 }));
 

@@ -38,6 +38,8 @@ vi.mock('@services/exportService', () => ({
   getExportService: vi.fn(() => ({
     exportToZip: vi.fn(),
     exportMediaOnly: vi.fn(),
+    setExportThemeSet: vi.fn(),
+    getExportThemeSet: vi.fn(() => ({ defaultId: 'discord-dark', themes: [] })),
   })),
   generateExportReadme: vi.fn(() => 'README'),
 }));

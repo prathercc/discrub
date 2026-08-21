@@ -14,6 +14,8 @@ vi.mock('@services/exportService', () => ({
   getExportService: vi.fn(() => ({
     exportToZip: vi.fn().mockResolvedValue(undefined),
     exportMediaOnly: vi.fn().mockResolvedValue(undefined),
+    setExportThemeSet: vi.fn(),
+    getExportThemeSet: vi.fn(() => ({ defaultId: 'discord-dark', themes: [] })),
   })),
 }));
 

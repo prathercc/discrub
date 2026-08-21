@@ -73,6 +73,12 @@ import { generateTextPage } from 'discrub-core/export-utils';
 import type { ShouldContinueFn } from './mediaDownloadService';
 import { getUserDisplayData, formatMessageTimestamp, getMessageContent, getForwardedSnapshot } from 'discrub-core/discrub-utils';
 import { buildExportPageData, generateEmbeddedJs } from './exportHtmlJs';
+import {
+  type ExportThemeSet,
+  defaultExportThemeSet,
+  buildContentThemeCSS,
+  buildThemeSelectHtml,
+} from './exportThemes';
 import { getUserRoleColor, getUserRoleIcon } from '@/utils/roleColorUtils';
 
 /**
@@ -124,9 +130,9 @@ export function generateExportReadme(options: {
   const shellInstructions = isDiscordShell
     ? `<li><strong>Open <code>shell.html</code></strong> — This is the main entry point. It provides a Discord-like interface with a server sidebar, channel list, and top bar.</li>
       <li><strong>Navigate channels</strong> — ${isBulk ? 'Click channels in the left sidebar to switch between them.' : 'Your exported channel is loaded automatically.'}</li>
-      <li><strong>Toggle theme</strong> — Click the moon/sun icon (☾/☀) in the top bar to switch between dark and light modes. Your preference is saved.</li>`
+      <li><strong>Pick a theme</strong> — Use the theme dropdown in the top bar to restyle the export. It opens in the theme the app was using when you exported.</li>`
     : `<li><strong>Open the HTML file${isBulk ? 's' : ''}</strong> — ${isBulk ? 'Each channel has its own HTML file. Open any of them directly in your browser.' : `Open <code>${channelName || 'the HTML file'}</code> in your browser.`}</li>
-      <li><strong>Toggle theme</strong> — Click the moon/sun icon (☾/☀) in the top-right corner to switch between dark and light modes.</li>`;
+      <li><strong>Pick a theme</strong> — Use the theme dropdown in the top-right corner to restyle the export. It opens in the theme the app was using when you exported.</li>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -186,6 +192,23 @@ class ExportService {
    * Prepare export data using discrub-core prepareExportData
    */
   prepareExportData = prepareExportData;
+
+  /**
+   * Theme set baked into generated HTML (slot E). The export thunks
+   * set this from app state (active theme + supporter validity) before
+   * each export; the default matches pre-theming behavior. A field
+   * rather than a parameter because generateHTMLPageParts' positional
+   * signature is already fourteen arguments deep.
+   */
+  private exportThemeSet: ExportThemeSet = defaultExportThemeSet();
+
+  setExportThemeSet(themeSet: ExportThemeSet): void {
+    this.exportThemeSet = themeSet;
+  }
+
+  getExportThemeSet(): ExportThemeSet {
+    return this.exportThemeSet;
+  }
 
   /**
    * Export messages to ZIP file with optional media download
@@ -587,6 +610,7 @@ class ExportService {
           // channel as "exported" greyed out + disabled the thread sidebar
           // links even though threads/<name>.html exists. List them all.
           exportedChannelIds: shellChannels.map((c) => c.id),
+          themeSet: this.exportThemeSet,
         };
 
         // For single-channel: read the first page content and wrap it
@@ -1374,9 +1398,16 @@ class ExportService {
 
     const pageInfo = totalPages > 1 ? ` - Page ${pageNumber} of ${totalPages}` : '';
 
+    // Slot E: bake the export-time theme set. :root carries the
+    // default vars; the html classes make the default theme explicit
+    // and apply light-base structural styles on first paint.
+    const themeSet = this.exportThemeSet;
+    const defaultTheme = themeSet.themes.find((t) => t.id === themeSet.defaultId) ?? themeSet.themes[0];
+    const htmlClasses = `export-theme-${defaultTheme.id}${defaultTheme.base === 'light' ? ' light-theme' : ''}`;
+
     const headHtml = `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="${htmlClasses}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -1386,39 +1417,11 @@ class ExportService {
     pre code.hljs{display:block;overflow-x:auto;padding:1em}code.hljs{padding:3px 5px}.hljs{background:#1e1e1e;color:#dcdcdc}.hljs-keyword,.hljs-literal,.hljs-name,.hljs-symbol{color:#569cd6}.hljs-link{color:#569cd6;text-decoration:underline}.hljs-built_in,.hljs-type{color:#4ec9b0}.hljs-class,.hljs-number{color:#b8d7a3}.hljs-meta .hljs-string,.hljs-string{color:#d69d85}.hljs-regexp,.hljs-template-tag{color:#9a5334}.hljs-formula,.hljs-function,.hljs-params,.hljs-subst,.hljs-title{color:#dcdcdc}.hljs-comment,.hljs-quote{color:#57a64a;font-style:italic}.hljs-doctag{color:#608b4e}.hljs-meta,.hljs-meta .hljs-keyword,.hljs-tag{color:#9b9b9b}.hljs-template-variable,.hljs-variable{color:#bd63c5}.hljs-attr,.hljs-attribute{color:#9cdcfe}.hljs-section{color:gold}.hljs-emphasis{font-style:italic}.hljs-strong{font-weight:700}.hljs-bullet,.hljs-selector-attr,.hljs-selector-class,.hljs-selector-id,.hljs-selector-pseudo,.hljs-selector-tag{color:#d7ba7d}.hljs-addition{background-color:#144212;display:inline-block;width:100%}.hljs-deletion{background-color:#600;display:inline-block;width:100%}
 
     /* ==== CSS CUSTOM PROPERTIES ==== */
-    :root {
-      --bg-primary: #1e2124;
-      --bg-secondary: #282b30;
-      --bg-tertiary: #2f3136;
-      --bg-hover: rgba(114, 137, 218, 0.08);
-      --text-primary: #dcddde;
-      --text-secondary: #b9bbbe;
-      --text-muted: #72767d;
-      --text-link: #00b0f4;
-      --border-color: #40444b;
-      --accent: #5865f2;
-      --card-bg: rgba(47, 49, 54, 0.6);
-      --card-border: rgba(114, 137, 218, 0.2);
-      --code-bg: #2f3136;
-      --input-bg: #1e1f22;
-    }
-
-    .light-theme {
-      --bg-primary: #ffffff;
-      --bg-secondary: #f2f3f5;
-      --bg-tertiary: #e3e5e8;
-      --bg-hover: rgba(116, 127, 141, 0.08);
-      --text-primary: #2e3338;
-      --text-secondary: #4f5660;
-      --text-muted: #747f8d;
-      --text-link: #0067e0;
-      --border-color: #e3e5e8;
-      --accent: #5865f2;
-      --card-bg: rgba(0, 0, 0, 0.04);
-      --card-border: rgba(0, 0, 0, 0.08);
-      --code-bg: #f2f3f5;
-      --input-bg: #e3e5e8;
-    }
+    /* :root = the export-time default theme; .export-theme-<id> classes
+       override it when the viewer switches. The .light-theme class only
+       carries structural light-base adjustments now — its vars live in
+       the per-theme classes. */
+${buildContentThemeCSS(themeSet)}
 
     /* ==== BASE STYLES ==== */
     * {
@@ -2669,22 +2672,24 @@ class ExportService {
       padding-bottom: 60px;
     }
 
-    /* ==== THEME TOGGLE ==== */
-    .theme-toggle {
+    /* ==== THEME SWITCHER ==== */
+    .theme-select {
       background: var(--card-bg);
       border: 1px solid var(--border-color);
       border-radius: 4px;
       color: var(--text-secondary);
-      font-size: 18px;
+      font-size: 13px;
+      font-family: inherit;
       cursor: pointer;
       padding: 6px 10px;
       transition: background 150ms ease, color 150ms ease;
       flex-shrink: 0;
     }
 
-    .theme-toggle:hover {
+    .theme-select:hover, .theme-select:focus {
       background: var(--bg-hover);
       color: var(--text-primary);
+      outline: none;
     }
 
     /* Light theme overrides for elements using hardcoded colors */
@@ -3229,7 +3234,7 @@ class ExportService {
 
     /* ==== PRINT STYLES ==== */
     @media print {
-      .bottom-nav, .jump-top, .search-bar, .theme-toggle {
+      .bottom-nav, .jump-top, .search-bar, .theme-select {
         display: none !important;
       }
 
@@ -3698,7 +3703,7 @@ class ExportService {
       <input class="search-input" id="search-input" type="text" placeholder="Search messages..." aria-label="Search messages" />
       <span class="search-count" id="search-count" aria-live="polite"></span>
       <button class="search-clear" id="search-clear" style="display:none" aria-label="Clear search">&times;</button>
-      <button class="theme-toggle" id="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode">&#x263E;</button>
+      ${buildThemeSelectHtml(themeSet, 'theme-select', 'theme-select')}
     </div>
   </div>
   <main class="container" role="main">
@@ -3721,7 +3726,7 @@ class ExportService {
   </footer>
   <button class="jump-top" id="jump-top" title="Scroll to top" aria-label="Scroll to top">\u2191</button>
   <script type="application/json" id="export-data">${JSON.stringify(buildExportPageData(messages, pageNumber, totalPages, sanitizedName || channelName, formattingContext, reactionMap, mediaMaps?.avatarMap, cachedUserMap, guildId, formattingContext?.guildRoles as any, mediaMaps?.emojiMap, mediaMaps?.roleMap))}</script>
-  <script>${generateEmbeddedJs()}</script>
+  <script>${generateEmbeddedJs(themeSet)}</script>
 </body>
 </html>
     `;

@@ -10,6 +10,14 @@
  * Completely isolated from the standard template — does not modify generateHTMLPage.
  */
 
+import {
+  type ExportThemeSet,
+  defaultExportThemeSet,
+  buildShellThemeCSS,
+  buildThemeOptionsJson,
+  buildThemeSelectHtml,
+} from './exportThemes';
+
 export interface DiscordShellChannel {
   id: string;
   name: string;
@@ -28,6 +36,13 @@ export interface DiscordShellOptions {
   exportDate: string;
   /** IDs of channels that were actually exported (others are shown as disabled) */
   exportedChannelIds?: string[];
+  /**
+   * Themes embedded in the export (slot E). Defaults to the free set
+   * with Discord Dark baked, matching pre-theming behavior; callers
+   * pass the resolved set (active app theme default, supporter themes
+   * included only with a valid key at export time).
+   */
+  themeSet?: ExportThemeSet;
 }
 
 /**
@@ -40,6 +55,7 @@ export function generateDiscordShellSingle(
 ): string {
   const activeChannel = options.channels.find((c) => c.id === options.activeChannelId);
   const channelName = activeChannel?.name || 'channel';
+  const themeSet = options.themeSet ?? defaultExportThemeSet();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -47,14 +63,14 @@ export function generateDiscordShellSingle(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${options.serverName} — #${channelName}</title>
-  <style>${getShellCSS()}</style>
+  <style>${getShellCSS(themeSet)}</style>
 </head>
 <body>
   <div class="discord-shell">
     ${renderServerSidebar(options)}
     ${renderChannelSidebar(options)}
     <div class="shell-main">
-      ${renderTopBar(channelName, options)}
+      ${renderTopBar(channelName, options, themeSet)}
       <div class="shell-content shell-content-iframe">
         <iframe
           id="channel-frame"
@@ -65,7 +81,7 @@ export function generateDiscordShellSingle(
       </div>
     </div>
   </div>
-  <script>${getShellJS(options)}</script>
+  <script>${getShellJS(options, themeSet)}</script>
 </body>
 </html>`;
 }
@@ -79,6 +95,7 @@ export function generateDiscordShellBulk(
 ): string {
   const activeChannel = options.channels.find((c) => c.id === options.activeChannelId) || options.channels[0];
   const channelName = activeChannel?.name || 'channel';
+  const themeSet = options.themeSet ?? defaultExportThemeSet();
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -86,14 +103,14 @@ export function generateDiscordShellBulk(
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${options.serverName} — Bulk Export</title>
-  <style>${getShellCSS()}</style>
+  <style>${getShellCSS(themeSet)}</style>
 </head>
 <body>
   <div class="discord-shell">
     ${renderServerSidebar(options)}
     ${renderChannelSidebar(options)}
     <div class="shell-main">
-      ${renderTopBar(channelName, options)}
+      ${renderTopBar(channelName, options, themeSet)}
       <div class="shell-content shell-content-iframe">
         <iframe
           id="channel-frame"
@@ -104,7 +121,7 @@ export function generateDiscordShellBulk(
       </div>
     </div>
   </div>
-  <script>${getShellJS(options)}</script>
+  <script>${getShellJS(options, themeSet)}</script>
 </body>
 </html>`;
 }
@@ -217,7 +234,11 @@ function renderChannelSidebar(options: DiscordShellOptions): string {
     </div>`;
 }
 
-function renderTopBar(channelName: string, options: DiscordShellOptions): string {
+function renderTopBar(
+  channelName: string,
+  options: DiscordShellOptions,
+  themeSet: ExportThemeSet,
+): string {
   const prefix = options.isDM ? '@' : '#';
   return `
     <div class="shell-topbar">
@@ -226,7 +247,7 @@ function renderTopBar(channelName: string, options: DiscordShellOptions): string
         <span class="topbar-channel-name" id="topbar-channel-name">${escapeHtml(channelName)}</span>
       </div>
       <div class="topbar-right">
-        <button class="shell-theme-toggle" id="shell-theme-toggle" title="Toggle theme">☾</button>
+        ${buildThemeSelectHtml(themeSet, 'shell-theme-select', 'shell-theme-select')}
       </div>
     </div>`;
 }
@@ -237,45 +258,11 @@ function escapeHtml(str: string): string {
 
 // ── Shell CSS ────────────────────────────────────────────────────
 
-function getShellCSS(): string {
+function getShellCSS(themeSet: ExportThemeSet): string {
   return `
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    :root {
-      --shell-bg: #202225;
-      --server-bg: #202225;
-      --channel-bg: #2f3136;
-      --channel-header-bg: #2f3136;
-      --topbar-bg: #36393f;
-      --main-bg: #36393f;
-      --channel-active: rgba(79, 84, 92, 0.6);
-      --channel-hover: rgba(79, 84, 92, 0.3);
-      --text-primary: #fff;
-      --text-secondary: #b9bbbe;
-      --text-muted: #72767d;
-      --text-channels: #8e9297;
-      --separator: rgba(255, 255, 255, 0.06);
-      --scrollbar-thumb: #202225;
-      --scrollbar-track: #2f3136;
-    }
-
-    .light-shell {
-      --shell-bg: #e3e5e8;
-      --server-bg: #e3e5e8;
-      --channel-bg: #f2f3f5;
-      --channel-header-bg: #f2f3f5;
-      --topbar-bg: #ffffff;
-      --main-bg: #ffffff;
-      --channel-active: rgba(0, 0, 0, 0.06);
-      --channel-hover: rgba(0, 0, 0, 0.03);
-      --text-primary: #060607;
-      --text-secondary: #4f5660;
-      --text-muted: #5c6470;
-      --text-channels: #5c6470;
-      --separator: rgba(0, 0, 0, 0.06);
-      --scrollbar-thumb: #c4c9ce;
-      --scrollbar-track: #e3e5e8;
-    }
+${buildShellThemeCSS(themeSet)}
 
     html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--shell-bg); }
 
@@ -539,20 +526,22 @@ function getShellCSS(): string {
       gap: 8px;
     }
 
-    .shell-theme-toggle {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: 20px;
+    .shell-theme-select {
+      background: var(--channel-bg);
+      border: 1px solid var(--separator);
+      color: var(--text-secondary);
+      font-size: 13px;
+      font-family: inherit;
       cursor: pointer;
-      padding: 4px;
+      padding: 4px 8px;
       border-radius: 4px;
       transition: color 150ms ease, background 150ms ease;
     }
 
-    .shell-theme-toggle:hover {
+    .shell-theme-select:hover, .shell-theme-select:focus {
       color: var(--text-primary);
       background: var(--channel-hover);
+      outline: none;
     }
 
     /* ── Main Content ── */
@@ -608,7 +597,7 @@ function getShellCSS(): string {
 
 // ── Shell JavaScript ─────────────────────────────────────────────
 
-function getShellJS(options: DiscordShellOptions): string {
+function getShellJS(options: DiscordShellOptions, themeSet: ExportThemeSet): string {
   const channelsJson = JSON.stringify(options.channels.map((c) => ({
     id: c.id,
     name: c.name,
@@ -622,30 +611,56 @@ function getShellJS(options: DiscordShellOptions): string {
   var channels = ${channelsJson};
   var isBulk = ${options.channels.length > 1 ? 'true' : 'false'};
 
-  // Theme toggle
-  var themeToggle = document.getElementById('shell-theme-toggle');
+  // ── Theme switcher ──
+  // The baked default lives on :root; picking a theme adds a
+  // shell-theme-<id> class that overrides it. localStorage persistence
+  // is a best-effort nicety (works on file:// in normal windows, fails
+  // silently in private ones) — the baked default is the guarantee.
+  var themeSelect = document.getElementById('shell-theme-select');
   var THEME_KEY = 'discrub-shell-theme';
+  var themes = ${buildThemeOptionsJson(themeSet)};
+  var defaultThemeId = ${JSON.stringify(themeSet.defaultId)};
 
-  function applyTheme(isLight) {
-    document.documentElement.classList.toggle('light-shell', isLight);
-    if (themeToggle) themeToggle.textContent = isLight ? '☀' : '☾';
+  function findTheme(id) {
+    for (var i = 0; i < themes.length; i++) {
+      if (themes[i].id === id) return themes[i];
+    }
+    return null;
+  }
+
+  // Legacy stored values from two-theme exports map onto the Discord
+  // themes; unknown ids (e.g. a supporter theme this export doesn't
+  // embed) fall back to the baked default.
+  function normalizeThemeId(id) {
+    if (id === 'light') id = 'discord-light';
+    if (id === 'dark') id = 'discord-dark';
+    return findTheme(id) ? id : null;
+  }
+
+  function applyTheme(themeId) {
+    var theme = findTheme(themeId) || findTheme(defaultThemeId) || themes[0];
+    var htmlEl = document.documentElement;
+    htmlEl.className = htmlEl.className.replace(/\\bshell-theme-[\\w-]+/g, '').trim();
+    htmlEl.classList.add('shell-theme-' + theme.id);
+    if (themeSelect) themeSelect.value = theme.id;
 
     // Sync theme to content iframe via postMessage (works cross-origin and sandboxed)
     var frame = document.getElementById('channel-frame');
     if (frame && frame.contentWindow) {
-      frame.contentWindow.postMessage({ type: 'discrub-theme', isLight: isLight }, '*');
+      frame.contentWindow.postMessage({ type: 'discrub-theme', themeId: theme.id }, '*');
     }
+    return theme.id;
   }
 
   try {
-    if (localStorage.getItem(THEME_KEY) === 'light') applyTheme(true);
+    var saved = normalizeThemeId(localStorage.getItem(THEME_KEY));
+    if (saved && saved !== defaultThemeId) applyTheme(saved);
   } catch(e) {}
 
-  if (themeToggle) {
-    themeToggle.addEventListener('click', function() {
-      var isLight = !document.documentElement.classList.contains('light-shell');
-      applyTheme(isLight);
-      try { localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark'); } catch(e) {}
+  if (themeSelect) {
+    themeSelect.addEventListener('change', function() {
+      var applied = applyTheme(themeSelect.value);
+      try { localStorage.setItem(THEME_KEY, applied); } catch(e) {}
     });
   }
 
@@ -653,20 +668,24 @@ function getShellJS(options: DiscordShellOptions): string {
   var frame = document.getElementById('channel-frame');
   if (frame) {
     frame.addEventListener('load', function() {
-      var isLight = document.documentElement.classList.contains('light-shell');
+      var current = themeSelect ? themeSelect.value : defaultThemeId;
       if (frame.contentWindow) {
-        frame.contentWindow.postMessage({ type: 'discrub-theme', isLight: isLight }, '*');
+        frame.contentWindow.postMessage({ type: 'discrub-theme', themeId: current }, '*');
       }
     });
   }
 
-  // Listen for theme changes from iframe content (when content's own toggle is used)
+  // Listen for theme changes from iframe content (when content's own switcher is used)
   window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'discrub-theme' && typeof e.data.isLight === 'boolean') {
-      var isLight = e.data.isLight;
-      document.documentElement.classList.toggle('light-shell', isLight);
-      if (themeToggle) themeToggle.textContent = isLight ? '☀' : '☾';
-      try { localStorage.setItem(THEME_KEY, isLight ? 'light' : 'dark'); } catch(e) {}
+    if (e.data && e.data.type === 'discrub-theme' && typeof e.data.themeId === 'string') {
+      var normalized = normalizeThemeId(e.data.themeId);
+      if (!normalized) return;
+      var theme = findTheme(normalized);
+      var htmlEl = document.documentElement;
+      htmlEl.className = htmlEl.className.replace(/\\bshell-theme-[\\w-]+/g, '').trim();
+      htmlEl.classList.add('shell-theme-' + theme.id);
+      if (themeSelect) themeSelect.value = theme.id;
+      try { localStorage.setItem(THEME_KEY, theme.id); } catch(e) {}
     }
   });
 

@@ -17,6 +17,8 @@ export type ExportDispatch = ThunkDispatch<RootState, unknown, UnknownAction>;
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
+import { selectIsSupporter } from '@features/supporter/supporterSlice';
+import { resolveExportThemeSet } from '@services/exportThemes';
 import { addRecentExport } from '@features/history/historySlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { IsPinnedType, ChannelType } from 'discrub-core/discord-enum';
@@ -357,6 +359,34 @@ interface ExportMessagesParams {
 /**
  * Export messages to ZIP file
  */
+/**
+ * Bake the export-time theme set onto the ExportService singleton
+ * (slot E): the app's effective theme becomes the export default, and
+ * the supporter themes embed only when a valid key is present right
+ * now. Called at the top of every export thunk so a mid-session claim
+ * or key removal is honored by the very next export.
+ */
+export const applyExportThemeSetFromState = (state: RootState) => {
+  // Defensive reads: partial stores (unit tests) may lack the app or
+  // supporter slice, and theming must never be the reason an export
+  // fails — fall back to the defaults (auto theme, free set).
+  let themeSetting: string | undefined;
+  let isSupporter = false;
+  try {
+    themeSetting = selectSettings(state)?.[DiscrubSetting.APP_THEME_MODE];
+    isSupporter = selectIsSupporter(state);
+  } catch {
+    /* fall through to defaults */
+  }
+  const themeSet = resolveExportThemeSet({ themeSetting, isSupporter });
+  try {
+    getExportService().setExportThemeSet(themeSet);
+  } catch {
+    /* minimal service mocks (tests) may lack the setter */
+  }
+  return themeSet;
+};
+
 export const exportMessages = createAsyncThunk<
   { success: true },
   ExportMessagesParams,
@@ -376,6 +406,7 @@ export const exportMessages = createAsyncThunk<
 
     try {
       const exportService = getExportService();
+      applyExportThemeSetFromState(getState());
 
       // Get cached user map from state
       const state = getState();
@@ -919,6 +950,7 @@ export const bulkExportChannels = createAsyncThunk<
 
     // Snapshot settings at start — prevents mid-operation changes from causing inconsistency
     const initialState = getState();
+    const exportThemeSet = applyExportThemeSetFromState(initialState);
     const searchDelay = selectSearchDelay(initialState);
     const delayModifier = selectDelayModifier(initialState);
     const cachedUserMap = selectCachedUserMap(initialState);
@@ -1185,6 +1217,7 @@ export const bulkExportChannels = createAsyncThunk<
           isDM: false,
           exportDate: formatDate(new Date(), 'MMMM d, yyyy'),
           exportedChannelIds: sidebarChannels.map((c) => c.id),
+          themeSet: exportThemeSet,
         });
         const shellBlob = new Blob([shellHtml], { type: 'text/html' });
         await zipService.addFile(shellBlob, 'shell.html');
@@ -1249,6 +1282,7 @@ export const bulkExportDMs = createAsyncThunk<
 
     // Snapshot settings at start — prevents mid-operation changes from causing inconsistency
     const initialState = getState();
+    const exportThemeSet = applyExportThemeSetFromState(initialState);
     const searchDelay = selectSearchDelay(initialState);
     const delayModifier = selectDelayModifier(initialState);
     const cachedUserMap = selectCachedUserMap(initialState);
@@ -1392,6 +1426,7 @@ export const bulkExportDMs = createAsyncThunk<
           dmRecipients: exportedDMs.map((d) => ({ name: d.name })),
           exportDate: formatDate(new Date(), 'MMMM d, yyyy'),
           exportedChannelIds: exportedDMs.map((d) => d.id),
+          themeSet: exportThemeSet,
         });
         const shellBlob = new Blob([shellHtml], { type: 'text/html' });
         await zipService.addFile(shellBlob, 'shell.html');

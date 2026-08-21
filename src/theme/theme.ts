@@ -128,6 +128,34 @@ export function getThemeById(id: string | undefined): Theme {
 export { THEME_DESCRIPTORS, findThemeDescriptor, DEFAULT_THEME_ID, DISCORD_DARK_ID, DISCORD_LIGHT_ID };
 export type { ThemeDescriptor, ThemeAccent } from './descriptors';
 
+/**
+ * Resolve the effective theme id from an APP_THEME_MODE setting value.
+ * Explicit ids (including legacy 'dark'/'light' aliases) resolve
+ * through the registry; 'auto' — and any unknown id — detects from
+ * Discord's page class (extension) or the system preference (web app)
+ * and picks the matching Discord theme. Shared by ThemeWrapper and the
+ * export pipeline so both always agree on what "the active theme" is.
+ */
+export function resolveThemeIdFromSetting(settingValue: string | undefined): string {
+  if (settingValue && settingValue !== 'auto') {
+    const descriptor = findThemeDescriptor(settingValue);
+    if (descriptor) return descriptor.id;
+  }
+
+  // Auto-detect: Discord's own theme class when running inside Discord.
+  try {
+    if (document.documentElement.classList.contains('theme-light')) return DISCORD_LIGHT_ID;
+  } catch {
+    // Fall through to system preference
+  }
+
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) {
+    return DISCORD_LIGHT_ID;
+  }
+
+  return DISCORD_DARK_ID;
+}
+
 /** Compat exports — Storybook's preview and older call sites use these. */
 export const darkTheme = getThemeById(DISCORD_DARK_ID);
 export const lightTheme = getThemeById(DISCORD_LIGHT_ID);

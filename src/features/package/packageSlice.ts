@@ -19,6 +19,7 @@ import {
   waitWhilePaused,
 } from '@/utils/operationLoopUtils';
 import {
+  applyExportThemeSetFromState,
   createRowErrorReporter,
   logMediaProgress,
   setExportProgress,
@@ -796,6 +797,7 @@ export const exportPackageChannel = createAsyncThunk<
     }));
 
     const exportService = getExportService();
+    applyExportThemeSetFromState(getState());
 
     // Mirror the live export's progress + cancel wiring (#162). Without
     // these, package exports were silent for the entire media-download

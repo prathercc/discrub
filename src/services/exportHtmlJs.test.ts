@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { buildExportPageData, generateEmbeddedJs } from './exportHtmlJs';
+import { resolveExportThemeSet, buildThemeSelectHtml } from './exportThemes';
 import { getExportService } from './exportService';
 import {
   EXPORT_MESSAGES,
@@ -263,9 +264,9 @@ describe('generateEmbeddedJs', () => {
     expect(js).toContain('hasVisible');
   });
 
-  it('includes theme toggle with localStorage persistence', () => {
+  it('includes the theme switcher with localStorage persistence', () => {
     const js = generateEmbeddedJs();
-    expect(js).toContain('theme-toggle');
+    expect(js).toContain('theme-select');
     expect(js).toContain('applyTheme');
     expect(js).toContain('localStorage');
     expect(js).toContain('discrub-export-theme');
@@ -646,3 +647,74 @@ describe('Embedded JS role-icon rendering (#171)', () => {
     expect(js).toContain('cdn.discordapp.com/role-icons/');
   });
 });
+
+describe('theme switcher behavior (embedded JS executed in jsdom)', () => {
+  const set = resolveExportThemeSet({ themeSetting: 'terminal', isSupporter: false });
+
+  function bootPage() {
+    document.documentElement.className = 'export-theme-terminal';
+    document.body.innerHTML = `
+      <script type="application/json" id="export-data">{}</script>
+      ${buildThemeSelectHtml(set, 'theme-select', 'theme-select')}
+    `;
+    // The exported page runs this inline; jsdom won't execute injected
+    // script tags, so run it directly.
+    new Function(generateEmbeddedJs(set))();
+  }
+
+  beforeEach(() => {
+    localStorage.clear();
+    document.documentElement.className = '';
+  });
+
+  it('changing the select swaps the theme class and persists the choice', () => {
+    bootPage();
+    const select = document.getElementById('theme-select') as HTMLSelectElement;
+
+    select.value = 'discord-light';
+    select.dispatchEvent(new Event('change'));
+
+    expect(document.documentElement.classList.contains('export-theme-discord-light')).toBe(true);
+    expect(document.documentElement.classList.contains('export-theme-terminal')).toBe(false);
+    expect(document.documentElement.classList.contains('light-theme')).toBe(true);
+    expect(localStorage.getItem('discrub-export-theme')).toBe('discord-light');
+
+    select.value = 'terminal';
+    select.dispatchEvent(new Event('change'));
+    expect(document.documentElement.classList.contains('export-theme-terminal')).toBe(true);
+    expect(document.documentElement.classList.contains('light-theme')).toBe(false);
+  });
+
+  it('applies a saved theme id on load', () => {
+    localStorage.setItem('discrub-export-theme', 'discord-light');
+    bootPage();
+    expect(document.documentElement.classList.contains('export-theme-discord-light')).toBe(true);
+    expect((document.getElementById('theme-select') as HTMLSelectElement).value).toBe('discord-light');
+  });
+
+  it('maps a legacy stored value onto the matching Discord theme', () => {
+    localStorage.setItem('discrub-export-theme', 'light');
+    bootPage();
+    expect(document.documentElement.classList.contains('export-theme-discord-light')).toBe(true);
+  });
+
+  it('ignores a stored id this export does not embed', () => {
+    // e.g. a supporter theme saved by a supporter export, opened next
+    // to a free export in the same browser profile.
+    localStorage.setItem('discrub-export-theme', 'synthwave');
+    bootPage();
+    expect(document.documentElement.classList.contains('export-theme-terminal')).toBe(true);
+  });
+
+  it('follows a discrub-theme postMessage from the shell', () => {
+    bootPage();
+    window.dispatchEvent(
+      new MessageEvent('message', {
+        data: { type: 'discrub-theme', themeId: 'discord-light' },
+      }),
+    );
+    expect(document.documentElement.classList.contains('export-theme-discord-light')).toBe(true);
+    expect(document.documentElement.classList.contains('light-theme')).toBe(true);
+  });
+});
+
