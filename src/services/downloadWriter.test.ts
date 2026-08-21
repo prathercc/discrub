@@ -35,10 +35,12 @@ describe('createDownloadWriter', () => {
     vi.restoreAllMocks();
   });
 
-  it('delegates to drip-fs everywhere (desktop)', async () => {
+  it('delegates to drip-fs everywhere (desktop), passing the part cap as size when known', async () => {
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (X11; Linux) Chrome/126', configurable: true });
     const w = await createDownloadWriter('x.zip');
     expect(createStreamingDownload).toHaveBeenCalledWith('x.zip');
+    await createDownloadWriter('y.zip', 4 * 1024 ** 3);
+    expect(createStreamingDownload).toHaveBeenLastCalledWith('y.zip', { size: 4 * 1024 ** 3 });
     expect((w as unknown as { tag: string }).tag).toBe('drip');
   });
 

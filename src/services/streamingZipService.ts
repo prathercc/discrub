@@ -135,7 +135,7 @@ export class StreamingZipService {
       this.partBytes = 0;
       this.partFiles = 0;
       const fileName = this.partFileName(this.partIndex);
-      this.downloadWriter = await createDownloadWriter(fileName);
+      this.downloadWriter = await createDownloadWriter(fileName, this.maxPartBytes || undefined);
       this.pipePromise = this.pipeReadableToWriter(this.readable!, this.downloadWriter);
       this.onPartStart?.({ partIndex: this.partIndex, fileName });
     }

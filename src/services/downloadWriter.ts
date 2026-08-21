@@ -65,9 +65,15 @@ export const createBlobDownloadWriter = (
  * where drip-fs cannot open the staged file (old WebKit without OPFS
  * sync access handles, or a storage-quota refusal).
  */
-export const createDownloadWriter = async (filename: string): Promise<StreamDownloadWriter> => {
+export const createDownloadWriter = async (
+  filename: string,
+  /** Max bytes this part may reach; lets the OPFS path check free storage up front. */
+  size?: number,
+): Promise<StreamDownloadWriter> => {
   try {
-    return await createStreamingDownload(filename);
+    return size && size > 0
+      ? await createStreamingDownload(filename, { size })
+      : await createStreamingDownload(filename);
   } catch (err) {
     if (!isIOSSafari()) throw err;
     console.warn('drip-fs could not stage the download on this device; buffering in memory instead.', err);
