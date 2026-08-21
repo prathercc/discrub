@@ -55,7 +55,7 @@ export const DISCORD_LIGHT_ID = 'discord-light';
 
 const discordDark: ThemeDescriptor = {
   id: DISCORD_DARK_ID,
-  name: 'Discord Dark',
+  name: 'Dark Original',
   base: 'dark',
   tier: 'free',
   palette: {
@@ -83,7 +83,7 @@ const discordDark: ThemeDescriptor = {
 
 const discordLight: ThemeDescriptor = {
   id: DISCORD_LIGHT_ID,
-  name: 'Discord Light',
+  name: 'Light Original',
   base: 'light',
   tier: 'free',
   palette: {
