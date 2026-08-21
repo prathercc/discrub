@@ -27,24 +27,38 @@ describe('isIOSSafari', () => {
 describe('createDownloadWriter', () => {
   const originalUA = navigator.userAgent;
   beforeEach(() => {
-    vi.mocked(createStreamingDownload).mockClear();
+    vi.mocked(createStreamingDownload).mockReset();
+    vi.mocked(createStreamingDownload).mockResolvedValue({ tag: 'drip' } as never);
   });
   afterEach(() => {
     Object.defineProperty(navigator, 'userAgent', { value: originalUA, configurable: true });
+    vi.restoreAllMocks();
   });
 
-  it('uses drip-fs streaming off iOS', async () => {
+  it('delegates to drip-fs everywhere (desktop)', async () => {
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (X11; Linux) Chrome/126', configurable: true });
     const w = await createDownloadWriter('x.zip');
     expect(createStreamingDownload).toHaveBeenCalledWith('x.zip');
     expect((w as unknown as { tag: string }).tag).toBe('drip');
   });
 
-  it('uses the Blob writer on iOS and never touches the service-worker stream', async () => {
+  it('delegates to drip-fs on iOS too (1.1 stages through OPFS itself)', async () => {
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) CriOS/126', configurable: true });
+    const w = await createDownloadWriter('x.zip');
+    expect(createStreamingDownload).toHaveBeenCalledWith('x.zip');
+    expect((w as unknown as { tag: string }).tag).toBe('drip');
+  });
+
+  it('falls back to the Blob writer only on iOS when drip-fs throws', async () => {
+    vi.mocked(createStreamingDownload).mockRejectedValue(new Error('no OPFS'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)', configurable: true });
     const w = await createDownloadWriter('x.zip');
-    expect(createStreamingDownload).not.toHaveBeenCalled();
     expect(w.bytesWritten).toBe(0);
+    expect(console.warn).toHaveBeenCalled();
+
+    Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (X11; Linux) Chrome/126', configurable: true });
+    await expect(createDownloadWriter('x.zip')).rejects.toThrow('no OPFS');
   });
 });
 

@@ -58,8 +58,19 @@ export const createBlobDownloadWriter = (
   } as StreamDownloadWriter;
 };
 
-/** drip-fs streaming everywhere except iOS Safari, which gets the Blob writer. */
-export const createDownloadWriter = (filename: string): Promise<StreamDownloadWriter> =>
-  isIOSSafari()
-    ? Promise.resolve(createBlobDownloadWriter(filename))
-    : createStreamingDownload(filename);
+/**
+ * drip-fs 1.1 picks the path itself (service-worker stream, or an
+ * OPFS-staged file on iOS WebKit where iframe downloads are forbidden).
+ * The in-memory Blob writer stays as the last resort for iOS devices
+ * where drip-fs cannot open the staged file (old WebKit without OPFS
+ * sync access handles, or a storage-quota refusal).
+ */
+export const createDownloadWriter = async (filename: string): Promise<StreamDownloadWriter> => {
+  try {
+    return await createStreamingDownload(filename);
+  } catch (err) {
+    if (!isIOSSafari()) throw err;
+    console.warn('drip-fs could not stage the download on this device; buffering in memory instead.', err);
+    return createBlobDownloadWriter(filename);
+  }
+};
