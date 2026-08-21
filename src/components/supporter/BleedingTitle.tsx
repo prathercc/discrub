@@ -95,7 +95,19 @@ export const BleedingEdgeText = ({
       ]}
     >
       {withPrefix ? 'Discrub Bleeding Edg' : 'Bleeding Edg'}
-      <Box component="span" sx={{ position: 'relative', display: 'inline-block' }}>
+      {/* iOS Safari does not paint a parent's background-clip:text through a nested
+          inline-block, so the "e" carries the gradient itself (inherit tracks the seep). */}
+      <Box
+        component="span"
+        sx={{
+          position: 'relative',
+          display: 'inline-block',
+          background: 'inherit',
+          backgroundClip: 'text',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}
+      >
         e
         {/* The single drip hangs off the bottom of the final "e". */}
         <Box

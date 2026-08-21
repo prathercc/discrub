@@ -209,7 +209,10 @@ const MainLayout = () => {
         sx={{
           display: 'flex',
           flexDirection: 'column',
+          // dvh tracks the visible viewport on phones (iOS URL bar), so the
+          // StatusPanel stays pinned to the bottom edge instead of below the fold.
           height: '100vh',
+          '@supports (height: 100dvh)': { height: '100dvh' },
           marginRight: drawerOpen ? `${DRAWER_WIDTH}px` : 0,
           transition: 'margin-right 225ms cubic-bezier(0, 0, 0.2, 1)',
         }}

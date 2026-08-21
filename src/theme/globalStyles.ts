@@ -15,11 +15,15 @@ export const globalStyles = (theme: Theme) => ({
     MozOsxFontSmoothing: 'grayscale',
     height: '100%',
     width: '100%',
+    // Phones: a pull at the top of the page must not become a reload (the
+    // token is memory-only, so a reload is a sign-out mid-operation).
+    overscrollBehaviorY: 'none',
   },
   body: {
     height: '100%',
     width: '100%',
     backgroundColor: theme.palette.background.default,
+    overscrollBehaviorY: 'none',
   },
   '#root': {
     height: '100%',

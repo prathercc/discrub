@@ -1,5 +1,5 @@
-import { createStreamingDownload } from 'drip-fs';
 import type { StreamDownloadWriter } from 'drip-fs';
+import { createDownloadWriter } from './downloadWriter';
 import { Writer } from '@transcend-io/conflux';
 
 /**
@@ -135,7 +135,7 @@ export class StreamingZipService {
       this.partBytes = 0;
       this.partFiles = 0;
       const fileName = this.partFileName(this.partIndex);
-      this.downloadWriter = await createStreamingDownload(fileName);
+      this.downloadWriter = await createDownloadWriter(fileName);
       this.pipePromise = this.pipeReadableToWriter(this.readable!, this.downloadWriter);
       this.onPartStart?.({ partIndex: this.partIndex, fileName });
     }
