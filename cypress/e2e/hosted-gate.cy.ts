@@ -112,11 +112,11 @@ describe('Hosted Bleeding Edge gate', () => {
       cy.get('[data-testid="hosted-gate-key"]').type(key as string, { delay: 0 });
       cy.get('[data-testid="hosted-gate-apply"]').click();
     });
-    cy.get('[data-testid="hosted-gate-key-status"]').should('contain.text', 'Bleeding Edge included');
+    cy.get('[data-testid="hosted-gate-key-status"]').should('contain.text', 'Supporter key validated');
 
     // Reload: key pre-accepted, token field empty.
     visitGate({ freshDbs: false });
-    cy.get('[data-testid="hosted-gate-key-status"]').should('contain.text', 'Bleeding Edge included');
+    cy.get('[data-testid="hosted-gate-key-status"]').should('contain.text', 'Supporter key validated');
     cy.get('[data-testid="hosted-gate-key"]').should('not.exist');
     cy.get('input[type="password"]').should('have.value', '');
 

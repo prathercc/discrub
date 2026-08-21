@@ -259,7 +259,7 @@ describe('LandingPage', () => {
     it('lets a hosted-entitled key through and shows it as remembered', () => {
       renderGate({ keyStatus: 'valid', payload: hostedPayload });
       expect(screen.getByTestId('hosted-gate-key-status')).toHaveTextContent(
-        /Aaron P\., Bleeding Edge included/,
+        /Supporter key validated\./,
       );
       expect(screen.queryByTestId('hosted-gate-key')).toBeNull();
       fireEvent.change(screen.getByLabelText(/Discord Token/), { target: { value: 'tok' } });
@@ -269,7 +269,7 @@ describe('LandingPage', () => {
     it('tells a themes-only key holder that Bleeding Edge is a separate tier', () => {
       renderGate({ keyStatus: 'valid', payload: themesOnlyPayload });
       expect(screen.getByTestId('hosted-gate-key-status')).toHaveTextContent(
-        /covers themes\. Bleeding Edge is a separate tier/,
+        /doesn't include Bleeding Edge/,
       );
       fireEvent.change(screen.getByLabelText(/Discord Token/), { target: { value: 'tok' } });
       expect(screen.getByTestId('landing-sign-in')).toBeDisabled();

@@ -71,9 +71,9 @@ const LandingPage = () => {
     if (hasHosted) return null;
     const live = liveSupporterFeatures(supporter.payload);
     if (supporter.keyStatus !== 'valid' || live.length === 0) {
-      return 'This key is no longer active. Paste a fresh one, or hit Refresh in the app after renewing.';
+      return 'Supporter key no longer active.';
     }
-    return 'This key covers themes. Bleeding Edge is a separate tier, so this key will not sign you in here.';
+    return "Supporter key validated, but it doesn't include Bleeding Edge.";
   })();
 
   const [token, setToken] = useState(envToken || '');
@@ -298,9 +298,7 @@ const LandingPage = () => {
                       </Button>
                     }
                   >
-                    Supporter key for {supporter.payload.name}
-                    {hasHosted ? ', Bleeding Edge included.' : '.'}
-                    {hostedKeyMessage ? ` ${hostedKeyMessage}` : ''}
+                    {hostedKeyMessage ?? 'Supporter key validated.'}
                   </Alert>
                 ) : (
                   <Stack spacing={1}>
