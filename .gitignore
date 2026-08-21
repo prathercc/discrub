@@ -77,3 +77,7 @@ vite.config.ts.timestamp-*
 .eslintcache
 .stylelintcache
 .npm/
+
+# Discrub Classic source checkouts/vendoring (see scripts/build-classic.mjs)
+.classic-src/
+classic-source/

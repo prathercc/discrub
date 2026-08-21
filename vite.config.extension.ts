@@ -5,13 +5,14 @@ import { readFileSync } from 'fs';
 import { launcherVersion } from './scripts/vite-launcher-version';
 
 const pkg = JSON.parse(readFileSync(resolve(__dirname, 'package.json'), 'utf8'));
-const classicManifest = JSON.parse(
-  readFileSync(resolve(__dirname, 'public/classic-chrome/manifest.json'), 'utf8'),
-);
 
 export default defineConfig(({ mode }) => {
   const isFirefox = mode === 'firefox';
   const outDir = isFirefox ? 'dist-extension-firefox' : 'dist-extension-chrome';
+  // Each flavor ships its own Classic build (see scripts/build-classic.mjs); read the matching manifest.
+  const classicManifest = JSON.parse(
+    readFileSync(resolve(__dirname, `public/classic-${isFirefox ? 'firefox' : 'chrome'}/manifest.json`), 'utf8'),
+  );
 
   return {
     plugins: [
