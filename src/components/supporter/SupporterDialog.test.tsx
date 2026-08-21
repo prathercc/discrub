@@ -21,7 +21,10 @@ vi.mock('@/extension/storage', () => ({
 }));
 
 const { mockVerify } = vi.hoisted(() => ({ mockVerify: vi.fn() }));
-vi.mock('@services/supporterKeyService', () => ({ verifySupporterKey: mockVerify }));
+vi.mock('@services/supporterKeyService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@services/supporterKeyService')>();
+  return { ...actual, verifySupporterKey: mockVerify };
+});
 
 const { mockRequestRefresh, MockClaimError } = vi.hoisted(() => {
   class MockClaimError extends Error {
@@ -38,6 +41,7 @@ vi.mock('@services/supporterClaimService', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@services/supporterClaimService')>();
   return {
+    ...actual,
     // Pure input classifier — keep the real code/key routing.
     normalizeSupporterCode: actual.normalizeSupporterCode,
     requestSupporterKeyRefresh: mockRequestRefresh,
@@ -49,12 +53,12 @@ vi.mock('@services/supporterClaimService', async (importOriginal) => {
 const DAY_S = 24 * 60 * 60;
 
 const payload: SupporterKeyPayload = {
-  v: 1,
+  v: 2,
   kid: '2026-2',
   jti: 'jti-1',
   name: 'Aaron P.',
   eh: 'hash',
-  tier: 'monthly',
+  ent: { themes: Math.floor(Date.now() / 1000) + 30 * DAY_S },
   iat: Math.floor(Date.now() / 1000),
   exp: Math.floor(Date.now() / 1000) + 30 * DAY_S,
 };
@@ -72,7 +76,7 @@ describe('SupporterDialog', () => {
   });
 
   describe('non-supporter state', () => {
-    it('shows the pitch, the full theme grid with locks, and the Ko-fi button', () => {
+    it('shows the pitch, the full theme grid with locks, and the 2x2 purchase grid', () => {
       renderDialog();
 
       expect(screen.getByText(/growing pack of cosmetic themes/i)).toBeInTheDocument();
@@ -85,15 +89,28 @@ describe('SupporterDialog', () => {
       expect(screen.getByTestId('theme-card-terminal')).toBeInTheDocument();
       expect(screen.getByTestId('theme-locked-amoled-void')).toBeInTheDocument();
 
-      // Two purchase paths, each pinned to its permanent Ko-fi URL.
-      expect(screen.getByTestId('supporter-kofi-monthly')).toHaveAttribute(
+      // Two tiers x monthly/yearly, each pinned to its Ko-fi URL.
+      expect(screen.getByTestId('supporter-kofi-themes-monthly')).toHaveAttribute(
         'href',
         'https://ko-fi.com/prathercc/tiers',
       );
-      expect(screen.getByTestId('supporter-kofi-lifetime')).toHaveAttribute(
+      expect(screen.getByTestId('supporter-kofi-themes-yearly')).toHaveAttribute(
         'href',
         'https://ko-fi.com/s/0b4f9b2bdf',
       );
+      expect(screen.getByTestId('supporter-kofi-hosted-monthly')).toHaveAttribute(
+        'href',
+        'https://ko-fi.com/prathercc/tiers',
+      );
+      expect(screen.getByTestId('supporter-kofi-hosted-yearly')).toHaveAttribute(
+        'href',
+        'https://ko-fi.com/s/3b0ad65948',
+      );
+      expect(screen.getByText('$3 / month')).toBeInTheDocument();
+      expect(screen.getByText('$25 / year')).toBeInTheDocument();
+      expect(screen.getByText('$5 / month')).toBeInTheDocument();
+      expect(screen.getByText('$40 / year')).toBeInTheDocument();
+      expect(screen.queryByText(/lifetime/i)).toBeNull();
     });
 
     it('applies a free theme instantly from the grid', () => {
@@ -111,7 +128,7 @@ describe('SupporterDialog', () => {
       expect(screen.queryByTestId('theme-selected-amoled-void')).toBeNull();
     });
 
-    it('discloses key delivery, renewal, and the footer perk', () => {
+    it('discloses key delivery and the daily check-in, and never says "code"', () => {
       renderDialog();
       // The sender address is a mailto link for support questions.
       expect(screen.getByTestId('supporter-key-email-link')).toHaveAttribute(
@@ -119,10 +136,24 @@ describe('SupporterDialog', () => {
         'mailto:keys@pratherbytecraft.com',
       );
       expect(screen.getByText(/right after you join/i)).toBeInTheDocument();
-      expect(screen.getByText(/Monthly keys renew automatically/i)).toBeInTheDocument();
-      expect(
-        screen.getByText(/reword, rebrand, or remove the footer on HTML exports/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/about once a day/i)).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-dialog').textContent?.toLowerCase()).not.toContain(
+        'code',
+      );
+    });
+
+    it('shows the export footer controls disabled with the real default line', () => {
+      renderDialog();
+      const controls = screen.getByTestId('supporter-footer-controls');
+      expect(controls).toHaveAttribute('data-locked', 'true');
+      expect(screen.getByTestId('supporter-footer-lock')).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-footer-text')).toBeDisabled();
+      expect(screen.getByTestId('supporter-footer-text')).toHaveValue(
+        'Exported with Discrub',
+      );
+      expect(screen.getByTestId('supporter-footer-enabled')).toBeDisabled();
+      expect(screen.getByTestId('supporter-footer-enabled')).toBeChecked();
+      expect(screen.getByTestId('supporter-footer-upload')).toBeDisabled();
     });
 
     it('toggles theme animations instantly from the hub', async () => {
@@ -180,21 +211,42 @@ describe('SupporterDialog', () => {
   });
 
   describe('supporter state', () => {
-    it('shows the badge, name, expiry, and an unlocked grid', () => {
-      renderDialog({ keyStatus: 'valid', payload });
+    it('shows the access card above the grid with one row per feature', () => {
+      renderDialog({ keyStatus: 'valid', payload, lastRefreshAt: Date.now() - 3 * 60 * 60 * 1000 });
 
       expect(screen.getByText(/issued to Aaron P\./i)).toBeInTheDocument();
-      expect(screen.getByText(/key valid through/i)).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-access-themes')).toHaveAttribute('data-live', 'true');
+      expect(screen.getByTestId('supporter-access-themes')).toHaveTextContent(/Through/);
+      expect(screen.getByTestId('supporter-access-hosted')).toHaveAttribute('data-live', 'false');
+      expect(screen.getByTestId('supporter-access-hosted')).toHaveTextContent(/Not included/);
+      expect(screen.getByTestId('supporter-get-hosted')).toHaveAttribute('href');
+      expect(screen.getByTestId('supporter-checkin-note')).toHaveTextContent(/Checked 3 hours ago/);
+      expect(screen.getByTestId('supporter-checkin-note')).toHaveTextContent(/Renews automatically/);
       expect(screen.getByTestId('supporter-refresh-key')).not.toBeDisabled();
       expect(screen.queryByTestId('theme-locked-amoled-void')).toBeNull();
       expect(screen.getByTestId('theme-card-amoled-void')).toBeInTheDocument();
+      // Access card renders before the theme grid in document order.
+      const status = screen.getByTestId('supporter-status');
+      const grid = screen.getByTestId('supporter-theme-showcase');
+      expect(status.compareDocumentPosition(grid) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      // No purchase grid for supporters.
+      expect(screen.queryByTestId('supporter-purchase-grid')).toBeNull();
+    });
+
+    it('marks both rows live for a key carrying hosted access', () => {
+      renderDialog({
+        keyStatus: 'valid',
+        payload: { ...payload, ent: { themes: null, hosted: payload.exp } },
+      });
+      expect(screen.getByTestId('supporter-access-themes')).toHaveTextContent(/Never expires/);
+      expect(screen.getByTestId('supporter-access-hosted')).toHaveAttribute('data-live', 'true');
     });
 
     it('refreshes by presenting the stored key', async () => {
       stateStore.get.mockResolvedValue('DSCRB-current' as never);
       mockRequestRefresh.mockResolvedValue({
         key: 'DSCRB-fresh',
-        tier: 'monthly',
+        ent: payload.ent,
         name: 'Aaron P.',
         expiresAt: 'whenever',
       });
@@ -208,14 +260,15 @@ describe('SupporterDialog', () => {
       });
     });
 
-    it('shows lifetime status with no refresh button', () => {
+    it('keeps Refresh for perpetual keys (a later purchase can still grow them)', () => {
       renderDialog({
         keyStatus: 'valid',
-        payload: { ...payload, tier: 'lifetime', exp: null },
+        payload: { ...payload, ent: { themes: null }, exp: null },
       });
 
-      expect(screen.getByText('Lifetime supporter')).toBeInTheDocument();
-      expect(screen.queryByTestId('supporter-refresh-key')).not.toBeInTheDocument();
+      expect(screen.getByTestId('supporter-access-themes')).toHaveTextContent(/Never expires/);
+      expect(screen.getByTestId('supporter-refresh-key')).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-checkin-note')).not.toHaveTextContent(/Renews automatically/);
     });
 
     it('shows footer controls with working text, toggle, and icon-clear actions', async () => {
@@ -261,9 +314,13 @@ describe('SupporterDialog', () => {
       });
     });
 
-    it('hides footer controls from non-supporters', () => {
-      renderDialog();
-      expect(screen.queryByTestId('supporter-footer-controls')).not.toBeInTheDocument();
+    it('enables the footer controls only while the themes feature is live', () => {
+      renderDialog({
+        keyStatus: 'valid',
+        payload: { ...payload, ent: { hosted: payload.exp } },
+      });
+      expect(screen.getByTestId('supporter-footer-controls')).toHaveAttribute('data-locked', 'true');
+      expect(screen.getByTestId('supporter-footer-text')).toBeDisabled();
     });
 
     it('remove key clears supporter state back to the pitch', async () => {
@@ -274,7 +331,7 @@ describe('SupporterDialog', () => {
       await waitFor(() => {
         expect(screen.queryByTestId('supporter-status')).not.toBeInTheDocument();
       });
-      expect(stateStore.remove).toHaveBeenCalledTimes(2);
+      expect(stateStore.remove).toHaveBeenCalledTimes(3);
     });
   });
 });

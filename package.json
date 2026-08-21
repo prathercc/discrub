@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --project tsconfig.build.json && vite build",
+    "build:hosted": "tsc --project tsconfig.build.json && VITE_HOSTED_GATE=true vite build",
     "preview": "vite preview",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",

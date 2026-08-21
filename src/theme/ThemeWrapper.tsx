@@ -4,7 +4,7 @@ import CssBaseline from '@mui/material/CssBaseline';
 import { GlobalStyles } from '@mui/material';
 import { useAppSelector } from '@/app/hooks';
 import { selectSettings, selectPreviewThemeId } from '@features/app/appSlice';
-import { selectIsSupporter, selectSupporter } from '@features/supporter/supporterSlice';
+import { selectHasThemes, selectSupporter } from '@features/supporter/supporterSlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { getThemeById, findThemeDescriptor, resolveThemeIdFromSetting } from './theme';
 import { globalStyles } from './globalStyles';
@@ -19,7 +19,7 @@ const ThemeWrapper = ({ children }: ThemeWrapperProps) => {
   // Transient override from the Settings theme picker's live preview.
   // 'auto' previews through the same detection path as the saved setting.
   const previewThemeId = useAppSelector(selectPreviewThemeId);
-  const isSupporter = useAppSelector(selectIsSupporter);
+  const isSupporter = useAppSelector(selectHasThemes);
   const supporterInitialized = useAppSelector(selectSupporter).initialized;
 
   const themeId = useMemo(() => {

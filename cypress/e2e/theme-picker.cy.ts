@@ -13,7 +13,7 @@ describe('Themes hub', () => {
 
   const openHub = () => {
     cy.get('[data-testid="gift-button"]').click();
-    cy.get('[data-testid="supporter-theme-showcase"]').should('be.visible');
+    cy.get('[data-testid="supporter-theme-showcase"]').scrollIntoView().should('be.visible');
   };
 
   it('the Settings Display tab has no picker, only a pointer that opens the hub', () => {
@@ -25,7 +25,7 @@ describe('Themes hub', () => {
     cy.get('[data-testid^="theme-card-"]').should('not.exist');
 
     cy.get('[data-testid="display-open-themes-hub"]').click();
-    cy.get('[data-testid="supporter-theme-showcase"]').should('be.visible');
+    cy.get('[data-testid="supporter-theme-showcase"]').scrollIntoView().should('be.visible');
   });
 
   it('shows the full v2.1.0 roster with supporter themes locked', () => {

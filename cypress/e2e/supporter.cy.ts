@@ -1,6 +1,7 @@
 /**
  * Supporter platform E2E — the Themes hub, paste-a-key unlock,
- * unlock/relock, and the key-based monthly auto-refresh.
+ * unlock/relock, and the key-based daily check-in (payload v2: one key
+ * per person carrying a per-feature entitlement map).
  *
  * ⚠️ RUN THIS SPEC IN CHROME (`--browser chrome`). Cypress's bundled
  * Electron (Chromium 130) has no WebCrypto Ed25519, so the app's key
@@ -38,12 +39,12 @@ async function makeFixturePair(): Promise<void> {
 async function signKey(overrides: Record<string, unknown> = {}): Promise<string> {
   const nowS = Math.floor(Date.now() / 1000);
   const payload = {
-    v: 1,
+    v: 2,
     kid: '2026-2',
     jti: Math.random().toString(16).slice(2, 18),
     name: 'Cy Tester',
     eh: '0123456789abcdef',
-    tier: 'monthly',
+    ent: { themes: nowS + 30 * DAY_S },
     iat: nowS,
     exp: nowS + 30 * DAY_S,
     ...overrides,
@@ -74,8 +75,19 @@ const DB_NAMES = [
  * freshDbs=false keeps IndexedDB so persistence across reloads can be
  * asserted.
  */
-function visitApp({ freshDbs = true }: { freshDbs?: boolean } = {}) {
+function visitApp({
+  freshDbs = true,
+  stubRefresh = true,
+}: { freshDbs?: boolean; stubRefresh?: boolean } = {}) {
   cy.interceptDiscordApi();
+  // The daily check-in fires on the first boot with a key; keep it
+  // offline by default (fail-open) so tests only see the calls they
+  // deliberately set up. Intercepts are LIFO, so a test that registers
+  // its own refresh intercept BEFORE calling visitApp must pass
+  // stubRefresh=false or this one shadows it.
+  if (stubRefresh) {
+    cy.intercept('POST', '**/supporter/refresh', { forceNetworkError: true }).as('refreshOffline');
+  }
   cy.visit('/', {
     onBeforeLoad(win) {
       if (freshDbs) {
@@ -107,7 +119,7 @@ describe('Supporter platform', () => {
     cy.wrap(makeFixturePair());
   });
 
-  it('gift button opens the hub with the pitch, theme grid, and Ko-fi button', () => {
+  it('gift button opens the hub with the purchase grid first, then the theme grid', () => {
     visitApp();
     cy.get('[data-testid="gift-button"]').click();
     cy.get('[data-testid="supporter-dialog"]').should('be.visible');
@@ -116,26 +128,45 @@ describe('Supporter platform', () => {
       'have.length',
       8,
     );
-    // Two purchase paths in the pinned footer, each on its final URL.
-    cy.get('[data-testid="supporter-kofi-monthly"]').should(
+    // Two tiers x monthly/yearly, on their Ko-fi URLs.
+    cy.get('[data-testid="supporter-kofi-themes-monthly"]').should(
       'have.attr',
       'href',
       'https://ko-fi.com/prathercc/tiers',
     );
-    cy.get('[data-testid="supporter-kofi-lifetime"]').should(
+    cy.get('[data-testid="supporter-kofi-themes-yearly"]').should(
       'have.attr',
       'href',
       'https://ko-fi.com/s/0b4f9b2bdf',
     );
-    // The key delivery + renewal disclosure, with the sender address
-    // as a mailto link.
+    cy.get('[data-testid="supporter-kofi-hosted-monthly"]').should('be.visible');
+    cy.get('[data-testid="supporter-kofi-hosted-yearly"]').should('be.visible');
+    cy.get('[data-testid="supporter-dialog"]').should('not.contain.text', 'Lifetime');
+    // The purchase grid renders above the theme grid.
+    cy.get('[data-testid="supporter-purchase-grid"]').then(($grid) => {
+      cy.get('[data-testid="supporter-theme-showcase"]').then(($themes) => {
+        expect($grid[0].getBoundingClientRect().top).to.be.lessThan(
+          $themes[0].getBoundingClientRect().top,
+        );
+      });
+    });
+    // Export footer controls are shown, locked, with the real default line.
+    cy.get('[data-testid="supporter-footer-controls"]').should('have.attr', 'data-locked', 'true');
+    cy.get('[data-testid="supporter-footer-text"]')
+      .should('be.disabled')
+      .and('have.value', 'Exported with Discrub');
+    // The key delivery + check-in disclosure, with the sender address
+    // as a mailto link, and never the word "code".
     cy.get('[data-testid="supporter-key-email-link"]').should(
       'have.attr',
       'href',
       'mailto:keys@pratherbytecraft.com',
     );
     cy.contains('right after you join').should('be.visible');
-    cy.contains('Monthly keys renew automatically').should('be.visible');
+    cy.contains('about once a day').should('be.visible');
+    cy.get('[data-testid="supporter-dialog"]')
+      .invoke('text')
+      .then((text) => expect(text.toLowerCase()).not.to.contain('code'));
   });
 
   it('applying a key unlocks supporter themes end to end', () => {
@@ -144,6 +175,21 @@ describe('Supporter platform', () => {
       applyKeyViaDialog(key as string);
     });
     cy.get('[data-testid="supporter-status"]').should('contain.text', 'issued to Cy Tester');
+    cy.get('[data-testid="supporter-access-themes"]').should('have.attr', 'data-live', 'true');
+    cy.get('[data-testid="supporter-access-hosted"]')
+      .should('have.attr', 'data-live', 'false')
+      .and('contain.text', 'Not included');
+    // Footer controls are live for a themes key.
+    cy.get('[data-testid="supporter-footer-controls"]').should('have.attr', 'data-locked', 'false');
+    cy.get('[data-testid="supporter-footer-text"]').should('not.be.disabled');
+    // The access card sits above the theme grid.
+    cy.get('[data-testid="supporter-status"]').then(($status) => {
+      cy.get('[data-testid="supporter-theme-showcase"]').then(($themes) => {
+        expect($status[0].getBoundingClientRect().top).to.be.lessThan(
+          $themes[0].getBoundingClientRect().top,
+        );
+      });
+    });
     // The hub's own grid unlocks in place; switch right here.
     cy.get('[data-testid="supporter-theme-showcase"] [data-testid^="theme-locked-"]').should(
       'have.length',
@@ -182,7 +228,7 @@ describe('Supporter platform', () => {
     cy.get('[data-testid="gift-button"]').should('have.attr', 'aria-label', 'Themes and Support');
   });
 
-  it('an applied key and theme survive a reload without contacting the server', () => {
+  it('an applied key and theme survive a reload even when the check-in is offline', () => {
     visitApp();
     cy.then(() => signKey()).then((key) => {
       applyKeyViaDialog(key as string);
@@ -191,23 +237,84 @@ describe('Supporter platform', () => {
     cy.get('[aria-label="Close Supporter dialog"]').click();
     cy.get('body').should('have.css', 'background-color', AMOLED_BG);
 
-    // Far from expiry, so the reload must make ZERO refresh calls.
-    cy.intercept('POST', '**/supporter/refresh', cy.spy().as('refreshSpy'));
+    // visitApp forces the refresh call offline: fail-open keeps the key.
     visitApp({ freshDbs: false });
+    cy.wait('@refreshOffline');
     cy.get('body').should('have.css', 'background-color', AMOLED_BG);
+    cy.get('[data-testid="supporter-badge-star"]').should('exist');
+  });
+
+  it('checks in once a day: the first boot with a key calls refresh, the next one does not', () => {
+    visitApp();
+    cy.then(() => signKey()).then((key) => {
+      applyKeyViaDialog(key as string);
+    });
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+
+    // First reload: the key has never been checked, so it is presented
+    // and the merged answer (now carrying hosted too) is stored.
+    cy.then(() =>
+      signKey({
+        ent: {
+          themes: Math.floor(Date.now() / 1000) + 40 * DAY_S,
+          hosted: Math.floor(Date.now() / 1000) + 400 * DAY_S,
+        },
+      }),
+    ).then((merged) => {
+      cy.intercept('POST', '**/supporter/refresh', (req) => {
+        expect(req.body.email).to.be.undefined;
+        req.reply({
+          statusCode: 200,
+          body: { key: merged, ent: { themes: 1, hosted: 1 }, name: 'Cy Tester', expiresAt: null },
+        });
+      }).as('refresh');
+    });
+    visitApp({ freshDbs: false, stubRefresh: false });
+    cy.wait('@refresh');
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-access-hosted"]').should('have.attr', 'data-live', 'true');
+    cy.get('[data-testid="supporter-checkin-note"]').should('contain.text', 'Checked just now');
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+
+    // Second reload inside the day: no call at all.
+    cy.intercept('POST', '**/supporter/refresh', cy.spy().as('refreshSpy'));
+    visitApp({ freshDbs: false, stubRefresh: false });
+    cy.get('[data-testid="supporter-badge-star"]').should('exist');
     cy.get('@refreshSpy').should('not.have.been.called');
   });
 
-  it('redeems a short emailed code for the full key and unlocks', () => {
+  it('relocks on the 410 "access ended" answer without losing the key', () => {
     visitApp();
     cy.then(() => signKey()).then((key) => {
-      // The server exchanges the code for the stored full key; the app
-      // then verifies THAT locally before unlocking.
+      applyKeyViaDialog(key as string);
+    });
+    cy.get('[data-testid="supporter-theme-showcase"] [data-testid="theme-card-amoled-void"]').click();
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+
+    cy.intercept('POST', '**/supporter/refresh', {
+      statusCode: 410,
+      body: { status: 410, error: 'Your supporter access has ended' },
+    }).as('ended');
+    visitApp({ freshDbs: false, stubRefresh: false });
+    cy.wait('@ended');
+    cy.get('body').should('have.css', 'background-color', DARK_BG);
+    cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-lapsed-note"]').should('be.visible');
+    // The key is kept so Refresh works after a renewal.
+    cy.get('[data-testid="supporter-refresh-key"]').should('exist');
+  });
+
+  it('redeems the short emailed key for the full key and unlocks', () => {
+    visitApp();
+    cy.then(() => signKey()).then((key) => {
+      // The server exchanges the short form for the merged full key;
+      // the app then verifies THAT locally before unlocking.
       cy.intercept('POST', '**/supporter/redeem', (req) => {
         expect(req.body.code).to.equal('DSCRB-AAAA-2222');
         req.reply({
           key: key as string,
-          tier: 'monthly',
+          ent: { themes: 1 },
           name: 'Cy Tester',
           expiresAt: null,
         });
@@ -218,54 +325,29 @@ describe('Supporter platform', () => {
     cy.wait('@redeem');
     cy.get('[data-testid="supporter-status"]').should('contain.text', 'Cy Tester');
 
-    // The FULL key (not the code) is what persists across reloads,
-    // offline-verifiable with no further server contact.
+    // The FULL key (not the short form) is what persists across reloads,
+    // offline-verifiable; a redeem counts as a check-in so the reload
+    // makes no refresh call either.
     cy.intercept('POST', '**/supporter/redeem', cy.spy().as('redeemSpy'));
+    cy.intercept('POST', '**/supporter/refresh', cy.spy().as('refreshSpy'));
     visitApp({ freshDbs: false });
     cy.get('[data-testid="supporter-badge-star"]').should('exist');
     cy.get('@redeemSpy').should('not.have.been.called');
+    cy.get('@refreshSpy').should('not.have.been.called');
   });
 
-  it('shows the server error copy when a code is refused', () => {
+  it('shows the server error copy when a short key is refused', () => {
     visitApp();
     cy.intercept('POST', '**/supporter/redeem', {
       statusCode: 404,
-      body: { error: 'That code does not match an active supporter key' },
+      body: { error: 'That key does not match an active supporter key' },
     }).as('redeem');
     applyKeyViaDialog('DSCRB-AAAA-2222');
     cy.wait('@redeem');
     cy.get('[data-testid="supporter-claim-error"]').should(
       'contain.text',
-      'That code does not match an active supporter key',
+      'That key does not match an active supporter key',
     );
-  });
-
-  it('auto-refreshes a near-expiry monthly key on boot by presenting the key', () => {
-    visitApp();
-    // Apply a key that expires in 2 days — inside the refresh window.
-    let appliedKey: string;
-    cy.then(() => signKey({ exp: Math.floor(Date.now() / 1000) + 2 * DAY_S })).then((key) => {
-      appliedKey = key as string;
-      applyKeyViaDialog(appliedKey);
-    });
-    cy.get('[data-testid="supporter-status"]').should('be.visible');
-    cy.get('[aria-label="Close Supporter dialog"]').click();
-
-    // Reload: the app should silently exchange the old key for a fresh one.
-    cy.then(() => signKey()).then((freshKey) => {
-      cy.intercept('POST', '**/supporter/refresh', (req) => {
-        expect(req.body.key).to.eq(appliedKey);
-        expect(req.body.email).to.be.undefined;
-        req.reply({
-          statusCode: 200,
-          body: { key: freshKey, tier: 'monthly', name: 'Cy Tester', expiresAt: null },
-        });
-      }).as('refresh');
-    });
-    visitApp({ freshDbs: false });
-    cy.wait('@refresh');
-    cy.get('[data-testid="gift-button"]').click();
-    cy.get('[data-testid="supporter-status"]').should('contain.text', 'issued to Cy Tester');
   });
 
   it('shows the server error copy when a manual refresh is refused', () => {
@@ -291,7 +373,7 @@ describe('Supporter platform', () => {
     cy.get('[data-testid="gift-button"]').click();
 
     // Tampered: flip a character in the signature.
-    cy.then(() => signKey({ tier: 'lifetime', exp: null })).then((key) => {
+    cy.then(() => signKey({ ent: { themes: null }, exp: null })).then((key) => {
       const k = key as string;
       const tampered = k.slice(0, -4) + (k.endsWith('AAAA') ? 'BBBB' : 'AAAA');
       cy.get('[data-testid="supporter-paste-key"]').type(tampered, { delay: 0 });
@@ -303,7 +385,7 @@ describe('Supporter platform', () => {
 
       cy.get('[data-testid="supporter-paste-key"]').clear().type(k, { delay: 0 });
       cy.get('[data-testid="supporter-paste-apply"]').click();
-      cy.get('[data-testid="supporter-status"]').should('contain.text', 'Lifetime supporter');
+      cy.get('[data-testid="supporter-access-themes"]').should('contain.text', 'Never expires');
     });
   });
 

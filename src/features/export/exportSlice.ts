@@ -17,7 +17,7 @@ export type ExportDispatch = ThunkDispatch<RootState, unknown, UnknownAction>;
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
-import { selectIsSupporter, selectSupporterFooter } from '@features/supporter/supporterSlice';
+import { selectHasThemes, selectSupporterFooter } from '@features/supporter/supporterSlice';
 import { resolveExportThemeSet } from '@services/exportThemes';
 import {
   resolveExportFooterConfig,
@@ -379,7 +379,7 @@ export const applyExportThemeSetFromState = (state: RootState) => {
   let isSupporter = false;
   try {
     themeSetting = selectSettings(state)?.[DiscrubSetting.APP_THEME_MODE];
-    isSupporter = selectIsSupporter(state);
+    isSupporter = selectHasThemes(state);
   } catch {
     /* fall through to defaults */
   }
@@ -402,7 +402,7 @@ export const applyExportFooterFromState = async (state: RootState) => {
   try {
     const defaultIcon = await getDefaultFooterIconDataUri();
     config = resolveExportFooterConfig({
-      isSupporter: selectIsSupporter(state),
+      isSupporter: selectHasThemes(state),
       preferences: selectSupporterFooter(state),
       defaultIconDataUri: defaultIcon,
     });

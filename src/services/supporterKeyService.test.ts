@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
+  isSupporterFeatureLive,
+  liveSupporterFeatures,
   verifySupporterKey,
   decodeSupporterKeyPayload,
   SUPPORTER_PUBLIC_KEYS,
@@ -33,12 +35,12 @@ function derToPem(der: ArrayBuffer): string {
 
 function buildPayload(overrides: Partial<SupporterKeyPayload> = {}): SupporterKeyPayload {
   return {
-    v: 1,
+    v: 2,
     kid: '2026-2',
     jti: 'a1b2c3d4e5f6a7b8',
     name: 'Aaron P.',
     eh: '0123456789abcdef',
-    tier: 'monthly',
+    ent: { themes: NOW_S + 30 * DAY_S },
     iat: NOW_S - DAY_S,
     exp: NOW_S + 30 * DAY_S,
     ...overrides,
@@ -82,11 +84,11 @@ describe('supporterKeyService', () => {
       const result = await verifySupporterKey(key, testKeys());
       expect(result.status).toBe('valid');
       expect(result.payload?.name).toBe('Aaron P.');
-      expect(result.payload?.tier).toBe('monthly');
+      expect(result.payload?.ent).toEqual({ themes: NOW_S + 30 * DAY_S });
     });
 
-    it('accepts a lifetime key with null exp regardless of clock', async () => {
-      const key = await signKey(buildPayload({ tier: 'lifetime', exp: null }));
+    it('accepts a perpetual key with null exp regardless of clock', async () => {
+      const key = await signKey(buildPayload({ ent: { themes: null }, exp: null }));
       const result = await verifySupporterKey(key, {
         ...testKeys(),
         nowMs: NOW_MS + 1000 * DAY_S * 1000,
@@ -110,7 +112,7 @@ describe('supporterKeyService', () => {
       const key = await signKey(buildPayload());
       const [prefix, signature] = key.split('.');
       const tamperedBody = bytesToB64Url(
-        new TextEncoder().encode(JSON.stringify(buildPayload({ tier: 'lifetime', exp: null }))),
+        new TextEncoder().encode(JSON.stringify(buildPayload({ ent: { themes: null }, exp: null }))),
       );
       const tampered = `${prefix.slice(0, 'DSCRB-'.length)}${tamperedBody}.${signature}`;
       const result = await verifySupporterKey(tampered, testKeys());
@@ -127,6 +129,20 @@ describe('supporterKeyService', () => {
       const key = await signKey(buildPayload({ kid: '2026-1' }));
       const result = await verifySupporterKey(key, testKeys());
       expect(result.status).toBe('invalid');
+    });
+
+    it('rejects a v1 (tier-shaped) payload even if signed', async () => {
+      const v1 = { ...buildPayload(), v: 1, tier: 'monthly' } as unknown as Record<string, unknown>;
+      delete v1.ent;
+      const key = await signKey(v1 as unknown as SupporterKeyPayload);
+      expect((await verifySupporterKey(key, testKeys())).status).toBe('invalid');
+    });
+
+    it('rejects an entitlement map with unknown features or bad values', async () => {
+      const bogus = await signKey(buildPayload({ ent: { vip: 1 } as never }));
+      expect((await verifySupporterKey(bogus, testKeys())).status).toBe('invalid');
+      const badValue = await signKey(buildPayload({ ent: { themes: 'soon' } as never }));
+      expect((await verifySupporterKey(badValue, testKeys())).status).toBe('invalid');
     });
 
     it('rejects a payload with the wrong shape even if signed', async () => {
@@ -205,6 +221,28 @@ describe('supporterKeyService', () => {
           `kid ${kid} must hold a real Ed25519 SPKI public key`,
         ).resolves.toBeDefined();
       }
+    });
+  });
+
+  describe('per-feature liveness', () => {
+    it('reports each feature from the map with clock-skew tolerance', () => {
+      const payload = buildPayload({
+        ent: { themes: NOW_S - DAY_S, hosted: NOW_S + 10 * DAY_S },
+        exp: NOW_S + 10 * DAY_S,
+      });
+      // themes ended a day ago: still inside the 48h skew window.
+      expect(isSupporterFeatureLive(payload, 'themes', NOW_MS)).toBe(true);
+      expect(isSupporterFeatureLive(payload, 'themes', NOW_MS + 3 * DAY_S * 1000)).toBe(false);
+      expect(isSupporterFeatureLive(payload, 'hosted', NOW_MS)).toBe(true);
+      expect(liveSupporterFeatures(payload, NOW_MS + 3 * DAY_S * 1000)).toEqual(['hosted']);
+    });
+
+    it('treats absent features as not included and null as perpetual', () => {
+      const payload = buildPayload({ ent: { themes: null } });
+      expect(isSupporterFeatureLive(payload, 'themes', NOW_MS + 1e12)).toBe(true);
+      expect(isSupporterFeatureLive(payload, 'hosted')).toBe(false);
+      expect(isSupporterFeatureLive(null, 'themes')).toBe(false);
+      expect(liveSupporterFeatures(payload)).toEqual(['themes']);
     });
   });
 });

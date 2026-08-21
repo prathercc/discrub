@@ -323,6 +323,18 @@ Both versions use the same codebase and make identical API calls from your brows
 3. Paste your token on the Discrub landing page
 4. Browse your servers and start exporting!
 
+### Finding your Discord token
+
+The web app and the hosted Bleeding Edge build sign in with your Discord user token, which you paste in yourself (the extension picks it up for you). To find it:
+
+1. Open [discord.com/app](https://discord.com/app) in your browser and log in.
+2. Open DevTools (`F12`, or `Cmd+Option+I` on a Mac) and switch to the **Network** tab.
+3. Click any server or channel so Discord makes a request, then pick a request whose name starts with `messages`, `channels`, or `science` from the list.
+4. In the request's **Headers** panel, scroll to **Request Headers** and copy the value of `authorization`. That long string is your token.
+5. Paste it into Discrub's token field. Discrub keeps it in memory only and never writes it to disk.
+
+Treat the token like a password: anyone holding it can act as your account. Never share it or paste it anywhere you do not trust. Logging out of Discord (or changing your password) invalidates it, so you will need a fresh one afterwards.
+
 ### Extension (Chrome)
 
 1. Install from the [official Chrome Web Store listing](https://chromewebstore.google.com/detail/plhdclenpaecffbcefjmpkkbdpkmhhbj) (or [load manually](#still-prefer-discrub-classic))

@@ -14,6 +14,13 @@
  * false-positive path is not worth carrying.
  */
 
+/** Features a key can carry (payload v2). */
+export type SupporterFeature = 'themes' | 'hosted';
+export const SUPPORTER_FEATURES: readonly SupporterFeature[] = ['themes', 'hosted'];
+
+/** feature -> unix expiry seconds (null = never). Absent = not included. */
+export type SupporterEntitlementMap = Partial<Record<SupporterFeature, number | null>>;
+
 export interface SupporterKeyPayload {
   v: number;
   /** Signing-key id — must match a registered public key below. */
@@ -24,9 +31,13 @@ export interface SupporterKeyPayload {
   name: string;
   /** Truncated donor hash, server bookkeeping only — never rendered. */
   eh: string;
-  tier: 'monthly' | 'lifetime';
+  /**
+   * One key per person: every feature the supporter holds, each with
+   * its own expiry. Buying more grows this map on the next refresh.
+   */
+  ent: SupporterEntitlementMap;
   iat: number;
-  /** Unix seconds; null = lifetime. 7-day grace is baked in upstream. */
+  /** Latest feature expiry; null when any feature never expires. */
   exp: number | null;
 }
 
@@ -74,18 +85,50 @@ function pemToDer(pem: string): Uint8Array {
   return bytes;
 }
 
+function isEntitlementMap(value: unknown): value is SupporterEntitlementMap {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  return Object.entries(value as Record<string, unknown>).every(
+    ([feature, exp]) =>
+      (SUPPORTER_FEATURES as readonly string[]).includes(feature) &&
+      (typeof exp === 'number' || exp === null),
+  );
+}
+
 function isPayloadShape(value: unknown): value is SupporterKeyPayload {
   if (typeof value !== 'object' || value === null) return false;
   const p = value as Record<string, unknown>;
   return (
-    p.v === 1 &&
+    p.v === 2 &&
     typeof p.kid === 'string' &&
     typeof p.jti === 'string' &&
     typeof p.name === 'string' &&
-    (p.tier === 'monthly' || p.tier === 'lifetime') &&
+    isEntitlementMap(p.ent) &&
     typeof p.iat === 'number' &&
     (typeof p.exp === 'number' || p.exp === null)
   );
+}
+
+/**
+ * Whether one feature inside a (verified) key is still live. Per-feature
+ * because a key can hold a lapsed monthly themes entitlement next to a
+ * running yearly hosted one; the overall `exp` is only the latest.
+ */
+export function isSupporterFeatureLive(
+  payload: SupporterKeyPayload | null | undefined,
+  feature: SupporterFeature,
+  nowMs: number = Date.now(),
+): boolean {
+  if (!payload || !(feature in payload.ent)) return false;
+  const exp = payload.ent[feature];
+  return exp === null || nowMs <= (exp as number) * 1000 + CLOCK_SKEW_MS;
+}
+
+/** The live features of a key, in display order. */
+export function liveSupporterFeatures(
+  payload: SupporterKeyPayload | null | undefined,
+  nowMs: number = Date.now(),
+): SupporterFeature[] {
+  return SUPPORTER_FEATURES.filter((f) => isSupporterFeatureLive(payload, f, nowMs));
 }
 
 /**
@@ -118,7 +161,9 @@ export interface VerifySupporterKeyOptions {
 /**
  * Fully verify a supporter key: format, known kid, Ed25519 signature
  * over the base64url payload segment, revocation, and expiry (with
- * clock-skew tolerance; monthly grace is already baked into exp).
+ * clock-skew tolerance; grace is already baked into exp). 'valid'
+ * means at least one feature is live; consumers still gate per feature
+ * with isSupporterFeatureLive.
  */
 export async function verifySupporterKey(
   key: string,

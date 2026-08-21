@@ -1,19 +1,29 @@
+import type { SupporterEntitlementMap } from './supporterKeyService';
+
 /**
- * Supporter key refresh + code redemption calls — the ONLY network
- * requests Discrub makes to a Prather Bytecraft server. Keys are
- * delivered by email when a membership starts (led by a short
- * DSCRB-XXXX-XXXX code that /redeem exchanges once for the full key);
- * the app then renews a monthly key near expiry by presenting the key
- * itself (disclosed in the hub copy; removing the key stops it). Only
- * the key or code is ever sent — never an email address.
+ * Supporter key refresh + redemption calls — the ONLY network requests
+ * Discrub makes to a Prather Bytecraft server, and only ever by a
+ * client that holds a key. Keys are delivered by email when a purchase
+ * lands (a short DSCRB-XXXX-XXXX form that /redeem exchanges for the
+ * full signed key); the app then checks in about once a day by
+ * presenting the key itself so new purchases and renewals arrive on
+ * their own (disclosed in the hub copy; removing the key stops it).
+ * Only the key is ever sent, never an email address.
+ *
+ * Wording: user-facing copy says "key" for both forms. "Code" survives
+ * only in identifiers for the short, server-exchanged form.
  */
 
 export interface SupporterClaimResult {
   key: string;
-  tier: 'monthly' | 'lifetime';
+  /** feature -> unix expiry (null = never); absent = not included */
+  ent: SupporterEntitlementMap;
   name: string;
   expiresAt: string | null;
 }
+
+/** The server's answer when a presented key's owner holds nothing live. */
+export const SUPPORTER_ACCESS_ENDED_STATUS = 410;
 
 const REFRESH_ENDPOINT = 'https://api.pratherbytecraft.com/supporter/refresh';
 const REDEEM_ENDPOINT = 'https://api.pratherbytecraft.com/supporter/redeem';
@@ -75,7 +85,8 @@ async function postForKey(
   if (
     !result ||
     typeof result.key !== 'string' ||
-    (result.tier !== 'monthly' && result.tier !== 'lifetime')
+    typeof result.ent !== 'object' ||
+    result.ent === null
   ) {
     throw new SupporterClaimError(FALLBACK_MESSAGE, response.status);
   }
@@ -88,7 +99,7 @@ export async function requestSupporterKeyRefresh(
   return postForKey(REFRESH_ENDPOINT, { key });
 }
 
-/** Exchange a short emailed code for the full key (one server call). */
+/** Exchange the short emailed key form for the full signed key (one server call). */
 export async function requestSupporterKeyRedemption(
   code: string,
 ): Promise<SupporterClaimResult> {

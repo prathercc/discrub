@@ -34,12 +34,12 @@ async function makeFixturePair(): Promise<void> {
 async function signLifetimeKey(): Promise<string> {
   const nowS = Math.floor(Date.now() / 1000);
   const payload = {
-    v: 1,
+    v: 2,
     kid: '2026-2',
     jti: Math.random().toString(16).slice(2, 18),
     name: 'Cy Exporter',
     eh: '0123456789abcdef',
-    tier: 'lifetime',
+    ent: { themes: null },
     iat: nowS,
     exp: null,
   };
@@ -89,7 +89,7 @@ function pasteSupporterKey() {
 function saveTheme(themeId: string) {
   // Themes live in the hub only; picks apply (and persist) instantly.
   cy.get('[data-testid="gift-button"]').click();
-  cy.get('[data-testid="supporter-theme-showcase"]').should('be.visible');
+  cy.get('[data-testid="supporter-theme-showcase"]').scrollIntoView().should('be.visible');
   cy.get(`[data-testid="theme-card-${themeId}"]`).click();
   cy.get('[aria-label="Close Supporter dialog"]').click();
 }

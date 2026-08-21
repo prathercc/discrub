@@ -17,7 +17,7 @@ describe('supporterClaimService', () => {
 
   const okResult = {
     key: 'DSCRB-abc.def',
-    tier: 'monthly',
+    ent: { themes: 1790000000 },
     name: 'Aaron P.',
     expiresAt: '2026-09-30T00:00:00.000Z',
   };
@@ -120,7 +120,7 @@ describe('requestSupporterKeyRedemption', () => {
       status: 200,
       json: async () => ({
         key: 'DSCRB-full.key',
-        tier: 'monthly',
+        ent: { themes: null },
         name: 'Aaron P.',
         expiresAt: null,
       }),
@@ -170,7 +170,7 @@ describe('requestSupporterKeyRedemption', () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      json: async () => ({ tier: 'monthly' }),
+      json: async () => ({ ent: { themes: null } }),
     });
     vi.stubGlobal('fetch', mockFetch);
 

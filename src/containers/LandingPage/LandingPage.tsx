@@ -22,6 +22,18 @@ import {
 } from '@features/auth/authSlice';
 import { isExtensionMode, requestDiscordToken } from '@/extension/messaging';
 import ResetDiscrubButton from '@components/settings/ResetDiscrubButton';
+import { isHostedGateEnabled } from '@services/hostedGate';
+import {
+  applyPastedSupporterKey,
+  removeSupporterKey,
+  selectHasHosted,
+  selectSupporter,
+  selectSupporterClaimError,
+  selectSupporterClaimInProgress,
+} from '@features/supporter/supporterSlice';
+import { liveSupporterFeatures } from '@services/supporterKeyService';
+import { KOFI_MONTHLY_URL, KOFI_BLEEDING_EDGE_YEARLY_URL } from '@services/kofiLinks';
+import BleedingTitle from '@components/supporter/BleedingTitle';
 
 /**
  * Landing page component - handles user authentication with Discord token
@@ -30,13 +42,39 @@ import ResetDiscrubButton from '@components/settings/ResetDiscrubButton';
  * 1. Environment variable (VITE_DISCORD_TOKEN) - for development
  * 2. Extension auto-auth - automatically retrieves token from discord.com
  * 3. Manual token entry - user enters token manually
+ *
+ * Hosted build (VITE_HOSTED_GATE=true): a supporter key field sits
+ * above the token field. The key persists (same storage as the palette
+ * hub, so themes unlock through the same path); the token never leaves
+ * memory. Sign-in needs a key carrying the `hosted` feature; a
+ * themes-only key is told so before any token is asked for.
  */
 const LandingPage = () => {
   const dispatch = useAppDispatch();
   const authError = useAppSelector(selectAuthError);
   const isLoading = useAppSelector(selectAuthLoading);
   const manuallyLoggedOut = useAppSelector(selectManuallyLoggedOut);
-  const envToken = import.meta.env.VITE_DISCORD_TOKEN;
+  const hostedGate = isHostedGateEnabled();
+  // The dev env token would walk straight past the key gate, so the
+  // hosted build never reads it (production web builds blank it anyway).
+  const envToken = hostedGate ? '' : import.meta.env.VITE_DISCORD_TOKEN;
+
+  const supporter = useAppSelector(selectSupporter);
+  const hasHosted = useAppSelector(selectHasHosted);
+  const keyBusy = useAppSelector(selectSupporterClaimInProgress);
+  const keyError = useAppSelector(selectSupporterClaimError);
+  const [keyInput, setKeyInput] = useState('');
+  const keyPresent = supporter.keyStatus !== 'none' && supporter.payload !== null;
+  const gateSatisfied = !hostedGate || hasHosted;
+  const hostedKeyMessage = (() => {
+    if (!hostedGate || !supporter.initialized || !keyPresent) return null;
+    if (hasHosted) return null;
+    const live = liveSupporterFeatures(supporter.payload);
+    if (supporter.keyStatus !== 'valid' || live.length === 0) {
+      return 'This key is no longer active. Paste a fresh one, or hit Refresh in the app after renewing.';
+    }
+    return 'This key covers themes. Bleeding Edge is a separate tier, so this key will not sign you in here.';
+  })();
 
   const [token, setToken] = useState(envToken || '');
   const [isExtension, setIsExtension] = useState(false);
@@ -94,9 +132,14 @@ const LandingPage = () => {
     }
   };
 
+  const handleApplyKey = () => {
+    if (!keyInput.trim() || keyBusy) return;
+    dispatch(applyPastedSupporterKey(keyInput)).then(() => setKeyInput(''));
+  };
+
   const handleManualSignIn = async (e: FormEvent) => {
     e.preventDefault();
-    if (!token.trim()) {
+    if (!token.trim() || !gateSatisfied) {
       return;
     }
 
@@ -197,19 +240,28 @@ const LandingPage = () => {
               sx={{
                 width: 80,
                 height: 80,
-                filter: (theme: Theme) => `drop-shadow(0 8px 16px ${alpha(theme.palette.primary.main, 0.4)})`,
+                filter: (theme: Theme) =>
+                  hostedGate
+                    ? 'drop-shadow(0 8px 18px rgba(220, 38, 38, 0.55))'
+                    : `drop-shadow(0 8px 16px ${alpha(theme.palette.primary.main, 0.4)})`,
               }}
             />
 
-            <Typography variant="h4" color="text.primary" textAlign="center">
-              Welcome to Discrub
-            </Typography>
+            {hostedGate ? (
+              <BleedingTitle caption={`Early access build v${__APP_VERSION__}`} />
+            ) : (
+              <>
+                <Typography variant="h4" color="text.primary" textAlign="center">
+                  Welcome to Discrub
+                </Typography>
 
-            <Typography variant="body2" color="text.secondary" textAlign="center">
-              {isExtension
-                ? 'Enter your Discord token manually or try auto-authentication'
-                : 'Enter your Discord token to manage messages'}
-            </Typography>
+                <Typography variant="body2" color="text.secondary" textAlign="center">
+                  {isExtension
+                    ? 'Enter your Discord token manually or try auto-authentication'
+                    : 'Enter your Discord token to manage messages'}
+                </Typography>
+              </>
+            )}
 
             {envToken && import.meta.env.DEV && (
               <Alert severity="info" sx={{ width: '100%' }}>
@@ -229,6 +281,88 @@ const LandingPage = () => {
               </Alert>
             )}
 
+            {hostedGate && (
+              <Box sx={{ width: '100%' }} data-testid="hosted-gate">
+                {keyPresent && supporter.payload ? (
+                  <Alert
+                    severity={hasHosted ? 'success' : 'warning'}
+                    data-testid="hosted-gate-key-status"
+                    action={
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => dispatch(removeSupporterKey())}
+                        data-testid="hosted-gate-forget-key"
+                      >
+                        Forget my key
+                      </Button>
+                    }
+                  >
+                    Supporter key for {supporter.payload.name}
+                    {hasHosted ? ', Bleeding Edge included.' : '.'}
+                    {hostedKeyMessage ? ` ${hostedKeyMessage}` : ''}
+                  </Alert>
+                ) : (
+                  <Stack spacing={1}>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <TextField
+                        fullWidth
+                        type="password"
+                        label="Supporter key"
+                        placeholder="DSCRB-..."
+                        value={keyInput}
+                        onChange={(e) => setKeyInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyKey();
+                          }
+                        }}
+                        error={Boolean(keyError)}
+                        helperText={
+                          keyError ?? (
+                            <span data-testid="hosted-gate-help">
+                              Bleeding Edge requires a supporter key. Get one{' '}
+                              <Link
+                                href={KOFI_MONTHLY_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid="hosted-gate-kofi-monthly"
+                              >
+                                monthly
+                              </Link>{' '}
+                              or{' '}
+                              <Link
+                                href={KOFI_BLEEDING_EDGE_YEARLY_URL}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                data-testid="hosted-gate-kofi-yearly"
+                              >
+                                yearly
+                              </Link>
+                              .
+                            </span>
+                          )
+                        }
+                        disabled={keyBusy}
+                        inputProps={{ 'data-testid': 'hosted-gate-key' } as object}
+                        autoFocus
+                      />
+                      <Button
+                        variant="outlined"
+                        onClick={handleApplyKey}
+                        disabled={!keyInput.trim() || keyBusy}
+                        sx={{ alignSelf: 'flex-start', mt: '2px', height: 56 }}
+                        data-testid="hosted-gate-apply"
+                      >
+                        {keyBusy ? <CircularProgress size={20} /> : 'Apply'}
+                      </Button>
+                    </Box>
+                  </Stack>
+                )}
+              </Box>
+            )}
+
             <TextField
               fullWidth
               type="password"
@@ -241,8 +375,8 @@ const LandingPage = () => {
                   ? 'Invalid token - please check and try again'
                   : 'Your token is stored in memory only (session-only)'
               }
-              disabled={isLoading}
-              autoFocus={!isExtension}
+              disabled={isLoading || !gateSatisfied}
+              autoFocus={!isExtension && !hostedGate}
               required
             />
 
@@ -250,8 +384,9 @@ const LandingPage = () => {
               fullWidth
               variant="contained"
               type="submit"
-              disabled={!token.trim() || isLoading}
+              disabled={!token.trim() || isLoading || !gateSatisfied}
               size="large"
+              data-testid="landing-sign-in"
             >
               {isLoading ? <CircularProgress size={24} /> : 'Sign In'}
             </Button>

@@ -16,6 +16,8 @@ export const SUPPORTER_KEY_STORAGE_KEY = 'supporter:key';
 export const SUPPORTER_EMAIL_STORAGE_KEY = 'supporter:email';
 /** Legacy (attention calm is per-session now; stored value is ignored). */
 export const GIFT_ATTENTION_SEEN_STORAGE_KEY = 'supporter:giftAttentionSeen';
+/** Unix ms of the last successful (or 410-refused) daily check-in. */
+export const SUPPORTER_LAST_REFRESH_STORAGE_KEY = 'supporter:lastRefreshAt';
 export const FOOTER_TEXT_STORAGE_KEY = 'supporter:footerText';
 export const FOOTER_REMOVED_STORAGE_KEY = 'supporter:footerRemoved';
 /** Lives in Discrub-media (binary-ish payload), not Discrub-state. */
@@ -28,6 +30,8 @@ export interface SupporterState {
   keyStatus: SupporterKeyStatus | 'none';
   /** Verified payload — present for valid/expired/revoked keys. */
   payload: SupporterKeyPayload | null;
+  /** When the key was last checked against the server (ms), null = never. */
+  lastRefreshAt: number | null;
   dialogOpen: boolean;
   /** Gift-button attention animation calms permanently once true. */
   giftAttentionSeen: boolean;
@@ -45,6 +49,7 @@ export const initialSupporterState: SupporterState = {
   initialized: false,
   keyStatus: 'none',
   payload: null,
+  lastRefreshAt: null,
   dialogOpen: false,
   giftAttentionSeen: false,
   claimInProgress: false,

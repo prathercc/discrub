@@ -21,12 +21,12 @@ const supporterBackground = findThemeDescriptor(SUPPORTER_ID)!.palette.backgroun
 const defaultDarkBackground = findThemeDescriptor(DISCORD_DARK_ID)!.palette.background.default;
 
 const payload: SupporterKeyPayload = {
-  v: 1,
+  v: 2,
   kid: '2026-2',
   jti: 'jti-1',
   name: 'Aaron P.',
   eh: 'hash',
-  tier: 'monthly',
+  ent: { themes: null },
   iat: 0,
   exp: null,
 };

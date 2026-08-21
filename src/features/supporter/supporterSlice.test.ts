@@ -10,11 +10,15 @@ import supporterReducer, {
   markGiftAttentionSeen,
   setSupporterDialogOpen,
   selectIsSupporter,
+  selectHasThemes,
+  selectHasHosted,
   selectSupporterKeyStatus,
+  REFRESH_INTERVAL_MS,
 } from './supporterSlice';
 import {
   SUPPORTER_KEY_STORAGE_KEY,
   SUPPORTER_EMAIL_STORAGE_KEY,
+  SUPPORTER_LAST_REFRESH_STORAGE_KEY,
   GIFT_ATTENTION_SEEN_STORAGE_KEY,
   FOOTER_TEXT_STORAGE_KEY,
   FOOTER_REMOVED_STORAGE_KEY,
@@ -62,9 +66,10 @@ vi.mock('discrub-core/github-service', () => ({
 }));
 
 const { mockVerify } = vi.hoisted(() => ({ mockVerify: vi.fn() }));
-vi.mock('@services/supporterKeyService', () => ({
-  verifySupporterKey: mockVerify,
-}));
+vi.mock('@services/supporterKeyService', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@services/supporterKeyService')>();
+  return { ...actual, verifySupporterKey: mockVerify };
+});
 
 const { mockRequestKey, mockRedeemCode, MockClaimError } = vi.hoisted(() => {
   class MockClaimError extends Error {
@@ -81,6 +86,7 @@ vi.mock('@services/supporterClaimService', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@services/supporterClaimService')>();
   return {
+    ...actual,
     // Pure input classifier — the real one keeps code/key routing honest.
     normalizeSupporterCode: actual.normalizeSupporterCode,
     requestSupporterKeyRefresh: mockRequestKey,
@@ -94,12 +100,12 @@ const nowS = () => Math.floor(Date.now() / 1000);
 
 function makePayload(overrides: Partial<SupporterKeyPayload> = {}): SupporterKeyPayload {
   return {
-    v: 1,
+    v: 2,
     kid: '2026-2',
     jti: 'jti-1',
     name: 'Aaron P.',
     eh: 'hash',
-    tier: 'monthly',
+    ent: { themes: nowS() + 30 * DAY_S },
     iat: nowS() - DAY_S,
     exp: nowS() + 30 * DAY_S,
     ...overrides,
@@ -149,16 +155,16 @@ describe('supporterSlice', () => {
       expect(selectIsSupporter(rootState(store))).toBe(true);
     });
 
-    it('auto-refreshes a monthly key near expiry by presenting the key', async () => {
+    it('checks in with the server on first boot with a key (never checked) and stores the merged key', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
-      const nearExpiry = makePayload({ exp: nowS() + 2 * DAY_S });
-      const refreshed = makePayload({ jti: 'jti-2', exp: nowS() + 37 * DAY_S });
+      const current = makePayload();
+      const merged = makePayload({ jti: 'jti-2', ent: { themes: nowS() + 37 * DAY_S, hosted: nowS() + 400 * DAY_S } });
       mockVerify
-        .mockResolvedValueOnce({ status: 'valid', payload: nearExpiry })
-        .mockResolvedValueOnce({ status: 'valid', payload: refreshed });
+        .mockResolvedValueOnce({ status: 'valid', payload: current })
+        .mockResolvedValueOnce({ status: 'valid', payload: merged });
       mockRequestKey.mockResolvedValue({
         key: 'DSCRB-new',
-        tier: 'monthly',
+        ent: merged.ent,
         name: 'Aaron P.',
         expiresAt: 'whenever',
       });
@@ -168,20 +174,35 @@ describe('supporterSlice', () => {
 
       expect(mockRequestKey).toHaveBeenCalledWith('DSCRB-old');
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-new');
-      expect(store.getState().supporter.payload?.jti).toBe('jti-2');
+      expect(typeof stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY]).toBe('number');
+      const state = store.getState().supporter;
+      expect(state.payload?.jti).toBe('jti-2');
+      expect(state.lastRefreshAt).not.toBeNull();
+      expect(selectHasThemes(rootState(store))).toBe(true);
+      expect(selectHasHosted(rootState(store))).toBe(true);
     });
 
-    it('also attempts refresh for an already-expired monthly key (renewal case)', async () => {
+    it('checks in again once the last check is older than a day', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
+      stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY] = Date.now() - REFRESH_INTERVAL_MS - 1000;
+      mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
+      mockRequestKey.mockResolvedValue({ key: 'DSCRB-new', ent: { themes: null }, name: 'Aaron P.', expiresAt: null });
+
+      await makeStore().dispatch(initializeSupporter());
+      expect(mockRequestKey).toHaveBeenCalledTimes(1);
+    });
+
+    it('also checks in for an already-expired key (renewal case)', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
       mockVerify
         .mockResolvedValueOnce({
           status: 'expired',
-          payload: makePayload({ exp: nowS() - 10 * DAY_S }),
+          payload: makePayload({ exp: nowS() - 10 * DAY_S, ent: { themes: nowS() - 10 * DAY_S } }),
         })
         .mockResolvedValueOnce({ status: 'valid', payload: makePayload({ jti: 'jti-3' }) });
       mockRequestKey.mockResolvedValue({
         key: 'DSCRB-new',
-        tier: 'monthly',
+        ent: { themes: nowS() + 37 * DAY_S },
         name: 'Aaron P.',
         expiresAt: 'whenever',
       });
@@ -192,7 +213,25 @@ describe('supporterSlice', () => {
       expect(store.getState().supporter.keyStatus).toBe('valid');
     });
 
-    it('fails open onto the old verification when the refresh call fails', async () => {
+    it('relocks on the 410 "access ended" answer and re-checks next open', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
+      mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
+      mockRequestKey.mockRejectedValue(new MockClaimError('Your supporter access has ended', 410));
+
+      const store = makeStore();
+      await store.dispatch(initializeSupporter());
+
+      const state = store.getState().supporter;
+      expect(state.keyStatus).toBe('expired');
+      expect(state.payload?.name).toBe('Aaron P.');
+      expect(state.lastRefreshAt).toBeNull();
+      expect(stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY]).toBeUndefined();
+      // The key itself stays so Refresh works after a renewal.
+      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-old');
+      expect(selectIsSupporter(rootState(store))).toBe(false);
+    });
+
+    it('fails open onto the old verification when the check-in fails (offline)', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
       mockVerify.mockResolvedValue({
         status: 'valid',
@@ -205,6 +244,7 @@ describe('supporterSlice', () => {
 
       expect(store.getState().supporter.keyStatus).toBe('valid');
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-old');
+      expect(stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY]).toBeUndefined();
     });
 
     it('scrubs a leftover pre-release claim email on boot', async () => {
@@ -215,24 +255,43 @@ describe('supporterSlice', () => {
       expect(stateData[SUPPORTER_EMAIL_STORAGE_KEY]).toBeUndefined();
     });
 
-    it('does not refresh far from expiry, for lifetime, or when revoked', async () => {
-      const cases: Array<{
-        payload: SupporterKeyPayload;
-        status: 'valid' | 'revoked';
-      }> = [
-        { payload: makePayload({ exp: nowS() + 30 * DAY_S }), status: 'valid' },
-        { payload: makePayload({ tier: 'lifetime', exp: null }), status: 'valid' },
-        { payload: makePayload({ exp: nowS() + 2 * DAY_S }), status: 'revoked' },
+    it('does not check in within a day of the last check, or when revoked', async () => {
+      const cases: Array<{ lastRefreshAt?: number; status: 'valid' | 'revoked' }> = [
+        { lastRefreshAt: Date.now() - 60_000, status: 'valid' },
+        { status: 'revoked' },
       ];
       for (const c of cases) {
         for (const key of Object.keys(stateData)) delete stateData[key];
         mockRequestKey.mockClear();
         stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
-        mockVerify.mockResolvedValue({ status: c.status, payload: c.payload });
+        if (c.lastRefreshAt) stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY] = c.lastRefreshAt;
+        mockVerify.mockResolvedValue({ status: c.status, payload: makePayload() });
 
         await makeStore().dispatch(initializeSupporter());
         expect(mockRequestKey).not.toHaveBeenCalled();
       }
+    });
+
+    it('never contacts the server for an unverifiable stored key', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'garbage';
+      mockVerify.mockResolvedValue({ status: 'invalid' });
+      await makeStore().dispatch(initializeSupporter());
+      expect(mockRequestKey).not.toHaveBeenCalled();
+    });
+
+    it('per-feature selectors follow the entitlement map, not the overall status', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-key';
+      stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY] = Date.now();
+      // Themes lapsed, hosted still running: the key is valid overall.
+      mockVerify.mockResolvedValue({
+        status: 'valid',
+        payload: makePayload({ ent: { themes: nowS() - 10 * DAY_S, hosted: nowS() + 100 * DAY_S }, exp: nowS() + 100 * DAY_S }),
+      });
+      const store = makeStore();
+      await store.dispatch(initializeSupporter());
+      expect(selectIsSupporter(rootState(store))).toBe(true);
+      expect(selectHasThemes(rootState(store))).toBe(false);
+      expect(selectHasHosted(rootState(store))).toBe(true);
     });
   });
 
@@ -241,7 +300,7 @@ describe('supporterSlice', () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-current';
       mockRequestKey.mockResolvedValue({
         key: 'DSCRB-fresh',
-        tier: 'monthly',
+        ent: { themes: nowS() + 37 * DAY_S },
         name: 'Aaron P.',
         expiresAt: 'whenever',
       });
@@ -253,6 +312,7 @@ describe('supporterSlice', () => {
       expect(mockRequestKey).toHaveBeenCalledWith('DSCRB-current');
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-fresh');
       expect(store.getState().supporter.payload?.jti).toBe('jti-9');
+      expect(store.getState().supporter.lastRefreshAt).not.toBeNull();
     });
 
     it('surfaces the server error message on a refused refresh', async () => {
@@ -303,10 +363,10 @@ describe('supporterSlice', () => {
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
     });
 
-    it('redeems a short code for the full key and stores THE KEY', async () => {
+    it('redeems the short key form for the full key and stores THE KEY', async () => {
       mockRedeemCode.mockResolvedValue({
         key: 'DSCRB-full.key',
-        tier: 'monthly',
+        ent: { themes: null },
         name: 'Aaron P.',
         expiresAt: null,
       });
@@ -320,16 +380,16 @@ describe('supporterSlice', () => {
       expect(store.getState().supporter.keyStatus).toBe('valid');
     });
 
-    it('surfaces the server error copy when a code is refused', async () => {
+    it('surfaces the server error copy when a short key is refused', async () => {
       mockRedeemCode.mockRejectedValue(
-        new MockClaimError('That code does not match an active supporter key', 404),
+        new MockClaimError('That key does not match an active supporter key', 404),
       );
 
       const store = makeStore();
       await store.dispatch(applyPastedSupporterKey('DSCRB-AAAA-2222'));
 
       expect(store.getState().supporter.claimError).toBe(
-        'That code does not match an active supporter key',
+        'That key does not match an active supporter key',
       );
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
     });
@@ -337,7 +397,7 @@ describe('supporterSlice', () => {
     it('rejects when the redeemed key does not verify locally', async () => {
       mockRedeemCode.mockResolvedValue({
         key: 'DSCRB-full.key',
-        tier: 'monthly',
+        ent: { themes: null },
         name: 'Aaron P.',
         expiresAt: null,
       });
@@ -357,7 +417,7 @@ describe('supporterSlice', () => {
       await store.dispatch(applyPastedSupporterKey('DSCRB-AAAA-2222'));
 
       expect(store.getState().supporter.claimError).toContain(
-        'redeeming your code',
+        'applying your key',
       );
     });
 
@@ -382,9 +442,11 @@ describe('supporterSlice', () => {
       await store.dispatch(removeSupporterKey());
 
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
+      expect(stateData[SUPPORTER_LAST_REFRESH_STORAGE_KEY]).toBeUndefined();
       const state = store.getState().supporter;
       expect(state.keyStatus).toBe('none');
       expect(state.payload).toBeNull();
+      expect(state.lastRefreshAt).toBeNull();
       expect(selectSupporterKeyStatus(rootState(store))).toBe('none');
     });
   });

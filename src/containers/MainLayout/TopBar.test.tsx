@@ -479,11 +479,27 @@ describe('TopBar', () => {
   });
 
   describe('Supporter Badge', () => {
+    // A valid key carries at least one live feature (payload v2).
+    const livePayload = {
+      v: 2,
+      kid: '2026-2',
+      jti: 'jti-top',
+      name: 'Aaron P.',
+      eh: 'hash',
+      ent: { themes: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60 },
+      iat: 0,
+      exp: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+    };
     const renderWithKeyStatus = (keyStatus: 'none' | 'valid' | 'expired') =>
       renderWithProviders(<TopBar />, {
         preloadedState: createBaseState({
           user: { currentUser, isLoading: false, error: null },
-          supporter: { ...initialSupporterState, initialized: true, keyStatus },
+          supporter: {
+            ...initialSupporterState,
+            initialized: true,
+            keyStatus,
+            payload: keyStatus === 'none' ? null : livePayload,
+          },
         }),
       });
 
