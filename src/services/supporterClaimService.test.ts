@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { requestSupporterKeyRefresh, SupporterClaimError } from './supporterClaimService';
+import {
+  normalizeSupporterCode,
+  requestSupporterKeyRedemption,
+  requestSupporterKeyRefresh,
+  SupporterClaimError,
+} from './supporterClaimService';
 
 describe('supporterClaimService', () => {
   beforeEach(() => {
@@ -91,5 +96,86 @@ describe('supporterClaimService', () => {
     await expect(requestSupporterKeyRefresh('DSCRB-old.key')).rejects.toBeInstanceOf(
       SupporterClaimError,
     );
+  });
+});
+
+describe('normalizeSupporterCode', () => {
+  it('accepts the canonical shape and normalizes case/spaces', () => {
+    expect(normalizeSupporterCode('DSCRB-AAAA-2222')).toBe('DSCRB-AAAA-2222');
+    expect(normalizeSupporterCode('  dscrb aaaa 2222  ')).toBe('DSCRB-AAAA-2222');
+  });
+
+  it('rejects full keys and other input', () => {
+    expect(normalizeSupporterCode('DSCRB-eyJhbGci.signature')).toBeNull();
+    expect(normalizeSupporterCode('DSCRB-AAAA-22')).toBeNull();
+    expect(normalizeSupporterCode('hello there')).toBeNull();
+    expect(normalizeSupporterCode('')).toBeNull();
+  });
+});
+
+describe('requestSupporterKeyRedemption', () => {
+  it('posts the code to the redeem endpoint and returns the result', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        key: 'DSCRB-full.key',
+        tier: 'monthly',
+        name: 'Aaron P.',
+        expiresAt: null,
+      }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    const result = await requestSupporterKeyRedemption('DSCRB-AAAA-2222');
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://api.pratherbytecraft.com/supporter/redeem',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ code: 'DSCRB-AAAA-2222' }),
+      }),
+    );
+    expect(result.key).toBe('DSCRB-full.key');
+  });
+
+  it('surfaces the server error body as a SupporterClaimError', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({
+        error: 'That code does not match an active supporter key',
+      }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await expect(
+      requestSupporterKeyRedemption('DSCRB-AAAA-2222'),
+    ).rejects.toMatchObject({
+      name: 'SupporterClaimError',
+      message: 'That code does not match an active supporter key',
+      status: 404,
+    });
+  });
+
+  it('wraps a network failure in the fallback message', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
+
+    await expect(
+      requestSupporterKeyRedemption('DSCRB-AAAA-2222'),
+    ).rejects.toMatchObject({ name: 'SupporterClaimError', status: null });
+  });
+
+  it('rejects a malformed success body', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ tier: 'monthly' }),
+    });
+    vi.stubGlobal('fetch', mockFetch);
+
+    await expect(
+      requestSupporterKeyRedemption('DSCRB-AAAA-2222'),
+    ).rejects.toMatchObject({ name: 'SupporterClaimError' });
   });
 });

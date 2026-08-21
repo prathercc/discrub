@@ -8,6 +8,8 @@ import {
   type SupporterKeyVerification,
 } from '@services/supporterKeyService';
 import {
+  normalizeSupporterCode,
+  requestSupporterKeyRedemption,
   requestSupporterKeyRefresh,
   SupporterClaimError,
 } from '@services/supporterClaimService';
@@ -141,14 +143,38 @@ export const refreshSupporterKey = createAsyncThunk(
 );
 
 /**
- * Apply a pasted supporter key — the primary unlock path. Keys arrive
- * by email when a membership starts; monthly ones then renew
- * themselves via the refresh endpoint.
+ * Apply a pasted supporter key or short code — the primary unlock
+ * path. Emails lead with a short DSCRB-XXXX-XXXX code (exchanged once
+ * with the server for the full key) and carry the full key as a
+ * backup; monthly keys then renew themselves via the refresh endpoint.
  */
 export const applyPastedSupporterKey = createAsyncThunk(
   'supporter/applyPastedKey',
   async (key: string, { rejectWithValue }) => {
     const trimmed = key.trim();
+
+    const code = normalizeSupporterCode(trimmed);
+    if (code) {
+      try {
+        const result = await requestSupporterKeyRedemption(code);
+        const verification = await verifySupporterKey(result.key);
+        if (verification.status !== 'valid' || !verification.payload) {
+          return rejectWithValue(
+            'The server issued a key this app version could not verify. Please update Discrub and try again.',
+          );
+        }
+        await storage.state.set(SUPPORTER_KEY_STORAGE_KEY, result.key);
+        return { keyStatus: verification.status, payload: verification.payload };
+      } catch (error) {
+        if (error instanceof SupporterClaimError) {
+          return rejectWithValue(error.message);
+        }
+        return rejectWithValue(
+          'Something went wrong redeeming your code. Please try again.',
+        );
+      }
+    }
+
     const verification = await verifySupporterKey(trimmed);
     if (verification.status === 'invalid') {
       return rejectWithValue("That doesn't look like a valid supporter key.");

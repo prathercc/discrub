@@ -66,7 +66,7 @@ vi.mock('@services/supporterKeyService', () => ({
   verifySupporterKey: mockVerify,
 }));
 
-const { mockRequestKey, MockClaimError } = vi.hoisted(() => {
+const { mockRequestKey, mockRedeemCode, MockClaimError } = vi.hoisted(() => {
   class MockClaimError extends Error {
     status: number | null;
     constructor(message: string, status: number | null) {
@@ -75,12 +75,19 @@ const { mockRequestKey, MockClaimError } = vi.hoisted(() => {
       this.status = status;
     }
   }
-  return { mockRequestKey: vi.fn(), MockClaimError };
+  return { mockRequestKey: vi.fn(), mockRedeemCode: vi.fn(), MockClaimError };
 });
-vi.mock('@services/supporterClaimService', () => ({
-  requestSupporterKeyRefresh: mockRequestKey,
-  SupporterClaimError: MockClaimError,
-}));
+vi.mock('@services/supporterClaimService', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@services/supporterClaimService')>();
+  return {
+    // Pure input classifier — the real one keeps code/key routing honest.
+    normalizeSupporterCode: actual.normalizeSupporterCode,
+    requestSupporterKeyRefresh: mockRequestKey,
+    requestSupporterKeyRedemption: mockRedeemCode,
+    SupporterClaimError: MockClaimError,
+  };
+});
 
 const DAY_S = 24 * 60 * 60;
 const nowS = () => Math.floor(Date.now() / 1000);
@@ -294,6 +301,74 @@ describe('supporterSlice', () => {
 
       expect(store.getState().supporter.claimError).toContain(copy);
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
+    });
+
+    it('redeems a short code for the full key and stores THE KEY', async () => {
+      mockRedeemCode.mockResolvedValue({
+        key: 'DSCRB-full.key',
+        tier: 'monthly',
+        name: 'Aaron P.',
+        expiresAt: null,
+      });
+      mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
+
+      const store = makeStore();
+      await store.dispatch(applyPastedSupporterKey('  dscrb aaaa 2222  '));
+
+      expect(mockRedeemCode).toHaveBeenCalledWith('DSCRB-AAAA-2222');
+      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-full.key');
+      expect(store.getState().supporter.keyStatus).toBe('valid');
+    });
+
+    it('surfaces the server error copy when a code is refused', async () => {
+      mockRedeemCode.mockRejectedValue(
+        new MockClaimError('That code does not match an active supporter key', 404),
+      );
+
+      const store = makeStore();
+      await store.dispatch(applyPastedSupporterKey('DSCRB-AAAA-2222'));
+
+      expect(store.getState().supporter.claimError).toBe(
+        'That code does not match an active supporter key',
+      );
+      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
+    });
+
+    it('rejects when the redeemed key does not verify locally', async () => {
+      mockRedeemCode.mockResolvedValue({
+        key: 'DSCRB-full.key',
+        tier: 'monthly',
+        name: 'Aaron P.',
+        expiresAt: null,
+      });
+      mockVerify.mockResolvedValue({ status: 'invalid' });
+
+      const store = makeStore();
+      await store.dispatch(applyPastedSupporterKey('DSCRB-AAAA-2222'));
+
+      expect(store.getState().supporter.claimError).toContain('update Discrub');
+      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
+    });
+
+    it('uses generic copy when redemption fails without a claim error', async () => {
+      mockRedeemCode.mockRejectedValue(new Error('boom'));
+
+      const store = makeStore();
+      await store.dispatch(applyPastedSupporterKey('DSCRB-AAAA-2222'));
+
+      expect(store.getState().supporter.claimError).toContain(
+        'redeeming your code',
+      );
+    });
+
+    it('never calls the redeem endpoint for a full key paste', async () => {
+      mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
+
+      const store = makeStore();
+      await store.dispatch(applyPastedSupporterKey('DSCRB-payload.signature'));
+
+      expect(mockRedeemCode).not.toHaveBeenCalled();
+      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-payload.signature');
     });
   });
 

@@ -34,10 +34,17 @@ const { mockRequestRefresh, MockClaimError } = vi.hoisted(() => {
   }
   return { mockRequestRefresh: vi.fn(), MockClaimError };
 });
-vi.mock('@services/supporterClaimService', () => ({
-  requestSupporterKeyRefresh: mockRequestRefresh,
-  SupporterClaimError: MockClaimError,
-}));
+vi.mock('@services/supporterClaimService', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@services/supporterClaimService')>();
+  return {
+    // Pure input classifier — keep the real code/key routing.
+    normalizeSupporterCode: actual.normalizeSupporterCode,
+    requestSupporterKeyRefresh: mockRequestRefresh,
+    requestSupporterKeyRedemption: vi.fn(),
+    SupporterClaimError: MockClaimError,
+  };
+});
 
 const DAY_S = 24 * 60 * 60;
 

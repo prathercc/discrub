@@ -9,6 +9,7 @@ import { loadRecentExports } from '@features/history/historySlice';
 import { loadStatusLog } from '@features/status/statusSlice';
 import { loadHotkeys } from '@features/hotkeys/hotkeysSlice';
 import { initializeSupporter } from '@features/supporter/supporterSlice';
+import { requestPersistentStorage } from '@/utils/persistentStorage';
 import { isOverlayMode } from '@/extension/messaging';
 import LandingPage from '@containers/LandingPage/LandingPage';
 import MainLayout from '@containers/MainLayout/MainLayout';
@@ -33,6 +34,9 @@ function App() {
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
+    // Fire-and-forget: upgrade the origin to persistent storage so the
+    // per-purpose IDB databases can't be evicted under disk pressure.
+    void requestPersistentStorage();
     dispatch(loadSettings()).then(() => {
       dispatch(loadCacheFromLocalStorage());
       dispatch(loadPresets());

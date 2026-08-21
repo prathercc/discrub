@@ -198,6 +198,48 @@ describe('Supporter platform', () => {
     cy.get('@refreshSpy').should('not.have.been.called');
   });
 
+  it('redeems a short emailed code for the full key and unlocks', () => {
+    visitApp();
+    cy.then(() => signKey()).then((key) => {
+      // The server exchanges the code for the stored full key; the app
+      // then verifies THAT locally before unlocking.
+      cy.intercept('POST', '**/supporter/redeem', (req) => {
+        expect(req.body.code).to.equal('DSCRB-AAAA-2222');
+        req.reply({
+          key: key as string,
+          tier: 'monthly',
+          name: 'Cy Tester',
+          expiresAt: null,
+        });
+      }).as('redeem');
+    });
+    // Lowercase with spaces — normalization must handle a sloppy paste.
+    applyKeyViaDialog('dscrb aaaa 2222');
+    cy.wait('@redeem');
+    cy.get('[data-testid="supporter-status"]').should('contain.text', 'Cy Tester');
+
+    // The FULL key (not the code) is what persists across reloads,
+    // offline-verifiable with no further server contact.
+    cy.intercept('POST', '**/supporter/redeem', cy.spy().as('redeemSpy'));
+    visitApp({ freshDbs: false });
+    cy.get('[data-testid="supporter-badge-star"]').should('exist');
+    cy.get('@redeemSpy').should('not.have.been.called');
+  });
+
+  it('shows the server error copy when a code is refused', () => {
+    visitApp();
+    cy.intercept('POST', '**/supporter/redeem', {
+      statusCode: 404,
+      body: { error: 'That code does not match an active supporter key' },
+    }).as('redeem');
+    applyKeyViaDialog('DSCRB-AAAA-2222');
+    cy.wait('@redeem');
+    cy.get('[data-testid="supporter-claim-error"]').should(
+      'contain.text',
+      'That code does not match an active supporter key',
+    );
+  });
+
   it('auto-refreshes a near-expiry monthly key on boot by presenting the key', () => {
     visitApp();
     // Apply a key that expires in 2 days — inside the refresh window.

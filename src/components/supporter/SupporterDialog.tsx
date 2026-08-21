@@ -395,7 +395,7 @@ const SupporterDialog = () => {
             <Box sx={{ display: 'flex', gap: 1 }}>
               <TextField
                 size="small"
-                label="Supporter key"
+                label="Supporter key or code"
                 placeholder="DSCRB-..."
                 value={pastedKey}
                 onChange={(e) => setPastedKey(e.target.value)}
