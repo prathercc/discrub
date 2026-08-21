@@ -64,6 +64,7 @@ function renderDrawer(showKofi: string = 'true') {
         sidebarView: 'server' as const,
         task: { status: 'idle', message: '' },
         settings,
+        previewThemeId: null,
       },
     }),
   });

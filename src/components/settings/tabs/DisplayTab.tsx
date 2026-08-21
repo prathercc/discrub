@@ -1,6 +1,7 @@
-import { Box, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material';
+import { Box, Divider, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting, DateFormat, TimeFormat } from 'discrub-core/discrub-enum';
+import ThemePicker from './ThemePicker';
 
 interface DisplayTabProps {
   formValues: AppSettings;
@@ -11,8 +12,17 @@ export const DisplayTab = ({ formValues, onChange }: DisplayTabProps) => {
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Typography variant="body2" color="text.secondary">
-        Customize how dates, times, and other information are displayed.
+        Customize the app's theme and how dates, times, and other information are displayed.
       </Typography>
+
+      <ThemePicker
+        value={formValues[DiscrubSetting.APP_THEME_MODE] || 'auto'}
+        onChange={(id) => onChange(DiscrubSetting.APP_THEME_MODE, id)}
+        animationsValue={formValues[DiscrubSetting.APP_THEME_ANIMATIONS] || 'true'}
+        onAnimationsChange={(value) => onChange(DiscrubSetting.APP_THEME_ANIMATIONS, value)}
+      />
+
+      <Divider />
 
       <FormControl fullWidth>
         <InputLabel>Date Format</InputLabel>

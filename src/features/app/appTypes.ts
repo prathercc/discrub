@@ -19,6 +19,12 @@ export interface AppState {
   sidebarView: SidebarView;
   task: AppTask;
   settings: AppSettings | null;
+  /**
+   * Transient theme override for the Settings theme picker's live
+   * preview. Never persisted — ThemeWrapper renders it over the saved
+   * APP_THEME_MODE while set; clearing (null) falls back to the setting.
+   */
+  previewThemeId: string | null;
 }
 
 export const initialAppState: AppState = {
@@ -32,4 +38,5 @@ export const initialAppState: AppState = {
     message: '',
   },
   settings: null,
+  previewThemeId: null,
 };

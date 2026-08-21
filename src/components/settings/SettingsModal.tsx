@@ -15,7 +15,7 @@ import {
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { selectSettings, updateAllSettings, defaultSettings } from '@features/app/appSlice';
+import { selectSettings, updateAllSettings, defaultSettings, setPreviewThemeId } from '@features/app/appSlice';
 import {
   selectHotkeys,
   setAllHotkeys,
@@ -116,6 +116,10 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
       // Reinitialize Discord service with new settings
       getDiscordService(formValues);
 
+      // The saved APP_THEME_MODE now matches what the picker was
+      // previewing, so clearing the transient preview is invisible.
+      dispatch(setPreviewThemeId(null));
+
       // Close modal
       onClose();
     } catch (error) {
@@ -128,6 +132,9 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   const handleReset = () => {
     setFormValues(defaultSettings);
     setErrors([]);
+    // Preview reflects picker interaction only; a bulk reset drops it so
+    // the app shows the saved theme until the user hovers a swatch again.
+    dispatch(setPreviewThemeId(null));
   };
 
   // Actually discard edits + close. Routed through whenever close is
@@ -137,6 +144,8 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
     setFormHotkeys(hotkeys);
     setErrors([]);
     setDiscardPromptOpen(false);
+    // Drop any live theme preview so the app reverts to the saved theme.
+    dispatch(setPreviewThemeId(null));
     onClose();
   };
 

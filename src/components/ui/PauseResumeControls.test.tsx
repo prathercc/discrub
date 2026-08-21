@@ -24,6 +24,7 @@ describe('PauseResumeControls', () => {
           sidebarView: 'server' as const,
           task: { status: 'idle', message: '' },
           settings: null,
+          previewThemeId: null,
         },
       }),
     });
@@ -42,6 +43,7 @@ describe('PauseResumeControls', () => {
           sidebarView: 'server' as const,
           task: { status: 'idle', message: '' },
           settings: null,
+          previewThemeId: null,
         },
       }),
     });
@@ -82,6 +84,7 @@ describe('PauseResumeControls', () => {
           sidebarView: 'server' as const,
           task: { status: 'idle', message: '' },
           settings: null,
+          previewThemeId: null,
         },
       }),
     });
@@ -104,6 +107,7 @@ describe('PauseResumeControls', () => {
           sidebarView: 'server' as const,
           task: { status: 'idle', message: '' },
           settings: null,
+          previewThemeId: null,
         },
       }),
     });

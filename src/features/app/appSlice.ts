@@ -153,6 +153,9 @@ const appSlice = createSlice({
     setSettings: (state, action: PayloadAction<AppSettings>) => {
       state.settings = action.payload;
     },
+    setPreviewThemeId: (state, action: PayloadAction<string | null>) => {
+      state.previewThemeId = action.payload;
+    },
     resetTask: (state) => {
       state.task = initialAppState.task;
       state.discrubPaused = false;
@@ -207,6 +210,7 @@ export const {
   setSidebarView,
   setTask,
   setSettings,
+  setPreviewThemeId,
   resetTask,
 } = appSlice.actions;
 
@@ -216,6 +220,7 @@ export const selectDiscrubPaused = (state: RootState) => state.app.discrubPaused
 export const selectDiscrubCancelled = (state: RootState) => state.app.discrubCancelled;
 export const selectTask = (state: RootState) => state.app.task;
 export const selectSettings = (state: RootState) => state.app.settings;
+export const selectPreviewThemeId = (state: RootState) => state.app.previewThemeId;
 export const selectIsMinimized = (state: RootState) => state.app.isMinimized;
 export const selectFocusedView = (state: RootState) => state.app.focusedView;
 export const selectSidebarView = (state: RootState) => state.app.sidebarView;

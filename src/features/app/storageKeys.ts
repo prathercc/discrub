@@ -55,6 +55,7 @@ export const defaultSettings: AppSettings = {
   [DiscrubSetting.TIME_FORMAT]: TimeFormat._12HOUR,
   [DiscrubSetting.APP_SHOW_KOFI_FEED]: 'true',
   [DiscrubSetting.APP_THEME_MODE]: 'auto',
+  [DiscrubSetting.APP_THEME_ANIMATIONS]: 'true',
 
   // Purge Behavior
   [DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA]: 'false',

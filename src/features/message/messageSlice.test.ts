@@ -769,6 +769,7 @@ describe('messageSlice', () => {
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
             settings: defaultSettings,
+            previewThemeId: null,
             ...appOverrides,
           },
           message: messageState,
@@ -1005,6 +1006,7 @@ describe('messageSlice', () => {
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
             settings: defaultSettings,
+            previewThemeId: null,
             ...appOverrides,
           },
           message: messageState,
@@ -1327,6 +1329,7 @@ describe('messageSlice', () => {
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
             settings: defaultSettings,
+            previewThemeId: null,
           },
           message: initialMessageState,
         },
@@ -1375,6 +1378,7 @@ describe('messageSlice', () => {
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
             settings: defaultSettings,
+            previewThemeId: null,
           },
           message: initialMessageState,
         },
@@ -1423,6 +1427,7 @@ describe('messageSlice', () => {
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
             settings: defaultSettings,
+            previewThemeId: null,
           },
           message: initialMessageState,
         },
@@ -2117,6 +2122,7 @@ describe('messageSlice', () => {
           sidebarView: 'server' as const,
           task: { status: 'idle' as const, message: '' },
           settings: defaultSettings,
+          previewThemeId: null,
         },
         message: messageState,
       },
@@ -2656,7 +2662,7 @@ describe('messageSlice', () => {
       return configureStore({
         reducer: { message: messageReducer, app: appReducer },
         preloadedState: {
-          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle' as const, message: '' }, settings: defaultSettings },
+          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle' as const, message: '' }, settings: defaultSettings, previewThemeId: null },
           message: messageState,
         },
       });
@@ -3036,7 +3042,7 @@ describe('messageSlice', () => {
       return configureStore({
         reducer: { message: messageReducer, app: appReducer },
         preloadedState: {
-          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle' as const, message: '' }, settings: defaultSettings },
+          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle' as const, message: '' }, settings: defaultSettings, previewThemeId: null },
           message: messageState,
         },
       });
@@ -4840,6 +4846,7 @@ describe('messageSlice', () => {
         focusedView: false,
         sidebarView: 'server' as const,
         task: { status: 'idle' as const, message: '' },
+        previewThemeId: null,
         settings: defaultSettings,
       };
 
@@ -5069,6 +5076,7 @@ describe('messageSlice', () => {
             focusedView: false,
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
+            previewThemeId: null,
             settings: defaultSettings,
           } as any,
           message: messageState,
@@ -5203,6 +5211,7 @@ describe('messageSlice', () => {
             focusedView: false,
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
+            previewThemeId: null,
             settings: defaultSettings,
           } as any,
           message: {
@@ -5350,6 +5359,7 @@ describe('messageSlice', () => {
             focusedView: false,
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
+            previewThemeId: null,
             settings: {
               ...defaultSettings,
               [DiscrubSetting.REACTIONS_ENABLED]: reactionsEnabled ? 'true' : 'false',
@@ -6073,6 +6083,7 @@ describe('messageSlice', () => {
             focusedView: false,
             sidebarView: 'server' as const,
             task: { status: 'idle' as const, message: '' },
+            previewThemeId: null,
             settings: defaultSettings,
           },
           message: messageState,

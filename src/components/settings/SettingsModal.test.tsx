@@ -57,6 +57,7 @@ describe('SettingsModal', () => {
           sidebarView: 'server' as const,
           task: { status: 'idle', message: '' },
           settings,
+          previewThemeId: null,
         },
       }),
     });
@@ -131,6 +132,7 @@ describe('SettingsModal', () => {
             sidebarView: 'server' as const,
             task: { status: 'idle', message: '' },
             settings: defaultSettings as any,
+            previewThemeId: null,
           },
         }),
       });

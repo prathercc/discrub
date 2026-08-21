@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import type { ReactElement } from 'react';
+import { screen, fireEvent, renderWithProviders } from '@/test/test-utils';
 import { DisplayTab } from './DisplayTab';
+
+// The embedded ThemePicker dispatches live-preview actions, so the tab
+// needs the full provider stack (Redux + app theme).
+const render = (ui: ReactElement) => renderWithProviders(ui);
 import { defaultSettings } from '@features/app/appSlice';
 import { DiscrubSetting, DateFormat, TimeFormat } from 'discrub-core/discrub-enum';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
@@ -23,7 +28,13 @@ describe('DisplayTab', () => {
     expect(selects.length).toBe(2);
 
     // Description text
-    expect(screen.getByText(/Customize how dates, times/)).toBeInTheDocument();
+    expect(screen.getByText(/Customize the app's theme and how dates, times/)).toBeInTheDocument();
+
+    // Theme picker renders with the Auto card and both Discord themes
+    expect(screen.getByTestId('theme-picker')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-card-auto')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-card-discord-dark')).toBeInTheDocument();
+    expect(screen.getByTestId('theme-card-discord-light')).toBeInTheDocument();
   });
 
   it('displays default date format value', () => {

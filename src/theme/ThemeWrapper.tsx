@@ -3,7 +3,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { GlobalStyles } from '@mui/material';
 import { useAppSelector } from '@/app/hooks';
-import { selectSettings } from '@features/app/appSlice';
+import { selectSettings, selectPreviewThemeId } from '@features/app/appSlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { getThemeById, findThemeDescriptor, DISCORD_DARK_ID, DISCORD_LIGHT_ID } from './theme';
 import { globalStyles } from './globalStyles';
@@ -47,10 +47,13 @@ interface ThemeWrapperProps {
 const ThemeWrapper = ({ children }: ThemeWrapperProps) => {
   const settings = useAppSelector(selectSettings);
   const themeModeSetting = settings?.[DiscrubSetting.APP_THEME_MODE];
+  // Transient override from the Settings theme picker's live preview.
+  // 'auto' previews through the same detection path as the saved setting.
+  const previewThemeId = useAppSelector(selectPreviewThemeId);
 
   const theme = useMemo(
-    () => getThemeById(resolveThemeId(themeModeSetting)),
-    [themeModeSetting]
+    () => getThemeById(resolveThemeId(previewThemeId ?? themeModeSetting)),
+    [previewThemeId, themeModeSetting]
   );
 
   return (

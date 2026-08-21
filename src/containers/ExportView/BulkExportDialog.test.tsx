@@ -179,7 +179,7 @@ describe('BulkExportDialog', () => {
         {
           preloadedState: createBaseState({
             auth: { token: 'test', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-            app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null },
+            app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null, previewThemeId: null },
           }),
         }
       );
@@ -196,7 +196,7 @@ describe('BulkExportDialog', () => {
         {
           preloadedState: createBaseState({
             auth: { token: 'test', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
-            app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null },
+            app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null, previewThemeId: null },
           }),
         }
       );
