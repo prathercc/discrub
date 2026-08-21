@@ -166,6 +166,9 @@ export function generateExportReadme(options: {
     ${shellInstructions}
   </ul>
 
+  <h2>Viewing on a phone</h2>
+  <p>Open this export on a computer for the full experience. Phone file viewers (Files on iPhone and iPad, and most Android file managers) preview HTML in a sandbox that blocks scripts, page navigation, and local media, so the layout looks empty and attachments appear broken there. The files are intact; copy the folder to a computer and open ${isDiscordShell ? '<code>shell.html</code>' : 'any <code>.html</code> file'} in a browser.</p>
+
   <h2>Features</h2>
   <ul>
     <li><strong>Search</strong> — Use the search bar to find messages by content. Matches are highlighted in yellow.</li>

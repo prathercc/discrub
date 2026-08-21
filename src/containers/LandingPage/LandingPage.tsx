@@ -424,6 +424,17 @@ const LandingPage = () => {
             <Typography variant="caption" color="text.secondary" textAlign="center">
               Note: This is an unofficial tool. Use at your own risk.
             </Typography>
+            {hostedGate && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                textAlign="center"
+                data-testid="hosted-gate-phone-note"
+              >
+                On a phone? Exports download fine, but open them on a computer: phone file viewers
+                can't show the export's pages and media.
+              </Typography>
+            )}
           </Stack>
         </form>
       </Paper>
