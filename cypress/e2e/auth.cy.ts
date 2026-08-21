@@ -31,7 +31,7 @@ describe('Authentication', () => {
     it('has "How to find my Discord token?" link with correct href', () => {
       cy.contains('How to find my Discord token?')
         .should('have.attr', 'href')
-        .and('include', 'github.com/prathercc/discrub');
+        .and('include', 'github.com/pratherbytecraft/discrub');
     });
 
     it('shows disclaimer text', () => {
