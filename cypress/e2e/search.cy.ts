@@ -1445,10 +1445,11 @@ describe('Search & Filters', () => {
     });
 
     it('filter modal renders correctly in light mode', () => {
-      // Cycle to light mode: auto → dark → light
-      cy.get('[aria-label="Toggle theme"]').click({ force: true });
-      cy.get('[aria-label="Toggle theme"]').click({ force: true });
-      cy.get('[aria-label="Toggle theme"]').find('[data-testid="LightModeIcon"]').should('exist');
+      // Pick the light theme from the Themes hub (instant apply).
+      cy.get('[data-testid="gift-button"]').click({ force: true });
+      cy.get('[data-testid="theme-card-discord-light"]').click();
+      cy.get('[aria-label="Close Supporter dialog"]').click();
+      cy.get('body').should('have.css', 'background-color', 'rgb(255, 255, 255)');
 
       // Open filter modal
       cy.contains('button', 'Filters').click();

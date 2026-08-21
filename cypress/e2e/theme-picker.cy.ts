@@ -44,9 +44,7 @@ describe('Theme Picker', () => {
     cy.get('[role="dialog"]').should('not.exist');
     cy.get('body').should('have.css', 'background-color', LIGHT_BG);
 
-    // Reopen — the saved theme shows as selected and the TopBar quick
-    // toggle reflects the light base.
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="LightModeIcon"]').should('exist');
+    // Reopen — the saved theme shows as selected.
     openDisplayTab();
     cy.get('[data-testid="theme-selected-discord-light"]').should('exist');
   });

@@ -12,6 +12,7 @@ import type { SupporterFooterPreferences } from '@services/exportFooter';
  */
 
 export const SUPPORTER_KEY_STORAGE_KEY = 'supporter:key';
+/** Legacy (pre-release builds stored a claim email; scrubbed on boot). */
 export const SUPPORTER_EMAIL_STORAGE_KEY = 'supporter:email';
 export const GIFT_ATTENTION_SEEN_STORAGE_KEY = 'supporter:giftAttentionSeen';
 export const FOOTER_TEXT_STORAGE_KEY = 'supporter:footerText';
@@ -26,8 +27,6 @@ export interface SupporterState {
   keyStatus: SupporterKeyStatus | 'none';
   /** Verified payload — present for valid/expired/revoked keys. */
   payload: SupporterKeyPayload | null;
-  /** Whether a refresh email is stored (enables auto/manual refresh). */
-  hasStoredEmail: boolean;
   dialogOpen: boolean;
   /** Gift-button attention animation calms permanently once true. */
   giftAttentionSeen: boolean;
@@ -45,7 +44,6 @@ export const initialSupporterState: SupporterState = {
   initialized: false,
   keyStatus: 'none',
   payload: null,
-  hasStoredEmail: false,
   dialogOpen: false,
   giftAttentionSeen: false,
   claimInProgress: false,

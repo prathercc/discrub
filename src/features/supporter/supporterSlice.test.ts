@@ -4,7 +4,6 @@ import supporterReducer, {
   initializeSupporter,
   updateFooterPreferences,
   setFooterIcon,
-  claimSupporterKey,
   refreshSupporterKey,
   applyPastedSupporterKey,
   removeSupporterKey,
@@ -79,7 +78,7 @@ const { mockRequestKey, MockClaimError } = vi.hoisted(() => {
   return { mockRequestKey: vi.fn(), MockClaimError };
 });
 vi.mock('@services/supporterClaimService', () => ({
-  requestSupporterKey: mockRequestKey,
+  requestSupporterKeyRefresh: mockRequestKey,
   SupporterClaimError: MockClaimError,
 }));
 
@@ -141,9 +140,8 @@ describe('supporterSlice', () => {
       expect(selectIsSupporter(rootState(store))).toBe(true);
     });
 
-    it('auto-refreshes a monthly key near expiry when an email is stored', async () => {
+    it('auto-refreshes a monthly key near expiry by presenting the key', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
-      stateData[SUPPORTER_EMAIL_STORAGE_KEY] = 'user@example.com';
       const nearExpiry = makePayload({ exp: nowS() + 2 * DAY_S });
       const refreshed = makePayload({ jti: 'jti-2', exp: nowS() + 37 * DAY_S });
       mockVerify
@@ -159,14 +157,13 @@ describe('supporterSlice', () => {
       const store = makeStore();
       await store.dispatch(initializeSupporter());
 
-      expect(mockRequestKey).toHaveBeenCalledWith('user@example.com');
+      expect(mockRequestKey).toHaveBeenCalledWith('DSCRB-old');
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-new');
       expect(store.getState().supporter.payload?.jti).toBe('jti-2');
     });
 
     it('also attempts refresh for an already-expired monthly key (renewal case)', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
-      stateData[SUPPORTER_EMAIL_STORAGE_KEY] = 'user@example.com';
       mockVerify
         .mockResolvedValueOnce({
           status: 'expired',
@@ -188,7 +185,6 @@ describe('supporterSlice', () => {
 
     it('fails open onto the old verification when the refresh call fails', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
-      stateData[SUPPORTER_EMAIL_STORAGE_KEY] = 'user@example.com';
       mockVerify.mockResolvedValue({
         status: 'valid',
         payload: makePayload({ exp: nowS() + 2 * DAY_S }),
@@ -202,22 +198,27 @@ describe('supporterSlice', () => {
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-old');
     });
 
-    it('does not refresh far from expiry, without an email, for lifetime, or when revoked', async () => {
+    it('scrubs a leftover pre-release claim email on boot', async () => {
+      stateData[SUPPORTER_EMAIL_STORAGE_KEY] = 'user@example.com';
+
+      await makeStore().dispatch(initializeSupporter());
+
+      expect(stateData[SUPPORTER_EMAIL_STORAGE_KEY]).toBeUndefined();
+    });
+
+    it('does not refresh far from expiry, for lifetime, or when revoked', async () => {
       const cases: Array<{
         payload: SupporterKeyPayload;
         status: 'valid' | 'revoked';
-        email?: string;
       }> = [
-        { payload: makePayload({ exp: nowS() + 30 * DAY_S }), status: 'valid', email: 'a@b.c' },
-        { payload: makePayload({ exp: nowS() + 2 * DAY_S }), status: 'valid' },
-        { payload: makePayload({ tier: 'lifetime', exp: null }), status: 'valid', email: 'a@b.c' },
-        { payload: makePayload({ exp: nowS() + 2 * DAY_S }), status: 'revoked', email: 'a@b.c' },
+        { payload: makePayload({ exp: nowS() + 30 * DAY_S }), status: 'valid' },
+        { payload: makePayload({ tier: 'lifetime', exp: null }), status: 'valid' },
+        { payload: makePayload({ exp: nowS() + 2 * DAY_S }), status: 'revoked' },
       ];
       for (const c of cases) {
         for (const key of Object.keys(stateData)) delete stateData[key];
         mockRequestKey.mockClear();
         stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-old';
-        if (c.email) stateData[SUPPORTER_EMAIL_STORAGE_KEY] = c.email;
         mockVerify.mockResolvedValue({ status: c.status, payload: c.payload });
 
         await makeStore().dispatch(initializeSupporter());
@@ -226,66 +227,9 @@ describe('supporterSlice', () => {
     });
   });
 
-  describe('claimSupporterKey', () => {
-    it('stores the key and email on a verified claim', async () => {
-      mockRequestKey.mockResolvedValue({
-        key: 'DSCRB-claimed',
-        tier: 'monthly',
-        name: 'Aaron P.',
-        expiresAt: 'whenever',
-      });
-      mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
-
-      const store = makeStore();
-      await store.dispatch(
-        claimSupporterKey({ email: 'user@example.com', displayName: 'Aaron P.' }),
-      );
-
-      expect(mockRequestKey).toHaveBeenCalledWith('user@example.com', 'Aaron P.');
-      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-claimed');
-      expect(stateData[SUPPORTER_EMAIL_STORAGE_KEY]).toBe('user@example.com');
-      const state = store.getState().supporter;
-      expect(state.keyStatus).toBe('valid');
-      expect(state.hasStoredEmail).toBe(true);
-      expect(state.claimInProgress).toBe(false);
-    });
-
-    it('surfaces the server error message and stores nothing', async () => {
-      mockRequestKey.mockRejectedValue(
-        new MockClaimError('No active supporter membership was found for that email', 404),
-      );
-
-      const store = makeStore();
-      await store.dispatch(claimSupporterKey({ email: 'user@example.com' }));
-
-      const state = store.getState().supporter;
-      expect(state.claimError).toBe(
-        'No active supporter membership was found for that email',
-      );
-      expect(state.keyStatus).toBe('none');
-      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
-    });
-
-    it('rejects a server key the local verifier cannot validate', async () => {
-      mockRequestKey.mockResolvedValue({
-        key: 'DSCRB-weird',
-        tier: 'monthly',
-        name: 'Aaron P.',
-        expiresAt: null,
-      });
-      mockVerify.mockResolvedValue({ status: 'invalid' });
-
-      const store = makeStore();
-      await store.dispatch(claimSupporterKey({ email: 'user@example.com' }));
-
-      expect(store.getState().supporter.claimError).toContain('could not verify');
-      expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
-    });
-  });
-
   describe('refreshSupporterKey', () => {
-    it('re-claims with the stored email', async () => {
-      stateData[SUPPORTER_EMAIL_STORAGE_KEY] = 'user@example.com';
+    it('presents the stored key for a fresh one', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-current';
       mockRequestKey.mockResolvedValue({
         key: 'DSCRB-fresh',
         tier: 'monthly',
@@ -297,16 +241,30 @@ describe('supporterSlice', () => {
       const store = makeStore();
       await store.dispatch(refreshSupporterKey());
 
-      expect(mockRequestKey).toHaveBeenCalledWith('user@example.com');
+      expect(mockRequestKey).toHaveBeenCalledWith('DSCRB-current');
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-fresh');
       expect(store.getState().supporter.payload?.jti).toBe('jti-9');
     });
 
-    it('errors cleanly when no email is stored', async () => {
+    it('surfaces the server error message on a refused refresh', async () => {
+      stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-current';
+      mockRequestKey.mockRejectedValue(
+        new MockClaimError('That key does not match an active supporter membership', 404),
+      );
+
       const store = makeStore();
       await store.dispatch(refreshSupporterKey());
 
-      expect(store.getState().supporter.claimError).toContain('No saved email');
+      expect(store.getState().supporter.claimError).toBe(
+        'That key does not match an active supporter membership',
+      );
+    });
+
+    it('errors cleanly when no key is stored', async () => {
+      const store = makeStore();
+      await store.dispatch(refreshSupporterKey());
+
+      expect(store.getState().supporter.claimError).toContain('No key to refresh');
       expect(mockRequestKey).not.toHaveBeenCalled();
     });
   });
@@ -319,9 +277,7 @@ describe('supporterSlice', () => {
       await store.dispatch(applyPastedSupporterKey('  DSCRB-pasted  '));
 
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBe('DSCRB-pasted');
-      expect(stateData[SUPPORTER_EMAIL_STORAGE_KEY]).toBeUndefined();
       expect(store.getState().supporter.keyStatus).toBe('valid');
-      expect(store.getState().supporter.hasStoredEmail).toBe(false);
     });
 
     it.each([
@@ -340,9 +296,8 @@ describe('supporterSlice', () => {
   });
 
   describe('removeSupporterKey', () => {
-    it('deletes the key AND the email (the auto-refresh off-switch)', async () => {
+    it('deletes the key (the auto-refresh off-switch)', async () => {
       stateData[SUPPORTER_KEY_STORAGE_KEY] = 'DSCRB-key';
-      stateData[SUPPORTER_EMAIL_STORAGE_KEY] = 'user@example.com';
       mockVerify.mockResolvedValue({ status: 'valid', payload: makePayload() });
 
       const store = makeStore();
@@ -350,11 +305,9 @@ describe('supporterSlice', () => {
       await store.dispatch(removeSupporterKey());
 
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
-      expect(stateData[SUPPORTER_EMAIL_STORAGE_KEY]).toBeUndefined();
       const state = store.getState().supporter;
       expect(state.keyStatus).toBe('none');
       expect(state.payload).toBeNull();
-      expect(state.hasStoredEmail).toBe(false);
       expect(selectSupporterKeyStatus(rootState(store))).toBe('none');
     });
   });
@@ -436,11 +389,11 @@ describe('supporterSlice', () => {
     });
 
     it('closing the dialog clears any claim error', async () => {
-      mockRequestKey.mockRejectedValue(new MockClaimError('nope', 404));
+      mockVerify.mockResolvedValue({ status: 'invalid' });
       const store = makeStore();
       store.dispatch(setSupporterDialogOpen(true));
-      await store.dispatch(claimSupporterKey({ email: 'user@example.com' }));
-      expect(store.getState().supporter.claimError).toBe('nope');
+      await store.dispatch(applyPastedSupporterKey('DSCRB-bad'));
+      expect(store.getState().supporter.claimError).toContain("doesn't look like");
 
       store.dispatch(setSupporterDialogOpen(false));
       expect(store.getState().supporter.dialogOpen).toBe(false);

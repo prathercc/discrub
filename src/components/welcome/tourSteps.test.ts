@@ -30,7 +30,7 @@ const KNOWN_SAFE_SELECTORS: readonly string[] = [
   '[data-tour="sidebar-search"]',
   // TopBar actions
   '[aria-label="Settings"]',
-  '[aria-label="Toggle theme"]',
+  '[data-testid="gift-button"]',
   '[aria-label="More options"]',
   '[aria-label="Logout"]',
   '[data-tour="user-profile"]',

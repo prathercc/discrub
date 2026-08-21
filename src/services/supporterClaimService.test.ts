@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { requestSupporterKey, SupporterClaimError } from './supporterClaimService';
+import { requestSupporterKeyRefresh, SupporterClaimError } from './supporterClaimService';
 
 describe('supporterClaimService', () => {
   beforeEach(() => {
@@ -17,7 +17,7 @@ describe('supporterClaimService', () => {
     expiresAt: '2026-09-30T00:00:00.000Z',
   };
 
-  it('POSTs the email to the claim endpoint and returns the result', async () => {
+  it('POSTs the key to the refresh endpoint and returns the result', async () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -25,37 +25,17 @@ describe('supporterClaimService', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    const result = await requestSupporterKey('user@example.com');
+    const result = await requestSupporterKeyRefresh('DSCRB-old.key');
 
     expect(result).toEqual(okResult);
     expect(mockFetch).toHaveBeenCalledWith(
-      'https://api.pratherbytecraft.com/supporter/claim',
+      'https://api.pratherbytecraft.com/supporter/refresh',
       expect.objectContaining({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'user@example.com' }),
+        body: JSON.stringify({ key: 'DSCRB-old.key' }),
       }),
     );
-  });
-
-  it('includes a trimmed display name only when provided', async () => {
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => okResult,
-    });
-    vi.stubGlobal('fetch', mockFetch);
-
-    await requestSupporterKey('user@example.com', '  Aaron P.  ');
-    expect(JSON.parse(mockFetch.mock.calls[0][1].body)).toEqual({
-      email: 'user@example.com',
-      displayName: 'Aaron P.',
-    });
-
-    await requestSupporterKey('user@example.com', '   ');
-    expect(JSON.parse(mockFetch.mock.calls[1][1].body)).toEqual({
-      email: 'user@example.com',
-    });
   });
 
   it("surfaces the server's user-facing error message", async () => {
@@ -64,14 +44,14 @@ describe('supporterClaimService', () => {
       status: 404,
       json: async () => ({
         status: 404,
-        error: 'No active supporter membership was found for that email',
+        error: 'That key does not match an active supporter membership',
       }),
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    await expect(requestSupporterKey('user@example.com')).rejects.toMatchObject({
+    await expect(requestSupporterKeyRefresh('DSCRB-old.key')).rejects.toMatchObject({
       name: 'SupporterClaimError',
-      message: 'No active supporter membership was found for that email',
+      message: 'That key does not match an active supporter membership',
       status: 404,
     });
   });
@@ -86,7 +66,7 @@ describe('supporterClaimService', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    await expect(requestSupporterKey('user@example.com')).rejects.toBeInstanceOf(
+    await expect(requestSupporterKeyRefresh('DSCRB-old.key')).rejects.toBeInstanceOf(
       SupporterClaimError,
     );
   });
@@ -94,7 +74,7 @@ describe('supporterClaimService', () => {
   it('wraps network failures in a friendly error', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')));
 
-    await expect(requestSupporterKey('user@example.com')).rejects.toMatchObject({
+    await expect(requestSupporterKeyRefresh('DSCRB-old.key')).rejects.toMatchObject({
       name: 'SupporterClaimError',
       status: null,
     });
@@ -108,7 +88,7 @@ describe('supporterClaimService', () => {
     });
     vi.stubGlobal('fetch', mockFetch);
 
-    await expect(requestSupporterKey('user@example.com')).rejects.toBeInstanceOf(
+    await expect(requestSupporterKeyRefresh('DSCRB-old.key')).rejects.toBeInstanceOf(
       SupporterClaimError,
     );
   });

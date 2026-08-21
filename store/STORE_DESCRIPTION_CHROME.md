@@ -54,7 +54,7 @@ Privacy
 - Discord token stays in the browser
 - All processing is local
 - Your Discord data is never sent to any server of ours
-- One optional exception. If you claim a supporter key, the extension contacts api.pratherbytecraft.com at claim time and periodically to refresh the key while a monthly membership is active. Only the email you typed is sent, and removing your key stops this entirely.
+- One optional exception. If you apply a supporter key, the extension contacts api.pratherbytecraft.com periodically to renew that key while a monthly membership is active. Only the key itself is sent, never an email address or any Discord data, and removing your key stops this entirely.
 
 Supporter themes
 - Every feature is free and always will be. Supporters unlock a pack of extra cosmetic themes as a thank you.

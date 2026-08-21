@@ -1,52 +1,68 @@
-describe('Theme Toggle', () => {
+/**
+ * Theme switching from the Themes hub (the gift-button dialog). The
+ * old TopBar cycle button was retired when the hub took over as the
+ * single theme-switching surface.
+ */
+
+const DARK_BG = 'rgb(30, 33, 36)'; // discord-dark background.default
+const LIGHT_BG = 'rgb(255, 255, 255)'; // discord-light background.default
+const TERMINAL_BG = 'rgb(10, 15, 10)'; // terminal background.default
+
+describe('Theme switching from the hub', () => {
   beforeEach(() => {
     cy.login();
     cy.selectServer('Cypress Test Server');
   });
 
-  it('theme toggle button is visible in TopBar', () => {
-    cy.get('[aria-label="Toggle theme"]').should('be.visible');
+  const openHub = () => {
+    cy.get('[data-testid="gift-button"]').click();
+    cy.get('[data-testid="supporter-theme-showcase"]').should('be.visible');
+  };
+
+  it('the gift button opens the hub with the full theme grid', () => {
+    openHub();
+    cy.get('[data-testid="theme-card-auto"]').should('be.visible');
+    cy.get('[data-testid="theme-card-discord-light"]').should('be.visible');
+    // All 8 supporter themes locked for a free user.
+    cy.get('[data-testid="supporter-theme-showcase"] [data-testid^="theme-locked-"]').should(
+      'have.length',
+      8,
+    );
   });
 
-  it('clicking theme toggle cycles mode and changes icon', () => {
-    // Default is 'auto' — icon should be BrightnessAuto (AutoModeIcon)
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="BrightnessAutoIcon"]').should('exist');
-
-    // Click once: auto → dark
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="DarkModeIcon"]').should('exist');
-
-    // Click again: dark → light
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="LightModeIcon"]').should('exist');
-
-    // Click again: light → auto (full cycle)
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="BrightnessAutoIcon"]').should('exist');
+  it('picking a free theme applies instantly and persists after closing', () => {
+    openHub();
+    cy.get('[data-testid="theme-card-discord-light"]').click();
+    cy.get('body').should('have.css', 'background-color', LIGHT_BG);
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+    cy.get('body').should('have.css', 'background-color', LIGHT_BG);
   });
 
-  it('app renders correctly in light mode with different background', () => {
-    // Cycle to light mode: auto → dark → light. Wait for the icon to
-    // update between clicks — the optimistic Redux update is synchronous,
-    // but the DOM re-render takes a tick. Without the wait, rapid
-    // sequential clicks can land before React re-renders the new closure
-    // and the cycle skips a step (flaky in full-suite runs).
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="DarkModeIcon"]').should('exist');
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="LightModeIcon"]').should('exist');
+  it('hover previews live and reverts only when the pointer leaves the grid', () => {
+    openHub();
+    // Deterministic baseline — 'auto' resolves differently per browser.
+    cy.get('[data-testid="theme-card-discord-dark"]').click();
+    cy.get('body').should('have.css', 'background-color', DARK_BG);
 
-    // In light mode the body background should be lighter than dark mode defaults
-    cy.get('body').should('have.css', 'background-color').and('not.eq', 'rgb(0, 0, 0)');
+    cy.get('[data-testid="theme-card-terminal"]').trigger('mouseover');
+    cy.get('body').should('have.css', 'background-color', TERMINAL_BG);
+    // Crossing to another card must NOT flash the saved theme in.
+    cy.get('[data-testid="theme-card-overcast"]').trigger('mouseover');
+    cy.get('body').should('not.have.css', 'background-color', DARK_BG);
+    // Leaving the grid entirely reverts to the selection.
+    cy.get('[data-testid="theme-card-overcast"]').trigger('mouseout');
+    cy.get('body').should('have.css', 'background-color', DARK_BG);
   });
 
-  it('theme mode updates after toggle', () => {
-    // Cycle to dark mode: auto → dark
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="DarkModeIcon"]').should('exist');
-
-    // Cycle to light: dark → light
-    cy.get('[aria-label="Toggle theme"]').click({ force: true });
-    cy.get('[aria-label="Toggle theme"]').find('[data-testid="LightModeIcon"]').should('exist');
+  it('locked supporter cards preview on hover but stay inert on click', () => {
+    openHub();
+    cy.get('[data-testid="theme-card-discord-dark"]').click();
+    cy.get('[data-testid="theme-card-amoled-void"]').trigger('mouseover');
+    cy.get('body').should('have.css', 'background-color', 'rgb(0, 0, 0)');
+    cy.get('[data-testid="theme-card-amoled-void"]').click();
+    cy.get('[data-testid="supporter-dialog"]').should('be.visible');
+    cy.get('[data-testid="theme-card-amoled-void"]').trigger('mouseout');
+    cy.get('[aria-label="Close Supporter dialog"]').click();
+    cy.get('body').should('have.css', 'background-color', DARK_BG);
   });
 });

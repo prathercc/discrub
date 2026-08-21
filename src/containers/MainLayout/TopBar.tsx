@@ -11,15 +11,12 @@ import {
   Minimize as MinimizeIcon,
   Close as CloseIcon,
   Campaign as AnnouncementIcon,
-  DarkMode as DarkModeIcon,
-  LightMode as LightModeIcon,
-  BrightnessAuto as AutoModeIcon,
   EmojiObjects as IdeasIcon,
   Reddit as RedditIcon,
   Email as EmailIcon,
   WarningAmber as WarningIcon,
   MoreVert as MoreIcon,
-  CardGiftcard as GiftIcon,
+  Palette as PaletteIcon,
   Star as StarIcon,
 } from '@mui/icons-material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
@@ -36,7 +33,6 @@ import { selectSetting, updateSetting, setMinimized } from '@features/app/appSli
 import { selectIsHeavyOperationRunning, selectOperationSummary } from '@features/app/operationSelectors';
 import { reopenAnnouncement, fetchAnnouncementMarkdownThunk } from '@features/announcement/announcementSlice';
 import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messaging';
-import { findThemeDescriptor, DISCORD_DARK_ID, DISCORD_LIGHT_ID } from '@/theme/theme';
 import {
   selectGiftAttentionSeen,
   selectIsSupporter,
@@ -59,10 +55,6 @@ const TopBar = () => {
   const currentUser = useAppSelector(selectCurrentUser);
   const cachedUserMap = useAppSelector(selectCachedUserMap);
   const showKofiFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
-  const themeSetting = useAppSelector(selectSetting(DiscrubSetting.APP_THEME_MODE)) || 'auto';
-  // Legacy 'dark'/'light' values resolve through the registry; anything
-  // unrecognized behaves as 'auto', matching ThemeWrapper's fallback.
-  const themeDescriptor = themeSetting === 'auto' ? undefined : findThemeDescriptor(themeSetting);
   const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
   const operationSummary = useAppSelector(selectOperationSummary);
   const giftAttentionSeen = useAppSelector(selectGiftAttentionSeen);
@@ -78,17 +70,6 @@ const TopBar = () => {
     dispatch(setSelectedChannel(null));
     dispatch(setSelectedDm(null));
   };
-
-  const handleCycleTheme = () => {
-    // Cycle: auto → dark → light → auto
-    const current = themeDescriptor?.id ?? 'auto';
-    const next =
-      current === 'auto' ? DISCORD_DARK_ID : current === DISCORD_DARK_ID ? DISCORD_LIGHT_ID : 'auto';
-    dispatch(updateSetting({ key: DiscrubSetting.APP_THEME_MODE, value: next }));
-  };
-
-  const themeIcon = !themeDescriptor ? <AutoModeIcon /> : themeDescriptor.base === 'light' ? <LightModeIcon /> : <DarkModeIcon />;
-  const themeLabel = !themeDescriptor ? 'Auto (system)' : themeDescriptor.base === 'light' ? 'Light mode' : 'Dark mode';
 
   const handleToggleKofi = () => {
     dispatch(
@@ -273,19 +254,24 @@ const TopBar = () => {
               </Typography>
             </Box>
 
-            <Tooltip title={isSupporter ? 'Discrub Supporter' : 'Support Discrub'} enterDelay={0} arrow>
+            <Tooltip title={isSupporter ? 'Discrub Supporter' : 'Themes and support'} enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={handleGiftClick}
-                aria-label={isSupporter ? 'Discrub Supporter' : 'Support Discrub'}
+                aria-label={isSupporter ? 'Discrub Supporter' : 'Themes and support'}
                 data-testid="gift-button"
                 sx={(theme: Theme) => ({
                   color: 'cta.main',
-                  // "Glowing gift" intrigue: subtle glow pulse plus an
+                  transition: 'transform 200ms ease, box-shadow 200ms ease',
+                  '&:hover': {
+                    transform: 'scale(1.12)',
+                    boxShadow: `0 0 10px 2px ${alpha(theme.palette.cta.main, 0.3)}`,
+                  },
+                  // First-open intrigue: subtle glow pulse plus an
                   // occasional gentle wiggle. Calms permanently after
                   // the first open, never plays for users who prefer
-                  // reduced motion, and retires with the gift once the
-                  // button becomes the supporter badge.
+                  // reduced motion, and retires once the button becomes
+                  // the supporter badge.
                   ...(giftAttentionSeen || isSupporter
                     ? {}
                     : {
@@ -306,7 +292,7 @@ const TopBar = () => {
                       }),
                 })}
               >
-                {isSupporter ? <StarIcon data-testid="supporter-badge-star" /> : <GiftIcon />}
+                {isSupporter ? <StarIcon data-testid="supporter-badge-star" /> : <PaletteIcon />}
               </IconButton>
             </Tooltip>
 
@@ -319,16 +305,6 @@ const TopBar = () => {
                 <SettingsIcon />
               </IconButton>
             </HotkeyTooltip>
-
-            <Tooltip title={themeLabel} enterDelay={0} arrow>
-              <IconButton
-                color="inherit"
-                onClick={handleCycleTheme}
-                aria-label="Toggle theme"
-              >
-                {themeIcon}
-              </IconButton>
-            </Tooltip>
 
             <Tooltip title="More" enterDelay={0} arrow>
               <IconButton

@@ -79,7 +79,6 @@ function visitApp() {
 function pasteSupporterKey() {
   cy.then(() => signLifetimeKey()).then((key) => {
     cy.get('[data-testid="gift-button"]').click();
-    cy.get('[data-testid="supporter-paste-toggle"]').click();
     cy.get('[data-testid="supporter-paste-key"]').type(key as string, { delay: 0 });
     cy.get('[data-testid="supporter-paste-apply"]').click();
     cy.get('[data-testid="supporter-status"]').should('be.visible');

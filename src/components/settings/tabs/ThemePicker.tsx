@@ -34,13 +34,33 @@ interface ThemePickerProps {
 
 const CARD_WIDTH = 132;
 
-/** Miniature palette preview: default background, paper stripe, accent dots. */
+/**
+ * Miniature Discrub screen in the theme's colors: top bar, channel
+ * sidebar, two message rows, and a CTA pill — a real preview of the
+ * app's anatomy rather than abstract color dots.
+ */
 export const Swatch = ({ descriptor }: { descriptor: ThemeDescriptor }) => {
   const p = descriptor.palette;
+  const row = (nameWidth: number, textWidth: number, key: number) => (
+    <Box key={key} sx={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+      <Box
+        sx={{
+          width: 5,
+          height: 5,
+          borderRadius: '50%',
+          backgroundColor: p.primary.main,
+          opacity: 0.85,
+          flexShrink: 0,
+        }}
+      />
+      <Box sx={{ width: nameWidth, height: 3, borderRadius: 2, backgroundColor: p.text.primary, opacity: 0.8 }} />
+      <Box sx={{ width: textWidth, height: 3, borderRadius: 2, backgroundColor: p.text.secondary, opacity: 0.55 }} />
+    </Box>
+  );
   return (
     <Box
       sx={{
-        height: 56,
+        height: 64,
         borderRadius: 1,
         overflow: 'hidden',
         backgroundColor: p.background.default,
@@ -48,16 +68,57 @@ export const Swatch = ({ descriptor }: { descriptor: ThemeDescriptor }) => {
         borderColor: 'divider',
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'flex-end',
       }}
     >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 0.75, pb: 0.5 }}>
-        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: p.primary.main }} />
-        <Box sx={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: p.cta.main }} />
+      <Box
+        sx={{
+          height: 12,
+          flexShrink: 0,
+          backgroundColor: p.background.paper,
+          borderBottom: `1px solid ${p.divider}`,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          px: '5px',
+        }}
+      >
+        <Box sx={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: p.primary.main }} />
+        <Box sx={{ width: 18, height: 3, borderRadius: 2, backgroundColor: p.text.primary, opacity: 0.85 }} />
         <Box sx={{ flex: 1 }} />
-        <Box sx={{ width: 28, height: 8, borderRadius: 0.5, backgroundColor: p.text.secondary, opacity: 0.6 }} />
+        <Box sx={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: p.cta.main }} />
       </Box>
-      <Box sx={{ height: 16, backgroundColor: p.background.paper }} />
+      <Box sx={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        <Box
+          sx={{
+            width: 18,
+            flexShrink: 0,
+            backgroundColor: p.background.paper,
+            borderRight: `1px solid ${p.divider}`,
+            p: '4px 3px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '4px',
+          }}
+        >
+          <Box sx={{ height: 3, borderRadius: 2, backgroundColor: p.primary.main, opacity: 0.9 }} />
+          <Box sx={{ height: 3, borderRadius: 2, backgroundColor: p.text.secondary, opacity: 0.45 }} />
+          <Box sx={{ height: 3, borderRadius: 2, backgroundColor: p.text.secondary, opacity: 0.45 }} />
+        </Box>
+        <Box sx={{ flex: 1, p: '5px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {row(20, 34, 0)}
+          {row(16, 26, 1)}
+          <Box sx={{ flex: 1 }} />
+          <Box
+            sx={{
+              alignSelf: 'flex-end',
+              width: 18,
+              height: 6,
+              borderRadius: 3,
+              backgroundColor: p.cta.main,
+            }}
+          />
+        </Box>
+      </Box>
     </Box>
   );
 };
@@ -66,7 +127,7 @@ export const Swatch = ({ descriptor }: { descriptor: ThemeDescriptor }) => {
 const AutoSwatch = ({ dark, light }: { dark: ThemeDescriptor; light: ThemeDescriptor }) => (
   <Box
     sx={{
-      height: 56,
+      height: 64,
       borderRadius: 1,
       overflow: 'hidden',
       border: '1px solid',
@@ -82,14 +143,43 @@ const AutoSwatch = ({ dark, light }: { dark: ThemeDescriptor; light: ThemeDescri
   </Box>
 );
 
-export const ThemePicker = ({
+export interface ThemeGridProps {
+  /** Current selection ('auto', a theme id, or a legacy alias). */
+  value: string;
+  /** Called with the picked theme id (or 'auto'). */
+  onChange: (id: string) => void;
+  isSupporter?: boolean;
+  /**
+   * Click on a locked card. Defaults to opening the Supporter dialog;
+   * pass a no-op when the grid already lives inside that dialog.
+   */
+  onLockedClick?: () => void;
+  descriptors?: ThemeDescriptor[];
+  cardWidth?: number;
+  /** Center the card rows (the hub dialog); Settings keeps form alignment. */
+  centered?: boolean;
+  'data-testid'?: string;
+}
+
+/**
+ * The shared theme card grid: Auto + every descriptor, hover/focus
+ * live-preview, lock badges for non-supporters. Used by the Settings
+ * picker (form semantics) and the Supporter dialog (instant apply).
+ *
+ * The preview only reverts when the pointer leaves the whole grid (or
+ * focus moves out of it) — never between cards, so crossing the gaps
+ * doesn't flash the saved theme back in.
+ */
+export const ThemeGrid = ({
   value,
   onChange,
-  animationsValue,
-  onAnimationsChange,
   isSupporter = false,
+  onLockedClick,
   descriptors = THEME_DESCRIPTORS,
-}: ThemePickerProps) => {
+  cardWidth = CARD_WIDTH,
+  centered = false,
+  'data-testid': testId = 'theme-grid',
+}: ThemeGridProps) => {
   const dispatch = useAppDispatch();
   const theme = useTheme();
 
@@ -100,12 +190,9 @@ export const ThemePicker = ({
   const defaultDark = descriptors.find((d) => d.base === 'dark') ?? descriptors[0];
   const defaultLight = descriptors.find((d) => d.base === 'light') ?? descriptors[0];
 
-  // Hover/focus shows the candidate theme live; leaving reverts to the
-  // current form selection (identical to the saved theme until the user
-  // picks something, so an untouched open never shifts colors).
-  // SettingsModal clears the preview entirely on save/close.
   const preview = (id: string) => dispatch(setPreviewThemeId(id));
   const revertToSelection = () => dispatch(setPreviewThemeId(selectedId));
+  const handleLockedClick = onLockedClick ?? (() => dispatch(setSupporterDialogOpen(true)));
 
   const pick = (id: string) => {
     onChange(id);
@@ -130,17 +217,15 @@ export const ThemePicker = ({
         aria-label={locked ? `${label} (supporter theme, locked)` : label}
         aria-pressed={selected}
         onMouseEnter={() => preview(id)}
-        onMouseLeave={revertToSelection}
         onFocus={() => preview(id)}
-        onBlur={revertToSelection}
         onClick={() => {
-          // Locked cards route to the Supporter dialog — the unlock
-          // pitch right where the interest was expressed.
-          if (locked) dispatch(setSupporterDialogOpen(true));
+          // Locked cards route to the unlock pitch right where the
+          // interest was expressed.
+          if (locked) handleLockedClick();
           else pick(id);
         }}
         sx={{
-          width: CARD_WIDTH,
+          width: cardWidth,
           textAlign: 'left',
           cursor: 'pointer',
           font: 'inherit',
@@ -181,6 +266,50 @@ export const ThemePicker = ({
   };
 
   return (
+    <Box
+      data-testid={testId}
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        gap: 1.25,
+        ...(centered && { justifyContent: 'center' }),
+      }}
+      onMouseLeave={revertToSelection}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) revertToSelection();
+      }}
+    >
+      {renderCard({
+        id: 'auto',
+        label: 'Auto',
+        tooltip: 'Match Discord or your system preference',
+        swatch: <AutoSwatch dark={defaultDark} light={defaultLight} />,
+      })}
+      {descriptors.map((d) => {
+        const locked = d.tier === 'supporter' && !isSupporter;
+        return renderCard({
+          id: d.id,
+          label: d.name,
+          locked,
+          tooltip: locked
+            ? 'Supporter theme. Hover to preview, click to learn more.'
+            : undefined,
+          swatch: <Swatch descriptor={d} />,
+        });
+      })}
+    </Box>
+  );
+};
+
+export const ThemePicker = ({
+  value,
+  onChange,
+  animationsValue,
+  onAnimationsChange,
+  isSupporter = false,
+  descriptors = THEME_DESCRIPTORS,
+}: ThemePickerProps) => {
+  return (
     <Box>
       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
         Theme
@@ -188,26 +317,13 @@ export const ThemePicker = ({
       <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
         Hover a theme to preview it live. Your choice applies when you save.
       </Typography>
-      <Box data-testid="theme-picker" sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.25 }} onMouseLeave={revertToSelection}>
-        {renderCard({
-          id: 'auto',
-          label: 'Auto',
-          tooltip: 'Match Discord or your system preference',
-          swatch: <AutoSwatch dark={defaultDark} light={defaultLight} />,
-        })}
-        {descriptors.map((d) => {
-          const locked = d.tier === 'supporter' && !isSupporter;
-          return renderCard({
-            id: d.id,
-            label: d.name,
-            locked,
-            tooltip: locked
-              ? 'Supporter theme. Hover to preview, click to learn more.'
-              : undefined,
-            swatch: <Swatch descriptor={d} />,
-          });
-        })}
-      </Box>
+      <ThemeGrid
+        data-testid="theme-picker"
+        value={value}
+        onChange={onChange}
+        isSupporter={isSupporter}
+        descriptors={descriptors}
+      />
 
       <FormControlLabel
         sx={{ mt: 2 }}

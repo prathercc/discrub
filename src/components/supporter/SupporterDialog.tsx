@@ -4,36 +4,33 @@ import {
   Button,
   Checkbox,
   CircularProgress,
-  Collapse,
   Dialog,
   DialogContent,
   Divider,
   FormControlLabel,
   TextField,
-  Tooltip,
   Typography,
   alpha,
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
 import {
-  CardGiftcard as GiftIcon,
+  Palette as PaletteIcon,
   WorkspacePremium as BadgeIcon,
   Autorenew as RefreshIcon,
   DeleteOutline as RemoveIcon,
-  VpnKey as KeyIcon,
   FileUpload as UploadIcon,
 } from '@mui/icons-material';
+import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import { selectSetting, updateSetting, setPreviewThemeId } from '@features/app/appSlice';
 import {
   selectSupporterDialogOpen,
   selectSupporterKeyStatus,
   selectSupporterPayload,
   selectSupporterClaimInProgress,
   selectSupporterClaimError,
-  selectSupporterHasStoredEmail,
   selectSupporterFooter,
   setSupporterDialogOpen,
-  claimSupporterKey,
   refreshSupporterKey,
   applyPastedSupporterKey,
   removeSupporterKey,
@@ -46,22 +43,20 @@ import {
   FOOTER_ICON_ACCEPTED_TYPES,
   processFooterIconFile,
 } from '@services/exportFooter';
-import { THEME_DESCRIPTORS } from '@/theme/theme';
-import { Swatch } from '@components/settings/tabs/ThemePicker';
+import { ThemeGrid } from '@components/settings/tabs/ThemePicker';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 
-const KOFI_MONTHLY_URL = 'https://ko-fi.com/prathercc';
-const KOFI_LIFETIME_URL = 'https://ko-fi.com/prathercc/shop';
+const KOFI_URL = 'https://ko-fi.com/prathercc';
 
 /**
- * The Supporter dialog behind the toolbar gift button. Non-supporters
- * see the free-forever line, the supporter theme showcase, Ko-fi
- * links, and the email claim flow (with a paste-a-key fallback).
- * Supporters see their badge, name, and expiry, plus refresh/remove.
- *
- * Claiming stores the email for the always-on monthly auto-refresh —
- * disclosed in the claim copy; removing the key deletes the email and
- * stops all refresh calls.
+ * The Themes and Supporter hub behind the toolbar gift button — the
+ * one place for switching themes, supporting, and applying a key.
+ * Everyone gets the full theme grid (instant apply, hover preview,
+ * locks on supporter themes). Non-supporters also see the Ko-fi
+ * button and the paste-a-key box; supporter keys arrive by email
+ * after joining on Ko-fi, so the key itself is all we ever collect.
+ * Supporters see their badge, name, and expiry, plus refresh/remove
+ * and the export footer controls.
  */
 const SupporterDialog = () => {
   const dispatch = useAppDispatch();
@@ -70,26 +65,26 @@ const SupporterDialog = () => {
   const payload = useAppSelector(selectSupporterPayload);
   const claimInProgress = useAppSelector(selectSupporterClaimInProgress);
   const claimError = useAppSelector(selectSupporterClaimError);
-  const hasStoredEmail = useAppSelector(selectSupporterHasStoredEmail);
+  const themeSetting = useAppSelector(selectSetting(DiscrubSetting.APP_THEME_MODE)) || 'auto';
 
   const footer = useAppSelector(selectSupporterFooter);
 
-  const [email, setEmail] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  const [pasteOpen, setPasteOpen] = useState(false);
   const [pastedKey, setPastedKey] = useState('');
   const [footerTextDraft, setFooterTextDraft] = useState<string | null>(null);
   const [iconError, setIconError] = useState<string | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
 
   const isSupporter = keyStatus === 'valid';
-  const supporterThemes = THEME_DESCRIPTORS.filter((d) => d.tier === 'supporter');
 
-  const handleClose = () => dispatch(setSupporterDialogOpen(false));
+  const handleClose = () => {
+    // Theme picks in the hub apply instantly, so the preview must not
+    // outlive the dialog.
+    dispatch(setPreviewThemeId(null));
+    dispatch(setSupporterDialogOpen(false));
+  };
 
-  const handleClaim = () => {
-    if (!email.includes('@') || claimInProgress) return;
-    dispatch(claimSupporterKey({ email: email.trim(), displayName }));
+  const handleThemePick = (id: string) => {
+    dispatch(updateSetting({ key: DiscrubSetting.APP_THEME_MODE, value: id }));
   };
 
   const handlePasteApply = () => {
@@ -142,10 +137,41 @@ const SupporterDialog = () => {
         <DialogCloseIcon onClose={handleClose} label="Close Supporter dialog" />
 
         <Box sx={{ textAlign: 'center', mb: 2 }}>
-          <GiftIcon sx={{ fontSize: 40, color: 'cta.main', mb: 1 }} />
+          {isSupporter ? (
+            <BadgeIcon sx={{ fontSize: 40, color: 'cta.main', mb: 1 }} />
+          ) : (
+            <PaletteIcon sx={{ fontSize: 40, color: 'cta.main', mb: 1 }} />
+          )}
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            {isSupporter ? 'Thank you for supporting Discrub' : 'Support Discrub'}
+            {isSupporter ? 'Thank you for supporting Discrub' : 'Themes'}
           </Typography>
+          {!isSupporter && (
+            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+              Supporting unlocks a growing pack of cosmetic themes as a thank you.
+            </Typography>
+          )}
+        </Box>
+
+        {keyStatus === 'expired' && (
+          <Typography
+            variant="caption"
+            sx={{ color: 'warning.main', textAlign: 'center', display: 'block', mb: 1.5 }}
+            data-testid="supporter-lapsed-note"
+          >
+            Your membership lapsed, so supporter themes have relocked. Paste a fresh
+            key below to pick up where you left off.
+          </Typography>
+        )}
+
+        <Box data-testid="supporter-theme-showcase" sx={{ mb: 2 }}>
+          <ThemeGrid
+            value={themeSetting}
+            onChange={handleThemePick}
+            isSupporter={isSupporter}
+            onLockedClick={() => {}}
+            cardWidth={104}
+            centered
+          />
         </Box>
 
         {isSupporter && payload ? (
@@ -174,34 +200,24 @@ const SupporterDialog = () => {
               </Box>
             </Box>
 
-            <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              All supporter themes are unlocked. Pick one under Settings, Display.
-              {payload.tier === 'monthly' &&
-                ' Your key refreshes automatically while your membership is active.'}
-            </Typography>
+            {payload.tier === 'monthly' && (
+              <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                Your key renews automatically while your membership is active. Removing
+                it stops that.
+              </Typography>
+            )}
 
             <Box sx={{ display: 'flex', gap: 1 }}>
               {payload.tier === 'monthly' && (
-                <Tooltip
-                  title={
-                    hasStoredEmail
-                      ? 'Fetch a fresh key with your saved email'
-                      : 'Enter your Ko-fi email below to refresh'
-                  }
-                  arrow
+                <Button
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={handleRefresh}
+                  disabled={claimInProgress}
+                  data-testid="supporter-refresh-key"
                 >
-                  <span>
-                    <Button
-                      size="small"
-                      startIcon={<RefreshIcon />}
-                      onClick={handleRefresh}
-                      disabled={claimInProgress || !hasStoredEmail}
-                      data-testid="supporter-refresh-key"
-                    >
-                      Refresh key
-                    </Button>
-                  </span>
-                </Tooltip>
+                  Refresh key
+                </Button>
               )}
               <Button
                 size="small"
@@ -319,131 +335,59 @@ const SupporterDialog = () => {
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Typography variant="body2" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              Discrub is free, and every feature always will be. Supporting unlocks a
-              growing pack of cosmetic themes as a thank you.
-            </Typography>
-
-            {keyStatus === 'expired' && (
-              <Typography
-                variant="caption"
-                sx={{ color: 'warning.main', textAlign: 'center' }}
-                data-testid="supporter-lapsed-note"
-              >
-                Your membership lapsed, so supporter themes have relocked. Claim a fresh
-                key below to pick up where you left off.
-              </Typography>
-            )}
-
-            <Box
-              data-testid="supporter-theme-showcase"
-              sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, justifyContent: 'center' }}
-            >
-              {supporterThemes.map((d) => (
-                <Tooltip key={d.id} title={d.name} arrow>
-                  <Box sx={{ width: 64 }}>
-                    <Swatch descriptor={d} />
-                  </Box>
-                </Tooltip>
-              ))}
-            </Box>
-
-            <Box sx={{ display: 'flex', gap: 1, justifyContent: 'center' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center' }}>
               <Button
                 variant="contained"
-                href={KOFI_MONTHLY_URL}
+                href={KOFI_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{ bgcolor: 'cta.main', '&:hover': { bgcolor: 'cta.dark' } }}
+                data-testid="supporter-kofi-button"
               >
-                $3/month
-              </Button>
-              <Button
-                variant="outlined"
-                href={KOFI_LIFETIME_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                $25 lifetime
+                Support on Ko-fi
               </Button>
             </Box>
 
-            <Box sx={{ mt: 1 }}>
+            <Box>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
-                Already a supporter?
+                Have a supporter key?
               </Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1.5 }}>
-                Enter the email you used on Ko-fi and your themes unlock instantly. Your
-                key refreshes automatically while your membership is active. Removing
-                the key stops that and deletes the email from this device.
+                Your key arrives by email right after you join on Ko-fi. Paste it here
+                and the supporter themes unlock instantly. Monthly keys renew
+                automatically while your membership is active.
               </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+              <Box sx={{ display: 'flex', gap: 1 }}>
                 <TextField
                   size="small"
-                  type="email"
-                  label="Ko-fi email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleClaim()}
-                  inputProps={{ 'data-testid': 'supporter-claim-email' } as object}
-                  fullWidth
-                />
-                <TextField
-                  size="small"
-                  label="Display name (optional)"
-                  helperText="Shown on your key, like a signed thank-you card"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleClaim()}
-                  inputProps={{ 'data-testid': 'supporter-claim-name', maxLength: 40 } as object}
+                  label="Supporter key"
+                  placeholder="DSCRB-..."
+                  value={pastedKey}
+                  onChange={(e) => setPastedKey(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handlePasteApply()}
+                  inputProps={{ 'data-testid': 'supporter-paste-key' } as object}
                   fullWidth
                 />
                 <Button
                   variant="contained"
-                  onClick={handleClaim}
-                  disabled={!email.includes('@') || claimInProgress}
-                  startIcon={claimInProgress ? <CircularProgress size={16} /> : <KeyIcon />}
-                  data-testid="supporter-claim-submit"
+                  onClick={handlePasteApply}
+                  disabled={!pastedKey.trim() || claimInProgress}
+                  startIcon={claimInProgress ? <CircularProgress size={16} /> : undefined}
+                  data-testid="supporter-paste-apply"
                 >
-                  {claimInProgress ? 'Claiming...' : 'Claim my key'}
+                  Apply
                 </Button>
-                {claimError && (
-                  <Typography variant="caption" color="error" data-testid="supporter-claim-error">
-                    {claimError}
-                  </Typography>
-                )}
               </Box>
-
-              <Button
-                size="small"
-                sx={{ mt: 1, color: 'text.secondary', textTransform: 'none' }}
-                onClick={() => setPasteOpen((v) => !v)}
-                data-testid="supporter-paste-toggle"
-              >
-                Have a key already? Paste it instead
-              </Button>
-              <Collapse in={pasteOpen}>
-                <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-                  <TextField
-                    size="small"
-                    label="Supporter key"
-                    placeholder="DSCRB-..."
-                    value={pastedKey}
-                    onChange={(e) => setPastedKey(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handlePasteApply()}
-                    inputProps={{ 'data-testid': 'supporter-paste-key' } as object}
-                    fullWidth
-                  />
-                  <Button
-                    variant="outlined"
-                    onClick={handlePasteApply}
-                    disabled={!pastedKey.trim() || claimInProgress}
-                    data-testid="supporter-paste-apply"
-                  >
-                    Apply
-                  </Button>
-                </Box>
-              </Collapse>
+              {claimError && (
+                <Typography
+                  variant="caption"
+                  color="error"
+                  sx={{ display: 'block', mt: 1 }}
+                  data-testid="supporter-claim-error"
+                >
+                  {claimError}
+                </Typography>
+              )}
             </Box>
           </Box>
         )}

@@ -22,7 +22,7 @@ const ThemeWrapper = ({ children }: ThemeWrapperProps) => {
   const isSupporter = useAppSelector(selectIsSupporter);
   const supporterInitialized = useAppSelector(selectSupporter).initialized;
 
-  const theme = useMemo(() => {
+  const themeId = useMemo(() => {
     let id = resolveThemeIdFromSetting(previewThemeId ?? themeModeSetting);
     // A stored supporter theme without a valid key falls back to auto
     // (setting untouched — re-claiming brings the theme straight back).
@@ -34,8 +34,10 @@ const ThemeWrapper = ({ children }: ThemeWrapperProps) => {
         id = resolveThemeIdFromSetting('auto');
       }
     }
-    return getThemeById(id);
+    return id;
   }, [previewThemeId, themeModeSetting, supporterInitialized, isSupporter]);
+
+  const theme = useMemo(() => getThemeById(themeId), [themeId]);
 
   return (
     <ThemeProvider theme={theme}>

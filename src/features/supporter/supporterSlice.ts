@@ -8,7 +8,7 @@ import {
   type SupporterKeyVerification,
 } from '@services/supporterKeyService';
 import {
-  requestSupporterKey,
+  requestSupporterKeyRefresh,
   SupporterClaimError,
 } from '@services/supporterClaimService';
 import type { SupporterFooterPreferences } from '@services/exportFooter';
@@ -23,10 +23,12 @@ import {
 } from './supporterTypes';
 
 /**
- * Supporter slice — key claim, local Ed25519 verification, and the
- * always-on monthly auto-refresh (ratified 2026-08-21: claiming is the
- * consent moment, disclosure lives in the claim dialog, removing the
- * key is the off-switch and deletes the stored email with it).
+ * Supporter slice — pasted-key application, local Ed25519
+ * verification, and the always-on monthly auto-refresh. Keys arrive by
+ * email when a membership starts; renewal presents the key itself to
+ * the server (applying a key is the consent moment, disclosure lives
+ * in the hub copy, removing the key is the off-switch). No email
+ * address is ever collected or stored on this device.
  *
  * Everything fails open toward the free experience: a broken fetch,
  * an offline refresh, or an unsupported browser just means themes stay
@@ -48,26 +50,28 @@ const toVerifiedState = (verification: SupporterKeyVerification): VerifiedKeySta
 
 /**
  * Load and verify the stored key on app boot. If a stored monthly key
- * is within the refresh window (or already past exp) and a claim email
- * is stored, silently re-claim first — at most one attempt per
- * app-open; failure just rides the grace already baked into exp.
+ * is within the refresh window (or already past exp), silently renew
+ * it by presenting the key itself — at most one attempt per app-open;
+ * failure just rides the grace already baked into exp.
  */
 export const initializeSupporter = createAsyncThunk(
   'supporter/initialize',
   async () => {
-    const [storedKey, storedEmail, giftSeen, footerText, footerRemoved, footerIcon] =
+    const [storedKey, giftSeen, footerText, footerRemoved, footerIcon] =
       await Promise.all([
         storage.state.get<string>(SUPPORTER_KEY_STORAGE_KEY),
-        storage.state.get<string>(SUPPORTER_EMAIL_STORAGE_KEY),
         storage.state.get<boolean>(GIFT_ATTENTION_SEEN_STORAGE_KEY),
         storage.state.get<string>(FOOTER_TEXT_STORAGE_KEY),
         storage.state.get<boolean>(FOOTER_REMOVED_STORAGE_KEY),
         storage.media.get<string>(FOOTER_ICON_MEDIA_KEY),
       ]);
 
+    // Pre-release builds stored a claim email; the key-based refresh
+    // makes it obsolete, so scrub any leftover value.
+    storage.state.remove(SUPPORTER_EMAIL_STORAGE_KEY).catch(() => {});
+
     const base = {
       giftAttentionSeen: giftSeen === true,
-      hasStoredEmail: typeof storedEmail === 'string' && storedEmail.length > 0,
       footer: {
         text: typeof footerText === 'string' && footerText ? footerText : null,
         removed: footerRemoved === true,
@@ -89,12 +93,11 @@ export const initializeSupporter = createAsyncThunk(
       verification.payload?.tier === 'monthly' &&
       typeof exp === 'number' &&
       exp * 1000 - Date.now() < REFRESH_WINDOW_MS &&
-      verification.status !== 'revoked' &&
-      base.hasStoredEmail;
+      verification.status !== 'revoked';
 
     if (shouldRefresh) {
       try {
-        const result = await requestSupporterKey(storedEmail as string);
+        const result = await requestSupporterKeyRefresh(storedKey as string);
         const refreshed = await verifySupporterKey(result.key, { revokedJtis });
         if (refreshed.status === 'valid') {
           await storage.state.set(SUPPORTER_KEY_STORAGE_KEY, result.key);
@@ -110,54 +113,19 @@ export const initializeSupporter = createAsyncThunk(
 );
 
 /**
- * Claim (or manually refresh) a key with an email. Stores both the
- * key and the email — the email is what powers auto-refresh and is
- * deleted along with the key by removeSupporterKey.
- */
-export const claimSupporterKey = createAsyncThunk(
-  'supporter/claim',
-  async (
-    { email, displayName }: { email: string; displayName?: string },
-    { rejectWithValue },
-  ) => {
-    try {
-      const result = await requestSupporterKey(email, displayName);
-      const verification = await verifySupporterKey(result.key);
-      if (verification.status !== 'valid' || !verification.payload) {
-        return rejectWithValue(
-          'The server issued a key this app version could not verify. Please update Discrub and try again.',
-        );
-      }
-      await Promise.all([
-        storage.state.set(SUPPORTER_KEY_STORAGE_KEY, result.key),
-        storage.state.set(SUPPORTER_EMAIL_STORAGE_KEY, email),
-      ]);
-      return { keyStatus: verification.status, payload: verification.payload };
-    } catch (error) {
-      if (error instanceof SupporterClaimError) {
-        return rejectWithValue(error.message);
-      }
-      return rejectWithValue('Something went wrong claiming your key. Please try again.');
-    }
-  },
-);
-
-/**
- * Manual "refresh key" — re-claims with the email stored at claim
- * time. Distinct from claimSupporterKey so the dialog's supporter
- * state never needs to re-collect (or display) the email.
+ * Manual "refresh key" — presents the stored key to the refresh
+ * endpoint for a fresh one. Works for valid and recently-expired
+ * monthly keys alike; the server's entitlement check is the truth.
  */
 export const refreshSupporterKey = createAsyncThunk(
   'supporter/refreshKey',
   async (_, { rejectWithValue }) => {
-    const storedEmail = await storage.state.get<string>(SUPPORTER_EMAIL_STORAGE_KEY);
-    if (!storedEmail) {
-      return rejectWithValue(
-        'No saved email to refresh with. Claim again with your Ko-fi email.',
-      );
+    const storedKey = await storage.state.get<string>(SUPPORTER_KEY_STORAGE_KEY);
+    if (!storedKey) {
+      return rejectWithValue('No key to refresh. Paste your supporter key first.');
     }
     try {
-      const result = await requestSupporterKey(storedEmail);
+      const result = await requestSupporterKeyRefresh(storedKey);
       const verification = await verifySupporterKey(result.key);
       if (verification.status !== 'valid' || !verification.payload) {
         return rejectWithValue(
@@ -176,9 +144,9 @@ export const refreshSupporterKey = createAsyncThunk(
 );
 
 /**
- * Paste-a-key fallback (second browser, email lookup trouble). No
- * email is stored, so auto-refresh stays off for keys entered this
- * way — re-pasting or claiming with the email turns it back on.
+ * Apply a pasted supporter key — the primary unlock path. Keys arrive
+ * by email when a membership starts; monthly ones then renew
+ * themselves via the refresh endpoint.
  */
 export const applyPastedSupporterKey = createAsyncThunk(
   'supporter/applyPastedKey',
@@ -190,7 +158,7 @@ export const applyPastedSupporterKey = createAsyncThunk(
     }
     if (verification.status === 'expired') {
       return rejectWithValue(
-        'That key has expired. Claim a fresh one with your Ko-fi email.',
+        'That key has expired. Check your email for a newer one, or use Refresh key.',
       );
     }
     if (verification.status === 'revoked') {
@@ -202,8 +170,9 @@ export const applyPastedSupporterKey = createAsyncThunk(
 );
 
 /**
- * The off-switch: deletes the key AND the stored email, which stops
- * all refresh calls entirely.
+ * The off-switch: deletes the key, which stops all refresh calls
+ * entirely. (The email removal is legacy cleanup from pre-release
+ * builds that stored one.)
  */
 export const removeSupporterKey = createAsyncThunk('supporter/removeKey', async () => {
   await Promise.all([
@@ -284,28 +253,12 @@ const supporterSlice = createSlice({
         state.initialized = true;
         state.keyStatus = action.payload.keyStatus;
         state.payload = action.payload.payload;
-        state.hasStoredEmail = action.payload.hasStoredEmail;
         state.giftAttentionSeen = action.payload.giftAttentionSeen;
         state.footer = action.payload.footer;
       })
       .addCase(initializeSupporter.rejected, (state) => {
         // Storage failure — behave as a fresh install (free experience).
         state.initialized = true;
-      })
-      .addCase(claimSupporterKey.pending, (state) => {
-        state.claimInProgress = true;
-        state.claimError = null;
-      })
-      .addCase(claimSupporterKey.fulfilled, (state, action) => {
-        state.claimInProgress = false;
-        state.keyStatus = action.payload.keyStatus;
-        state.payload = action.payload.payload;
-        state.hasStoredEmail = true;
-      })
-      .addCase(claimSupporterKey.rejected, (state, action) => {
-        state.claimInProgress = false;
-        state.claimError =
-          (action.payload as string) ?? 'Something went wrong claiming your key.';
       })
       .addCase(refreshSupporterKey.pending, (state) => {
         state.claimInProgress = true;
@@ -338,7 +291,6 @@ const supporterSlice = createSlice({
       .addCase(removeSupporterKey.fulfilled, (state) => {
         state.keyStatus = 'none';
         state.payload = null;
-        state.hasStoredEmail = false;
         state.claimError = null;
       })
       .addCase(markGiftAttentionSeen.pending, (state) => {
@@ -370,8 +322,6 @@ export const selectGiftAttentionSeen = (state: RootState) =>
 export const selectSupporterClaimInProgress = (state: RootState) =>
   state.supporter.claimInProgress;
 export const selectSupporterClaimError = (state: RootState) => state.supporter.claimError;
-export const selectSupporterHasStoredEmail = (state: RootState) =>
-  state.supporter.hasStoredEmail;
 export const selectSupporterFooter = (state: RootState) => state.supporter.footer;
 
 export default supporterSlice.reducer;

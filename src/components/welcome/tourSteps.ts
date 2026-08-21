@@ -43,8 +43,8 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
     content: 'Customize operation delays, export defaults, display preferences, and more.',
   },
   theme: {
-    title: 'Theme',
-    content: 'Switch between dark, light, and auto (system) themes.',
+    title: 'Themes',
+    content: 'Pick from the full theme roster, support Discrub, and apply a supporter key, all in one place.',
   },
   more: {
     title: 'More',
@@ -161,7 +161,7 @@ export const shellTourSteps: Step[] = [
   step('dms-tab', '[data-tour="dms-tab"]', { placement: 'right' }),
   step('sidebar-search', '[data-tour="sidebar-search"]', { placement: 'right' }),
   step('settings', '[aria-label="Settings"]'),
-  step('theme', '[aria-label="Toggle theme"]'),
+  step('theme', '[data-testid="gift-button"]'),
   step('more', '[aria-label="More options"]'),
   step('status-panel', '[data-tour="status-panel"]', { placement: 'top' }),
   step('user-profile', '[data-tour="user-profile"]'),

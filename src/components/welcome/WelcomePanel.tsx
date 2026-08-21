@@ -89,7 +89,7 @@ const FEATURE_CARDS: FeatureCard[] = [
     id: 'theme',
     icon: <ThemeIcon />,
     title: 'Themes',
-    description: 'Switch between dark, light, and auto (system) themes. Exported HTML includes its own theme toggle.',
+    description: 'A growing roster of themes behind the gift icon, with live hover previews. Exported HTML includes its own theme switcher.',
   },
   {
     id: 'status',
