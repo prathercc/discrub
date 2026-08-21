@@ -18,7 +18,7 @@ describe('Theme switching from the hub', () => {
 
   const openHub = () => {
     cy.get('[data-testid="gift-button"]').click();
-    cy.get('[data-testid="supporter-theme-showcase"]').should('be.visible');
+    cy.get('[data-testid="supporter-theme-showcase"]').scrollIntoView().should('be.visible');
   };
 
   it('the gift button opens the hub with the full theme grid', () => {
