@@ -248,7 +248,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         </TabPanel>
       </DialogContent>
 
-      <DialogActions>
+      <DialogActions sx={{ flexWrap: 'wrap', gap: 1, '& > :not(:first-of-type)': { ml: 0 } }}>
         <Button variant="outlined" onClick={handleReset} disabled={saving}>
           Reset to defaults
         </Button>

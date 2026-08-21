@@ -25,7 +25,7 @@ interface SidebarProps {
 /**
  * Sidebar component - contains navigation for servers, DMs, and channels
  */
-const Sidebar = ({ open = true, onClose }: SidebarProps) => {
+const Sidebar = ({ open = false, onClose }: SidebarProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [tab, setTab] = useState(0);
@@ -141,7 +141,7 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
   const sidebarContent = (
     <Box
       sx={{
-        width: isMobile ? 280 : 320,
+        width: isMobile ? 'min(300px, 85vw)' : 320,
         flexShrink: 0,
         height: '100%',
         display: 'flex',
@@ -292,7 +292,13 @@ const Sidebar = ({ open = true, onClose }: SidebarProps) => {
   // Mobile: Use drawer, Desktop: Static sidebar
   if (isMobile) {
     return (
-      <Drawer anchor="left" open={open} onClose={onClose}>
+      <Drawer
+        anchor="left"
+        open={open}
+        onClose={onClose}
+        ModalProps={{ keepMounted: true }}
+        PaperProps={{ 'data-testid': 'sidebar-drawer' } as object}
+      >
         {sidebarContent}
       </Drawer>
     );

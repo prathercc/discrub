@@ -446,6 +446,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
             textTransform: 'uppercase',
             fontWeight: 600,
           }}
+          noWrap
         >
           Direct Messages
         </Typography>

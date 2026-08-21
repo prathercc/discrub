@@ -549,6 +549,7 @@ describe('appSlice', () => {
           discrubCancelled: false,
           isMinimized: false,
           focusedView: false,
+          kofiOverlayOpen: false,
           task: { status: 'loading' as const, message: 'Processing...' },
           settings: {
             ...defaultSettings,

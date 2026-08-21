@@ -1,8 +1,8 @@
 import { useState, useRef, useCallback } from 'react';
-import { Drawer, Box, Tabs, Tab, keyframes } from '@mui/material';
+import { Drawer, Box, Tabs, Tab, keyframes, useMediaQuery, useTheme } from '@mui/material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
-import { useAppSelector } from '@/app/hooks';
-import { selectSetting } from '@features/app/appSlice';
+import { useAppDispatch, useAppSelector } from '@/app/hooks';
+import { selectSetting, selectKofiOverlayOpen, setKofiOverlayOpen } from '@features/app/appSlice';
 import { useDonations } from './useDonations';
 import { DonationView } from './donationTypes';
 import DonationFeed from './DonationFeed';
@@ -18,8 +18,18 @@ const glowPulse = keyframes`
 `;
 
 const DonationDrawer = () => {
+  const dispatch = useAppDispatch();
+  const theme = useTheme();
+  // Below `md` the feed overlays the app as a temporary drawer (tap
+  // outside or the Supporter Wall menu item closes it) instead of
+  // reserving a 320px column the phone doesn't have.
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const showFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
-  const open = showFeed === 'true';
+  const overlayOpen = useAppSelector(selectKofiOverlayOpen);
+  // Desktop follows the persisted setting (a remembered column); mobile
+  // follows a transient flag so the wall never covers the app on load.
+  const open = isMobile ? overlayOpen : showFeed === 'true';
+  const handleClose = () => dispatch(setKofiOverlayOpen(false));
   const { donations, isLoading } = useDonations(open);
   const [view, setView] = useState<DonationView>(DonationView.FEED);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -44,14 +54,17 @@ const DonationDrawer = () => {
 
   return (
     <Drawer
-      variant="persistent"
+      variant={isMobile ? 'temporary' : 'persistent'}
       anchor="right"
       open={open}
+      onClose={isMobile ? handleClose : undefined}
+      ModalProps={isMobile ? { keepMounted: false } : undefined}
+      PaperProps={{ 'data-testid': 'donation-drawer' } as object}
       sx={{
-        width: open ? DRAWER_WIDTH : 0,
+        width: open && !isMobile ? DRAWER_WIDTH : 0,
         flexShrink: 0,
         '& .MuiDrawer-paper': {
-          width: DRAWER_WIDTH,
+          width: isMobile ? 'min(320px, 88vw)' : DRAWER_WIDTH,
           height: '100vh',
           bgcolor: 'background.default',
           borderLeft: 1,

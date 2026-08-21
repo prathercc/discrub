@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   AppBar, Toolbar, Avatar, Typography, IconButton, Box, Tooltip,
   Dialog, DialogContent, Menu, MenuItem, ListItemIcon, ListItemText,
-  alpha,
+  alpha, useMediaQuery, useTheme, Divider,
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
 import {
@@ -16,6 +16,7 @@ import {
   Email as EmailIcon,
   WarningAmber as WarningIcon,
   MoreVert as MoreIcon,
+  Menu as MenuIcon,
   Palette as PaletteIcon,
   Star as StarIcon,
 } from '@mui/icons-material';
@@ -29,7 +30,7 @@ import { clearChannels, setSelectedChannel } from '@features/channel/channelSlic
 import { clearDMs, setSelectedDm } from '@features/dm/dmSlice';
 import { clearMessages } from '@features/message/messageSlice';
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
-import { selectSetting, updateSetting, setMinimized } from '@features/app/appSlice';
+import { selectSetting, updateSetting, setMinimized, setKofiOverlayOpen } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning, selectOperationSummary } from '@features/app/operationSelectors';
 import { reopenAnnouncement, fetchAnnouncementMarkdownThunk } from '@features/announcement/announcementSlice';
 import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messaging';
@@ -49,11 +50,22 @@ import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
 import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 import { selectIsMinimized } from '@features/app/appSlice';
 
+interface TopBarProps {
+  /** Opens the navigation drawer; the hamburger only renders below `md`. */
+  onMenuClick?: () => void;
+}
+
 /**
  * TopBar component - shows user info and logout button
  */
-const TopBar = () => {
+const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
   const dispatch = useAppDispatch();
+  const theme = useTheme();
+  // `md` and below: hamburger for the sidebar drawer. `sm` and below:
+  // compact bar (no username/version text; Settings + Logout live in
+  // the More menu) so a 390px phone fits without horizontal scroll.
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isCompact = useMediaQuery(theme.breakpoints.down('sm'));
   const currentUser = useAppSelector(selectCurrentUser);
   const cachedUserMap = useAppSelector(selectCachedUserMap);
   const showKofiFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
@@ -74,6 +86,11 @@ const TopBar = () => {
   };
 
   const handleToggleKofi = () => {
+    if (isMobile) {
+      // Phone: open the wall as an overlay; the persisted column setting is untouched.
+      dispatch(setKofiOverlayOpen(true));
+      return;
+    }
     dispatch(
       updateSetting({
         key: DiscrubSetting.APP_SHOW_KOFI_FEED,
@@ -139,7 +156,19 @@ const TopBar = () => {
         boxShadow: (theme) => theme.customShadows?.elevation1 || '0 2px 8px rgba(0, 0, 0, 0.2)',
       }}
     >
-      <Toolbar sx={{ gap: 2 }}>
+      <Toolbar sx={{ gap: { xs: 1, sm: 2 }, minWidth: 0, overflow: 'hidden' }}>
+        {isMobile && onMenuClick && (
+          <IconButton
+            color="inherit"
+            edge="start"
+            onClick={onMenuClick}
+            aria-label="Open navigation"
+            data-testid="sidebar-menu-button"
+            sx={{ mr: -0.5 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
         {/* Discrub Icon — click to return to WelcomePanel */}
         <Tooltip title="Home" enterDelay={0} arrow>
           <Box
@@ -160,7 +189,7 @@ const TopBar = () => {
           />
         </Tooltip>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0 }}>
           {isHostedGateEnabled() ? (
             /* Hosted build: the wordmark keeps bleeding after sign-in, scaled to the bar. */
             <BleedingStack size="bar" />
@@ -181,6 +210,7 @@ const TopBar = () => {
           <Typography
             variant="caption"
             sx={{
+              display: isCompact ? 'none' : undefined,
               color: (theme: Theme) => alpha(theme.palette.primary.main, 0.7),
               fontWeight: 500,
               fontSize: '0.7rem',
@@ -195,7 +225,7 @@ const TopBar = () => {
         </Box>
 
         {currentUser && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 2 }, flexShrink: 0 }}>
             <Box
               onClick={handleProfileClick}
               data-tour="user-profile"
@@ -204,7 +234,7 @@ const TopBar = () => {
                 alignItems: 'center',
                 gap: 1,
                 cursor: 'pointer',
-                padding: '4px 12px',
+                padding: { xs: '4px', sm: '4px 12px' },
                 borderRadius: '4px',
                 transition: 'background-color 200ms ease',
                 '&:hover': {
@@ -255,7 +285,9 @@ const TopBar = () => {
               </Box>
               <Typography
                 variant="body2"
+                noWrap
                 sx={{
+                  display: isCompact ? 'none' : undefined,
                   transition: 'color 200ms ease',
                 }}
               >
@@ -323,15 +355,17 @@ const TopBar = () => {
               </IconButton>
             </Tooltip>
 
-            <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
-              <IconButton
-                color="inherit"
-                onClick={() => setSettingsOpen(true)}
-                aria-label="Settings"
-              >
-                <SettingsIcon />
-              </IconButton>
-            </HotkeyTooltip>
+            {!isCompact && (
+              <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
+                <IconButton
+                  color="inherit"
+                  onClick={() => setSettingsOpen(true)}
+                  aria-label="Settings"
+                >
+                  <SettingsIcon />
+                </IconButton>
+              </HotkeyTooltip>
+            )}
 
             <Tooltip title="More" enterDelay={0} arrow>
               <IconButton
@@ -404,8 +438,38 @@ const TopBar = () => {
                 </ListItemIcon>
                 <ListItemText>View Announcement</ListItemText>
               </MenuItem>
+              {isCompact && <Divider />}
+              {isCompact && (
+                <MenuItem
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    setMoreMenuAnchor(null);
+                  }}
+                  data-testid="more-menu-settings"
+                >
+                  <ListItemIcon>
+                    <SettingsIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Settings</ListItemText>
+                </MenuItem>
+              )}
+              {isCompact && (
+                <MenuItem
+                  onClick={() => {
+                    setMoreMenuAnchor(null);
+                    handleLogout();
+                  }}
+                  data-testid="more-menu-logout"
+                >
+                  <ListItemIcon>
+                    <LogoutIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Logout</ListItemText>
+                </MenuItem>
+              )}
             </Menu>
 
+            {!isCompact && (
             <Tooltip title="Logout" enterDelay={0} arrow>
               <IconButton
                 color="inherit"
@@ -421,6 +485,7 @@ const TopBar = () => {
                 <LogoutIcon />
               </IconButton>
             </Tooltip>
+            )}
 
             {isOverlayMode() && (
               <HotkeyTooltip actionId="minimize" label="Minimize to Discord" enterDelay={0} arrow>

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Box } from '@mui/material';
+import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppSelector, useAppDispatch } from '@/app/hooks';
@@ -17,6 +17,8 @@ import { selectIsPurging, selectPurgeError } from '@features/purge/purgeSlice';
 import { showToast } from '@features/status/statusSlice';
 import { setDiscrubCancelled, setDiscrubPaused } from '@features/app/appSlice';
 import { selectIsOperationRunning } from '@features/app/operationSelectors';
+import { selectSelectedChannel } from '@features/channel/channelSlice';
+import { selectSelectedDm } from '@features/dm/dmSlice';
 import TopBar from './TopBar';
 import ThemeAccentStrip from '@/theme/ThemeAccentStrip';
 import Sidebar from '@components/navigation/Sidebar';
@@ -47,7 +49,22 @@ const MainLayout = () => {
   const showFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
   const sidebarView = useAppSelector(selectSidebarView);
   const focusedView = useAppSelector(selectFocusedView);
-  const drawerOpen = showFeed === 'true' && !focusedView;
+  const theme = useTheme();
+  // Below `md` the Sidebar becomes a temporary drawer opened from the
+  // TopBar hamburger, and the Ko-fi feed overlays instead of reserving
+  // a 320px column (2.1.0 mobile pass).
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const selectedChannel = useAppSelector(selectSelectedChannel);
+  const selectedDm = useAppSelector(selectSelectedDm);
+  const selectedChannelId = selectedChannel?.id ?? null;
+  const selectedDmId = selectedDm?.id ?? null;
+  // Picking a channel or DM is the end of a navigation; on phones the
+  // drawer closes so the feed is visible. No-op on desktop (prop ignored).
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [selectedChannelId, selectedDmId]);
+  const drawerOpen = showFeed === 'true' && !focusedView && !isMobile;
   const hasNewAnnouncement = useAppSelector(selectHasNewAnnouncement);
   const announcementMarkdown = useAppSelector(selectAnnouncementMarkdown);
   const isLoadingMarkdown = useAppSelector(selectIsLoadingMarkdown);
@@ -197,11 +214,11 @@ const MainLayout = () => {
           transition: 'margin-right 225ms cubic-bezier(0, 0, 0.2, 1)',
         }}
       >
-        {!focusedView && <TopBar />}
+        {!focusedView && <TopBar onMenuClick={() => setSidebarOpen(true)} />}
         {!focusedView && <ThemeAccentStrip />}
 
         <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
-          {!focusedView && <Sidebar />}
+          {!focusedView && <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
 
           <Box
             sx={{

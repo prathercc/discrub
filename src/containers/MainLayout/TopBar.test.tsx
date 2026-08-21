@@ -157,7 +157,7 @@ describe('TopBar', () => {
       renderWithProviders(<TopBar />, {
         preloadedState: createBaseState({
           user: { currentUser, isLoading: false, error: null },
-          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null, previewThemeId: null },
+          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, kofiOverlayOpen: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null, previewThemeId: null },
         }),
       });
       fireEvent.click(screen.getByLabelText('Settings'));
@@ -190,7 +190,7 @@ describe('TopBar', () => {
       const { store } = renderWithProviders(<TopBar />, {
         preloadedState: createBaseState({
           user: { currentUser, isLoading: false, error: null },
-          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null, previewThemeId: null },
+          app: { discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false, kofiOverlayOpen: false, sidebarView: 'server' as const, task: { status: 'idle', message: '' }, settings: null, previewThemeId: null },
         }),
       });
       fireEvent.click(screen.getByLabelText('More options'));

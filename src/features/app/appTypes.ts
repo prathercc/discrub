@@ -16,6 +16,8 @@ export interface AppState {
   discrubCancelled: boolean;
   isMinimized: boolean;
   focusedView: boolean;
+  /** Mobile-only (< md): Ko-fi feed shown as a temporary overlay. Never persisted. */
+  kofiOverlayOpen: boolean;
   sidebarView: SidebarView;
   task: AppTask;
   settings: AppSettings | null;
@@ -32,6 +34,7 @@ export const initialAppState: AppState = {
   discrubCancelled: false,
   isMinimized: false,
   focusedView: false,
+  kofiOverlayOpen: false,
   sidebarView: 'server',
   task: {
     status: 'idle',

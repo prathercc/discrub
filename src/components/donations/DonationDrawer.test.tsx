@@ -61,6 +61,7 @@ function renderDrawer(showKofi: string = 'true') {
         discrubCancelled: false,
         isMinimized: false,
         focusedView: false,
+        kofiOverlayOpen: false,
         sidebarView: 'server' as const,
         task: { status: 'idle', message: '' },
         settings,

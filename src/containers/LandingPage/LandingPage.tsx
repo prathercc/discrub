@@ -293,6 +293,7 @@ const LandingPage = () => {
                         color="inherit"
                         onClick={() => dispatch(removeSupporterKey())}
                         data-testid="hosted-gate-forget-key"
+                        sx={{ whiteSpace: 'nowrap' }}
                       >
                         Forget my key
                       </Button>

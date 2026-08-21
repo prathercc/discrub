@@ -147,6 +147,9 @@ const appSlice = createSlice({
     toggleFocusedView: (state) => {
       state.focusedView = !state.focusedView;
     },
+    setKofiOverlayOpen: (state, action: PayloadAction<boolean>) => {
+      state.kofiOverlayOpen = action.payload;
+    },
     setSidebarView: (state, action: PayloadAction<SidebarView>) => {
       state.sidebarView = action.payload;
     },
@@ -207,6 +210,7 @@ export const {
   setMinimized,
   setFocusedView,
   toggleFocusedView,
+  setKofiOverlayOpen,
   setSidebarView,
   setTask,
   setSettings,
@@ -223,6 +227,7 @@ export const selectSettings = (state: RootState) => state.app.settings;
 export const selectPreviewThemeId = (state: RootState) => state.app.previewThemeId;
 export const selectIsMinimized = (state: RootState) => state.app.isMinimized;
 export const selectFocusedView = (state: RootState) => state.app.focusedView;
+export const selectKofiOverlayOpen = (state: RootState) => state.app.kofiOverlayOpen;
 export const selectSidebarView = (state: RootState) => state.app.sidebarView;
 
 // Settings helper selectors

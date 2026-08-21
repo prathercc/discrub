@@ -100,7 +100,7 @@ describe('Hosted Bleeding Edge gate', () => {
     });
     cy.get('[data-testid="hosted-gate-key-status"]').should(
       'contain.text',
-      'Bleeding Edge is a separate tier',
+      "doesn't include Bleeding Edge",
     );
     cy.get('[data-testid="landing-sign-in"]').should('be.disabled');
   });
