@@ -7,9 +7,12 @@ import {
   DISCORD_LIGHT_ID,
   findThemeDescriptor,
 } from './descriptors';
+import type { ThemeAccent } from './descriptors';
 
 declare module '@mui/material/styles' {
   interface Theme {
+    /** Supporter themes' animated accent strip; absent on free themes. */
+    themeAccent?: ThemeAccent;
     customShadows: {
       elevation1: string;
       elevation2: string;
@@ -35,6 +38,7 @@ declare module '@mui/material/styles' {
     };
   }
   interface ThemeOptions {
+    themeAccent?: ThemeAccent;
     customShadows?: {
       elevation1?: string;
       elevation2?: string;
@@ -122,7 +126,7 @@ export function getThemeById(id: string | undefined): Theme {
 }
 
 export { THEME_DESCRIPTORS, findThemeDescriptor, DEFAULT_THEME_ID, DISCORD_DARK_ID, DISCORD_LIGHT_ID };
-export type { ThemeDescriptor } from './descriptors';
+export type { ThemeDescriptor, ThemeAccent } from './descriptors';
 
 /** Compat exports — Storybook's preview and older call sites use these. */
 export const darkTheme = getThemeById(DISCORD_DARK_ID);

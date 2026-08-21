@@ -176,6 +176,7 @@ export function createAppTheme(descriptor: ThemeDescriptor): Theme {
       // An inline override here would clobber the polished glass/blur
       // style by virtue of object-key precedence after the spread.
     },
+    themeAccent: descriptor.accent,
   });
   applyShapeExtensions(theme);
   return theme;

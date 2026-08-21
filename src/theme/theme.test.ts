@@ -48,6 +48,128 @@ describe('theme registry', () => {
   });
 });
 
+describe('v2.1.0 roster', () => {
+  it('ships 6 free and 8 supporter themes in ratified display order', () => {
+    expect(THEME_DESCRIPTORS.map((d) => d.name)).toEqual([
+      'Dark Original',
+      'Light Original',
+      'Terminal',
+      'High Contrast',
+      'Overcast',
+      'Classic',
+      'AMOLED Void',
+      'Synthwave',
+      'Bytecraft',
+      'Ember',
+      'Nekonoir',
+      'Circuit',
+      'Noir',
+      'Abyss',
+    ]);
+    expect(THEME_DESCRIPTORS.filter((d) => d.tier === 'free')).toHaveLength(6);
+    expect(THEME_DESCRIPTORS.filter((d) => d.tier === 'supporter')).toHaveLength(8);
+  });
+
+  it('the default theme stays Dark Original', () => {
+    expect(THEME_DESCRIPTORS[0].id).toBe(DISCORD_DARK_ID);
+  });
+
+  it('every supporter theme has exactly one accent; free themes have none', () => {
+    for (const d of THEME_DESCRIPTORS) {
+      if (d.tier === 'supporter') {
+        expect(d.accent, `${d.id} should have an accent`).toBeDefined();
+        expect(['flow', 'pulse']).toContain(d.accent!.motion);
+        expect(d.accent!.durationS).toBeGreaterThan(0);
+      } else {
+        expect(d.accent, `${d.id} should not have an accent`).toBeUndefined();
+      }
+    }
+  });
+
+  it('built themes carry the accent through to theme.themeAccent', () => {
+    expect(getThemeById('synthwave').themeAccent?.motion).toBe('flow');
+    expect(getThemeById('amoled-void').themeAccent?.motion).toBe('pulse');
+    expect(getThemeById('terminal').themeAccent).toBeUndefined();
+    expect(darkTheme.themeAccent).toBeUndefined();
+  });
+
+  it("'flow' accents loop seamlessly (gradient starts and ends on the same stop)", () => {
+    for (const d of THEME_DESCRIPTORS) {
+      if (d.accent?.motion !== 'flow') continue;
+      const stops = d.accent.background
+        .replace(/^linear-gradient\(\s*90deg\s*,/, '')
+        .replace(/\)\s*$/, '')
+        .split(/,(?![^(]*\))/)
+        .map((s) => s.trim().replace(/\s+[\d.]+%$/, ''));
+      expect(stops[0], `${d.id} accent should wrap seamlessly`).toBe(stops[stops.length - 1]);
+    }
+  });
+});
+
+// ── WCAG contrast enforcement ───────────────────────────────────────
+// The sweep's guardrail: every palette must be genuinely readable, and
+// High Contrast must earn its name (AAA for body text).
+
+function channel(v: number): number {
+  const c = v / 255;
+  return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+}
+
+function luminance(hex: string): number {
+  const h = hex.replace('#', '');
+  const full = h.length === 3 ? h.split('').map((c) => c + c).join('') : h;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+}
+
+function contrast(a: string, b: string): number {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+describe('palette contrast (WCAG)', () => {
+  for (const d of THEME_DESCRIPTORS) {
+    const p = d.palette;
+    const isHC = d.id === 'high-contrast';
+    const bodyMin = isHC ? 7 : 4.5;
+
+    it(`${d.id}: primary text is readable on all backgrounds (>= ${bodyMin}:1)`, () => {
+      for (const bg of [p.background.default, p.background.paper, p.background.elevated]) {
+        expect(
+          contrast(p.text.primary, bg),
+          `${d.id} text.primary on ${bg}`,
+        ).toBeGreaterThanOrEqual(bodyMin);
+      }
+    });
+
+    it(`${d.id}: secondary text is readable on default/paper (>= 4.5:1)`, () => {
+      for (const bg of [p.background.default, p.background.paper]) {
+        expect(
+          contrast(p.text.secondary, bg),
+          `${d.id} text.secondary on ${bg}`,
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+
+    it(`${d.id}: button text is legible on its fills (>= 3:1, UI component threshold)`, () => {
+      const ctaText = p.primary.contrastText === '#fff' ? '#ffffff' : p.primary.contrastText;
+      expect(contrast(ctaText, p.cta.main), `${d.id} contained button`).toBeGreaterThanOrEqual(3);
+      expect(contrast('#ffffff', p.ctaDanger.main), `${d.id} danger button`).toBeGreaterThanOrEqual(3);
+      expect(
+        contrast(ctaText, p.primary.main),
+        `${d.id} toggle/selection fill`,
+      ).toBeGreaterThanOrEqual(3);
+    });
+
+    it(`${d.id}: links are readable on default background (>= 4.5:1)`, () => {
+      expect(contrast(p.link.main, p.background.default), `${d.id} link`).toBeGreaterThanOrEqual(4.5);
+    });
+  }
+});
+
 describe('migrated Discord themes stay pixel-identical', () => {
   it('dark theme keeps its pre-factory palette', () => {
     expect(darkTheme.palette.mode).toBe('dark');

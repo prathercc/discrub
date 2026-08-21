@@ -18,6 +18,7 @@ import { showToast } from '@features/status/statusSlice';
 import { setDiscrubCancelled, setDiscrubPaused } from '@features/app/appSlice';
 import { selectIsOperationRunning } from '@features/app/operationSelectors';
 import TopBar from './TopBar';
+import ThemeAccentStrip from '@/theme/ThemeAccentStrip';
 import Sidebar from '@components/navigation/Sidebar';
 import ServerView from '@containers/ServerView/ServerView';
 import PackageView from '@components/package/PackageView';
@@ -197,6 +198,7 @@ const MainLayout = () => {
         }}
       >
         {!focusedView && <TopBar />}
+        {!focusedView && <ThemeAccentStrip />}
 
         <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'hidden' }}>
           {!focusedView && <Sidebar />}

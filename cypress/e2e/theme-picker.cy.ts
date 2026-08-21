@@ -69,6 +69,31 @@ describe('Theme Picker', () => {
     cy.get('body').should('have.css', 'background-color', DARK_BG);
   });
 
+  it('shows the full v2.1.0 roster with supporter themes locked', () => {
+    openDisplayTab();
+    // Auto card + 14 registry themes
+    cy.get('[data-testid^="theme-card-"]').should('have.length', 15);
+    // All 8 supporter themes are locked pre-supporter-platform
+    cy.get('[data-testid^="theme-locked-"]').should('have.length', 8);
+
+    // Locked themes still hover-preview live...
+    cy.get('[data-testid="theme-card-amoled-void"]').trigger('mouseover');
+    cy.get('body').should('have.css', 'background-color', 'rgb(0, 0, 0)');
+
+    // ...but clicking cannot select them.
+    cy.get('[data-testid="theme-card-amoled-void"]').click({ force: true });
+    cy.get('[data-testid="theme-selected-amoled-void"]').should('not.exist');
+  });
+
+  it('supporter theme preview shows the animated accent strip', () => {
+    openDisplayTab();
+    cy.get('[data-testid="theme-accent-strip"]').should('not.exist');
+    cy.get('[data-testid="theme-card-synthwave"]').trigger('mouseover');
+    cy.get('[data-testid="theme-accent-strip"]').should('exist');
+    cy.get('[data-testid="theme-card-synthwave"]').trigger('mouseout');
+    cy.get('[data-testid="theme-accent-strip"]').should('not.exist');
+  });
+
   it('theme animations toggle persists through save', () => {
     openDisplayTab();
     cy.get('input[aria-label="Theme animations"]').should('be.checked');
