@@ -308,7 +308,7 @@ const LandingPage = () => {
                       <TextField
                         fullWidth
                         type="password"
-                        label="Supporter key"
+                        label="Key"
                         placeholder="DSCRB-..."
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
@@ -322,7 +322,7 @@ const LandingPage = () => {
                         helperText={
                           keyError ?? (
                             <span data-testid="hosted-gate-help">
-                              Bleeding Edge requires a supporter key. Get one{' '}
+                              Paste the key from your Ko-fi email. Don't have one? Get one{' '}
                               <Link
                                 href={KOFI_MONTHLY_URL}
                                 target="_blank"
@@ -352,7 +352,7 @@ const LandingPage = () => {
                         variant="outlined"
                         onClick={handleApplyKey}
                         disabled={!keyInput.trim() || keyBusy}
-                        sx={{ alignSelf: 'flex-start', mt: '2px', height: 56 }}
+                        sx={{ alignSelf: 'flex-start', height: 40, flexShrink: 0 }}
                         data-testid="hosted-gate-apply"
                       >
                         {keyBusy ? <CircularProgress size={20} /> : 'Apply'}
@@ -405,7 +405,7 @@ const LandingPage = () => {
 
             <Stack spacing={0.75} alignItems="center">
               <Link
-                href="https://github.com/prathercc/discrub#finding-your-discord-token"
+                href="https://github.com/pratherbytecraft/discrub#finding-your-discord-token"
                 target="_blank"
                 rel="noopener noreferrer"
                 variant="caption"

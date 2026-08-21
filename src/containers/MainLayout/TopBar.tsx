@@ -41,6 +41,8 @@ import {
 } from '@features/supporter/supporterSlice';
 import SettingsModal from '@components/settings/SettingsModal';
 import SupporterDialog from '@components/supporter/SupporterDialog';
+import { BleedingStack } from '@components/supporter/BleedingTitle';
+import { isHostedGateEnabled } from '@services/hostedGate';
 import UserProfileModal from '@components/modals/UserProfileModal';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
@@ -159,18 +161,23 @@ const TopBar = () => {
         </Tooltip>
 
         <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{
-              fontWeight: 700,
-              background: (theme) => `linear-gradient(135deg, ${theme.palette.text.primary}, ${theme.palette.primary.main})`,
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            Discrub
-          </Typography>
+          {isHostedGateEnabled() ? (
+            /* Hosted build: the wordmark keeps bleeding after sign-in, scaled to the bar. */
+            <BleedingStack size="bar" />
+          ) : (
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                fontWeight: 700,
+                background: (theme) => `linear-gradient(135deg, ${theme.palette.text.primary}, ${theme.palette.primary.main})`,
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+              }}
+            >
+              Discrub
+            </Typography>
+          )}
           <Typography
             variant="caption"
             sx={{
@@ -179,6 +186,8 @@ const TopBar = () => {
               fontSize: '0.7rem',
               letterSpacing: '0.5px',
               ml: 0.5,
+              alignSelf: isHostedGateEnabled() ? 'flex-end' : undefined,
+              mb: isHostedGateEnabled() ? '1px' : undefined,
             }}
           >
             v{__APP_VERSION__}

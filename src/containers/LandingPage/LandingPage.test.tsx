@@ -233,13 +233,14 @@ describe('LandingPage', () => {
 
     it('asks for a supporter key (masked) and keeps Sign In disabled without one', () => {
       renderGate({});
-      expect(screen.getAllByText(/Bleeding Edge/).length).toBeGreaterThan(0);
+      expect(screen.getByTestId('bleeding-prefix')).toHaveTextContent('Discrub');
+      expect(screen.getByTestId('bleeding-title')).toHaveTextContent('Bleeding Edge');
       const keyField = screen.getByTestId('hosted-gate-key');
       expect(keyField).toHaveAttribute('type', 'password');
       expect(screen.getByLabelText(/Discord Token/)).toHaveAttribute('type', 'password');
       fireEvent.change(screen.getByLabelText(/Discord Token/), { target: { value: 'tok' } });
       expect(screen.getByTestId('landing-sign-in')).toBeDisabled();
-      expect(screen.getByTestId('hosted-gate-help')).toHaveTextContent(/requires a supporter key/);
+      expect(screen.getByTestId('hosted-gate-help')).toHaveTextContent(/Paste the key from your Ko-fi email/);
       expect(screen.getByTestId('hosted-gate-kofi-monthly')).toHaveAttribute(
         'href',
         'https://ko-fi.com/prathercc/tiers',
@@ -248,9 +249,10 @@ describe('LandingPage', () => {
         'href',
         'https://ko-fi.com/s/3b0ad65948',
       );
-      expect(screen.getByTestId('bleeding-title')).toHaveTextContent('Discrub Bleeding Edge');
+      expect(screen.getByTestId('bleeding-prefix')).toHaveTextContent('Discrub');
+      expect(screen.getByTestId('bleeding-title')).toHaveTextContent('Bleeding Edge');
       expect(screen.getByTestId('bleeding-caption')).toHaveTextContent(/Early access build v\d+\.\d+\.\d+/);
-      expect(screen.getAllByTestId('bleeding-drip').length).toBeGreaterThan(2);
+      expect(screen.getAllByTestId('bleeding-drip')).toHaveLength(1);
       expect(screen.queryByText('Welcome to Discrub')).toBeNull();
     });
 
