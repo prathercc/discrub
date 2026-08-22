@@ -3085,9 +3085,7 @@ describe('purgeSlice thunks', () => {
       setupThreadDiscovery({ [parentCh]: [archivedThread] });
 
       // Parent's search returns one hit whose channel_id is the thread
-      let searchCall = 0;
       mockFetchSearchMessageData.mockImplementation((_t: string, _off: number, ch: string | null) => {
-        searchCall++;
         if (ch === parentCh) {
           return Promise.resolve({
             success: true,
@@ -5064,14 +5062,12 @@ describe('purgeSlice thunks', () => {
       ];
 
       // Each channel has messages with reactions
-      let fetchCallIdx = 0;
       const channelReactorCounts: Record<string, number> = {
         ch1: 10, ch2: 25, ch3: 15,
       };
 
       mockFetchMessageData.mockImplementation(
         (_token: string, _lastId: string, channelId: string) => {
-          fetchCallIdx++;
           if (channelReactorCounts[channelId] && channelReactorCounts[channelId] > 0) {
             const count = channelReactorCounts[channelId];
             channelReactorCounts[channelId] = 0;
@@ -5676,9 +5672,7 @@ describe('purgeSlice thunks', () => {
       const thread = { id: 't1', name: 'Thread 1', parent_id: 'ch1', type: 11 } as Channel;
       setupThreadDiscovery({ ch1: [thread] });
 
-      let fetchCall = 0;
       mockFetchMessageData.mockImplementation(() => {
-        fetchCall++;
         return Promise.resolve({ success: true, data: [] });
       });
 
@@ -5722,10 +5716,8 @@ describe('purgeSlice thunks', () => {
 
       // Parent channel: 1 message with reactions
       // Thread: 1 message with NO reactions
-      let fetchCall = 0;
       mockFetchMessageData.mockImplementation(
         (_token: string, lastId: string, channelId: string) => {
-          fetchCall++;
           if (channelId === 'ch1' && lastId === '') {
             const msg = mockMessage('m1');
             msg.reactions = [{ emoji: { id: null, name: '👍' }, count: 1, me: true, me_burst: false, count_details: { burst: 0, normal: 1 }, burst_colors: [] }];

@@ -196,9 +196,7 @@ describe('API Call Counts', () => {
       cy.selectServer('Cypress Test Server');
 
       // Intercept user lookups — first call returns 404
-      let userLookupCount = 0;
       cy.intercept('GET', `${API}/users/999888777666555444`, (req) => {
-        userLookupCount++;
         req.reply({ statusCode: 404, body: { message: 'Unknown User' } });
       }).as('userLookup404');
 

@@ -27,9 +27,7 @@ vi.mock('@features/app/appSlice', () => ({
 import { useBeforeUnloadWarning } from './useBeforeUnloadWarning';
 
 describe('useBeforeUnloadWarning', () => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let addSpy: any;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let removeSpy: any;
 
   beforeEach(() => {

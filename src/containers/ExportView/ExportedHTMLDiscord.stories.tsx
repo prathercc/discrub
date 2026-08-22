@@ -295,7 +295,7 @@ const DiscordShellPreview = () => {
   const [scenarioKey, setScenarioKey] = useState<string>('singleChannel');
   const scenario = SCENARIOS[scenarioKey];
 
-  const html = useMemo(() => scenario.generate(), [scenarioKey]);
+  const html = useMemo(() => scenario.generate(), [scenario]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>

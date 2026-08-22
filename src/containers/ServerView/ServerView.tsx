@@ -283,6 +283,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       const timer = setTimeout(() => contextualTour.start(), 800);
       return () => clearTimeout(timer);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [messages.length, isLoading, contextualTour.completed, contextualTour.running, contextualTour.start]);
 
   // Store dispatch results so we can abort operations
@@ -419,6 +420,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         );
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [mainMessages.length, token, settings, selectedGuild?.id, dispatch]);
 
   // Fetch the guild's custom emojis for the bulk-add-reactions picker (#202).

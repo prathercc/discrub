@@ -27,7 +27,6 @@ const reducer = {
   cache: cacheReducer,
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function createStore(preloadedState?: any) {
   return configureStore({ reducer: reducer as any, preloadedState });
 }

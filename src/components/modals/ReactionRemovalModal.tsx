@@ -146,6 +146,7 @@ const ReactionRemovalModal = ({
     return () => {
       abortRef.current = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [open, messagesWithReactions]);
 
   // Reset state on close

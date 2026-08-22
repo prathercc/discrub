@@ -4,8 +4,6 @@ import type { Channel } from 'discrub-core/types/discord-types';
 
 const VIEW_CHANNEL = 1n << 10n;
 const MANAGE_MESSAGES = 1n << 13n;
-// @ts-ignore reserved for future permission tests
-const READ_MESSAGE_HISTORY = 1n << 16n;
 const ADMINISTRATOR = 1n << 3n;
 const SEND_MESSAGES = 1n << 11n;
 

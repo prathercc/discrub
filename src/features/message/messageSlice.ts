@@ -1849,7 +1849,6 @@ export const fetchAllMessages = createAsyncThunk(
 
       let allMessages: Message[] = [];
       let lastMessageId = '';
-      let batchCount = 0;
       let hasMore = true;
       // 500-step cadence (not the shared adaptive helper) — direct-history
       // walks of busy channels can fetch tens of thousands of messages, and
@@ -1893,7 +1892,6 @@ export const fetchAllMessages = createAsyncThunk(
 
         const messages = response.data as Message[];
         allMessages = [...allMessages, ...messages];
-        batchCount++;
 
         // #181: live append so the table grows during the operation.
         dispatch(messageSlice.actions.appendLoadAllPage({ messages }));
@@ -2129,7 +2127,6 @@ export const applyUserFilter = createAsyncThunk(
     { dispatch, getState },
   ) => {
     const state = getState() as RootState;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const token = (state as any).auth?.token as string | undefined;
     if (!token) return { skipped: 'no-token' as const };
 
@@ -2161,11 +2158,8 @@ export const applyUserFilter = createAsyncThunk(
         searchCriteria: newCriteria,
       }));
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const channelId = (state as any).channel?.selectedChannel?.id
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ?? (state as any).dm?.selectedDm?.id;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const guildId = (state as any).guild?.selectedGuild?.id;
       if (!channelId) return { skipped: 'no-channel' as const };
       await dispatch(searchMessages({
@@ -2412,7 +2406,6 @@ export const searchThreadMessages = createAsyncThunk(
       let allMessages: Message[] = [];
       let currentCriteria = { ...searchCriteria };
       let shouldContinue = true;
-      let batchNumber = 0;
       let milestoneBoundary = nextMilestone(0);
 
       // Reaction enrichment status cadence — see loadAllSearchResults (#178).
@@ -2467,7 +2460,6 @@ export const searchThreadMessages = createAsyncThunk(
         let batchMessages: Message[] = [];
         let offset = 0;
         const maxPerBatch = 5000;
-        batchNumber++;
 
         while (batchMessages.length < maxPerBatch && !signal.aborted) {
           await waitWhilePaused(getState as () => RootState);

@@ -11,7 +11,7 @@
     "build:classic:chrome": "node scripts/build-classic.mjs chrome",
     "build:classic:firefox": "node scripts/build-classic.mjs firefox",
     "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",

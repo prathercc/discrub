@@ -4586,7 +4586,6 @@ describe('messageSlice', () => {
       });
 
       it('should reject fetchAllThreadMessages when tab removed mid-fetch', async () => {
-        let testStore: any;
         const mockDiscordService = {
           fetchMessageData: vi.fn()
             .mockResolvedValueOnce({ success: true, data: createMockMessages(100) })
@@ -4598,7 +4597,7 @@ describe('messageSlice', () => {
         };
         vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
-        testStore = await createStoreWithApp({
+        const testStore: any = await createStoreWithApp({
           ...initialMessageState,
           activeTab: 'thread-100',
           threadTabs: {
@@ -4627,7 +4626,6 @@ describe('messageSlice', () => {
 
     describe('Thread edge cases - round 2', () => {
       it('should reject searchThreadMessages when tab removed mid-fetch', async () => {
-        let testStore: any;
         const mockDiscordService = {
           fetchSearchMessageData: vi.fn().mockImplementation(async () => {
             // Remove the tab before resolving
@@ -4640,7 +4638,7 @@ describe('messageSlice', () => {
         };
         vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
-        testStore = await createStoreWithApp({
+        const testStore: any = await createStoreWithApp({
           ...initialMessageState,
           activeTab: 'thread-100',
           threadTabs: {
@@ -5276,7 +5274,6 @@ describe('messageSlice', () => {
       // by then the prior page's updateLoadAllProgress has run. (Same
       // mid-walk snapshot trick the #181 append test uses.)
       const progress: Array<{ current: number; total: number }> = [];
-      let testStore: any;
       let call = 0;
       const fetchMock = vi.fn().mockImplementation(async () => {
         const p = testStore.getState().message.pagination.loadAllProgress;
@@ -5294,7 +5291,7 @@ describe('messageSlice', () => {
         makeSearchService({ fetchSearchMessageData: fetchMock }),
       );
 
-      testStore = await makeStore({ ...baseCriteria }, initialMsgs);
+      const testStore: any = await makeStore({ ...baseCriteria }, initialMsgs);
       const result: any = await testStore.dispatch(
         loadAllSearchResults({ channelId: 'ch1', token: 'token' }),
       );

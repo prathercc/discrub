@@ -293,8 +293,6 @@ describe('ChannelList', () => {
   });
 
   describe('Channel Permissions', () => {
-    // @ts-ignore reserved for future permission tests
-    const VIEW_CHANNEL = (1n << 10n).toString();
     const NO_VIEW = '0';
 
     it('should show lock icon for channels user cannot access', () => {

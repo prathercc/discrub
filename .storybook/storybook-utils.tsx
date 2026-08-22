@@ -31,7 +31,6 @@ const reducer = {
   announcement: announcementReducer,
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function createMockStore(preloadedState?: any) {
   return configureStore({ reducer: reducer as any, preloadedState });
 }
@@ -40,7 +39,6 @@ export function createMockStore(preloadedState?: any) {
  * Creates a Storybook decorator that wraps the story in a Redux Provider
  * with the given preloaded state, plus MUI ThemeProvider.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function withStoreDecorator(preloadedState: any) {
   return (Story: React.ComponentType) => {
     const store = createMockStore(preloadedState);

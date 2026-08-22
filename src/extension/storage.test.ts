@@ -150,7 +150,6 @@ describe('storage (namespaced IndexedDB adapters)', () => {
 
   describe('error handling (idb-keyval rejects)', () => {
     let mod: typeof import('./storage');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let stubs: Record<string, any>;
 
     beforeEach(async () => {

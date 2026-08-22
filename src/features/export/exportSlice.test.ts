@@ -358,7 +358,7 @@ describe('exportSlice', () => {
     });
 
     it('should dispatch progress updates during export', async () => {
-      let capturedProgressUpdates: MediaDownloadProgress[] = [];
+      const capturedProgressUpdates: MediaDownloadProgress[] = [];
 
       const mockExportService = {
         exportToZip: vi.fn().mockImplementation(async (

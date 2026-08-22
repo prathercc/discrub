@@ -279,6 +279,7 @@ const PresetSelector = () => {
     );
 
     return items;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [userPresets]);
 
   return (

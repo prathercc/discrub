@@ -196,7 +196,7 @@ const HtmlExportPreview = () => {
     );
 
     return generatedHtml;
-  }, [scenarioKey, scenario]);
+  }, [scenario]);
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>

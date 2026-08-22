@@ -919,7 +919,6 @@ async function runSearchPreflight(args: {
   searchDelay: number;
   delayModifier: number;
   getState: () => RootState;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   dispatch: (action: any) => void;
   /**
    * Called after each successful page. Receives the total found-so-far

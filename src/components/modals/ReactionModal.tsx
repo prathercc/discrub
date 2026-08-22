@@ -77,6 +77,7 @@ const ReactionModal = ({
           .finally(() => setLoadingEmoji(null));
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [open, hasReactions]);
 
   // Reset state on close

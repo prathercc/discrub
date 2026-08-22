@@ -179,17 +179,6 @@ const addUserById = (userId: string) => {
 };
 
 /**
- * Select a user from the cached dropdown by display name.
- */
-const selectCachedUser = (displayName: string) => {
-  cy.get('[role="dialog"]')
-    .find('.MuiAutocomplete-root input')
-    .click();
-
-  cy.get('[role="listbox"]').contains(displayName).click();
-};
-
-/**
  * Click the confirm button in BulkPurgeDialog.
  * Covers all four mode button labels: "Purge N Ch.s", "Strip Attachments (N)",
  * "Remove Reactions (N)", "Clear Reactions (N)".

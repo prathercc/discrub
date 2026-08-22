@@ -304,6 +304,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           r.global_name?.toLowerCase().includes(searchLower),
       );
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [dms, filterText]);
 
   const visible = filteredDMs.slice(0, visibleCount);

@@ -966,7 +966,7 @@ describe('Content Script', () => {
         sendResponse
       );
 
-      let tab = document.getElementById('discrub-floating-tab')!;
+      const tab = document.getElementById('discrub-floating-tab')!;
       fireAnimationEnd(tab);
       fireAnimationEnd(dialog);
 

@@ -13,7 +13,6 @@ vi.mock('discrub-core/messages', () => ({
 describe('replyEnrichmentService (#194 — populate Message.referenced_message)', () => {
   let service: ReplyEnrichmentServiceWrapper;
   let mockResolve: ReturnType<typeof vi.fn>;
-  let settings: AppSettings;
 
   const repliesOn = (overrides: Partial<AppSettings> = {}) =>
     ({
@@ -34,7 +33,6 @@ describe('replyEnrichmentService (#194 — populate Message.referenced_message)'
 
   beforeEach(async () => {
     service = new ReplyEnrichmentServiceWrapper();
-    settings = repliesOn();
 
     const { MessageFetchService, DiscordServiceAdapter } = await import('discrub-core/messages');
     vi.mocked(MessageFetchService).mockClear();

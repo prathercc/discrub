@@ -9,7 +9,6 @@
  */
 
 const API = '**/api/v10';
-const DAY_S = 24 * 60 * 60;
 
 let publicKeyPem: string;
 let privateKey: CryptoKey;

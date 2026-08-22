@@ -13,7 +13,7 @@
 /**
  * Overlay state management
  */
-let overlayState: {
+const overlayState: {
   isOpen: boolean;
   isMinimized: boolean;
   isAnimating: boolean;
@@ -616,7 +616,7 @@ function getDiscordTokenFromLocalStorage(): string | null {
   if (BRIDGE_ONLY) return null;
   try {
     // Primary location: direct token key
-    let token = localStorage.getItem('token');
+    const token = localStorage.getItem('token');
 
     if (token) {
       // Remove surrounding quotes if present

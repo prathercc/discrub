@@ -101,6 +101,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
     if (mediaEnabled && !expandedPanels.media) {
       setExpandedPanels((prev) => ({ ...prev, media: true }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [mediaEnabled]);
 
   const handlePanelChange = (panel: string) => (_: React.SyntheticEvent, isExpanded: boolean) => {

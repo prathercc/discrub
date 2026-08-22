@@ -27,32 +27,34 @@ function Swatch({ name, color }: { name: string; color: string }) {
   );
 }
 
-export const Colors: Story = {
-  render: () => {
-    const t = useTheme();
-    const p = t.palette;
-    const swatches: Array<[string, string]> = [
-      ['primary.main', p.primary.main],
-      ['secondary.main', p.secondary.main],
-      ['error.main', p.error.main],
-      ['warning.main', p.warning.main],
-      ['success.main', p.success.main],
-      ['background.default', p.background.default],
-      ['background.paper', p.background.paper],
-      ['text.primary', p.text.primary],
-      ['text.secondary', p.text.secondary],
-      ['primaryGradient', (p as { primaryGradient?: string }).primaryGradient ?? p.primary.main],
-      ['backgroundElevated', (p as { backgroundElevated?: string }).backgroundElevated ?? p.background.paper],
-    ];
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>Palette</Typography>
-        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-          {swatches.map(([name, color]) => <Swatch key={name} name={name} color={color} />)}
-        </Box>
+const ColorsView = () => {
+  const t = useTheme();
+  const p = t.palette;
+  const swatches: Array<[string, string]> = [
+    ['primary.main', p.primary.main],
+    ['secondary.main', p.secondary.main],
+    ['error.main', p.error.main],
+    ['warning.main', p.warning.main],
+    ['success.main', p.success.main],
+    ['background.default', p.background.default],
+    ['background.paper', p.background.paper],
+    ['text.primary', p.text.primary],
+    ['text.secondary', p.text.secondary],
+    ['primaryGradient', (p as { primaryGradient?: string }).primaryGradient ?? p.primary.main],
+    ['backgroundElevated', (p as { backgroundElevated?: string }).backgroundElevated ?? p.background.paper],
+  ];
+  return (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h6" gutterBottom>Palette</Typography>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+        {swatches.map(([name, color]) => <Swatch key={name} name={name} color={color} />)}
       </Box>
-    );
-  },
+    </Box>
+  );
+};
+
+export const Colors: Story = {
+  render: () => <ColorsView />,
 };
 
 export const Typography_: Story = {
@@ -75,41 +77,45 @@ export const Typography_: Story = {
   },
 };
 
+const SpacingView = () => {
+  const t = useTheme();
+  return (
+    <Box sx={{ p: 2 }}>
+      <Typography variant="h6" gutterBottom>Spacing scale (theme.spacing)</Typography>
+      <Stack spacing={1}>
+        {[0.5, 1, 1.5, 2, 3, 4, 6, 8].map((n) => (
+          <Box key={n} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ width: 64 }}>spacing({n})</Typography>
+            <Box sx={{ height: 16, width: t.spacing(n), background: t.palette.primary.main, borderRadius: 0.5 }} />
+            <Typography variant="caption" color="text.secondary">{t.spacing(n)}</Typography>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  );
+};
+
 export const Spacing: Story = {
-  render: () => {
-    const t = useTheme();
-    return (
-      <Box sx={{ p: 2 }}>
-        <Typography variant="h6" gutterBottom>Spacing scale (theme.spacing)</Typography>
-        <Stack spacing={1}>
-          {[0.5, 1, 1.5, 2, 3, 4, 6, 8].map((n) => (
-            <Box key={n} sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ width: 64 }}>spacing({n})</Typography>
-              <Box sx={{ height: 16, width: t.spacing(n), background: t.palette.primary.main, borderRadius: 0.5 }} />
-              <Typography variant="caption" color="text.secondary">{t.spacing(n)}</Typography>
-            </Box>
-          ))}
-        </Stack>
+  render: () => <SpacingView />,
+};
+
+const SurfacesView = () => {
+  const t = useTheme();
+  const elevated = (t.palette as { backgroundElevated?: string }).backgroundElevated ?? t.palette.background.paper;
+  return (
+    <Box sx={{ p: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
+      <Paper sx={{ p: 2, width: 220 }}>
+        <Typography variant="subtitle2">Paper (default)</Typography>
+        <Typography variant="caption" color="text.secondary">background.paper, no elevation gradient (#142)</Typography>
+      </Paper>
+      <Box sx={{ p: 2, width: 220, borderRadius: 1.5, background: elevated, border: `1px solid ${t.palette.divider}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
+        <Typography variant="subtitle2">Polished backdrop</Typography>
+        <Typography variant="caption" color="text.secondary">Elevated surface used by RichTooltip + TourButton paper</Typography>
       </Box>
-    );
-  },
+    </Box>
+  );
 };
 
 export const Surfaces: Story = {
-  render: () => {
-    const t = useTheme();
-    const elevated = (t.palette as { backgroundElevated?: string }).backgroundElevated ?? t.palette.background.paper;
-    return (
-      <Box sx={{ p: 2, display: 'flex', gap: 3, flexWrap: 'wrap' }}>
-        <Paper sx={{ p: 2, width: 220 }}>
-          <Typography variant="subtitle2">Paper (default)</Typography>
-          <Typography variant="caption" color="text.secondary">background.paper, no elevation gradient (#142)</Typography>
-        </Paper>
-        <Box sx={{ p: 2, width: 220, borderRadius: 1.5, background: elevated, border: `1px solid ${t.palette.divider}`, boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}>
-          <Typography variant="subtitle2">Polished backdrop</Typography>
-          <Typography variant="caption" color="text.secondary">Elevated surface used by RichTooltip + TourButton paper</Typography>
-        </Box>
-      </Box>
-    );
-  },
+  render: () => <SurfacesView />,
 };

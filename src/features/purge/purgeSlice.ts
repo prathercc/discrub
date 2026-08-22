@@ -623,7 +623,6 @@ async function purgeChannelMessages(
   let totalFailed = 0;
   let totalSkippedNotAuthor = 0;
   let totalSkippedUnexpectedAuthor = 0;
-  let totalSkippedArchivedNoPerm = 0;
   let totalSkippedArchivedOptOut = 0;
   let totalSkippedPinned = 0;
   let totalSkippedPreserved = 0;
@@ -940,7 +939,6 @@ async function purgeChannelMessages(
           // Cached "not allowed" → aggregate skip, move on.
           if (threadUnarchiveAllowed.get(threadId) === false) {
             totalSkipped++;
-            totalSkippedArchivedNoPerm++;
             totalProcessed++;
             if (totalProcessed - lastProgressDispatch >= PROGRESS_THROTTLE_MESSAGES || mi === messages.length - 1) {
               lastProgressDispatch = totalProcessed;
