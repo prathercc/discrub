@@ -11,6 +11,8 @@ import {
   IconButton,
   Link,
   TextField,
+  ToggleButton,
+  ToggleButtonGroup,
   Tooltip,
   Typography,
   alpha,
@@ -25,7 +27,7 @@ import {
   FavoriteBorder as HeartIcon,
   CheckCircle as IncludedIcon,
   RadioButtonUnchecked as NotIncludedIcon,
-  LockOutlined as LockIcon,
+  Lock as LockIcon,
 } from '@mui/icons-material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
@@ -60,6 +62,7 @@ import {
 } from '@services/exportFooter';
 import { ThemeGrid } from '@components/settings/tabs/ThemePicker';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import KofiIcon from './KofiIcon';
 
 import {
   KOFI_MONTHLY_URL,
@@ -79,6 +82,18 @@ const FEATURE_LABEL: Record<SupporterFeature, string> = {
 const FEATURE_BLURB: Record<SupporterFeature, string> = {
   themes: 'Full theme pack in the app and in exports, animated accents, custom export footer',
   hosted: 'Hosted early-access build with new features before they clear store review',
+};
+
+type Period = 'monthly' | 'yearly';
+const PLAN: Record<SupporterFeature, Record<Period, { price: string; unit: string; url: string }>> = {
+  themes: {
+    monthly: { price: '$3', unit: '/ month', url: KOFI_MONTHLY_URL },
+    yearly: { price: '$25', unit: '/ year, never renews', url: KOFI_SUPPORTER_YEARLY_URL },
+  },
+  hosted: {
+    monthly: { price: '$5', unit: '/ month', url: KOFI_MONTHLY_URL },
+    yearly: { price: '$40', unit: '/ year, never renews', url: KOFI_BLEEDING_EDGE_YEARLY_URL },
+  },
 };
 
 const formatDate = (unix: number) => new Date(unix * 1000).toLocaleDateString();
@@ -136,6 +151,7 @@ const SupporterDialog = () => {
   const footer = useAppSelector(selectSupporterFooter);
 
   const [pastedKey, setPastedKey] = useState('');
+  const [period, setPeriod] = useState<'monthly' | 'yearly'>('monthly');
   const [footerTextDraft, setFooterTextDraft] = useState<string | null>(null);
   const [iconError, setIconError] = useState<string | null>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
@@ -318,6 +334,7 @@ const SupporterDialog = () => {
                               sx={{ color: 'cta.main' }}
                               data-testid={`supporter-get-${feature}`}
                             >
+                              <KofiIcon size={12} sx={{ verticalAlign: '-2px', mr: 0.5 }} />
                               Get it on Ko-fi
                             </Link>
                           </>
@@ -365,6 +382,25 @@ const SupporterDialog = () => {
 
         {!isSupporter && (
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mb: 2 }} data-testid="supporter-purchase">
+            <ToggleButtonGroup
+              value={period}
+              exclusive
+              size="small"
+              onChange={(_, next: 'monthly' | 'yearly' | null) => next && setPeriod(next)}
+              aria-label="Billing period"
+              data-testid="supporter-period"
+              sx={{ alignSelf: 'center' }}
+            >
+              <ToggleButton value="monthly" data-testid="supporter-period-monthly" sx={{ textTransform: 'none', px: 2 }}>
+                Monthly
+              </ToggleButton>
+              <ToggleButton value="yearly" data-testid="supporter-period-yearly" sx={{ textTransform: 'none', px: 2 }}>
+                Yearly
+                <Typography component="span" variant="caption" sx={{ ml: 0.75, color: 'success.main', fontWeight: 700 }}>
+                  save ~30%
+                </Typography>
+              </ToggleButton>
+            </ToggleButtonGroup>
             <Box
               data-testid="supporter-purchase-grid"
               sx={{
@@ -373,60 +409,59 @@ const SupporterDialog = () => {
                 gap: 1.5,
               }}
             >
-              {(['themes', 'hosted'] as const).map((feature) => (
-                <Box
-                  key={feature}
-                  data-testid={`supporter-plan-${feature}`}
-                  sx={{
-                    p: 1.5,
-                    borderRadius: 1.5,
-                    border: '1px solid',
-                    borderColor: 'divider',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 1,
-                  }}
-                >
-                  <Box>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                      {feature === 'themes' ? 'Discrub Supporter' : 'Discrub Bleeding Edge'}
-                    </Typography>
-                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                      {feature === 'themes'
-                        ? FEATURE_BLURB.themes
-                        : `Everything in Supporter, plus the ${FEATURE_BLURB.hosted.charAt(0).toLowerCase()}${FEATURE_BLURB.hosted.slice(1)}`}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ display: 'flex', gap: 1, mt: 'auto' }}>
+              {(['themes', 'hosted'] as const).map((feature) => {
+                const plan = PLAN[feature][period];
+                return (
+                  <Box
+                    key={feature}
+                    data-testid={`supporter-plan-${feature}`}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 1,
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {feature === 'themes' ? 'Supporter' : 'Bleeding Edge'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {feature === 'themes'
+                          ? FEATURE_BLURB.themes
+                          : `Everything in Supporter, plus the ${FEATURE_BLURB.hosted.charAt(0).toLowerCase()}${FEATURE_BLURB.hosted.slice(1)}`}
+                      </Typography>
+                    </Box>
+                    <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                      <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1 }} data-testid={`supporter-price-${feature}`}>
+                        {plan.price}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                        {plan.unit}
+                      </Typography>
+                    </Box>
                     <Button
                       size="small"
                       variant="contained"
-                      href={KOFI_MONTHLY_URL}
+                      href={plan.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      sx={{ ...kofiButtonSx, flex: 1 }}
-                      data-testid={`supporter-kofi-${feature}-monthly`}
+                      startIcon={<KofiIcon size={16} />}
+                      sx={kofiButtonSx}
+                      data-testid={`supporter-kofi-${feature}-${period}`}
                     >
-                      {feature === 'themes' ? '$3 / month' : '$5 / month'}
-                    </Button>
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      href={feature === 'themes' ? KOFI_SUPPORTER_YEARLY_URL : KOFI_BLEEDING_EDGE_YEARLY_URL}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      sx={{ flex: 1, textTransform: 'none', fontWeight: 700 }}
-                      data-testid={`supporter-kofi-${feature}-yearly`}
-                    >
-                      {feature === 'themes' ? '$25 / year' : '$40 / year'}
+                      Support on Ko-fi
                     </Button>
                   </Box>
-                </Box>
-              ))}
+                );
+              })}
             </Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              Yearly passes save about 30% and never renew on their own. One key covers
-              everything you support, in the app and at {HOSTED_URL.replace('https://', '')}.
+              One key covers Discrub and every future Prather Bytecraft app, in the app and at{' '}
+              {HOSTED_URL.replace('https://', '')}.
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1 }}>
@@ -516,14 +551,30 @@ const SupporterDialog = () => {
         <Box
           data-testid="supporter-footer-controls"
           data-locked={footerControlsDisabled ? 'true' : 'false'}
-          sx={{ opacity: footerControlsDisabled ? 0.7 : 1 }}
+          sx={(theme: Theme) => ({
+            position: 'relative',
+            opacity: footerControlsDisabled ? 0.75 : 1,
+            ...(footerControlsDisabled && {
+              // Locked: diagonal hatching over the whole section so the
+              // controls stay readable but clearly fenced off.
+              borderRadius: 1.5,
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                inset: -8,
+                borderRadius: 1.5,
+                pointerEvents: 'none',
+                backgroundImage: `repeating-linear-gradient(-45deg, ${alpha(theme.palette.text.primary, 0.07)} 0 6px, transparent 6px 18px)`,
+              },
+            }),
+          })}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
               Export footer
             </Typography>
             {footerControlsDisabled && (
-              <LockIcon sx={{ fontSize: 14, color: 'text.disabled' }} data-testid="supporter-footer-lock" />
+              <LockIcon sx={{ fontSize: 14, color: 'error.main' }} data-testid="supporter-footer-lock" />
             )}
           </Box>
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>

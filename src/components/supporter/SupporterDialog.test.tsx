@@ -89,27 +89,31 @@ describe('SupporterDialog', () => {
       expect(screen.getByTestId('theme-card-terminal')).toBeInTheDocument();
       expect(screen.getByTestId('theme-locked-amoled-void')).toBeInTheDocument();
 
-      // Two tiers x monthly/yearly, each pinned to its Ko-fi URL.
+      // Two tiers, one Ko-fi button each; the period toggle swaps price + URL.
       expect(screen.getByTestId('supporter-kofi-themes-monthly')).toHaveAttribute(
         'href',
         'https://ko-fi.com/prathercc/tiers',
-      );
-      expect(screen.getByTestId('supporter-kofi-themes-yearly')).toHaveAttribute(
-        'href',
-        'https://ko-fi.com/s/0b4f9b2bdf',
       );
       expect(screen.getByTestId('supporter-kofi-hosted-monthly')).toHaveAttribute(
         'href',
         'https://ko-fi.com/prathercc/tiers',
       );
+      expect(screen.getByTestId('supporter-price-themes')).toHaveTextContent('$3');
+      expect(screen.getByTestId('supporter-price-hosted')).toHaveTextContent('$5');
+      expect(screen.queryByTestId('supporter-kofi-themes-yearly')).toBeNull();
+
+      fireEvent.click(screen.getByTestId('supporter-period-yearly'));
+      expect(screen.getByTestId('supporter-kofi-themes-yearly')).toHaveAttribute(
+        'href',
+        'https://ko-fi.com/s/0b4f9b2bdf',
+      );
       expect(screen.getByTestId('supporter-kofi-hosted-yearly')).toHaveAttribute(
         'href',
         'https://ko-fi.com/s/3b0ad65948',
       );
-      expect(screen.getByText('$3 / month')).toBeInTheDocument();
-      expect(screen.getByText('$25 / year')).toBeInTheDocument();
-      expect(screen.getByText('$5 / month')).toBeInTheDocument();
-      expect(screen.getByText('$40 / year')).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-price-themes')).toHaveTextContent('$25');
+      expect(screen.getByTestId('supporter-price-hosted')).toHaveTextContent('$40');
+      expect(screen.queryByTestId('supporter-kofi-themes-monthly')).toBeNull();
       expect(screen.queryByText(/lifetime/i)).toBeNull();
     });
 

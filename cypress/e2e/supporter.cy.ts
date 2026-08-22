@@ -128,19 +128,23 @@ describe('Supporter platform', () => {
       'have.length',
       8,
     );
-    // Two tiers x monthly/yearly, on their Ko-fi URLs.
+    // Two tiers, one Ko-fi button each; the period toggle swaps price + URL.
     cy.get('[data-testid="supporter-kofi-themes-monthly"]').should(
       'have.attr',
       'href',
       'https://ko-fi.com/prathercc/tiers',
     );
+    cy.get('[data-testid="supporter-kofi-hosted-monthly"]').should('be.visible');
+    cy.get('[data-testid="supporter-price-themes"]').should('have.text', '$3');
+    cy.get('[data-testid="supporter-period-yearly"]').click();
     cy.get('[data-testid="supporter-kofi-themes-yearly"]').should(
       'have.attr',
       'href',
       'https://ko-fi.com/s/0b4f9b2bdf',
     );
-    cy.get('[data-testid="supporter-kofi-hosted-monthly"]').should('be.visible');
     cy.get('[data-testid="supporter-kofi-hosted-yearly"]').should('be.visible');
+    cy.get('[data-testid="supporter-price-themes"]').should('have.text', '$25');
+    cy.get('[data-testid="supporter-period-monthly"]').click();
     cy.get('[data-testid="supporter-dialog"]').should('not.contain.text', 'Lifetime');
     // The purchase grid renders above the theme grid.
     cy.get('[data-testid="supporter-purchase-grid"]').then(($grid) => {
@@ -216,7 +220,7 @@ describe('Supporter platform', () => {
     cy.get('[data-testid="supporter-badge-star"]').should('be.visible');
     cy.get('[data-testid="supporter-avatar-pip"]').should('be.visible');
     cy.get('[data-testid="gift-button"]')
-      .should('have.attr', 'aria-label', 'Discrub Supporter')
+      .should('have.attr', 'aria-label', 'Supporter')
       .and('have.css', 'animation-name', 'none');
 
     // The badge still opens the hub, and removing the key restores the gift.

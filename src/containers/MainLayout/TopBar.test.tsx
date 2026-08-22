@@ -514,7 +514,7 @@ describe('TopBar', () => {
       renderWithKeyStatus('valid');
       expect(screen.getByTestId('supporter-badge-star')).toBeInTheDocument();
       expect(screen.getByTestId('supporter-avatar-pip')).toBeVisible();
-      expect(screen.getByLabelText('Discrub Supporter')).toBeInTheDocument();
+      expect(screen.getByLabelText('Supporter')).toBeInTheDocument();
       expect(screen.queryByLabelText('Themes and Support')).toBeNull();
     });
 

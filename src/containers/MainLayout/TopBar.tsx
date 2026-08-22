@@ -295,11 +295,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               </Typography>
             </Box>
 
-            <Tooltip title={isSupporter ? 'Discrub Supporter' : 'Themes and Support'} enterDelay={0} arrow>
+            <Tooltip title={isSupporter ? 'Supporter' : 'Themes and Support'} enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={handleGiftClick}
-                aria-label={isSupporter ? 'Discrub Supporter' : 'Themes and Support'}
+                aria-label={isSupporter ? 'Supporter' : 'Themes and Support'}
                 data-testid="gift-button"
                 sx={(theme: Theme) => ({
                   color: 'cta.main',
