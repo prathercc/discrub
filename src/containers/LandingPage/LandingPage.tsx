@@ -22,7 +22,7 @@ import {
 } from '@features/auth/authSlice';
 import { isExtensionMode, requestDiscordToken } from '@/extension/messaging';
 import ResetDiscrubButton from '@components/settings/ResetDiscrubButton';
-import { isHostedGateEnabled } from '@services/hostedGate';
+import { isBleedingEdgeBuild, isHostedGateEnabled } from '@services/hostedGate';
 import {
   applyPastedSupporterKey,
   removeSupporterKey,
@@ -56,6 +56,8 @@ const LandingPage = () => {
   const isLoading = useAppSelector(selectAuthLoading);
   const manuallyLoggedOut = useAppSelector(selectManuallyLoggedOut);
   const hostedGate = isHostedGateEnabled();
+  // Branding only (title, icon glow, Compatibility button); the key gate stays on hostedGate.
+  const bleedingEdge = isBleedingEdgeBuild();
   // The dev env token would walk straight past the key gate, so the
   // hosted build never reads it (production web builds blank it anyway).
   const envToken = hostedGate ? '' : import.meta.env.VITE_DISCORD_TOKEN;
@@ -233,7 +235,7 @@ const LandingPage = () => {
           position: 'relative',
         }}
       >
-        {hostedGate && (
+        {bleedingEdge && (
           <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
             <CompatibilityPopover placement="gate" />
           </Box>
@@ -249,13 +251,13 @@ const LandingPage = () => {
                 width: 80,
                 height: 80,
                 filter: (theme: Theme) =>
-                  hostedGate
+                  bleedingEdge
                     ? 'drop-shadow(0 8px 18px rgba(220, 38, 38, 0.55))'
                     : `drop-shadow(0 8px 16px ${alpha(theme.palette.primary.main, 0.4)})`,
               }}
             />
 
-            {hostedGate ? (
+            {bleedingEdge ? (
               <BleedingTitle caption={`Early access build v${__APP_VERSION__}`} />
             ) : (
               <>

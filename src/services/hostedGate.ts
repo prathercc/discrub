@@ -19,7 +19,7 @@ import { isExtensionMode } from '@/extension/messaging';
  */
 export function isBleedingEdgeBuild(): boolean {
   if (isHostedGateEnabled()) return true;
-  return import.meta.env.DEV && !isExtensionMode();
+  return import.meta.env.MODE === 'development' && !isExtensionMode();
 }
 
 export function isHostedGateEnabled(): boolean {

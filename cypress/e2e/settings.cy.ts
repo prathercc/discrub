@@ -22,7 +22,7 @@ describe('Settings', () => {
     // Block auto-auth BEFORE clicking logout so the app stays on LandingPage
     cy.blockAutoAuth();
     cy.get('[aria-label="Logout"]').click();
-    cy.contains('Welcome to Discrub', { timeout: 10000 }).should('be.visible');
+    cy.get('[data-testid="landing-sign-in"]', { timeout: 10000 }).should('be.visible');
   });
 
   it('persists settings in IndexedDB across sessions', () => {

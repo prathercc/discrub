@@ -5,11 +5,13 @@ describe('Authentication', () => {
       cy.blockAutoAuth();
       cy.visit('/');
       // Wait for any auto-auth attempt to fail and the landing page to settle
-      cy.contains('Welcome to Discrub', { timeout: 10000 }).should('be.visible');
+      cy.get('[data-testid="landing-sign-in"]', { timeout: 10000 }).should('be.visible');
     });
 
-    it('shows "Welcome to Discrub" heading on load', () => {
-      cy.contains('Welcome to Discrub').should('be.visible');
+    it('shows the Bleeding Edge landing card on load (local dev is a Bleeding Edge build)', () => {
+      cy.contains('Bleeding Edge').should('be.visible');
+      cy.get('[data-testid="compat-button-gate"]').should('be.visible');
+      cy.get('[data-testid="hosted-gate"]').should('not.exist');
     });
 
     it('shows token input as password type with "Discord Token" label', () => {
