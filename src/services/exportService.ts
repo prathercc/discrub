@@ -1505,7 +1505,7 @@ ${buildContentThemeCSS(themeSet)}
 
     /* ==== CONTAINER ==== */
     .container {
-      max-width: 1200px;
+      max-width: ${exportConfig?.exportTemplate === 'discord' ? 'none' : '1200px'};
       margin: 0 auto;
       padding: 20px;
     }

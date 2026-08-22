@@ -1284,6 +1284,18 @@ describe('exportService', () => {
       } as unknown as Message,
     ];
 
+    it('caps the plain template at 1200px but lets the Discord shell fill the pane', () => {
+      const plain = service.generateHTMLPage(baseMessages, 'general', 1, 1, null, 'general');
+      expect(plain).toContain('max-width: 1200px;');
+      expect(plain).not.toContain('.container {\n      max-width: none;');
+      const shell = service.generateHTMLPage(
+        baseMessages, 'general', 1, 1, null, 'general', undefined,
+        { exportTemplate: 'discord' } as unknown as Parameters<typeof service.generateHTMLPage>[7],
+      );
+      expect(shell).toContain('.container {\n      max-width: none;');
+      expect(shell).not.toContain('max-width: 1200px;');
+    });
+
     it('returns parts whose join equals the original generateHTMLPage output', () => {
       const partsArr = service.generateHTMLPageParts(
         baseMessages, 'general', 1, 1, null, 'general',
