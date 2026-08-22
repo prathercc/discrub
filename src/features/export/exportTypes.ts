@@ -3,6 +3,7 @@
 // emitter knobs consumed by lib-side text/html emitters. Re-exported here
 // so callers can keep their existing import paths.
 import { defaultTextFormatOptions } from 'discrub-core/types/export-types';
+import { detectCompatSetup, usesSmallZipParts } from '@services/compatibility';
 // `export type { ... } from` re-exports without creating a local binding, so
 // TextFormatOptions wasn't usable as a type annotation in this file (TS2304).
 // Import it locally for the annotations below; the re-export still serves
@@ -96,6 +97,18 @@ export interface ExportSettingsSnapshot {
  */
 export const DEFAULT_MAX_ZIP_PART_BYTES = 4_000_000_000;
 
+/**
+ * Smaller default for setups whose download writer holds each zip part
+ * in memory (Firefox extension pages, iOS OPFS staging). The user can
+ * still pick any size; this only seeds fresh state and presets that
+ * predate the control. Peak memory on the buffered path is about twice
+ * the part size.
+ */
+export const SMALL_MAX_ZIP_PART_BYTES = 500_000_000;
+
+export const defaultMaxZipPartBytes = (): number =>
+  usesSmallZipParts(detectCompatSetup()) ? SMALL_MAX_ZIP_PART_BYTES : DEFAULT_MAX_ZIP_PART_BYTES;
+
 export interface ZipSizeOption {
   label: string;
   value: number | null;
@@ -107,6 +120,7 @@ export const ZIP_SIZE_OPTIONS: ZipSizeOption[] = [
   { label: '4 GB (recommended)', value: 4_000_000_000 },
   { label: '2 GB', value: 2_000_000_000 },
   { label: '1 GB', value: 1_000_000_000 },
+  { label: '500 MB', value: 500_000_000 },
 ];
 
 /**
@@ -118,7 +132,7 @@ export function resolveMaxZipPartBytes(
   source: { maxZipPartBytes?: number | null }
 ): number | null {
   return source.maxZipPartBytes === undefined
-    ? DEFAULT_MAX_ZIP_PART_BYTES
+    ? defaultMaxZipPartBytes()
     : source.maxZipPartBytes;
 }
 
@@ -345,6 +359,6 @@ export const initialExportState: ExportState = {
   previewMedia: true,
   exportTemplate: 'discord',
   textOptions: { ...defaultTextFormatOptions },
-  maxZipPartBytes: DEFAULT_MAX_ZIP_PART_BYTES,
+  maxZipPartBytes: defaultMaxZipPartBytes(),
   exportCriteria: null,
 };

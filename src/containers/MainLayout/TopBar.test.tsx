@@ -45,6 +45,7 @@ vi.mock('@/extension/messaging', () => ({
   isOverlayMode: () => mockIsOverlayMode(),
   closeOverlay: () => mockCloseOverlay(),
   minimizeOverlay: () => mockMinimizeOverlay(),
+  isExtensionMode: () => false,
 }));
 
 const currentUser = createMockUser({ id: 'u1', username: 'TestUser', avatar: 'abc' });

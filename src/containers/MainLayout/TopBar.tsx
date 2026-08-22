@@ -42,8 +42,10 @@ import {
 } from '@features/supporter/supporterSlice';
 import SettingsModal from '@components/settings/SettingsModal';
 import SupporterDialog from '@components/supporter/SupporterDialog';
+import CompatibilityPopover, { CompatibilitySheet } from '@components/compatibility/CompatibilityPopover';
+import { InfoOutlined as CompatibilityIcon } from '@mui/icons-material';
 import { BleedingStack } from '@components/supporter/BleedingTitle';
-import { isHostedGateEnabled } from '@services/hostedGate';
+import { isBleedingEdgeBuild } from '@services/hostedGate';
 import UserProfileModal from '@components/modals/UserProfileModal';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
@@ -74,6 +76,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
   const giftAttentionSeen = useAppSelector(selectGiftAttentionSeen);
   const isSupporter = useAppSelector(selectIsSupporter);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [compatOpen, setCompatOpen] = useState(false);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
   const [ideasOpen, setIdeasOpen] = useState(false);
@@ -190,8 +193,8 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
         </Tooltip>
 
         <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0 }}>
-          {isHostedGateEnabled() ? (
-            /* Hosted build: the wordmark keeps bleeding after sign-in, scaled to the bar. */
+          {isBleedingEdgeBuild() ? (
+            /* Hosted build (and local dev): the wordmark keeps bleeding after sign-in, scaled to the bar. */
             <BleedingStack size="bar" />
           ) : (
             <Typography
@@ -216,8 +219,8 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               fontSize: '0.7rem',
               letterSpacing: '0.5px',
               ml: 0.5,
-              alignSelf: isHostedGateEnabled() ? 'flex-end' : undefined,
-              mb: isHostedGateEnabled() ? '1px' : undefined,
+              alignSelf: isBleedingEdgeBuild() ? 'flex-end' : undefined,
+              mb: isBleedingEdgeBuild() ? '1px' : undefined,
             }}
           >
             v{__APP_VERSION__}
@@ -355,6 +358,8 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               </IconButton>
             </Tooltip>
 
+            {!isCompact && <CompatibilityPopover placement="topbar" />}
+
             {!isCompact && (
               <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
                 <IconButton
@@ -442,6 +447,20 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               {isCompact && (
                 <MenuItem
                   onClick={() => {
+                    setMoreMenuAnchor(null);
+                    setCompatOpen(true);
+                  }}
+                  data-testid="more-menu-compatibility"
+                >
+                  <ListItemIcon>
+                    <CompatibilityIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Compatibility</ListItemText>
+                </MenuItem>
+              )}
+              {isCompact && (
+                <MenuItem
+                  onClick={() => {
                     setSettingsOpen(true);
                     setMoreMenuAnchor(null);
                   }}
@@ -520,6 +539,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
         )}
       </Toolbar>
 
+      <CompatibilitySheet open={compatOpen} onClose={() => setCompatOpen(false)} />
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

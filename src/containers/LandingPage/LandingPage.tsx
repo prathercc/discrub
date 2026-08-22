@@ -34,6 +34,7 @@ import {
 import { liveSupporterFeatures } from '@services/supporterKeyService';
 import { KOFI_MONTHLY_URL, KOFI_BLEEDING_EDGE_YEARLY_URL } from '@services/kofiLinks';
 import BleedingTitle from '@components/supporter/BleedingTitle';
+import CompatibilityPopover from '@components/compatibility/CompatibilityPopover';
 
 /**
  * Landing page component - handles user authentication with Discord token
@@ -105,6 +106,7 @@ const LandingPage = () => {
     if (isExtension && !autoAuthAttempted && !envToken && !manuallyLoggedOut) {
       attemptAutoAuth();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
   }, [isExtension, autoAuthAttempted, envToken, manuallyLoggedOut]);
 
   const attemptAutoAuth = async () => {
@@ -228,8 +230,14 @@ const LandingPage = () => {
           borderRadius: 4,
           boxShadow: (theme: Theme) => `0 0 20px ${alpha(theme.palette.primary.main, 0.1)}`,
           animation: 'fade-in-scale 600ms ease',
+          position: 'relative',
         }}
       >
+        {hostedGate && (
+          <Box sx={{ position: 'absolute', top: 12, right: 12 }}>
+            <CompatibilityPopover placement="gate" />
+          </Box>
+        )}
         <form onSubmit={handleManualSignIn}>
           <Stack spacing={3} alignItems="center">
             {/* Discrub Icon */}
@@ -424,17 +432,6 @@ const LandingPage = () => {
             <Typography variant="caption" color="text.secondary" textAlign="center">
               Note: This is an unofficial tool. Use at your own risk.
             </Typography>
-            {hostedGate && (
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                textAlign="center"
-                data-testid="hosted-gate-phone-note"
-              >
-                On a phone? Exports download fine, but open them on a computer: phone file viewers
-                can't show the export's pages and media.
-              </Typography>
-            )}
           </Stack>
         </form>
       </Paper>

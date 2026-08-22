@@ -305,6 +305,18 @@ Switch between dark mode, light mode, and auto (system preference) from the top 
 | Auto-update | Always latest | Browser auto-updates |
 | Discrub Classic | Not available | Built-in — select from launcher splash screen |
 
+### What differs by setup
+
+Purging, searching and bulk operations behave the same everywhere. Three things differ (the app shows this table under the **Compatibility** info button):
+
+| | Chrome extension | Firefox extension | Bleeding Edge on Chrome | Bleeding Edge on Firefox | Bleeding Edge on mobile |
+|---|---|---|---|---|---|
+| Sign in | Automatic | Automatic | Manual | Manual | Manual |
+| Export size | No limit | Smaller parts | No limit | No limit | Smaller parts |
+| Export media | All files | All files | Most files | Most files | Most files |
+
+"Manual" means you paste your Discord token each visit (the extension reads it for you). "Smaller parts" means each zip part is held in memory before it downloads (Firefox extension pages have no service worker; iOS stages through Safari's storage quota), so those setups default to 500 MB parts under Export settings → Max zip size. "Most files" means the hosted build fetches media through Discord's proxy, which refuses a few formats; skipped files are listed in the status log and the messages themselves are always complete.
+
 Both versions use the same codebase and make identical API calls from your browser. The extension includes Discrub Classic (the original interface) as a built-in option — when you first launch Discrub, a splash screen lets you choose between Discrub 2.0 and Discrub Classic. Your choice is remembered for future sessions.
 
 ---
