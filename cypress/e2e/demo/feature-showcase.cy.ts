@@ -9,6 +9,12 @@
  */
 
 const SCREENSHOT_DIR = 'demo';
+
+// Documentation screenshots show the release (extension) branding, not the
+// Bleeding Edge wordmark the dev server wears by default.
+Cypress.on('window:before:load', (win) => {
+  (win as unknown as { __bleedingEdgeOverride__: boolean }).__bleedingEdgeOverride__ = false;
+});
 const PAUSE = 500; // ms between actions for natural feel
 
 // Enriched roles for demo screenshots (not in standard fixtures)

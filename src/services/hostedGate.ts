@@ -19,6 +19,12 @@ import { isExtensionMode } from '@/extension/messaging';
  */
 export function isBleedingEdgeBuild(): boolean {
   if (isHostedGateEnabled()) return true;
+  if (import.meta.env.DEV && typeof window !== 'undefined') {
+    // Dev-only seam so documentation screenshots can capture the
+    // release (extension) branding from the ordinary dev server.
+    const override = (window as { __bleedingEdgeOverride__?: boolean }).__bleedingEdgeOverride__;
+    if (override === false) return false;
+  }
   return import.meta.env.MODE === 'development' && !isExtensionMode();
 }
 
