@@ -46,6 +46,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Rich Stickers & Polls** — Sticker-only and poll-only messages render as their actual sticker image and a poll vote-bar card, in both the feed and HTML exports, instead of showing "(no content)".
 - **Analytics Modal** — View mention frequency, user engagement metrics, and export analytics to CSV.
 - **10 Export Presets** — Quick Text Backup, Full Archive, Data Analysis, Spreadsheet Export, Media Gallery, Lightweight Backup, Chronological Log, Images Only, Thread Archive, Plain Text. Plus custom preset creation.
+- **Themes** — A theme picker in Settings with live preview. Six free themes (Dark Original, Light Original, Terminal, High Contrast, Overcast, Classic); supporters unlock eight more cosmetic themes plus export theming and a custom export footer via a key emailed from Ko-fi. All features stay free.
 - **Donation Wall** — Ko-Fi supporter feed with tier system and leaderboard.
 - **Role Colors & Icons** — Author names colored by their highest role, with role icons displayed in the feed and user profiles.
 - **Reply Indicators** — Messages that are replies show the referenced message author and a preview of what they replied to. Click the reply bar to jump to the original.

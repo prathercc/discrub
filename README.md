@@ -32,7 +32,7 @@ Available as a **web app** (manual token entry) and a **Chrome/Firefox extension
   - [Settings & Preferences](#settings--preferences)
   - [Status Log](#status-log)
   - [Pause, Resume & Cancel](#pause-resume--cancel)
-  - [Theme Toggle](#theme-toggle)
+  - [Themes](#themes)
   - [Additional Features](#additional-features)
 - [Web App vs Extension](#web-app-vs-extension)
 - [Getting Started](#getting-started)
@@ -272,9 +272,11 @@ All long-running operations (export, purge, load all, delete, edit, reaction rem
 
 Controls appear in the status bar whenever an operation is running. In Focus Mode (or anywhere the status panel is hidden), a floating pause control appears during heavy operations so pausing is always within reach, and the `Space` hotkey keeps working.
 
-### Theme Toggle
+### Themes
 
-Switch between dark mode, light mode, and auto (system preference) from the top bar.
+Pick a look from the theme picker in Settings, with a live preview as you hover. Six themes are free: Dark Original (the default), Light Original, Terminal, High Contrast, Overcast, and Classic. The picker also follows your system preference if you'd rather switch automatically.
+
+Supporters unlock eight more cosmetic themes (AMOLED Void, Synthwave, Bytecraft, Ember, Nekonoir, Circuit, Noir, Abyss), plus a matching theme switcher in HTML exports and a customizable export footer. Open the palette icon in the top bar to see the Themes hub and paste the key from your Ko-fi email. Every Discrub feature stays free; supporter perks are cosmetic only.
 
 ![Dark Theme](docs/screenshots/ui/theme-dark.png)
 ![Light Theme](docs/screenshots/ui/theme-light.png)
