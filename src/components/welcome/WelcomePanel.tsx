@@ -18,11 +18,9 @@ import {
   ArrowForward as ArrowIcon,
   GitHub as GitHubIcon,
   Star as StarIcon,
-  PersonAdd as FollowIcon,
   FolderZip as PackageIcon,
 } from '@mui/icons-material';
 
-const GITHUB_PROFILE_URL = 'https://github.com/prathercc';
 const GITHUB_REPO_URL = 'https://github.com/prathercc/discrub';
 
 interface WelcomePanelProps {
@@ -195,19 +193,6 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             sx={{ textTransform: 'none' }}
           >
             Star on GitHub
-          </Button>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<FollowIcon />}
-            endIcon={<GitHubIcon sx={{ fontSize: 16 }} />}
-            component="a"
-            href={GITHUB_PROFILE_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            sx={{ textTransform: 'none' }}
-          >
-            Follow on GitHub
           </Button>
         </Box>
       </Box>

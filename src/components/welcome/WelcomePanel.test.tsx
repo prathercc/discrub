@@ -52,12 +52,11 @@ describe('WelcomePanel', () => {
       expect(screen.getByTestId('welcome-github-actions')).toBeInTheDocument();
     });
 
-    it('Follow button targets the dev profile and opens in a new tab', () => {
+    it('no longer crowds the action row with a Follow button (it moved to the corkboard polaroid)', () => {
       renderWithProviders(<WelcomePanel onStartTour={mockOnStartTour} />);
-      const followLink = screen.getByRole('link', { name: /follow on github/i });
-      expect(followLink).toHaveAttribute('href', 'https://github.com/prathercc');
-      expect(followLink).toHaveAttribute('target', '_blank');
-      expect(followLink).toHaveAttribute('rel', expect.stringContaining('noreferrer'));
+      const cluster = screen.getByTestId('welcome-github-actions');
+      expect(cluster.querySelectorAll('a')).toHaveLength(1);
+      expect(cluster).not.toHaveTextContent(/follow on github/i);
     });
 
     it('Star button targets the project repo and opens in a new tab', () => {

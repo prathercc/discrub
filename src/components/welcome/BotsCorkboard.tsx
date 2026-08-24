@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Box, Button, Chip, Collapse, IconButton, Link, Typography, Tooltip } from '@mui/material';
 import {
   ExpandMore as ExpandIcon,
@@ -7,16 +7,20 @@ import {
 import { storage } from '@/extension/storage';
 import { BOTS, BOT_IDEA_MAILTO, CORKBOARD_COLLAPSED_STORAGE_KEY, type BotEntry } from './bots';
 import RetrostatMark from './RetrostatMark';
+import DeveloperCard from './DeveloperCard';
 
 /**
  * "What else we make": a pinboard strip on the WelcomePanel showing the
  * Prather Bytecraft Discord bots. Deliberately styled unlike the feature
  * cards (those are what Discrub does) so it reads as a board, not a banner.
  *
- * - Data-driven from `bots.ts`; one pinned card per bot plus one sticky note.
+ * - Data-driven from `bots.ts`; one pinned card per bot, a Discord-style
+ *   message from the developer (`DeveloperCard`), plus sticky notes.
  * - Collapsible; the folded state persists in `Discrub-state` and the board
  *   never re-expands on its own.
  * - No animation loops, no autoplay. Hover lifts a card slightly.
+ * - A red thread runs from each bot's sticker note to that bot's pin, drawn
+ *   as an SVG overlay from measured pin positions (re-measured on resize).
  */
 
 const MARKS: Record<string, (size: number) => React.ReactNode> = {
@@ -26,9 +30,10 @@ const MARKS: Record<string, (size: number) => React.ReactNode> = {
 /** Small seeded tilt so the pins look hand-placed but never move between renders. */
 const tiltFor = (index: number) => [-1.6, 1.2, -0.8, 1.8][index % 4];
 
-const Pin = () => (
+const Pin = ({ id }: { id?: string }) => (
   <Box
     aria-hidden
+    data-pin={id}
     sx={{
       position: 'absolute',
       top: -7,
@@ -63,7 +68,7 @@ const PinnedCard = ({ bot, index }: { bot: BotEntry; index: number }) => (
       },
     }}
   >
-    <Pin />
+    <Pin id={`bot-${bot.id}`} />
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1 }}>
       {MARKS[bot.id]?.(40)}
       <Box sx={{ minWidth: 0 }}>
@@ -112,10 +117,11 @@ interface StickyNoteProps {
   testId: string;
   tilt: number;
   tint: string;
+  pinId?: string;
   children: React.ReactNode;
 }
 
-const StickyNote = ({ testId, tilt, tint, children }: StickyNoteProps) => (
+const StickyNote = ({ testId, tilt, tint, pinId, children }: StickyNoteProps) => (
   <Box
     data-testid={testId}
     sx={{
@@ -134,14 +140,99 @@ const StickyNote = ({ testId, tilt, tint, children }: StickyNoteProps) => (
       '& a': { color: 'inherit', fontWeight: 700, textDecorationThickness: 2 },
     }}
   >
-    <Pin />
+    <Pin id={pinId} />
     {children}
   </Box>
 );
 
+interface Thread {
+  from: string;
+  to: string;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/**
+ * Measures the pins named in `pairs` relative to the board and returns one
+ * thread per pair that resolved. Re-measures whenever the board resizes
+ * (wrapping changes pin positions) and hides nothing on failure: a pair whose
+ * pins are missing just has no thread.
+ */
+const useThreads = (boardRef: React.RefObject<HTMLDivElement | null>, pairs: [string, string][], active: boolean) => {
+  const [threads, setThreads] = useState<Thread[]>([]);
+
+  useLayoutEffect(() => {
+    const board = boardRef.current;
+    if (!board || !active) {
+      setThreads([]);
+      return;
+    }
+    const measure = () => {
+      const origin = board.getBoundingClientRect();
+      const center = (id: string) => {
+        const el = board.querySelector<HTMLElement>(`[data-pin="${id}"]`);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: r.left + r.width / 2 - origin.left, y: r.top + r.height / 2 - origin.top };
+      };
+      setThreads(
+        pairs.flatMap(([from, to]) => {
+          const a = center(from);
+          const b = center(to);
+          return a && b ? [{ from, to, x1: a.x, y1: a.y, x2: b.x, y2: b.y }] : [];
+        })
+      );
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(board);
+    return () => observer.disconnect();
+  }, [boardRef, pairs, active]);
+
+  return threads;
+};
+
+/** Slack the thread like real string: a quadratic curve sagging below the pins. */
+const threadPath = ({ x1, y1, x2, y2 }: Thread) => {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const sag = 10 + Math.hypot(dx, dy) * 0.06;
+  const cx = (x1 + x2) / 2;
+  const cy = Math.max(y1, y2) + sag;
+  return `M ${x1} ${y1} Q ${cx} ${cy} ${x2} ${y2}`;
+};
+
+const Threads = ({ threads }: { threads: Thread[] }) => (
+  <Box
+    component="svg"
+    aria-hidden
+    data-testid="corkboard-threads"
+    sx={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}
+  >
+    {threads.map((thread) => (
+      <g key={`${thread.from}->${thread.to}`} data-testid={`corkboard-thread-${thread.from}-${thread.to}`}>
+        <path d={threadPath(thread)} fill="none" stroke="rgba(0,0,0,0.35)" strokeWidth={2.5} transform="translate(0 1.5)" />
+        <path d={threadPath(thread)} fill="none" stroke="#c62828" strokeWidth={1.6} strokeLinecap="round" />
+      </g>
+    ))}
+  </Box>
+);
+
+/** Pin pairs to string together: each bot's sticker note to that bot's card. */
+const THREAD_PAIRS: [string, string][] = BOTS.filter((bot) => bot.sticker).map((bot) => [
+  `sticky-${bot.id}`,
+  `bot-${bot.id}`,
+]);
+
 const BotsCorkboard = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const open = loaded && !collapsed;
+  const threads = useThreads(boardRef, THREAD_PAIRS, open);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,7 +257,7 @@ const BotsCorkboard = () => {
   };
 
   if (BOTS.length === 0) return null;
-  const sticker = BOTS.find((bot) => bot.sticker)?.sticker;
+  const stickerBot = BOTS.find((bot) => bot.sticker);
 
   return (
     <Box data-testid="bots-corkboard" sx={{ mb: 5, maxWidth: 900, mx: 'auto' }}>
@@ -189,8 +280,9 @@ const BotsCorkboard = () => {
           </IconButton>
         </Tooltip>
       </Box>
-      <Collapse in={loaded && !collapsed} timeout={160} unmountOnExit>
+      <Collapse in={open} timeout={160} unmountOnExit>
         <Box
+          ref={boardRef}
           sx={(theme) => ({
             position: 'relative',
             width: 'fit-content',
@@ -214,6 +306,7 @@ const BotsCorkboard = () => {
             gap: { xs: 3, sm: 4 },
           })}
         >
+          <Threads threads={threads} />
           {BOTS.map((bot, index) => (
             <PinnedCard key={bot.id} bot={bot} index={index} />
           ))}
@@ -226,9 +319,9 @@ const BotsCorkboard = () => {
               width: { xs: '100%', sm: 'auto' },
             }}
           >
-            {sticker && (
-              <StickyNote testId="corkboard-sticky" tilt={2.2} tint="#fff3a3">
-                {sticker}
+            {stickerBot && (
+              <StickyNote testId="corkboard-sticky" tilt={2.2} tint="#fff3a3" pinId={`sticky-${stickerBot.id}`}>
+                {stickerBot.sticker}
               </StickyNote>
             )}
             <StickyNote testId="corkboard-idea" tilt={-1.5} tint="#b9e6ff">
@@ -238,6 +331,7 @@ const BotsCorkboard = () => {
               </Link>
             </StickyNote>
           </Box>
+          <DeveloperCard pin={<Pin />} tilt={1.4} />
         </Box>
       </Collapse>
     </Box>
