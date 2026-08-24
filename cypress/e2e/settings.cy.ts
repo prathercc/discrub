@@ -127,22 +127,19 @@ describe('Settings', () => {
 
   describe('Ideas & Contact', () => {
     it('should open Ideas dialog when clicking lightbulb icon', () => {
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('Ideas & Contact').click();
+      cy.get('[data-testid="topbar-ideas"]').click();
       cy.get('[role="dialog"]').should('be.visible');
-      cy.contains('Have an idea for a feature').should('be.visible');
+      cy.contains('Feature ideas, bug reports').should('be.visible');
     });
 
     it('should show email link', () => {
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('Ideas & Contact').click();
-      cy.contains('prathercc@gmail.com').should('be.visible');
+      cy.get('[data-testid="topbar-ideas"]').click();
+      cy.contains('support@pratherbytecraft.com').should('be.visible');
     });
 
     it('should close dialog on Escape', () => {
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('Ideas & Contact').click();
-      cy.contains('Have an idea for a feature').should('be.visible');
+      cy.get('[data-testid="topbar-ideas"]').click();
+      cy.contains('Feature ideas, bug reports').should('be.visible');
       cy.get('body').type('{esc}');
       cy.get('[role="dialog"]').should('not.exist');
     });

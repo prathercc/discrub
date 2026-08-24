@@ -47,8 +47,8 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
     content: 'Pick from the full theme roster, support Discrub, and apply a supporter key, all in one place.',
   },
   more: {
-    title: 'More',
-    content: 'Access the Supporter Wall, Ideas & Contact, and Announcements from here.',
+    title: 'Supporter Wall, r/discrub, Announcements',
+    content: 'Toggle the Supporter Wall, open r/discrub, or re-read the latest announcement. On narrower windows these fold into a More menu.',
   },
   'status-panel': {
     title: 'Status Log',
@@ -162,7 +162,7 @@ export const shellTourSteps: Step[] = [
   step('sidebar-search', '[data-tour="sidebar-search"]', { placement: 'right' }),
   step('settings', '[aria-label="Settings"]'),
   step('theme', '[data-testid="gift-button"]'),
-  step('more', '[aria-label="More options"]'),
+  step('more', '[data-tour="topbar-extras"]'),
   step('status-panel', '[data-tour="status-panel"]', { placement: 'top' }),
   step('user-profile', '[data-tour="user-profile"]'),
   step('logout', '[aria-label="Logout"]'),

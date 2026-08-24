@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders, screen, fireEvent, waitFor } from '../../test/test-utils';
 import TopBar from './TopBar';
 import { createBaseState } from '../../test/state-factories';
@@ -533,5 +533,57 @@ describe('TopBar', () => {
       expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
       expect(screen.getByLabelText('Themes and Support')).toBeInTheDocument();
     });
+  });
+});
+
+describe('TopBar wide layout (md and up)', () => {
+  const currentUser = createMockUser({ username: 'Aaron' });
+  const originalMatchMedia = window.matchMedia;
+
+  beforeEach(() => {
+    // MUI's useMediaQuery(up('md')) asks for "(min-width:900px)".
+    window.matchMedia = ((query: string) => ({
+      matches: /min-width:\s*900px/.test(query),
+      media: query,
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    })) as typeof window.matchMedia;
+  });
+
+  afterEach(() => {
+    window.matchMedia = originalMatchMedia;
+  });
+
+  const render = () =>
+    renderWithProviders(<TopBar />, {
+      preloadedState: createBaseState({ user: { currentUser, isLoading: false, error: null } }),
+    });
+
+  it('shows Supporter Wall, r/discrub and View Announcement inline and drops the More menu', () => {
+    render();
+    expect(screen.getByLabelText('Supporter Wall')).toBeInTheDocument();
+    const reddit = screen.getByLabelText('r/discrub');
+    expect(reddit).toHaveAttribute('href', 'https://www.reddit.com/r/discrub');
+    expect(reddit).toHaveAttribute('target', '_blank');
+    expect(screen.getByLabelText('View Announcement')).toBeInTheDocument();
+    expect(screen.queryByLabelText('More options')).not.toBeInTheDocument();
+    expect(screen.getByTestId('topbar-ideas')).toBeInTheDocument();
+    expect(screen.getByLabelText('Settings')).toBeInTheDocument();
+    expect(screen.getByLabelText('Logout')).toBeInTheDocument();
+  });
+
+  it('View Announcement reopens the dialog from the inline button', () => {
+    const { store } = render();
+    fireEvent.click(screen.getByLabelText('View Announcement'));
+    expect(store.getState().announcement.hasNew).toBe(true);
+  });
+
+  it('keeps one tour target for the extras regardless of layout', () => {
+    render();
+    expect(document.querySelector('[data-tour="topbar-extras"]')).toContainElement(screen.getByLabelText('Supporter Wall'));
   });
 });

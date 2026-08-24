@@ -127,8 +127,7 @@ describe('API Call Counts', () => {
       cy.login();
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
 
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('View Announcement').click();
+      cy.get('[aria-label="View Announcement"]').click();
       cy.wait('@getAnnouncementMarkdownGist');
 
       cy.get('@getAnnouncementMarkdownGist.all').should('have.length', 1);
@@ -139,15 +138,13 @@ describe('API Call Counts', () => {
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
 
       // First open
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('View Announcement').click();
+      cy.get('[aria-label="View Announcement"]').click();
       cy.wait('@getAnnouncementMarkdownGist');
       // Dismiss
       cy.get('body').type('{esc}');
       cy.wait(500);
       // Second open
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('View Announcement').click();
+      cy.get('[aria-label="View Announcement"]').click();
       cy.wait(1000);
 
       // Should still be just 1 markdown call (second open uses cached markdown)

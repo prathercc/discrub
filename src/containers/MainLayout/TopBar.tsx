@@ -57,6 +57,14 @@ interface TopBarProps {
   onMenuClick?: () => void;
 }
 
+/** Tight inner gap for a group of icon buttons on the bar. */
+const GROUP_SX = { display: 'flex', alignItems: 'center', gap: 0.25 } as const;
+
+/** Thin vertical rule between icon groups. */
+const SectionDivider = () => (
+  <Divider orientation="vertical" flexItem sx={{ my: 1.25, borderColor: 'divider', opacity: 0.7 }} />
+);
+
 /**
  * TopBar component - shows user info and logout button
  */
@@ -68,6 +76,10 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
   // the More menu) so a 390px phone fits without horizontal scroll.
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isCompact = useMediaQuery(theme.breakpoints.down('sm'));
+  // `md` and up: room for everything, so Supporter Wall, r/discrub and
+  // View Announcement sit inline and the More menu (which would be empty)
+  // is not rendered at all.
+  const isWide = useMediaQuery(theme.breakpoints.up('md'));
   const currentUser = useAppSelector(selectCurrentUser);
   const cachedUserMap = useAppSelector(selectCachedUserMap);
   const showKofiFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
@@ -86,6 +98,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
     dispatch(setSelectedGuild(null));
     dispatch(setSelectedChannel(null));
     dispatch(setSelectedDm(null));
+  };
+
+  const handleViewAnnouncement = () => {
+    dispatch(fetchAnnouncementMarkdownThunk());
+    dispatch(reopenAnnouncement());
   };
 
   const handleToggleKofi = () => {
@@ -228,7 +245,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
         </Box>
 
         {currentUser && (
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 2 }, flexShrink: 0 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 1.5 }, flexShrink: 0 }}>
             <Box
               onClick={handleProfileClick}
               data-tour="user-profile"
@@ -358,7 +375,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               </IconButton>
             </Tooltip>
 
+            {/* App group: Ideas, Compatibility, Settings. Groups are separated
+                by thin dividers with a tight gap inside each one. */}
+            {!isCompact && <SectionDivider />}
             {!isCompact && (
+              <Box data-testid="topbar-group-app" sx={GROUP_SX}>
               <Tooltip title="Ideas & Contact" enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
@@ -369,11 +390,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                   <IdeasIcon />
                 </IconButton>
               </Tooltip>
-            )}
-
-            {!isCompact && <CompatibilityPopover placement="topbar" />}
-
-            {!isCompact && (
+              <CompatibilityPopover placement="topbar" />
               <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
@@ -383,17 +400,74 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                   <SettingsIcon />
                 </IconButton>
               </HotkeyTooltip>
+              </Box>
             )}
 
-            <Tooltip title="More" enterDelay={0} arrow>
-              <IconButton
-                color="inherit"
-                onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
-                aria-label="More options"
-              >
-                <MoreIcon />
-              </IconButton>
-            </Tooltip>
+            {/* Everything below folds into the More menu when the bar gets
+                narrow; the wrapper keeps one tour target either way. */}
+            <SectionDivider />
+            <Box data-tour="topbar-extras" data-testid="topbar-group-community" sx={GROUP_SX}>
+              {isWide && (
+                <>
+                  <Tooltip title="Supporter Wall" enterDelay={0} arrow>
+                    <IconButton
+                      color="inherit"
+                      onClick={handleToggleKofi}
+                      aria-label="Supporter Wall"
+                      aria-pressed={showKofiFeed === 'true'}
+                      data-testid="topbar-supporter-wall"
+                    >
+                      <Box
+                        component="img"
+                        src="/kofi.svg"
+                        alt=""
+                        sx={{
+                          width: 22,
+                          height: 22,
+                          filter: showKofiFeed === 'true' ? 'none' : 'grayscale(1)',
+                          opacity: showKofiFeed === 'true' ? 1 : 0.75,
+                        }}
+                      />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="r/discrub" enterDelay={0} arrow>
+                    <IconButton
+                      color="inherit"
+                      component="a"
+                      href="https://www.reddit.com/r/discrub"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label="r/discrub"
+                      data-testid="topbar-reddit"
+                    >
+                      <RedditIcon />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title="View Announcement" enterDelay={0} arrow>
+                    <IconButton
+                      color="inherit"
+                      onClick={handleViewAnnouncement}
+                      aria-label="View Announcement"
+                      data-testid="topbar-announcement"
+                    >
+                      <AnnouncementIcon />
+                    </IconButton>
+                  </Tooltip>
+                </>
+              )}
+
+              {!isWide && (
+                <Tooltip title="More" enterDelay={0} arrow>
+                  <IconButton
+                    color="inherit"
+                    onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
+                    aria-label="More options"
+                  >
+                    <MoreIcon />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Box>
 
             <Menu
               anchorEl={moreMenuAnchor}
@@ -449,8 +523,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               )}
               <MenuItem
                 onClick={() => {
-                  dispatch(fetchAnnouncementMarkdownThunk());
-                  dispatch(reopenAnnouncement());
+                  handleViewAnnouncement();
                   setMoreMenuAnchor(null);
                 }}
               >
@@ -504,6 +577,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               )}
             </Menu>
 
+            {!isCompact && <SectionDivider />}
             {!isCompact && (
             <Tooltip title="Logout" enterDelay={0} arrow>
               <IconButton

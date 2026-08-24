@@ -31,7 +31,7 @@ const KNOWN_SAFE_SELECTORS: readonly string[] = [
   // TopBar actions
   '[aria-label="Settings"]',
   '[data-testid="gift-button"]',
-  '[aria-label="More options"]',
+  '[data-tour="topbar-extras"]',
   '[aria-label="Logout"]',
   '[data-tour="user-profile"]',
   // StatusPanel — always in MainLayout

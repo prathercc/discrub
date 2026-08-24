@@ -18,8 +18,7 @@ function snap(name: string) {
 }
 
 function closeDonationDrawer() {
-  cy.get('[aria-label="More options"]').click();
-  cy.get('img[alt="Ko-Fi"]').click({ force: true });
+  cy.get('[aria-label="Supporter Wall"]').click({ force: true });
   cy.get('body').click(0, 0);
   cy.wait(PAUSE);
 }

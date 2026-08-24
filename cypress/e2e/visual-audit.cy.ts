@@ -16,10 +16,9 @@ function snap(name: string) {
   cy.screenshot(`${DIR}/${name}`, { overwrite: true });
 }
 
-/** Close the donation drawer via the More options > Ko-Fi toggle in the TopBar */
+/** Close the donation drawer via the TopBar Supporter Wall toggle */
 function closeDonationDrawer() {
-  cy.get('[aria-label="More options"]').click();
-  cy.get('img[alt="Ko-Fi"]').click({ force: true });
+  cy.get('[aria-label="Supporter Wall"]').click({ force: true });
   // Dismiss any lingering tooltip by clicking the main content area
   cy.get('body').click(0, 0);
   cy.wait(PAUSE);
@@ -183,8 +182,7 @@ describe('Visual Audit', () => {
     });
 
     it('ideas & contact modal', () => {
-      cy.get('[aria-label="More options"]').click();
-      cy.contains('Ideas & Contact').click();
+      cy.get('[data-testid="topbar-ideas"]').click();
       cy.get('[role="dialog"]').should('be.visible');
       snap('modals/ideas-contact');
     });
