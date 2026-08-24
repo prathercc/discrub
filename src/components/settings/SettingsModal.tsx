@@ -30,6 +30,7 @@ import { DisplayTab } from './tabs/DisplayTab';
 import { PurgeTab } from './tabs/PurgeTab';
 import { HotkeysTab } from './tabs/HotkeysTab';
 import ResetDiscrubButton from './ResetDiscrubButton';
+import { forgetRememberedToken, selectTokenRemembered } from '@features/auth/authSlice';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { hasUnsavedSettingsChanges } from './dirtyDetection';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
@@ -61,6 +62,7 @@ const TabPanel = ({ children, value, index }: TabPanelProps) => {
 const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   const dispatch = useAppDispatch();
   const settings = useAppSelector(selectSettings);
+  const tokenRemembered = useAppSelector(selectTokenRemembered);
   const hotkeys = useAppSelector(selectHotkeys);
   const [formValues, setFormValues] = useState<AppSettings>(settings || defaultSettings);
   // Hotkeys live in their own slice with immediate-apply thunks, but
@@ -234,6 +236,25 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         </TabPanel>
 
         <TabPanel value={activeTab} index={6}>
+          {tokenRemembered && (
+            <Stack spacing={2} sx={{ pt: 1, pb: 3 }} data-testid="settings-saved-token">
+              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                Saved token
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Your Discord token is saved on this device so you stay signed in between visits. Forgetting it keeps this session signed in; you'll paste the token again next time.
+              </Typography>
+              <Box>
+                <Button
+                  variant="outlined"
+                  onClick={() => dispatch(forgetRememberedToken())}
+                  data-testid="settings-forget-token"
+                >
+                  Forget saved token
+                </Button>
+              </Box>
+            </Stack>
+          )}
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
               Reset

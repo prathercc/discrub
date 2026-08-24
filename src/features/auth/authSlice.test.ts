@@ -10,8 +10,17 @@ import authReducer, {
   selectAuthToken,
   selectAuthError,
   selectAuthLoading,
+  rememberToken,
+  forgetRememberedToken,
+  hydrateRememberedToken,
+  selectAuthRestoring,
+  selectTokenRemembered,
 } from './authSlice';
-import { initialAuthState } from './authTypes';
+import {
+  initialAuthState,
+  REMEMBERED_TOKEN_STORAGE_KEY,
+  REMEMBERED_TOKEN_EXPIRED_MESSAGE,
+} from './authTypes';
 import userReducer from '@features/user/userSlice';
 import * as discordService from '@services/discordService';
 
@@ -20,12 +29,155 @@ vi.mock('@services/discordService', () => ({
   getDiscordService: vi.fn(),
 }));
 
+// In-memory `Discrub-state` for the remembered-token thunks (#249)
+const { stateData, stateStore } = vi.hoisted(() => {
+  const data: Record<string, unknown> = {};
+  return {
+    stateData: data,
+    stateStore: {
+      get: vi.fn(async (key: string) => data[key] ?? null),
+      set: vi.fn(async (key: string, value: unknown) => {
+        data[key] = value;
+      }),
+      remove: vi.fn(async (key: string) => {
+        delete data[key];
+      }),
+    },
+  };
+});
+vi.mock('@/extension/storage', () => ({
+  storage: { state: stateStore },
+}));
+
+const { mockHostedGate, mockHasHosted } = vi.hoisted(() => ({
+  mockHostedGate: vi.fn(() => false),
+  mockHasHosted: vi.fn(() => false),
+}));
+vi.mock('@services/hostedGate', () => ({
+  isHostedGateEnabled: mockHostedGate,
+  isBleedingEdgeBuild: vi.fn(() => false),
+}));
+vi.mock('@features/supporter/supporterSlice', () => ({
+  selectHasHosted: mockHasHosted,
+}));
+
 describe('authSlice', () => {
   let store: TestStore;
 
   beforeEach(() => {
     store = createTestStore({ auth: authReducer, user: userReducer });
     vi.clearAllMocks();
+    for (const key of Object.keys(stateData)) delete stateData[key];
+    mockHostedGate.mockReturnValue(false);
+    mockHasHosted.mockReturnValue(false);
+  });
+
+  const mockValidUser = () => {
+    const svc = {
+      fetchUserData: vi.fn().mockResolvedValue({
+        success: true,
+        data: { id: 'user-123', username: 'testuser' },
+      }),
+    };
+    vi.mocked(discordService.getDiscordService).mockReturnValue(svc as any);
+    return svc;
+  };
+  const mockInvalidUser = () => {
+    const svc = {
+      fetchUserData: vi.fn().mockResolvedValue({ success: false, error: 'Unauthorized' }),
+    };
+    vi.mocked(discordService.getDiscordService).mockReturnValue(svc as any);
+    return svc;
+  };
+
+  describe('remembered token (#249)', () => {
+    it('rememberToken persists the token under the auth:rememberedToken key', async () => {
+      await store.dispatch(rememberToken('tok-1'));
+      expect(stateStore.set).toHaveBeenCalledWith(REMEMBERED_TOKEN_STORAGE_KEY, 'tok-1');
+      expect(selectTokenRemembered(store.getState() as never)).toBe(true);
+    });
+
+    it('forgetRememberedToken removes the stored token and clears the flag', async () => {
+      await store.dispatch(rememberToken('tok-1'));
+      await store.dispatch(forgetRememberedToken());
+      expect(stateData[REMEMBERED_TOKEN_STORAGE_KEY]).toBeUndefined();
+      expect(selectTokenRemembered(store.getState() as never)).toBe(false);
+    });
+
+    it('hydrate with nothing stored leaves auth untouched', async () => {
+      const svc = mockValidUser();
+      const p = store.dispatch(hydrateRememberedToken());
+      // Nothing stored: the restoring flag must never flip (no panel flash)
+      expect(selectAuthRestoring(store.getState() as never)).toBe(false);
+      await p;
+      const auth = store.getState().auth;
+      expect(auth.isAuthenticated).toBe(false);
+      expect(auth.tokenRemembered).toBe(false);
+      expect(auth.isRestoring).toBe(false);
+      expect(svc.fetchUserData).not.toHaveBeenCalled();
+    });
+
+    it('hydrate signs in with a stored token that Discord accepts', async () => {
+      stateData[REMEMBERED_TOKEN_STORAGE_KEY] = 'saved-token';
+      let release!: (v: unknown) => void;
+      const svc = {
+        fetchUserData: vi.fn(() => new Promise((resolve) => { release = resolve; })),
+      };
+      vi.mocked(discordService.getDiscordService).mockReturnValue(svc as any);
+      const p = store.dispatch(hydrateRememberedToken());
+      await vi.waitFor(() => {
+        expect(selectAuthRestoring(store.getState() as never)).toBe(true);
+      });
+      release({ success: true, data: { id: 'user-123', username: 'testuser' } });
+      await p;
+      const auth = store.getState().auth;
+      expect(svc.fetchUserData).toHaveBeenCalledWith('saved-token');
+      expect(auth.isAuthenticated).toBe(true);
+      expect(auth.token).toBe('saved-token');
+      expect(auth.tokenRemembered).toBe(true);
+      expect(auth.isRestoring).toBe(false);
+      expect(auth.error).toBeNull();
+    });
+
+    it('hydrate drops a stored token Discord rejects and explains why', async () => {
+      stateData[REMEMBERED_TOKEN_STORAGE_KEY] = 'stale-token';
+      mockInvalidUser();
+      await store.dispatch(hydrateRememberedToken());
+      const auth = store.getState().auth;
+      expect(auth.isAuthenticated).toBe(false);
+      expect(auth.tokenRemembered).toBe(false);
+      expect(auth.error).toBe(REMEMBERED_TOKEN_EXPIRED_MESSAGE);
+      expect(stateData[REMEMBERED_TOKEN_STORAGE_KEY]).toBeUndefined();
+    });
+
+    it('hydrate does not sign in after a manual logout (token kept until Logout forgets it)', async () => {
+      stateData[REMEMBERED_TOKEN_STORAGE_KEY] = 'saved-token';
+      const svc = mockValidUser();
+      store.dispatch(clearToken());
+      await store.dispatch(hydrateRememberedToken());
+      expect(svc.fetchUserData).not.toHaveBeenCalled();
+      expect(store.getState().auth.isAuthenticated).toBe(false);
+      expect(stateData[REMEMBERED_TOKEN_STORAGE_KEY]).toBe('saved-token');
+    });
+
+    it('hydrate honours the hosted gate: no live hosted feature means no restore', async () => {
+      stateData[REMEMBERED_TOKEN_STORAGE_KEY] = 'saved-token';
+      mockHostedGate.mockReturnValue(true);
+      mockHasHosted.mockReturnValue(false);
+      const svc = mockValidUser();
+      await store.dispatch(hydrateRememberedToken());
+      expect(svc.fetchUserData).not.toHaveBeenCalled();
+      expect(store.getState().auth.tokenRemembered).toBe(true);
+    });
+
+    it('hydrate restores through the hosted gate when the key carries hosted', async () => {
+      stateData[REMEMBERED_TOKEN_STORAGE_KEY] = 'saved-token';
+      mockHostedGate.mockReturnValue(true);
+      mockHasHosted.mockReturnValue(true);
+      mockValidUser();
+      await store.dispatch(hydrateRememberedToken());
+      expect(store.getState().auth.isAuthenticated).toBe(true);
+    });
   });
 
   describe('initial state', () => {
@@ -117,7 +269,7 @@ describe('authSlice', () => {
         const state2 = store.getState().auth;
 
         expect(state1).toEqual(state2);
-        expect(state2).toEqual({ ...initialAuthState, manuallyLoggedOut: true });
+        expect(state2).toEqual({ ...initialAuthState, manuallyLoggedOut: true, isRestoring: false, tokenRemembered: false });
       });
     });
 

@@ -58,7 +58,7 @@ describe('Sidebar', () => {
     it('should render Servers and DMs tabs', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByRole('tab', { name: 'Servers' })).toBeInTheDocument();
@@ -68,7 +68,7 @@ describe('Sidebar', () => {
     it('should default to Servers tab', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByRole('tab', { name: 'Servers', selected: true })).toBeInTheDocument();
@@ -77,7 +77,7 @@ describe('Sidebar', () => {
     it('should switch to DMs tab when clicked', async () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       await act(async () => {
@@ -91,7 +91,7 @@ describe('Sidebar', () => {
     it('should render search field', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByPlaceholderText('Search servers...')).toBeInTheDocument();
@@ -100,7 +100,7 @@ describe('Sidebar', () => {
     it('should change placeholder based on active tab', async () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       await act(async () => {
@@ -112,7 +112,7 @@ describe('Sidebar', () => {
     it('should change placeholder to channels when guild is selected', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
           channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
@@ -125,7 +125,7 @@ describe('Sidebar', () => {
     it('should show channel list when guild is selected', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
           channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
@@ -137,7 +137,7 @@ describe('Sidebar', () => {
     it('should show guild name in channel header', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
           channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
@@ -150,7 +150,7 @@ describe('Sidebar', () => {
     it('should show back button when guild is selected', () => {
       renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
           channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),
@@ -163,7 +163,7 @@ describe('Sidebar', () => {
     it('should clear guild selection when back button is clicked', () => {
       const { store } = renderWithProviders(<Sidebar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: guild, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
           channel: { channels, selectedChannel: null, selectedChannels: [], isLoading: false, error: null, forumThreads: [], forumFirstMessages: [], isLoadingForumThreads: false, hasMoreForumThreads: false, forumThreadsTotalResults: 0, forumThreadsNextOffset: 0, discoveredThreadsByChannel: {} },
         }),

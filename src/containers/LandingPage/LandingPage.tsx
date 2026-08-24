@@ -9,6 +9,12 @@ import {
   CircularProgress,
   Link,
   Stack,
+  Checkbox,
+  FormControlLabel,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
   alpha,
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
@@ -16,9 +22,13 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
   authenticateWithToken,
   clearManualLogout,
+  forgetRememberedToken,
+  rememberToken,
   selectAuthError,
   selectAuthLoading,
+  selectAuthRestoring,
   selectManuallyLoggedOut,
+  selectTokenRemembered,
 } from '@features/auth/authSlice';
 import { isExtensionMode, requestDiscordToken } from '@/extension/messaging';
 import ResetDiscrubButton from '@components/settings/ResetDiscrubButton';
@@ -46,15 +56,21 @@ import CompatibilityPopover from '@components/compatibility/CompatibilityPopover
  *
  * Hosted build (VITE_HOSTED_GATE=true): a supporter key field sits
  * above the token field. The key persists (same storage as the palette
- * hub, so themes unlock through the same path); the token never leaves
- * memory. Sign-in needs a key carrying the `hosted` feature; a
- * themes-only key is told so before any token is asked for.
+ * hub, so themes unlock through the same path). Sign-in needs a key
+ * carrying the `hosted` feature; a themes-only key is told so before
+ * any token is asked for.
+ *
+ * Web builds (not the extension) offer an opt-in "Remember my token on
+ * this device" checkbox (#249): the token is then stored plaintext in
+ * `Discrub-state` and restored on the next visit. Logout forgets it.
  */
 const LandingPage = () => {
   const dispatch = useAppDispatch();
   const authError = useAppSelector(selectAuthError);
   const isLoading = useAppSelector(selectAuthLoading);
   const manuallyLoggedOut = useAppSelector(selectManuallyLoggedOut);
+  const isRestoring = useAppSelector(selectAuthRestoring);
+  const tokenRemembered = useAppSelector(selectTokenRemembered);
   const hostedGate = isHostedGateEnabled();
   // Branding only (title, icon glow, Compatibility button); the key gate stays on hostedGate.
   const bleedingEdge = isBleedingEdgeBuild();
@@ -80,6 +96,16 @@ const LandingPage = () => {
   })();
 
   const [token, setToken] = useState(envToken || '');
+  const [rememberMe, setRememberMe] = useState(false);
+  // Ticking the box asks for confirmation first; unticking never does.
+  const [rememberConfirmOpen, setRememberConfirmOpen] = useState(false);
+  const handleRememberChange = (checked: boolean) => {
+    if (checked) {
+      setRememberConfirmOpen(true);
+    } else {
+      setRememberMe(false);
+    }
+  };
   const [isExtension, setIsExtension] = useState(false);
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
   const [autoAuthLoading, setAutoAuthLoading] = useState(false);
@@ -148,7 +174,15 @@ const LandingPage = () => {
     }
 
     try {
-      await dispatch(authenticateWithToken(token.trim())).unwrap();
+      const signedIn = await dispatch(authenticateWithToken(token.trim())).unwrap();
+      // #249: persist (or drop) the token per the opt-in checkbox.
+      if (!isExtension) {
+        if (rememberMe) {
+          await dispatch(rememberToken(signedIn));
+        } else if (tokenRemembered) {
+          await dispatch(forgetRememberedToken());
+        }
+      }
       // On success, App.tsx will automatically switch to the main layout
     } catch (error) {
       // Error is handled in Redux state and displayed via authError
@@ -162,8 +196,12 @@ const LandingPage = () => {
     setAutoAuthError(null);
   };
 
-  // Show loading state during auto-auth
-  if (isExtension && autoAuthLoading && !envToken) {
+  // Show loading state during auto-auth, or while a remembered token
+  // (#249) is being validated on boot.
+  // `isRestoring` only turns on once a stored token is actually being
+  // validated, so an in-flight env/extension auth never flips the panel.
+  const restoringRememberedToken = isRestoring;
+  if ((isExtension && autoAuthLoading && !envToken) || restoringRememberedToken) {
     return (
       <Box
         sx={{
@@ -188,13 +226,15 @@ const LandingPage = () => {
             borderRadius: 4,
           }}
         >
-          <Stack spacing={3} alignItems="center">
+          <Stack spacing={3} alignItems="center" data-testid={restoringRememberedToken ? 'landing-restoring' : undefined}>
             <CircularProgress size={60} />
             <Typography variant="h5" color="text.primary" textAlign="center">
               Authenticating with Discord...
             </Typography>
             <Typography variant="body2" color="text.secondary" textAlign="center">
-              Retrieving your authentication token from discord.com
+              {restoringRememberedToken
+                ? 'Signing in with the token saved on this device'
+                : 'Retrieving your authentication token from discord.com'}
             </Typography>
             <Typography variant="caption" color="text.secondary" textAlign="center">
               This may take a few seconds
@@ -382,12 +422,64 @@ const LandingPage = () => {
               helperText={
                 authError
                   ? 'Invalid token - please check and try again'
-                  : 'Your token is stored in memory only (session-only)'
+                  : rememberMe
+                    ? 'Your token will be saved on this device until you log out'
+                    : 'Your token is stored in memory only (session-only)'
               }
               disabled={isLoading || !gateSatisfied}
               autoFocus={!isExtension && !hostedGate}
               required
             />
+
+            {!isExtension && tokenRemembered && (
+              <Alert
+                severity="info"
+                sx={{ width: '100%' }}
+                data-testid="landing-token-remembered"
+                action={
+                  <Button
+                    size="small"
+                    color="inherit"
+                    onClick={() => dispatch(forgetRememberedToken())}
+                    data-testid="landing-forget-token"
+                    sx={{ whiteSpace: 'nowrap' }}
+                  >
+                    Forget saved token
+                  </Button>
+                }
+              >
+                A token is saved on this device.
+              </Alert>
+            )}
+
+            {!isExtension && (
+              <Box sx={{ width: '100%' }}>
+                <FormControlLabel
+                  sx={{ alignItems: 'flex-start', mr: 0 }}
+                  control={
+                    <Checkbox
+                      size="small"
+                      checked={rememberMe}
+                      onChange={(e) => handleRememberChange(e.target.checked)}
+                      disabled={isLoading || !gateSatisfied}
+                      inputProps={{ 'data-testid': 'landing-remember-token' } as object}
+                      sx={{ mt: -0.5 }}
+                    />
+                  }
+                  label={
+                    <Box>
+                      <Typography variant="body2" color="text.primary">
+                        Remember my token on this device
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" component="div">
+                        Saved as plain text in this browser's site data. Anyone with access
+                        to this browser profile could read it. Logging out removes it.
+                      </Typography>
+                    </Box>
+                  }
+                />
+              </Box>
+            )}
 
             <Button
               fullWidth
@@ -437,6 +529,47 @@ const LandingPage = () => {
           </Stack>
         </form>
       </Paper>
+
+      <Dialog
+        open={rememberConfirmOpen}
+        onClose={() => setRememberConfirmOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{ sx: { bgcolor: 'background.paper' } }}
+      >
+        <DialogTitle>Save your token on this device?</DialogTitle>
+        <DialogContent>
+          <Stack spacing={1.5}>
+            <Typography variant="body2" color="text.secondary">
+              Your Discord token will be saved as plain text in this browser's site data.
+              Anyone who can use this browser profile could read it and act as your Discord
+              account.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Only do this on a device you control. Logging out of Discrub removes the saved
+              token, and so does Reset Discrub.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button
+            onClick={() => setRememberConfirmOpen(false)}
+            data-testid="remember-token-cancel"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={() => {
+              setRememberMe(true);
+              setRememberConfirmOpen(false);
+            }}
+            data-testid="remember-token-confirm"
+          >
+            Save token
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

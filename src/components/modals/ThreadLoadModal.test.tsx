@@ -9,7 +9,7 @@ import ThreadLoadModal from './ThreadLoadModal';
 const render = (ui: React.ReactElement) =>
   renderWithProviders(ui, {
     preloadedState: {
-      auth: { token: 'tok', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+      auth: { token: 'tok', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
     } as any,
   });
 

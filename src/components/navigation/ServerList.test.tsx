@@ -58,7 +58,7 @@ describe('ServerList', () => {
     it('should show loading spinner when guilds are loading', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: true, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -72,7 +72,7 @@ describe('ServerList', () => {
     it('should show "No servers found" when no guilds exist and no token', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -82,7 +82,7 @@ describe('ServerList', () => {
     it('should show filter-specific empty state when filter matches nothing', () => {
       renderWithProviders(<ServerList filterText="nonexistent" />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -94,7 +94,7 @@ describe('ServerList', () => {
     it('should render all guilds', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -106,7 +106,7 @@ describe('ServerList', () => {
     it('should render "Servers" header', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -116,7 +116,7 @@ describe('ServerList', () => {
     it('should render guild avatar with icon URL when icon exists', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -129,7 +129,7 @@ describe('ServerList', () => {
     it('should filter guilds by name', () => {
       renderWithProviders(<ServerList filterText="Alpha" />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -141,7 +141,7 @@ describe('ServerList', () => {
     it('should filter case-insensitively', () => {
       renderWithProviders(<ServerList filterText="beta" />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -151,7 +151,7 @@ describe('ServerList', () => {
     it('should show all guilds when filter is empty', () => {
       renderWithProviders(<ServerList filterText="" />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -163,7 +163,7 @@ describe('ServerList', () => {
     it('should show all guilds when filter is whitespace', () => {
       renderWithProviders(<ServerList filterText="   " />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -188,7 +188,7 @@ describe('ServerList', () => {
     it('renders the Multi-select toggle in the header', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: baseGuildState,
         }),
       });
@@ -198,7 +198,7 @@ describe('ServerList', () => {
     it('does not render the legacy header copy IconButton (replaced by multi-select Copy)', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: baseGuildState,
         }),
       });
@@ -208,7 +208,7 @@ describe('ServerList', () => {
     it('toggles guild selection on row click while multi-select is active (does not switch servers)', () => {
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: baseGuildState,
         }),
       });
@@ -222,7 +222,7 @@ describe('ServerList', () => {
     it('shows the MultiSelectControls Copy button only after selecting at least one server', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: baseGuildState,
         }),
       });
@@ -235,7 +235,7 @@ describe('ServerList', () => {
     it('does not render Export or Purge buttons in server multi-select (v1 scope)', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { ...baseGuildState, selectedGuilds: [guilds[0]] },
         }),
       });
@@ -250,7 +250,7 @@ describe('ServerList', () => {
 
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { ...baseGuildState, selectedGuilds: [guilds[0], guilds[2]] },
         }),
       });
@@ -264,7 +264,7 @@ describe('ServerList', () => {
     it('Select all / Deselect all toggle picks up the filtered guild list', () => {
       const { store } = renderWithProviders(<ServerList filterText="Alpha" />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: baseGuildState,
         }),
       });
@@ -276,7 +276,7 @@ describe('ServerList', () => {
     it('clears the selection when multi-select is toggled off', () => {
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: baseGuildState,
         }),
       });
@@ -292,7 +292,7 @@ describe('ServerList', () => {
     it('should dispatch setSelectedGuild when a guild is clicked (single-select default mode)', () => {
       const { store } = renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });
@@ -304,7 +304,7 @@ describe('ServerList', () => {
     it('should mark selected guild item as selected', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           guild: { guilds, selectedGuild: guilds[1], selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
       });

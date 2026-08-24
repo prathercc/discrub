@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Box } from '@mui/material';
 import { useAppSelector, useAppDispatch } from './app/hooks';
-import { selectIsAuthenticated, selectAuthToken } from '@features/auth/authSlice';
+import { selectIsAuthenticated, selectAuthToken, hydrateRememberedToken } from '@features/auth/authSlice';
 import { loadSettings } from '@features/app/appSlice';
 import { loadCacheFromLocalStorage } from '@features/cache/cacheSlice';
 import { loadPresets } from '@features/presets/presetsSlice';
@@ -49,7 +49,11 @@ function App() {
       // Verifies any stored supporter key locally and, for monthly
       // keys near expiry with a stored email, silently refreshes it
       // (at most one attempt per app-open).
-      dispatch(initializeSupporter());
+      // #249: restore an opt-in remembered token once the supporter key
+      // is known, so the hosted gate still applies to the restore.
+      dispatch(initializeSupporter()).then(() => {
+        dispatch(hydrateRememberedToken());
+      });
     });
   }, [dispatch]);
 

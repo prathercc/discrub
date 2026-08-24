@@ -318,7 +318,7 @@ Purging, searching and bulk operations behave the same everywhere. Three things 
 | Export size | No limit | Smaller parts | No limit | No limit | Smaller parts |
 | Export media | All files | All files | Most files | Most files | Most files |
 
-"Manual" means you paste your Discord token each visit (the extension reads it for you). "Smaller parts" means each zip part is held in memory before it downloads (Firefox extension pages have no service worker; iOS stages through Safari's storage quota), so those setups default to 500 MB parts under Export settings → Max zip size. "Most files" means the hosted build fetches media through Discord's proxy, which refuses a few formats; skipped files are listed in the status log and the messages themselves are always complete.
+"Manual" means you paste your Discord token each visit, or tick "Remember my token on this device" to keep it in that browser (the extension reads it for you). "Smaller parts" means each zip part is held in memory before it downloads (Firefox extension pages have no service worker; iOS stages through Safari's storage quota), so those setups default to 500 MB parts under Export settings → Max zip size. "Most files" means the hosted build fetches media through Discord's proxy, which refuses a few formats; skipped files are listed in the status log and the messages themselves are always complete.
 
 Both versions use the same codebase and make identical API calls from your browser. The extension includes Discrub Classic (the original interface) as a built-in option — when you first launch Discrub, a splash screen lets you choose between Discrub 2.0 and Discrub Classic. Your choice is remembered for future sessions.
 
@@ -346,7 +346,7 @@ The web app and the hosted Bleeding Edge build sign in with your Discord user to
 2. Open DevTools (`F12`, or `Cmd+Option+I` on a Mac) and switch to the **Network** tab.
 3. Click any server or channel so Discord makes a request, then pick a request whose name starts with `messages`, `channels`, or `science` from the list.
 4. In the request's **Headers** panel, scroll to **Request Headers** and copy the value of `authorization`. That long string is your token.
-5. Paste it into Discrub's token field. Discrub keeps it in memory only and never writes it to disk.
+5. Paste it into Discrub's token field. Discrub keeps it in memory only and never writes it to disk, unless you tick **Remember my token on this device** (web app only). That stores the token as plain text in your browser's site data until you log out, so only use it on a device you control.
 
 Treat the token like a password: anyone holding it can act as your account. Never share it or paste it anywhere you do not trust. Logging out of Discord (or changing your password) invalidates it, so you will need a fresh one afterwards.
 

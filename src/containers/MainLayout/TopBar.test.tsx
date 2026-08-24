@@ -215,7 +215,7 @@ describe('TopBar', () => {
     it('should clear all state on logout', () => {
       const { store } = renderWithProviders(<TopBar />, {
         preloadedState: createBaseState({
-          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           user: { currentUser, isLoading: false, error: null },
           guild: { guilds: [], selectedGuild: null, selectedGuilds: [], roles: [], isLoading: false, error: null, currentMemberRoles: [], memberRolesCache: {}, guildEmojis: [], guildEmojisCache: {} },
         }),
@@ -225,6 +225,20 @@ describe('TopBar', () => {
       expect(state.auth.token).toBeNull();
       expect(state.auth.isAuthenticated).toBe(false);
       expect(state.user.currentUser).toBeNull();
+    });
+
+    it('forgets a remembered token on logout (#249)', async () => {
+      const { storage } = await import('@/extension/storage');
+      renderWithProviders(<TopBar />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: true },
+          user: { currentUser, isLoading: false, error: null },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Logout'));
+      await vi.waitFor(() => {
+        expect(storage.state.remove).toHaveBeenCalledWith('auth:rememberedToken');
+      });
     });
   });
 

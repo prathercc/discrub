@@ -65,7 +65,7 @@ export const WithCopyButtons: Story = {
   decorators: [
     (Story) => {
       const store = createMockStore({
-        auth: { token: 'fake-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+        auth: { token: 'fake-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         guild: {
           guilds: mockGuilds,
           selectedGuild: null,

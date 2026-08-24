@@ -174,4 +174,35 @@ describe('SettingsModal', () => {
       expect(screen.getByText('Settings')).toBeInTheDocument();
     });
   });
+
+  describe('Saved token (#249)', () => {
+    it('shows "Forget saved token" on the Reset tab only while a token is remembered', async () => {
+      const { storage } = await import('@/extension/storage');
+      const { store } = renderWithProviders(<SettingsModal open onClose={vi.fn()} />, {
+        preloadedState: createBaseState({
+          auth: { token: 't', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: true },
+        }),
+      });
+      fireEvent.click(screen.getByRole('tab', { name: 'Reset Discrub' }));
+      expect(screen.getByTestId('settings-saved-token')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('settings-forget-token'));
+      await vi.waitFor(() => {
+        expect(storage.state.remove).toHaveBeenCalledWith('auth:rememberedToken');
+      });
+      await vi.waitFor(() => {
+        expect(store.getState().auth.tokenRemembered).toBe(false);
+      });
+      // Session stays signed in; the section disappears.
+      expect(store.getState().auth.isAuthenticated).toBe(true);
+      expect(screen.queryByTestId('settings-saved-token')).toBeNull();
+    });
+
+    it('hides the Saved token section when nothing is remembered', () => {
+      renderWithProviders(<SettingsModal open onClose={vi.fn()} />, {
+        preloadedState: createBaseState(),
+      });
+      fireEvent.click(screen.getByRole('tab', { name: 'Reset Discrub' }));
+      expect(screen.queryByTestId('settings-saved-token')).toBeNull();
+    });
+  });
 });

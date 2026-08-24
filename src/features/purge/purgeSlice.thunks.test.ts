@@ -244,7 +244,7 @@ function createStore(overrides?: {
         isAuthenticated: true,
         isLoading: false,
         error: null,
-        manuallyLoggedOut: false,
+        manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false,
       },
       user: {
         currentUser:
@@ -1615,7 +1615,7 @@ describe('purgeSlice thunks', () => {
           cache: cacheReducer,
         },
         {
-          auth: { token: TOKEN, isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+          auth: { token: TOKEN, isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
           user: { currentUser: CURRENT_USER, isLoading: false, error: null },
           cache: { userMap, failedUserIds: [], isLoaded: true },
         },

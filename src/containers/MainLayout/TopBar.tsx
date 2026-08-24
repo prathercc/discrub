@@ -22,7 +22,7 @@ import {
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectCurrentUser } from '@features/user/userSlice';
-import { clearToken } from '@features/auth/authSlice';
+import { clearToken, forgetRememberedToken } from '@features/auth/authSlice';
 import { clearCurrentUser } from '@features/user/userSlice';
 import { clearGuilds, setSelectedGuild } from '@features/guild/guildSlice';
 import { clearChannels, setSelectedChannel } from '@features/channel/channelSlice';
@@ -121,6 +121,8 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
 
   const handleLogout = () => {
     dispatch(clearToken());
+    // #249: a remembered token must not outlive an explicit sign-out.
+    dispatch(forgetRememberedToken());
     dispatch(clearCurrentUser());
     dispatch(clearGuilds());
     dispatch(clearChannels());

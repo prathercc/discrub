@@ -15,6 +15,7 @@ vi.mock('@services/discordService', () => ({
   getDiscordService: vi.fn(() => ({
     validateToken: vi.fn().mockResolvedValue({ id: 'user-1', username: 'testuser' }),
     fetchCurrentUser: vi.fn().mockResolvedValue({ id: 'user-1', username: 'testuser' }),
+    fetchUserData: vi.fn().mockResolvedValue({ success: true, data: { id: 'user-1', username: 'testuser' } }),
   })),
 }));
 
@@ -127,7 +128,7 @@ describe('LandingPage', () => {
     it('should show auth error when present', () => {
       renderWithProviders(<LandingPage />, {
         preloadedState: createBaseState({
-          auth: { token: null, isAuthenticated: false, isLoading: false, error: 'Invalid token', manuallyLoggedOut: false },
+          auth: { token: null, isAuthenticated: false, isLoading: false, error: 'Invalid token', manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByText('Invalid token')).toBeInTheDocument();
@@ -136,7 +137,7 @@ describe('LandingPage', () => {
     it('should show helper text about invalid token on error', () => {
       renderWithProviders(<LandingPage />, {
         preloadedState: createBaseState({
-          auth: { token: null, isAuthenticated: false, isLoading: false, error: 'Bad token', manuallyLoggedOut: false },
+          auth: { token: null, isAuthenticated: false, isLoading: false, error: 'Bad token', manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByText(/Invalid token - please check and try again/)).toBeInTheDocument();
@@ -147,7 +148,7 @@ describe('LandingPage', () => {
     it('should disable token input while loading', () => {
       renderWithProviders(<LandingPage />, {
         preloadedState: createBaseState({
-          auth: { token: null, isAuthenticated: false, isLoading: true, error: null, manuallyLoggedOut: false },
+          auth: { token: null, isAuthenticated: false, isLoading: true, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByLabelText(/Discord Token/)).toBeDisabled();
@@ -156,7 +157,7 @@ describe('LandingPage', () => {
     it('should show spinner instead of Sign In text while loading', () => {
       renderWithProviders(<LandingPage />, {
         preloadedState: createBaseState({
-          auth: { token: null, isAuthenticated: false, isLoading: true, error: null, manuallyLoggedOut: false },
+          auth: { token: null, isAuthenticated: false, isLoading: true, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
       expect(screen.getByRole('progressbar')).toBeInTheDocument();
@@ -192,6 +193,116 @@ describe('LandingPage', () => {
         const state = store.getState();
         expect(state.auth.isLoading).toBe(true);
       });
+    });
+  });
+
+  describe('Remember my token (#249)', () => {
+    it('offers the opt-in checkbox on web builds with an honest plaintext warning', () => {
+      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
+      const box = screen.getByTestId('landing-remember-token') as HTMLInputElement;
+      expect(box.checked).toBe(false);
+      expect(screen.getByText('Remember my token on this device')).toBeInTheDocument();
+      expect(screen.getByText(/Saved as plain text/)).toBeInTheDocument();
+      expect(screen.getByText('Your token is stored in memory only (session-only)')).toBeInTheDocument();
+    });
+
+    it('hides the checkbox in extension mode (the token bridge handles auth there)', async () => {
+      const { isExtensionMode } = await import('@/extension/messaging');
+      vi.mocked(isExtensionMode).mockReturnValue(true);
+      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
+      await vi.waitFor(() => {
+        expect(screen.getByText('Try Auto-Authentication Again')).toBeInTheDocument();
+      });
+      expect(screen.queryByTestId('landing-remember-token')).toBeNull();
+    });
+
+    it('ticking the box opens a confirmation; Cancel leaves it unticked', () => {
+      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
+      fireEvent.click(screen.getByTestId('landing-remember-token'));
+      expect(screen.getByText('Save your token on this device?')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('remember-token-cancel'));
+      expect((screen.getByTestId('landing-remember-token') as HTMLInputElement).checked).toBe(false);
+      expect(screen.getByText('Your token is stored in memory only (session-only)')).toBeInTheDocument();
+    });
+
+    it('confirming ticks the box and swaps the helper text to the saved-on-device wording', () => {
+      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
+      fireEvent.click(screen.getByTestId('landing-remember-token'));
+      fireEvent.click(screen.getByTestId('remember-token-confirm'));
+      expect((screen.getByTestId('landing-remember-token') as HTMLInputElement).checked).toBe(true);
+      expect(screen.getByText('Your token will be saved on this device until you log out')).toBeInTheDocument();
+    });
+
+    it('unticking never asks for confirmation', async () => {
+      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
+      fireEvent.click(screen.getByTestId('landing-remember-token'));
+      fireEvent.click(screen.getByTestId('remember-token-confirm'));
+      // MUI fades the dialog out; wait for it to leave the DOM
+      await vi.waitFor(() => {
+        expect(screen.queryByTestId('remember-token-confirm')).toBeNull();
+      });
+      fireEvent.click(screen.getByTestId('landing-remember-token'));
+      expect((screen.getByTestId('landing-remember-token') as HTMLInputElement).checked).toBe(false);
+      expect(screen.queryByTestId('remember-token-confirm')).toBeNull();
+    });
+
+    it('persists the token after a successful sign-in when ticked', async () => {
+      const { storage } = await import('@/extension/storage');
+      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
+      fireEvent.click(screen.getByTestId('landing-remember-token'));
+      fireEvent.click(screen.getByTestId('remember-token-confirm'));
+      await vi.waitFor(() => {
+        expect(screen.queryByTestId('remember-token-confirm')).toBeNull();
+      });
+      fireEvent.change(screen.getByLabelText(/Discord Token/), { target: { value: 'keep-me' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+      await vi.waitFor(() => {
+        expect(storage.state.set).toHaveBeenCalledWith('auth:rememberedToken', 'keep-me');
+      });
+    });
+
+    it('does not persist the token when left unticked, and drops a previously remembered one', async () => {
+      const { storage } = await import('@/extension/storage');
+      renderWithProviders(<LandingPage />, {
+        preloadedState: createBaseState({
+          auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: true },
+        }),
+      });
+      fireEvent.change(screen.getByLabelText(/Discord Token/), { target: { value: 'once' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
+      await vi.waitFor(() => {
+        expect(storage.state.remove).toHaveBeenCalledWith('auth:rememberedToken');
+      });
+      expect(storage.state.set).not.toHaveBeenCalledWith('auth:rememberedToken', expect.anything());
+    });
+
+    it('shows "Forget saved token" on the gate when a token is stored but not restored', async () => {
+      const { storage } = await import('@/extension/storage');
+      const { store } = renderWithProviders(<LandingPage />, {
+        preloadedState: createBaseState({
+          auth: { token: null, isAuthenticated: false, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: true },
+        }),
+      });
+      expect(screen.getByTestId('landing-token-remembered')).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId('landing-forget-token'));
+      await vi.waitFor(() => {
+        expect(storage.state.remove).toHaveBeenCalledWith('auth:rememberedToken');
+      });
+      await vi.waitFor(() => {
+        expect(store.getState().auth.tokenRemembered).toBe(false);
+      });
+      expect(screen.queryByTestId('landing-token-remembered')).toBeNull();
+    });
+
+    it('shows the restoring panel while a remembered token is being validated', () => {
+      renderWithProviders(<LandingPage />, {
+        preloadedState: createBaseState({
+          auth: { token: null, isAuthenticated: false, isLoading: true, error: null, manuallyLoggedOut: false, isRestoring: true, tokenRemembered: true },
+        }),
+      });
+      expect(screen.getByTestId('landing-restoring')).toBeInTheDocument();
+      expect(screen.getByText('Signing in with the token saved on this device')).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Discord Token/)).toBeNull();
     });
   });
 
