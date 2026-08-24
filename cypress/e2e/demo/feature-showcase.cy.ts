@@ -38,15 +38,19 @@ function screenshot(name: string) {
   cy.screenshot(`${SCREENSHOT_DIR}/${name}`, { overwrite: true });
 }
 
-/** Close the donation drawer via the More options > Supporter Wall toggle in the TopBar */
+/** Close the donation drawer via the TopBar Supporter Wall toggle (inline at md+, in More below) */
 function hideDonationDrawer() {
   cy.wait(1500);
   cy.get('body').then(($body) => {
     if ($body.find('button:contains("Support on Ko-Fi"):visible, a[href*="ko-fi"]:visible').length === 0) {
       return;
     }
-    cy.get('[aria-label="More options"]').click({ force: true });
-    cy.contains('[role="menuitem"]', 'Supporter Wall').click({ force: true });
+    if ($body.find('[aria-label="Supporter Wall"]').length > 0) {
+      cy.get('[aria-label="Supporter Wall"]').click({ force: true });
+    } else {
+      cy.get('[aria-label="More options"]').click({ force: true });
+      cy.contains('[role="menuitem"]', 'Supporter Wall').click({ force: true });
+    }
     cy.get('body').click(0, 0);
     cy.wait(400);
   });
