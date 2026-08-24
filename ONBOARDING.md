@@ -113,6 +113,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Progress Feedback | Basic | Milestone-based status log entries with operation tracking |
 | Client-Side Filter | Basic | Full criteria support with mode indicator |
 | Two-Layer Model | Single layer | Search (Discord API) + Refine (client-side, no API) in one modal |
+| Content Terms | One term | Several terms matched any-of, in both Search (one Discord search per term, merged) and Refine |
+| Attachment Filters | No | Filter by attachment file type and file name, server-side in Search and locally in Refine |
 | Date Precision | Whole days | Hour and minute (time-of-day), with Before, After, or Between two dates |
 | Pagination | All-at-once | Lazy 25-msg pages with "X of Y matches loaded" counter; Load All renders pages live and retries transient network failures |
 | Inline Filter-by-User | No | Click an author → one-click filter by them or messages mentioning them |

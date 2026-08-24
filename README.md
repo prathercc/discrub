@@ -67,10 +67,10 @@ Selecting many messages is fast: click a checkbox and drag to sweep a range (the
 
 **Filters** uses a two-layer model in one modal:
 
-- **Search** hits Discord's API. Filter by message content, author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), attachment file type (png, pdf, any list of extensions) and exact attachment file name, date range (before, after, or between two dates) with **time-of-day precision**, pinned status, and author type (human / bot / webhook). Results stream in lazily as the channel header shows `X of Y matches loaded` and a Load All option transparently chains queries past Discord's 5,000-result cap. Load All renders messages live as pages arrive (no more waiting for the full run to finish before anything appears), retries transient network failures with exponential backoff, and pauses if retries exhaust so you can resume after fixing the network. If Discord reports that a channel's search index is still being built, Discrub says so up front, since results can look incomplete until Discord finishes indexing.
+- **Search** hits Discord's API. Filter by message content (one term, or several matched any-of: type a term and press Enter, or add more with commas), author, mentions, has-types (image, video, link, file, embed, sound, sticker, snapshot, poll, forward), attachment file type (png, pdf, any list of extensions) and exact attachment file name, date range (before, after, or between two dates) with **time-of-day precision**, pinned status, and author type (human / bot / webhook). Results stream in lazily as the channel header shows `X of Y matches loaded` and a Load All option transparently chains queries past Discord's 5,000-result cap. Load All renders messages live as pages arrive (no more waiting for the full run to finish before anything appears), retries transient network failures with exponential backoff, and pauses if retries exhaust so you can resume after fixing the network. If Discord reports that a channel's search index is still being built, Discrub says so up front, since results can look incomplete until Discord finishes indexing.
 
 Search and Refine criteria are cleared automatically when you switch to a different channel or DM, so a filter from one conversation never silently narrows another.
-- **Refine** narrows the messages already loaded, client-side, with no API calls. Survives "Load more" so new pages stay filtered, and a status entry appears when an incoming page contributed zero matches. Includes a system-message control to **show only** or **hide** a chosen system-message type (pins, joins, boosts, etc.), plus attachment file type and a partial file-name match for the messages already on screen.
+- **Refine** narrows the messages already loaded, client-side, with no API calls. Content terms work the same way here, any-of. Survives "Load more" so new pages stay filtered, and a status entry appears when an incoming page contributed zero matches. Includes a system-message control to **show only** or **hide** a chosen system-message type (pins, joins, boosts, etc.), plus attachment file type and a partial file-name match for the messages already on screen.
 
 ![Search & Filters](docs/screenshots/messages/search-filters.png)
 
@@ -285,7 +285,8 @@ Supporters unlock eight more cosmetic themes (AMOLED Void, Synthwave, Bytecraft,
 
 - **Donation Wall** — Ko-Fi supporter feed with tier system and leaderboard
 - **Ideas & Contact** — direct links to email and GitHub issues
-- **Announcements** — in-app announcements rendered from GitHub-hosted markdown, with a version-aware re-trigger so users see fresh announcements once
+- **Announcements** — in-app announcements rendered from GitHub-hosted markdown, with a version-aware re-trigger so users see fresh announcements once, plus a rail of every previous announcement in the same dialog
+- **From the Discrub team** — a corkboard on the welcome screen with the studio's Discord bots (Retrostat first) and a note from the developer
 - **Role Colors & Icons** — author names colored by highest-position role, with role icons next to author names in the feed and user profiles
 - **Copy to Clipboard** — copy server, channel, or DM lists
 - **Reset Discrub Data** — escape hatch in Settings that wipes Discrub's local IndexedDB databases, useful for recovering from corrupted state without uninstalling the extension
@@ -530,7 +531,7 @@ Yes. Each user runs Discrub independently in their own browser with their own to
 
 ### How do I report bugs or request features?
 
-Use the Ideas & Contact button in the app (available in the "More" menu in the top bar) to send an email.
+Use the Ideas & Contact button (the lightbulb in the top bar) to reach support@pratherbytecraft.com, GitHub issues, or Ko-fi commissions. On wide windows the Supporter Wall, r/discrub and the latest announcement also sit right on the top bar; on narrow ones they fold into the More menu.
 
 ### How do I update Discrub?
 
