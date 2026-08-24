@@ -110,6 +110,7 @@ import {
   loadMoreForumThreads,
   searchForumThreads,
   fetchForumThreads,
+  selectDiscoveredThreadsForChannel,
 } from '@features/channel/channelSlice';
 
 interface ServerViewProps {
@@ -147,6 +148,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const focusedView = useAppSelector(selectFocusedView);
   const threadTabs = useAppSelector(selectThreadTabs);
   const forumThreads = useAppSelector(selectForumThreads);
+  const discoveredThreads = useAppSelector(selectDiscoveredThreadsForChannel(selectedChannel?.id));
   const isLoadingForumThreads = useAppSelector(selectIsLoadingForumThreads);
   const forumFirstMessages = useAppSelector(selectForumFirstMessages);
   const hasMoreForumThreads = useAppSelector(selectHasMoreForumThreads);
@@ -195,6 +197,15 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const [loadAllDialogOpen, setLoadAllDialogOpen] = useState(false);
   const [threadLoadOpen, setThreadLoadOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  // Analytics Threads report: thread id → name from every source the feed knows
+  // (discovered threads for this channel, forum posts, open thread tabs).
+  const analyticsThreadNames = useMemo(() => {
+    const names: Record<string, string> = {};
+    (discoveredThreads ?? []).forEach((t) => { if (t.name) names[t.id] = t.name; });
+    forumThreads.forEach((t) => { if (t.name) names[t.id] = t.name; });
+    Object.values(threadTabs).forEach((tab) => { if (tab.threadName) names[tab.threadId] = tab.threadName; });
+    return names;
+  }, [discoveredThreads, forumThreads, threadTabs]);
   const [partialResultsWarnings, setPartialResultsWarnings] = useState<Record<string, boolean>>({});
 
   // Wire #144 hotkeys for the channel toolbar. Each `enabled` flag
@@ -1242,6 +1253,8 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
         onClose={() => setAnalyticsOpen(false)}
         messages={messages}
         userMap={userMap}
+        containerId={activeTab ?? selectedChannel?.id ?? null}
+        threadNames={analyticsThreadNames}
       />
     </Box>
   );

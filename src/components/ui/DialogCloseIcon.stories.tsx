@@ -44,7 +44,7 @@ export const FlexHeaderWithIcon: Story = {
     <Dialog open onClose={() => {}} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pr: 5 }}>
         <AnalyticsIcon color="primary" />
-        Mention Analytics
+        Most mentioned
         <Box sx={{ flex: 1 }} />
         <Chip label="Skip replies" size="small" />
         <DialogCloseIcon onClose={() => {}} />
