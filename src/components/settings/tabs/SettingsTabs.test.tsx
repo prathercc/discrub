@@ -141,10 +141,10 @@ describe('ExportPreferencesTab', () => {
 });
 
 describe('DisplayTab', () => {
-  it('should render two select controls', () => {
+  it('should render three select controls', () => {
     render(<DisplayTab formValues={defaultSettings} onChange={vi.fn()} />);
     const selects = screen.getAllByRole('combobox');
-    expect(selects.length).toBe(2); // Date Format + Time Format
+    expect(selects.length).toBe(3); // Date Format + Time Format + DM List Order
   });
 
   it('should display default format values', () => {

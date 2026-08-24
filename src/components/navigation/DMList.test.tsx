@@ -3,6 +3,7 @@ import { renderWithProviders, screen, fireEvent, waitFor } from '../../test/test
 import DMList from './DMList';
 import { createBaseState } from '../../test/state-factories';
 import { createMockUser, createMockChannel } from '../../test/fixtures';
+import { DiscrubSetting, DmSortOrder } from 'discrub-core/discrub-enum';
 import { getDiscordService } from '@services/discordService';
 
 vi.mock('@services/discordService', () => ({
@@ -704,6 +705,80 @@ describe('DMList', () => {
         await screen.findByText(/Enter a 17-20 digit channel ID/)
       ).toBeInTheDocument();
       expect(fetchChannel).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('DM sort order (#248)', () => {
+    // Snowflake for a given ms timestamp: (ms - epoch) << 22.
+    const snowflakeAt = (ms: number) =>
+      ((BigInt(ms) - 1420070400000n) << 22n).toString();
+
+    const oldDm = {
+      id: 'dm-old',
+      type: 1,
+      last_message_id: snowflakeAt(Date.UTC(2023, 0, 1)),
+      recipients: [createMockUser({ id: 'u-z', username: 'Zoe' })],
+    } as any;
+    const newDm = {
+      id: 'dm-new',
+      type: 1,
+      last_message_id: snowflakeAt(Date.UTC(2025, 0, 1)),
+      recipients: [createMockUser({ id: 'u-m', username: 'Mia' })],
+    } as any;
+    const silentDm = {
+      id: 'dm-silent',
+      type: 1,
+      last_message_id: null,
+      recipients: [createMockUser({ id: 'u-a', username: 'Ann' })],
+    } as any;
+
+    const stateWithOrder = (order?: DmSortOrder) =>
+      createBaseState({
+        auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false },
+        dm: { dms: [silentDm, oldDm, newDm], selectedDm: null, selectedDms: [], isLoading: false, error: null },
+        ...(order
+          ? {
+              app: {
+                ...createBaseState().app,
+                settings: {
+                  ...createBaseState().app.settings!,
+                  [DiscrubSetting.APP_DM_SORT_ORDER]: order,
+                },
+              },
+            }
+          : {}),
+      });
+
+    const renderedNames = () =>
+      Array.from(document.querySelectorAll('.MuiListItemText-primary')).map(
+        (el) => el.textContent,
+      );
+
+    it('defaults to recent activity: newest first, silent DMs last', () => {
+      renderWithProviders(<DMList />, { preloadedState: stateWithOrder() });
+      expect(renderedNames()).toEqual(['Mia', 'Zoe', 'Ann']);
+    });
+
+    it('sorts alphabetically when set to name', () => {
+      renderWithProviders(<DMList />, {
+        preloadedState: stateWithOrder(DmSortOrder.NAME),
+      });
+      expect(renderedNames()).toEqual(['Ann', 'Mia', 'Zoe']);
+    });
+
+    it("keeps the API's order when set to discord", () => {
+      renderWithProviders(<DMList />, {
+        preloadedState: stateWithOrder(DmSortOrder.DISCORD),
+      });
+      expect(renderedNames()).toEqual(['Ann', 'Zoe', 'Mia']);
+    });
+
+    it('keeps the chosen order while filtering', () => {
+      renderWithProviders(<DMList filterText="o" />, {
+        preloadedState: stateWithOrder(DmSortOrder.NAME),
+      });
+      // "o" matches Zoe only.
+      expect(renderedNames()).toEqual(['Zoe']);
     });
   });
 });

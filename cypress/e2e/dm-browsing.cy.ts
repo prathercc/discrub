@@ -303,4 +303,60 @@ describe('DM Browsing', () => {
       });
     });
   });
+
+  describe('DM sort order (#248)', () => {
+    const API = '**/api/v10';
+
+    // Snowflake for a given ms timestamp: (ms - epoch) << 22. The shared
+    // dms.json fixture can't exercise the sort — its last_message_ids
+    // differ only below bit 22, so they decode to the same millisecond.
+    const snowflakeAt = (ms: number) =>
+      ((BigInt(ms) - 1420070400000n) << 22n).toString();
+
+    const sortDm = (id: string, username: string, lastMessageMs: number | null) => ({
+      id,
+      type: 1,
+      last_message_id: lastMessageMs === null ? null : snowflakeAt(lastMessageMs),
+      recipients: [
+        { id: `${id}9`, username, discriminator: '0', avatar: null, global_name: username },
+      ],
+    });
+
+    beforeEach(() => {
+      // LIFO override of the login-time DM intercept: API order is
+      // alice (oldest), bob, charlie (newest).
+      cy.intercept('GET', `${API}/users/@me/channels`, {
+        statusCode: 200,
+        body: [
+          sortDm('501000000000000001', 'alice_dev', Date.UTC(2023, 0, 1)),
+          sortDm('501000000000000002', 'bob_gamer', Date.UTC(2024, 0, 1)),
+          sortDm('501000000000000003', 'charlie_mod', Date.UTC(2025, 0, 1)),
+        ],
+      }).as('getDMs');
+    });
+
+    it('sorts by recent activity by default and honours the Display setting', () => {
+      cy.contains('button', 'DMs').click();
+      cy.wait('@getDMs');
+
+      // charlie has the newest last message, so the default recent-first
+      // sort reverses the API order.
+      cy.get('[data-testid="dm-row"] .MuiListItemText-primary').eq(0).should('contain.text', 'charlie_mod');
+      cy.get('[data-testid="dm-row"] .MuiListItemText-primary').eq(1).should('contain.text', 'bob_gamer');
+      cy.get('[data-testid="dm-row"] .MuiListItemText-primary').eq(2).should('contain.text', 'alice_dev');
+
+      // Flip to Discord's order in Settings › Display and save.
+      cy.get('[aria-label="Settings"]').click();
+      cy.get('[role="dialog"]').contains('button', 'Display').click();
+      cy.get('[role="dialog"]').find('[role="combobox"]').eq(2).click();
+      cy.get('[role="listbox"]').contains("Discord's order").click();
+      cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
+      cy.get('[role="dialog"]').should('not.exist');
+
+      // The sidebar re-sorts live to the API's order.
+      cy.get('[data-testid="dm-row"] .MuiListItemText-primary').eq(0).should('contain.text', 'alice_dev');
+      cy.get('[data-testid="dm-row"] .MuiListItemText-primary').eq(1).should('contain.text', 'bob_gamer');
+      cy.get('[data-testid="dm-row"] .MuiListItemText-primary').eq(2).should('contain.text', 'charlie_mod');
+    });
+  });
 });

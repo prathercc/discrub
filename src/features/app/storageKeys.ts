@@ -19,6 +19,7 @@ import type { AppSettings } from 'discrub-core/types/discrub-types';
 import {
   DiscrubSetting,
   DateFormat,
+  DmSortOrder,
   TimeFormat,
   UserDataRefreshRate,
 } from 'discrub-core/discrub-enum';
@@ -56,6 +57,7 @@ export const defaultSettings: AppSettings = {
   [DiscrubSetting.APP_SHOW_KOFI_FEED]: 'true',
   [DiscrubSetting.APP_THEME_MODE]: 'auto',
   [DiscrubSetting.APP_THEME_ANIMATIONS]: 'true',
+  [DiscrubSetting.APP_DM_SORT_ORDER]: DmSortOrder.RECENT,
 
   // Purge Behavior
   [DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA]: 'false',

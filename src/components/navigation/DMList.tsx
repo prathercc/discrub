@@ -49,6 +49,16 @@ import {
   selectDmsInRange,
 } from '@features/dm/dmSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
+import { selectSetting } from '@features/app/appSlice';
+import { DiscrubSetting } from 'discrub-core/discrub-enum';
+import {
+  isGroupDm,
+  getDmName,
+  getDmDisplayName,
+  getGroupMemberCount,
+  getDmLastMessageTime,
+  sortDms,
+} from '@/utils/dmListUtils';
 import { fetchMessages, clearMessages } from '@features/message/messageSlice';
 import { addStatusEntry, showToast } from '@features/status/statusSlice';
 import { setSelectedChannel } from '@features/channel/channelSlice';
@@ -241,6 +251,9 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   const selectedDms = useAppSelector(selectSelectedDms);
   const isLoading = useAppSelector(selectDmLoading);
   const token = useAppSelector(selectAuthToken);
+  const dmSortOrder = useAppSelector(
+    selectSetting(DiscrubSetting.APP_DM_SORT_ORDER),
+  );
 
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [bulkExportOpen, setBulkExportOpen] = useState(false);
@@ -249,51 +262,20 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   const [openByIdOpen, setOpenByIdOpen] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
-  // #227: type 3 = GROUP_DM. A group stays a group no matter how many
-  // recipients remain — Discord shows its custom name (when set) as the
-  // primary label, so we do too.
-  const isGroupDm = (dm: Channel) => dm.type === 3;
-
-  const getDmName = (dm: Channel) => {
-    if (isGroupDm(dm) && dm.name) {
-      return dm.name;
-    }
-    if (dm.recipients && dm.recipients.length > 0) {
-      return dm.recipients.map((r) => r.username).join(', ');
-    }
-    return isGroupDm(dm) ? 'Group DM' : 'Direct Message';
-  };
-
-  const getDmDisplayName = (dm: Channel) => {
-    // Groups never borrow a single recipient's display name (#227) — that's
-    // exactly how a dying group masquerades as a 1:1 DM.
-    if (isGroupDm(dm)) return null;
-    if (dm.recipients && dm.recipients.length === 1) {
-      const r = dm.recipients[0];
-      if (r.global_name && r.global_name !== r.username) return r.global_name;
-    }
-    return null;
-  };
-
-  // Member count shown on group rows: remaining recipients + you.
-  const getGroupMemberCount = (dm: Channel) => (dm.recipients?.length ?? 0) + 1;
-
   const getDmLastActive = (dm: Channel): string | null => {
-    const lastMsgId = dm.last_message_id;
-    if (!lastMsgId) return null;
-    try {
-      const timestamp = new Date(Number(BigInt(lastMsgId) >> 22n) + 1420070400000).toISOString();
-      return timeAgo(timestamp);
-    } catch {
-      return null;
-    }
+    const lastMessageTime = getDmLastMessageTime(dm);
+    if (lastMessageTime === null) return null;
+    return timeAgo(new Date(lastMessageTime).toISOString());
   };
 
   const filteredDMs = useMemo(() => {
-    if (!filterText.trim()) return dms;
+    // #248: order first, then filter — filtering only removes rows, so the
+    // chosen ordering survives it.
+    const sorted = sortDms(dms, dmSortOrder);
+    if (!filterText.trim()) return sorted;
 
     const searchLower = filterText.toLowerCase().trim();
-    return dms.filter((dm) => {
+    return sorted.filter((dm) => {
       // Match the custom group name AND member usernames — a named group's
       // primary label is its name (#227), but people still look for groups
       // by who's in them.
@@ -304,8 +286,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           r.global_name?.toLowerCase().includes(searchLower),
       );
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional trigger set
-  }, [dms, filterText]);
+  }, [dms, filterText, dmSortOrder]);
 
   const visible = filteredDMs.slice(0, visibleCount);
 
@@ -503,6 +484,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
         {visible.map((dm) => (
           <ListItemButton
             key={dm.id}
+            data-testid="dm-row"
             selected={multiSelectMode ? isDmSelected(dm) : selectedDm?.id === dm.id}
             onClick={(e) => handleDmClick(dm, e)}
             // Shift+Click must not smear a text selection across rows (#218).

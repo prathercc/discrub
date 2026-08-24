@@ -1,7 +1,7 @@
 import { Box, Button, FormControl, InputLabel, MenuItem, Select, Typography } from '@mui/material';
 import { Palette as PaletteIcon } from '@mui/icons-material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
-import { DiscrubSetting, DateFormat, TimeFormat } from 'discrub-core/discrub-enum';
+import { DiscrubSetting, DateFormat, DmSortOrder, TimeFormat } from 'discrub-core/discrub-enum';
 import { useAppDispatch } from '@/app/hooks';
 import { setSupporterDialogOpen } from '@features/supporter/supporterSlice';
 
@@ -63,6 +63,23 @@ export const DisplayTab = ({ formValues, onChange }: DisplayTabProps) => {
         </Select>
         <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
           How times are formatted throughout the application
+        </Typography>
+      </FormControl>
+
+      <FormControl fullWidth>
+        <InputLabel>DM List Order</InputLabel>
+        <Select
+          value={formValues[DiscrubSetting.APP_DM_SORT_ORDER]}
+          label="DM List Order"
+          onChange={(e) => onChange(DiscrubSetting.APP_DM_SORT_ORDER, e.target.value)}
+          inputProps={{ 'data-testid': 'dm-sort-order-select' }}
+        >
+          <MenuItem value={DmSortOrder.RECENT}>Recent activity</MenuItem>
+          <MenuItem value={DmSortOrder.NAME}>Name</MenuItem>
+          <MenuItem value={DmSortOrder.DISCORD}>Discord's order</MenuItem>
+        </Select>
+        <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
+          How conversations are ordered in the Direct Messages list
         </Typography>
       </FormControl>
     </Box>

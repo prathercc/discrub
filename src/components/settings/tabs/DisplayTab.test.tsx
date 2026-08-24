@@ -7,7 +7,7 @@ import { DisplayTab } from './DisplayTab';
 // needs the full provider stack (Redux + app theme).
 const render = (ui: ReactElement) => renderWithProviders(ui);
 import { defaultSettings } from '@features/app/appSlice';
-import { DiscrubSetting, DateFormat, TimeFormat } from 'discrub-core/discrub-enum';
+import { DiscrubSetting, DateFormat, DmSortOrder, TimeFormat } from 'discrub-core/discrub-enum';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 
 // MUI Select renders InputLabel text twice (label + notched outline legend).
@@ -23,9 +23,9 @@ describe('DisplayTab', () => {
   it('renders all display settings controls', () => {
     render(<DisplayTab formValues={defaultSettings} onChange={onChange} />);
 
-    // Two select controls (Date Format + Time Format)
+    // Three select controls (Date Format + Time Format + DM List Order)
     const selects = screen.getAllByRole('combobox');
-    expect(selects.length).toBe(2);
+    expect(selects.length).toBe(3);
 
     // Description text
     expect(screen.getByText(/Customize how dates, times/)).toBeInTheDocument();
@@ -112,6 +112,30 @@ describe('DisplayTab', () => {
     fireEvent.mouseDown(selects[1]);
     fireEvent.click(screen.getByText('24 Hour with Seconds'));
     expect(onChange).toHaveBeenCalledWith(DiscrubSetting.TIME_FORMAT, expect.any(String));
+  });
+
+  it('dm list order select shows all 3 options with recent as default', () => {
+    render(<DisplayTab formValues={defaultSettings} onChange={onChange} />);
+    expect(screen.getByText('Recent activity')).toBeInTheDocument();
+    const selects = screen.getAllByRole('combobox');
+    // Third select is DM List Order
+    fireEvent.mouseDown(selects[2]);
+    const options = screen.getAllByRole('option');
+    expect(options.length).toBe(3);
+    expect(options[0]).toHaveTextContent('Recent activity');
+    expect(options[1]).toHaveTextContent('Name');
+    expect(options[2]).toHaveTextContent("Discord's order");
+  });
+
+  it('changing dm list order calls onChange with correct key', () => {
+    render(<DisplayTab formValues={defaultSettings} onChange={onChange} />);
+    const selects = screen.getAllByRole('combobox');
+    fireEvent.mouseDown(selects[2]);
+    fireEvent.click(screen.getByText('Name'));
+    expect(onChange).toHaveBeenCalledWith(
+      DiscrubSetting.APP_DM_SORT_ORDER,
+      DmSortOrder.NAME,
+    );
   });
 
   it('displays DD/MM/YYYY when formValues has DDMMYYYY date format', () => {
