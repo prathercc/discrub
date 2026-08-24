@@ -131,7 +131,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 - **Discrub (Web App):** You manually enter your Discord token on the landing page
 - **Discrub (Extension):** Auto-retrieves your token like Classic. When you first launch, a **splash screen** lets you choose between Discrub 2.0 and Discrub Classic — your choice is remembered for future sessions.
 
-Your token is stored in memory only and cleared when you close the tab, unless you tick **Remember my token on this device** on the web app's landing page. That saves it as plain text in the browser's site data for that origin until you log out. Either way it never touches a server.
+Your token is stored in memory only and cleared when you close the tab, unless you tick **Keep me logged in** on the web app's landing page. That saves it as plain text in the browser's site data for that origin until you log out. Either way it never touches a server.
 
 ![Landing Page](docs/screenshots/auth/landing-page.png)
 

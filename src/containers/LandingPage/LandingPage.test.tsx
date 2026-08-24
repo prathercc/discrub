@@ -196,13 +196,13 @@ describe('LandingPage', () => {
     });
   });
 
-  describe('Remember my token (#249)', () => {
-    it('offers the opt-in checkbox on web builds with an honest plaintext warning', () => {
+  describe('Keep me logged in (#249)', () => {
+    it('offers the unticked "Keep me logged in" opt-in on web builds', () => {
       renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
       const box = screen.getByTestId('landing-remember-token') as HTMLInputElement;
       expect(box.checked).toBe(false);
-      expect(screen.getByText('Remember my token on this device')).toBeInTheDocument();
-      expect(screen.getByText(/Saved as plain text/)).toBeInTheDocument();
+      expect(screen.getByText('Keep me logged in')).toBeInTheDocument();
+      expect(screen.getByText('Only do this on a device you trust')).toBeInTheDocument();
       expect(screen.getByText('Your token is stored in memory only (session-only)')).toBeInTheDocument();
     });
 
@@ -216,44 +216,17 @@ describe('LandingPage', () => {
       expect(screen.queryByTestId('landing-remember-token')).toBeNull();
     });
 
-    it('ticking the box opens a confirmation; Cancel leaves it unticked', () => {
+    it('ticking the box swaps the helper text to the saved-on-device wording', () => {
       renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
       fireEvent.click(screen.getByTestId('landing-remember-token'));
-      expect(screen.getByText('Save your token on this device?')).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId('remember-token-cancel'));
-      expect((screen.getByTestId('landing-remember-token') as HTMLInputElement).checked).toBe(false);
-      expect(screen.getByText('Your token is stored in memory only (session-only)')).toBeInTheDocument();
-    });
-
-    it('confirming ticks the box and swaps the helper text to the saved-on-device wording', () => {
-      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
-      fireEvent.click(screen.getByTestId('landing-remember-token'));
-      fireEvent.click(screen.getByTestId('remember-token-confirm'));
       expect((screen.getByTestId('landing-remember-token') as HTMLInputElement).checked).toBe(true);
       expect(screen.getByText('Your token will be saved on this device until you log out')).toBeInTheDocument();
-    });
-
-    it('unticking never asks for confirmation', async () => {
-      renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
-      fireEvent.click(screen.getByTestId('landing-remember-token'));
-      fireEvent.click(screen.getByTestId('remember-token-confirm'));
-      // MUI fades the dialog out; wait for it to leave the DOM
-      await vi.waitFor(() => {
-        expect(screen.queryByTestId('remember-token-confirm')).toBeNull();
-      });
-      fireEvent.click(screen.getByTestId('landing-remember-token'));
-      expect((screen.getByTestId('landing-remember-token') as HTMLInputElement).checked).toBe(false);
-      expect(screen.queryByTestId('remember-token-confirm')).toBeNull();
     });
 
     it('persists the token after a successful sign-in when ticked', async () => {
       const { storage } = await import('@/extension/storage');
       renderWithProviders(<LandingPage />, { preloadedState: createBaseState() });
       fireEvent.click(screen.getByTestId('landing-remember-token'));
-      fireEvent.click(screen.getByTestId('remember-token-confirm'));
-      await vi.waitFor(() => {
-        expect(screen.queryByTestId('remember-token-confirm')).toBeNull();
-      });
       fireEvent.change(screen.getByLabelText(/Discord Token/), { target: { value: 'keep-me' } });
       fireEvent.click(screen.getByRole('button', { name: 'Sign In' }));
       await vi.waitFor(() => {

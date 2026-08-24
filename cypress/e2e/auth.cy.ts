@@ -51,12 +51,12 @@ describe('Authentication', () => {
   });
 
   /**
-   * #249 opt-in "Remember my token on this device". The env token
+   * #249 opt-in "Keep me logged in". The env token
    * auto-auths on every visit, so /users/@me answers by Authorization
    * header: only the remembered token gets a 200. That way a reload
    * signing in proves the RESTORED token did it, not the env one.
    */
-  describe('Remember my token on this device (#249)', () => {
+  describe('Keep me logged in (#249)', () => {
     const REMEMBERED = 'remembered-token-249';
     const API = '**/api/v10';
 
@@ -70,12 +70,12 @@ describe('Authentication', () => {
       }).as('usersMe');
     };
 
-    it('shows the unticked opt-in with a plain-text warning by default', () => {
+    it('shows the unticked opt-in with its trust note by default', () => {
       cy.blockAutoAuth();
       cy.visit('/');
       cy.get('[data-testid="landing-remember-token"]').should('not.be.checked');
-      cy.contains('Remember my token on this device').should('be.visible');
-      cy.contains('Saved as plain text').should('be.visible');
+      cy.contains('Keep me logged in').should('be.visible');
+      cy.contains('Only do this on a device you trust').should('be.visible');
       cy.contains('stored in memory only').should('be.visible');
     });
 
@@ -85,14 +85,7 @@ describe('Authentication', () => {
       cy.visit('/');
       cy.get('[data-testid="landing-sign-in"]', { timeout: 10000 }).should('be.visible');
 
-      // Ticking asks for confirmation; Cancel leaves it unticked, confirm ticks it.
-      cy.get('[data-testid="landing-remember-token"]').check();
-      cy.contains('Save your token on this device?').should('be.visible');
-      cy.get('[data-testid="remember-token-cancel"]').click();
-      cy.get('[data-testid="landing-remember-token"]').should('not.be.checked');
-      cy.get('[data-testid="landing-remember-token"]').check();
-      cy.get('[data-testid="remember-token-confirm"]').click();
-      cy.get('[data-testid="landing-remember-token"]').should('be.checked');
+      cy.get('[data-testid="landing-remember-token"]').check().should('be.checked');
       cy.get('input[type="password"]').clear().type(REMEMBERED, { log: false });
       cy.get('[data-testid="landing-sign-in"]').click();
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
@@ -118,7 +111,6 @@ describe('Authentication', () => {
       cy.get('[aria-label="Logout"]').click({ force: true });
       cy.get('[data-testid="landing-sign-in"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="landing-remember-token"]').check();
-      cy.get('[data-testid="remember-token-confirm"]').click();
       cy.get('input[type="password"]').clear().type(REMEMBERED, { log: false });
       cy.get('[data-testid="landing-sign-in"]').click();
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
@@ -143,7 +135,6 @@ describe('Authentication', () => {
       cy.visit('/');
       cy.get('[data-testid="landing-sign-in"]', { timeout: 10000 }).should('be.visible');
       cy.get('[data-testid="landing-remember-token"]').check();
-      cy.get('[data-testid="remember-token-confirm"]').click();
       cy.get('input[type="password"]').clear().type(REMEMBERED, { log: false });
       cy.get('[data-testid="landing-sign-in"]').click();
       cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');

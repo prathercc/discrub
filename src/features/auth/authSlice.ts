@@ -13,7 +13,7 @@ import type { RootState } from '@/app/store';
 /**
  * Auth slice - manages authentication state
  * The token lives in memory. Web builds may opt in to persisting it on
- * the device ("Remember my token on this device", #249); it is then
+ * the device ("Keep me logged in", #249); it is then
  * stored plaintext under REMEMBERED_TOKEN_STORAGE_KEY in `Discrub-state`
  * and restored on boot by `hydrateRememberedToken`. Logging out forgets it.
  */

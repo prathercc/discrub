@@ -11,10 +11,6 @@ import {
   Stack,
   Checkbox,
   FormControlLabel,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   alpha,
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
@@ -60,8 +56,8 @@ import CompatibilityPopover from '@components/compatibility/CompatibilityPopover
  * carrying the `hosted` feature; a themes-only key is told so before
  * any token is asked for.
  *
- * Web builds (not the extension) offer an opt-in "Remember my token on
- * this device" checkbox (#249): the token is then stored plaintext in
+ * Web builds (not the extension) offer an opt-in "Keep me logged in"
+ * checkbox (#249): the token is then stored plaintext in
  * `Discrub-state` and restored on the next visit. Logout forgets it.
  */
 const LandingPage = () => {
@@ -97,15 +93,6 @@ const LandingPage = () => {
 
   const [token, setToken] = useState(envToken || '');
   const [rememberMe, setRememberMe] = useState(false);
-  // Ticking the box asks for confirmation first; unticking never does.
-  const [rememberConfirmOpen, setRememberConfirmOpen] = useState(false);
-  const handleRememberChange = (checked: boolean) => {
-    if (checked) {
-      setRememberConfirmOpen(true);
-    } else {
-      setRememberMe(false);
-    }
-  };
   const [isExtension, setIsExtension] = useState(false);
   const [autoAuthAttempted, setAutoAuthAttempted] = useState(false);
   const [autoAuthLoading, setAutoAuthLoading] = useState(false);
@@ -460,7 +447,7 @@ const LandingPage = () => {
                     <Checkbox
                       size="small"
                       checked={rememberMe}
-                      onChange={(e) => handleRememberChange(e.target.checked)}
+                      onChange={(e) => setRememberMe(e.target.checked)}
                       disabled={isLoading || !gateSatisfied}
                       inputProps={{ 'data-testid': 'landing-remember-token' } as object}
                       sx={{ mt: -0.5 }}
@@ -469,11 +456,10 @@ const LandingPage = () => {
                   label={
                     <Box>
                       <Typography variant="body2" color="text.primary">
-                        Remember my token on this device
+                        Keep me logged in
                       </Typography>
                       <Typography variant="caption" color="text.secondary" component="div">
-                        Saved as plain text in this browser's site data. Anyone with access
-                        to this browser profile could read it. Logging out removes it.
+                        Only do this on a device you trust
                       </Typography>
                     </Box>
                   }
@@ -529,47 +515,6 @@ const LandingPage = () => {
           </Stack>
         </form>
       </Paper>
-
-      <Dialog
-        open={rememberConfirmOpen}
-        onClose={() => setRememberConfirmOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { bgcolor: 'background.paper' } }}
-      >
-        <DialogTitle>Save your token on this device?</DialogTitle>
-        <DialogContent>
-          <Stack spacing={1.5}>
-            <Typography variant="body2" color="text.secondary">
-              Your Discord token will be saved as plain text in this browser's site data.
-              Anyone who can use this browser profile could read it and act as your Discord
-              account.
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Only do this on a device you control. Logging out of Discrub removes the saved
-              token, and so does Reset Discrub.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => setRememberConfirmOpen(false)}
-            data-testid="remember-token-cancel"
-          >
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={() => {
-              setRememberMe(true);
-              setRememberConfirmOpen(false);
-            }}
-            data-testid="remember-token-confirm"
-          >
-            Save token
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Box>
   );
 };
