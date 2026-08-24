@@ -4,7 +4,7 @@ import type { SupporterEntitlementMap } from './supporterKeyService';
  * Supporter key refresh + redemption calls — the ONLY network requests
  * Discrub makes to a Prather Bytecraft server, and only ever by a
  * client that holds a key. Keys are delivered by email when a purchase
- * lands (a short DSCRB-XXXX-XXXX form that /redeem exchanges for the
+ * lands (a short DSCRB/PBYTE-XXXX-XXXX form that /redeem exchanges for the
  * full signed key); the app then checks in about once a day by
  * presenting the key itself so new purchases and renewals arrive on
  * their own (disclosed in the hub copy; removing the key stops it).
@@ -29,7 +29,7 @@ const REFRESH_ENDPOINT = 'https://api.pratherbytecraft.com/supporter/refresh';
 const REDEEM_ENDPOINT = 'https://api.pratherbytecraft.com/supporter/redeem';
 
 /** Shape of a short emailed redemption code after normalization. */
-const CODE_PATTERN = /^DSCRB-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
+const CODE_PATTERN = /^(?:DSCRB|PBYTE)-[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 
 /**
  * Recognize a pasted redemption code (mirrors the server's

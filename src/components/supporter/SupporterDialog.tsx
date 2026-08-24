@@ -468,7 +468,7 @@ const SupporterDialog = () => {
               <TextField
                 size="small"
                 label="Supporter key"
-                placeholder="DSCRB-..."
+                placeholder="PBYTE-..."
                 value={pastedKey}
                 onChange={(e) => setPastedKey(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handlePasteApply()}

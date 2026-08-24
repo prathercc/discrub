@@ -318,7 +318,7 @@ const LandingPage = () => {
                         fullWidth
                         type="password"
                         label="Key"
-                        placeholder="DSCRB-..."
+                        placeholder="PBYTE-..."
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
                         onKeyDown={(e) => {

@@ -103,11 +103,14 @@ describe('normalizeSupporterCode', () => {
   it('accepts the canonical shape and normalizes case/spaces', () => {
     expect(normalizeSupporterCode('DSCRB-AAAA-2222')).toBe('DSCRB-AAAA-2222');
     expect(normalizeSupporterCode('  dscrb aaaa 2222  ')).toBe('DSCRB-AAAA-2222');
+    expect(normalizeSupporterCode('PBYTE-AAAA-2222')).toBe('PBYTE-AAAA-2222');
+    expect(normalizeSupporterCode('  pbyte aaaa 2222  ')).toBe('PBYTE-AAAA-2222');
   });
 
   it('rejects full keys and other input', () => {
     expect(normalizeSupporterCode('DSCRB-eyJhbGci.signature')).toBeNull();
     expect(normalizeSupporterCode('DSCRB-AAAA-22')).toBeNull();
+    expect(normalizeSupporterCode('ACME-AAAA-2222')).toBeNull();
     expect(normalizeSupporterCode('hello there')).toBeNull();
     expect(normalizeSupporterCode('')).toBeNull();
   });

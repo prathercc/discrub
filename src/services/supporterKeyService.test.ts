@@ -102,6 +102,13 @@ describe('supporterKeyService', () => {
       expect(result.status).toBe('valid');
     });
 
+    it('accepts the PBYTE brand prefix (2.1.1 dual-accept)', async () => {
+      const key = await signKey(buildPayload());
+      const rebranded = key.replace(/^DSCRB-/, 'PBYTE-');
+      const result = await verifySupporterKey(rebranded, testKeys());
+      expect(result.status).toBe('valid');
+    });
+
     it('rejects a key signed by a different private key', async () => {
       const key = await signKey(buildPayload(), otherPrivateKey);
       const result = await verifySupporterKey(key, testKeys());
@@ -120,7 +127,7 @@ describe('supporterKeyService', () => {
     });
 
     it('rejects malformed strings without touching crypto', async () => {
-      for (const bad of ['', 'hello', 'DSCRB-', 'DSCRB-abc', 'DSCRB-a.b.c', 'DSCRB-!!.??']) {
+      for (const bad of ['', 'hello', 'DSCRB-', 'DSCRB-abc', 'DSCRB-a.b.c', 'DSCRB-!!.??', 'PBYTE-abc', 'ACME-abc.def']) {
         expect((await verifySupporterKey(bad, testKeys())).status).toBe('invalid');
       }
     });

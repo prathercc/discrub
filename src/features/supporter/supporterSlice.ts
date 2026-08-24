@@ -176,7 +176,7 @@ export const refreshSupporterKey = createAsyncThunk(
 
 /**
  * Apply a pasted supporter key — the primary unlock path. Emails carry
- * the short DSCRB-XXXX-XXXX form (exchanged with the server for the
+ * the short DSCRB/PBYTE-XXXX-XXXX form (exchanged with the server for the
  * full signed key, which is what gets stored); a full key pasted from
  * the archive verifies locally. Either way the stored key is replaced,
  * never stacked: one key per person. A redeemed key counts as a fresh

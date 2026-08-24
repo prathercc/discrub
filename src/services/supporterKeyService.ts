@@ -2,7 +2,7 @@
  * Supporter key verification — the client half of the supporter
  * platform (design: tooling/monetization/SUPPORTER_KEY_DESIGN.md).
  *
- * Keys are `DSCRB-<base64url(payload json)>.<base64url(signature)>`,
+ * Keys are `(DSCRB|PBYTE)-<base64url(payload json)>.<base64url(signature)>`,
  * Ed25519-signed by the server over the ASCII bytes of the base64url
  * payload segment (NOT the decoded JSON). Verification is entirely
  * local against the public keys baked in below; the server is only
@@ -63,7 +63,7 @@ MCowBQYDK2VwAyEApErJ0/LS5Ns+eiI0pwih7tGW5OXs082NjOQNkD5lKEM=
 /** Tolerated clock skew when checking `exp` (the design allows ~48h). */
 const CLOCK_SKEW_MS = 48 * 60 * 60 * 1000;
 
-const KEY_PATTERN = /^DSCRB-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/;
+const KEY_PATTERN = /^(?:DSCRB|PBYTE)-([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+)$/;
 
 function base64UrlToBytes(value: string): Uint8Array {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/');
