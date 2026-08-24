@@ -1,5 +1,6 @@
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import type { PackageMessage } from './packageTypes';
+import { messageMatchesAttachmentCriteria } from 'discrub-core/filtering';
 
 /**
  * #172: Predicate applying live FilterModal criteria to package-only data.
@@ -43,7 +44,28 @@ export function matchesPackageFilter(
     }
   }
 
+  // GH #13 — attachments in a package are bare CDN URLs; the filename is
+  // the last path segment (query string stripped). Same matcher as the
+  // live Refine layer so both modes agree.
+  if ((criteria.attachmentExtensions?.length ?? 0) > 0 || criteria.attachmentFilename) {
+    const attachments = message.attachments.map((url) => ({ filename: packageAttachmentFilename(url) }));
+    if (!messageMatchesAttachmentCriteria(attachments, criteria.attachmentExtensions, criteria.attachmentFilename)) {
+      return false;
+    }
+  }
+
   return true;
+}
+
+/** `https://cdn.discordapp.com/attachments/1/2/photo.png?ex=0` → `photo.png`. */
+export function packageAttachmentFilename(url: string): string {
+  const path = url.split(/[?#]/)[0];
+  const segment = path.substring(path.lastIndexOf('/') + 1);
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
 }
 
 /**
@@ -74,6 +96,8 @@ export function hasAnyPackageCriterion(
   return Boolean(
     (criteria.searchMessageContent && criteria.searchMessageContent.length > 0) ||
     criteria.searchAfterDate ||
-    criteria.searchBeforeDate,
+    criteria.searchBeforeDate ||
+    (criteria.attachmentExtensions && criteria.attachmentExtensions.length > 0) ||
+    criteria.attachmentFilename,
   );
 }

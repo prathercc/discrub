@@ -115,6 +115,8 @@ const buildSearchCriteria = (
   mentionIds: overrides?.mentionIds ?? [],
   channelIds: overrides?.channelIds ?? [],
   isPinned: overrides?.isPinned ?? IsPinnedType.UNSET,
+  attachmentExtensions: overrides?.attachmentExtensions ?? [],
+  attachmentFilename: overrides?.attachmentFilename ?? null,
 });
 
 /**
@@ -129,6 +131,8 @@ const hasAnyFilter = (c: SearchCriteria | null | undefined): boolean => {
     (c.userIds?.length ?? 0) > 0 ||
     (c.mentionIds?.length ?? 0) > 0 ||
     (c.selectedHasTypes?.length ?? 0) > 0 ||
+    (c.attachmentExtensions?.length ?? 0) > 0 ||
+    !!c.attachmentFilename ||
     !!c.searchMessageContent ||
     !!c.searchAfterDate ||
     !!c.searchBeforeDate ||

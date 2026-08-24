@@ -44,6 +44,8 @@ const EMPTY_EXPORT_CRITERIA: SearchCriteria = {
   channelIds: [],
   isPinned: IsPinnedType.UNSET,
   authorType: null,
+  attachmentExtensions: [],
+  attachmentFilename: null,
 };
 
 /**
@@ -576,6 +578,8 @@ const hasAnyFilter = (c: SearchCriteria | null | undefined): boolean => {
     (c.userIds?.length ?? 0) > 0 ||
     (c.mentionIds?.length ?? 0) > 0 ||
     (c.selectedHasTypes?.length ?? 0) > 0 ||
+    (c.attachmentExtensions?.length ?? 0) > 0 ||
+    !!c.attachmentFilename ||
     !!c.searchMessageContent ||
     !!c.searchAfterDate ||
     !!c.searchBeforeDate

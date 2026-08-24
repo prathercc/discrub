@@ -3,6 +3,7 @@ import {
   applyPackageFilter,
   hasAnyPackageCriterion,
   matchesPackageFilter,
+  packageAttachmentFilename,
 } from './packageFilter';
 import type { PackageMessage } from './packageTypes';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
@@ -217,5 +218,32 @@ describe('packageFilter', () => {
       const out = applyPackageFilter(messages, { ...baseCriteria, searchMessageContent: 'tacos' });
       expect(out).toEqual([]);
     });
+  });
+});
+
+describe('attachment criteria on package data (GH #13)', () => {
+  const photo = msg({ id: 'p', attachments: ['https://cdn.discordapp.com/attachments/1/2/Photo%20One.PNG?ex=0'] });
+  const doc = msg({ id: 'd', attachments: ['https://cdn.discordapp.com/attachments/1/3/report_q3.pdf'] });
+  const none = msg({ id: 'n' });
+
+  it('extracts and decodes the filename from a CDN URL', () => {
+    expect(packageAttachmentFilename('https://cdn.discordapp.com/attachments/1/2/Photo%20One.PNG?ex=0#x')).toBe('Photo One.PNG');
+    expect(packageAttachmentFilename('bare.txt')).toBe('bare.txt');
+  });
+
+  it('filters by extension (case-insensitive, any-of)', () => {
+    const out = applyPackageFilter([photo, doc, none], { ...baseCriteria, attachmentExtensions: ['png'] });
+    expect(out.map((m) => m.id)).toEqual(['p']);
+    expect(applyPackageFilter([photo, doc, none], { ...baseCriteria, attachmentExtensions: ['pdf', 'png'] }).map((m) => m.id)).toEqual(['p', 'd']);
+  });
+
+  it('filters by filename substring', () => {
+    expect(applyPackageFilter([photo, doc, none], { ...baseCriteria, attachmentFilename: 'Q3' }).map((m) => m.id)).toEqual(['d']);
+  });
+
+  it('counts the new fields as active criteria', () => {
+    expect(hasAnyPackageCriterion({ ...baseCriteria, attachmentExtensions: ['png'] })).toBe(true);
+    expect(hasAnyPackageCriterion({ ...baseCriteria, attachmentFilename: 'x' })).toBe(true);
+    expect(hasAnyPackageCriterion({ ...baseCriteria, attachmentExtensions: [], attachmentFilename: null })).toBe(false);
   });
 });

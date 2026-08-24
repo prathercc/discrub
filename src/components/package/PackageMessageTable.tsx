@@ -208,6 +208,12 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
         case 'authorType':
           next.authorType = null;
           break;
+        case 'attachmentExtensions':
+          next.attachmentExtensions = (next.attachmentExtensions ?? []).filter((e) => e !== value);
+          break;
+        case 'attachmentFilename':
+          next.attachmentFilename = null;
+          break;
         default:
           break;
       }
