@@ -870,7 +870,7 @@ describe('Thread Tabs — Comprehensive', () => {
 
       // Open filter modal on main — refine should be empty
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', '');
+      cy.get('[role="dialog"]').find('[data-testid="content-filter-refine"] .MuiChip-label').should('not.exist');
       cy.get('[role="dialog"]').contains('button', 'Cancel').click();
 
       // Switch back to thread tab
@@ -878,7 +878,7 @@ describe('Thread Tabs — Comprehensive', () => {
 
       // Open filter modal — "Alice" refine should still be there
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', 'Alice');
+      cy.get('[role=\"dialog\"]').find('[data-testid=\"content-filter-refine\"] .MuiChip-label').should('contain', 'Alice');
     });
 
     it('should keep refine criteria independent per tab', () => {
@@ -898,13 +898,13 @@ describe('Thread Tabs — Comprehensive', () => {
       // Switch to thread — should have "Alice"
       switchToThread();
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', 'Alice');
+      cy.get('[role=\"dialog\"]').find('[data-testid=\"content-filter-refine\"] .MuiChip-label').should('contain', 'Alice');
       cy.get('[role="dialog"]').contains('button', 'Cancel').click();
 
       // Switch back to main — should have "project"
       switchToMain();
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', 'project');
+      cy.get('[role=\"dialog\"]').find('[data-testid=\"content-filter-refine\"] .MuiChip-label').should('contain', 'project');
     });
 
     it('should reset criteria when thread tab is closed and reopened', () => {
@@ -925,7 +925,7 @@ describe('Thread Tabs — Comprehensive', () => {
 
       // Open filter modal — refine should be empty (criteria was discarded with the tab)
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', '');
+      cy.get('[role="dialog"]').find('[data-testid="content-filter-refine"] .MuiChip-label').should('not.exist');
     });
 
     it('should preserve refine criteria across multiple thread tabs', () => {
@@ -948,13 +948,13 @@ describe('Thread Tabs — Comprehensive', () => {
       // Switch to first thread — should have its own refine
       cy.get('[data-testid="thread-tab-bar"]').find('[role="tab"]').contains('test-thread').click();
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', 'thread1-query');
+      cy.get('[role=\"dialog\"]').find('[data-testid=\"content-filter-refine\"] .MuiChip-label').should('contain', 'thread1-query');
       cy.get('[role="dialog"]').contains('button', 'Cancel').click();
 
       // Switch to second thread — should have its own refine
       cy.get('[data-testid="thread-tab-bar"]').find('[role="tab"]').contains('second-thread').click();
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Filter by content..."]').scrollIntoView().should('have.value', 'thread2-query');
+      cy.get('[role=\"dialog\"]').find('[data-testid=\"content-filter-refine\"] .MuiChip-label').should('contain', 'thread2-query');
     });
 
     it('should maintain independent server search on main and refine on thread', () => {

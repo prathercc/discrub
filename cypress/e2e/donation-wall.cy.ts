@@ -134,7 +134,7 @@ describe('Donation Wall', () => {
       }
 
       // Same check on the Top (leaderboard) tab, which styles rows by tier.
-      cy.contains('Top').click();
+      cy.contains('[role="tab"]', 'Top').click();
       cy.contains('#1').should('be.visible');
       for (const metal of ['Copper', 'Silver', 'Gold', 'Platinum', 'Diamond']) {
         cy.get('.MuiDrawer-paper').should('not.contain.text', metal);
@@ -145,7 +145,7 @@ describe('Donation Wall', () => {
   describe('Polling', () => {
     it('should preserve active tab when new data arrives from poll', () => {
       // Switch to Top tab
-      cy.contains('Top').click();
+      cy.contains('[role="tab"]', 'Top').click();
       cy.contains('#1').should('be.visible');
 
       // Register updated data for next fetch
