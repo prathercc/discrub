@@ -2,6 +2,7 @@ import type { Message, User, Attachment } from 'discrub-core/types/discord-types
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { AuthorType, HasType, IsPinnedType } from 'discrub-core/discord-enum';
 import { groupsToTypes } from '@/utils/systemMessageGroups';
+import { messageMatchesAttachmentCriteria } from 'discrub-core/filtering';
 
 // #201 — system-message refine is CLIENT-SIDE only (Discord's search API has
 // no MessageType param). These fields ride on the refine criteria object so
@@ -31,6 +32,8 @@ export const criteriaIsActive = (criteria: RefineCriteria | null | undefined): b
   if (criteria.isPinned !== undefined && criteria.isPinned !== IsPinnedType.UNSET) return true;
   if (criteria.authorType) return true;
   if (criteria.systemMessageGroups && criteria.systemMessageGroups.length > 0) return true;
+  if (criteria.attachmentExtensions && criteria.attachmentExtensions.length > 0) return true;
+  if (criteria.attachmentFilename) return true;
   return false;
 };
 
@@ -138,6 +141,13 @@ export const applyRefineCriteria = (
 
     if (c.userIds && c.userIds.length > 0) {
       if (!c.userIds.includes(msg.author?.id || '')) return false;
+    }
+
+    // GH #13 — attachment extension (any-of, end of filename) and filename
+    // (substring, case-insensitive). Shared matcher with discrub-core so the
+    // package-mode table and the live Refine layer agree.
+    if (!messageMatchesAttachmentCriteria(msg.attachments, c.attachmentExtensions, c.attachmentFilename)) {
+      return false;
     }
 
     if (c.isPinned !== undefined && c.isPinned !== IsPinnedType.UNSET) {

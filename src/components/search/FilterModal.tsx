@@ -23,6 +23,7 @@ import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import type { SearchCriteria, ExportUserMap } from 'discrub-core/types/discrub-types';
 import DateRangeFilter, { type DateFilterMode } from './filters/DateRangeFilter';
 import MessageTypeFilter from './filters/MessageTypeFilter';
+import AttachmentFilter from './filters/AttachmentFilter';
 import UserPicker from '@components/ui/UserPicker';
 import TourFootnote from '@components/welcome/TourFootnote';
 import PinnedFilter from './filters/PinnedFilter';
@@ -280,6 +281,15 @@ const FilterModal = ({
                 <MessageTypeFilter selectedTypes={searchCriteria.selectedHasTypes} onChange={(types) => updateSearchCriteria((p) => ({ ...p, selectedHasTypes: types }))} />
               )}
 
+              <AttachmentFilter
+                mode={packageMode ? 'refine' : 'search'}
+                extensions={searchCriteria.attachmentExtensions ?? []}
+                filename={searchCriteria.attachmentFilename}
+                onExtensionsChange={(exts) => updateSearchCriteria((p) => ({ ...p, attachmentExtensions: exts }))}
+                onFilenameChange={(name) => updateSearchCriteria((p) => ({ ...p, attachmentFilename: name }))}
+                onSubmit={handleSearchApply}
+              />
+
               {!packageMode && (
                 <Box>
                   <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>Mentions</Typography>
@@ -357,6 +367,15 @@ const FilterModal = ({
               </Box>
 
               <MessageTypeFilter selectedTypes={refineCriteria.selectedHasTypes} onChange={(types) => updateRefineCriteria((p) => ({ ...p, selectedHasTypes: types }))} />
+
+              <AttachmentFilter
+                mode="refine"
+                extensions={refineCriteria.attachmentExtensions ?? []}
+                filename={refineCriteria.attachmentFilename}
+                onExtensionsChange={(exts) => updateRefineCriteria((p) => ({ ...p, attachmentExtensions: exts }))}
+                onFilenameChange={(name) => updateRefineCriteria((p) => ({ ...p, attachmentFilename: name }))}
+                onSubmit={handleRefineApply}
+              />
 
               <PinnedFilter value={refineCriteria.isPinned} onChange={(v) => updateRefineCriteria((p) => ({ ...p, isPinned: v }))} />
 

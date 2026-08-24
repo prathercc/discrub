@@ -152,4 +152,23 @@ describe('ActiveFilterChips', () => {
     );
     expect(screen.getByText(/after: Jan 1, 2026 · 2:30 PM/)).toBeInTheDocument();
   });
+
+  it('renders attachment chips and clears them by field/value (GH #13)', () => {
+    const onClearSearchFilter = vi.fn();
+    render(
+      <ActiveFilterChips
+        {...defaultProps}
+        onClearSearchFilter={onClearSearchFilter}
+        searchCriteria={{ ...defaultCriteria, attachmentExtensions: ['png', 'pdf'], attachmentFilename: 'report.pdf' }}
+      />,
+    );
+    expect(screen.getByText('file type: png')).toBeInTheDocument();
+    expect(screen.getByText('file type: pdf')).toBeInTheDocument();
+    const nameChip = screen.getByText('file name: report.pdf').closest('.MuiChip-root') as HTMLElement;
+    fireEvent.click(nameChip.querySelector('.MuiChip-deleteIcon') as Element);
+    expect(onClearSearchFilter).toHaveBeenCalledWith('attachmentFilename', undefined);
+    const extChip = screen.getByText('file type: pdf').closest('.MuiChip-root') as HTMLElement;
+    fireEvent.click(extChip.querySelector('.MuiChip-deleteIcon') as Element);
+    expect(onClearSearchFilter).toHaveBeenCalledWith('attachmentExtensions', 'pdf');
+  });
 });

@@ -954,6 +954,27 @@ describe('Search & Filters', () => {
       cy.wait('@guildSearch').its('request.url').should('include', 'has=image');
     });
 
+    it('sends attachment_extension and attachment_filename params (GH #13)', () => {
+      cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
+        fixture: 'search-results.json',
+      }).as('guildSearch');
+
+      cy.contains('button', 'Filters').click();
+      cy.get('[role="dialog"]').within(() => {
+        cy.get('[data-testid="attachment-extension-input-search"]').type('.PNG{enter}pdf{enter}');
+        cy.get('[data-testid="attachment-filename-input-search"]').type('Report.pdf');
+      });
+      cy.get('[role="dialog"]').find('button[class*="contained"]').contains('Search').click();
+
+      cy.wait('@guildSearch').its('request.url').should((url) => {
+        expect(url).to.include('attachment_extension=png');
+        expect(url).to.include('attachment_extension=pdf');
+        expect(url).to.include('attachment_filename=Report.pdf');
+      });
+      cy.contains('file type: png').should('be.visible');
+      cy.contains('file name: Report.pdf').should('be.visible');
+    });
+
     it('sends pinned param when Pinned filter is set', () => {
       cy.intercept('GET', `${API}/guilds/*/messages/search*`, {
         fixture: 'search-results.json',

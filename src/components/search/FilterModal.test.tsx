@@ -453,4 +453,25 @@ describe('FilterModal', () => {
       expect(arg.searchMessageContent).toBe('pizza');
     });
   });
+
+  describe('attachment filters (GH #13)', () => {
+    it('sends extensions and exact filename with the server search', () => {
+      const onServerSearch = vi.fn();
+      renderWithProviders(<FilterModal {...defaultProps} onServerSearch={onServerSearch} />);
+      const ext = screen.getByTestId('attachment-extension-input-search');
+      fireEvent.change(ext, { target: { value: 'PNG' } });
+      fireEvent.keyDown(ext, { key: 'Enter' });
+      const name = screen.getByTestId('attachment-filename-input-search');
+      fireEvent.change(name, { target: { value: 'Report.pdf' } });
+      fireEvent.keyDown(name, { key: 'Enter' });
+      expect(onServerSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ attachmentExtensions: ['png'], attachmentFilename: 'Report.pdf' }),
+      );
+    });
+
+    it('offers the attachment filter in the Refine section too', () => {
+      renderWithProviders(<FilterModal {...defaultProps} />);
+      expect(screen.getByTestId('attachment-filter-refine')).toBeInTheDocument();
+    });
+  });
 });

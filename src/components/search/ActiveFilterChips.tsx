@@ -65,6 +65,14 @@ const buildChipsFromCriteria = (criteria: SearchCriteria, layer: 'search' | 'ref
     chips.push({ key: `${layer}-content`, label: `content: ${criteria.searchMessageContent}`, field: 'searchMessageContent', layer });
   }
 
+  criteria.attachmentExtensions?.forEach((ext) => {
+    chips.push({ key: `${layer}-ext-${ext}`, label: `file type: ${ext}`, field: 'attachmentExtensions', value: ext, layer });
+  });
+
+  if (criteria.attachmentFilename) {
+    chips.push({ key: `${layer}-filename`, label: `file name: ${criteria.attachmentFilename}`, field: 'attachmentFilename', layer });
+  }
+
   criteria.mentionIds?.forEach((id) => {
     chips.push({ key: `${layer}-mentions-${id}`, label: `mentions: ${id}`, field: 'mentionIds', value: id, layer });
   });

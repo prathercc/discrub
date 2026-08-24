@@ -11,4 +11,6 @@ export const defaultCriteria: SearchCriteria = {
   channelIds: [],
   isPinned: IsPinnedType.UNSET,
   authorType: null,
+  attachmentExtensions: [],
+  attachmentFilename: null,
 };

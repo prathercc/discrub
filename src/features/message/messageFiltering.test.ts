@@ -3,6 +3,7 @@ import { applyRefineCriteria, messageHasType, messageHasFileOrLink } from './mes
 import { HasType } from 'discrub-core/discord-enum';
 import { createMockMessage } from '@/test/fixtures';
 import type { Message } from 'discrub-core/types/discord-types';
+import { defaultCriteria } from '@components/search/searchConstants';
 
 const withSnapshot = (id: string, snippetContent: string): Message => ({
   ...createMockMessage({ id, type: 0, content: '' }),
@@ -244,5 +245,39 @@ describe('messageFiltering — system message type refine (#201)', () => {
     } as any);
     // must be a pin AND contain "hello"
     expect(result.map((m) => m.id)).toEqual(['pin-hello']);
+  });
+});
+
+describe('messageFiltering — attachment extension / filename refine (GH #13)', () => {
+  const withFiles = (id: string, names: string[]): Message => ({
+    ...createMockMessage({ id, type: 0, content: 'files' }),
+    attachments: names.map((filename, i) => ({ id: `${id}-a${i}`, filename, size: 1, url: '', proxy_url: '' })),
+  } as unknown as Message);
+
+  const msgs = [
+    withFiles('m1', ['Photo.PNG']),
+    withFiles('m2', ['Report_Q3.pdf', 'notes.txt']),
+    createMockMessage({ id: 'm3', type: 0, content: 'no files' }) as Message,
+  ];
+
+  it('keeps messages with any attachment of a selected extension', () => {
+    const out = applyRefineCriteria(msgs, { ...defaultCriteria, attachmentExtensions: ['png', 'txt'] });
+    expect(out.map((m) => m.id)).toEqual(['m1', 'm2']);
+  });
+
+  it('matches the filename as a case-insensitive substring', () => {
+    const out = applyRefineCriteria(msgs, { ...defaultCriteria, attachmentFilename: 'q3' });
+    expect(out.map((m) => m.id)).toEqual(['m2']);
+  });
+
+  it('requires both when both are set', () => {
+    const out = applyRefineCriteria(msgs, { ...defaultCriteria, attachmentExtensions: ['pdf'], attachmentFilename: 'notes' });
+    expect(out.map((m) => m.id)).toEqual(['m2']);
+    const none = applyRefineCriteria(msgs, { ...defaultCriteria, attachmentExtensions: ['png'], attachmentFilename: 'notes' });
+    expect(none).toEqual([]);
+  });
+
+  it('is a no-op when neither is set', () => {
+    expect(applyRefineCriteria(msgs, { ...defaultCriteria, attachmentExtensions: [], attachmentFilename: null })).toHaveLength(3);
   });
 });

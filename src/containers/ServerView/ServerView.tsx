@@ -506,6 +506,8 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     if (field === 'isPinned') return { ...current, isPinned: IsPinnedType.UNSET };
     if (field === 'authorType') return { ...current, authorType: null };
     if (field === 'searchMessageContent') return { ...current, searchMessageContent: null };
+    if (field === 'attachmentExtensions' && value) return { ...current, attachmentExtensions: (current.attachmentExtensions || []).filter((e) => e !== value) };
+    if (field === 'attachmentFilename') return { ...current, attachmentFilename: null };
     return current;
   };
 
