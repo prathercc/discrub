@@ -20,6 +20,11 @@ describe('WelcomePanel', () => {
     expect(screen.getByText(/powerful Discord data management tool/)).toBeInTheDocument();
   });
 
+  it('should render the bots corkboard', () => {
+    renderWithProviders(<WelcomePanel onStartTour={mockOnStartTour} />);
+    expect(screen.getByText('From the Discrub team')).toBeInTheDocument();
+  });
+
   it('should render Take a Tour button', () => {
     renderWithProviders(<WelcomePanel onStartTour={mockOnStartTour} />);
     expect(screen.getByText('Take a Tour')).toBeInTheDocument();

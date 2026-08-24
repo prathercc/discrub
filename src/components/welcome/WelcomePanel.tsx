@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import { Box, Typography, Card, CardContent, CardActionArea, Button, Chip, Link } from '@mui/material';
 import OnboardingGuideModal from '@components/modals/OnboardingGuideModal';
+import BotsCorkboard from './BotsCorkboard';
 import {
   Storage as ServerIcon,
   Search as SearchIcon,
@@ -210,6 +211,9 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
           </Button>
         </Box>
       </Box>
+
+      {/* Corkboard: bots from the same workshop */}
+      <BotsCorkboard />
 
       {/* Getting Started */}
       <Box sx={{ mb: 5, maxWidth: 640, mx: 'auto' }}>
