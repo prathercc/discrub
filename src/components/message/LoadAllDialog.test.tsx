@@ -220,7 +220,7 @@ describe('LoadAllDialog', () => {
 
     it('uses the filtered title when a search filter is active', () => {
       renderWithProviders(<LoadAllDialog {...defaultProps} />, {
-        preloadedState: buildFilteredState({ searchMessageContent: 'hello' }),
+        preloadedState: buildFilteredState({ searchMessageContents: ['hello'] }),
       });
       expect(screen.getByText('Load All Filtered Messages')).toBeInTheDocument();
       expect(screen.queryByText('Load All Messages')).not.toBeInTheDocument();
@@ -229,7 +229,7 @@ describe('LoadAllDialog', () => {
     it('reports the active filter count in the alert copy', () => {
       renderWithProviders(<LoadAllDialog {...defaultProps} />, {
         preloadedState: buildFilteredState({
-          searchMessageContent: 'hello',
+          searchMessageContents: ['hello'],
           userIds: ['u1', 'u2'],
         }),
       });
@@ -239,7 +239,7 @@ describe('LoadAllDialog', () => {
 
     it('uses singular wording when exactly one filter is active', () => {
       renderWithProviders(<LoadAllDialog {...defaultProps} />, {
-        preloadedState: buildFilteredState({ searchMessageContent: 'hello' }),
+        preloadedState: buildFilteredState({ searchMessageContents: ['hello'] }),
       });
       expect(screen.getByText(/your active filter \(1 active\)/)).toBeInTheDocument();
     });
@@ -259,7 +259,7 @@ describe('LoadAllDialog', () => {
             messages: [],
             filteredMessages: [],
             selectedMessages: [],
-            searchCriteria: { searchMessageContent: 'hello' } as any,
+            searchCriteria: { searchMessageContents: ['hello'] } as any,
             order: { order: 'desc' as any, orderBy: 'timestamp' },
             isLoading: false,
             isEditing: false,

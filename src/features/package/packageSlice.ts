@@ -1010,7 +1010,7 @@ async function runSearchPreflight(args: {
   const criteria: SearchCriteria = {
     searchBeforeDate: maxDate,
     searchAfterDate: minDate,
-    searchMessageContent: null,
+    searchMessageContents: [],
     selectedHasTypes: [],
     userIds: [userId],
     mentionIds: [],

@@ -559,7 +559,7 @@ describe('<MessageFeed />', () => {
       const state = stateWithMessages(dragMessages);
       state.message.selectedMessages = [dragMessages[3]];
       state.message.filteredMessages = dragMessages.slice(0, 3); // m4 hidden
-      state.message.refineCriteria = { searchMessageContent: 'msg' } as any;
+      state.message.refineCriteria = { searchMessageContents: ['msg'] } as any;
       const { store } = renderWithProviders(<MessageFeed {...baseProps} />, {
         preloadedState: state,
       });

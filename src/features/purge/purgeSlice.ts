@@ -109,7 +109,7 @@ const buildSearchCriteria = (
 ): SearchCriteria => ({
   searchBeforeDate: overrides?.searchBeforeDate ?? null,
   searchAfterDate: overrides?.searchAfterDate ?? null,
-  searchMessageContent: overrides?.searchMessageContent ?? null,
+  searchMessageContents: overrides?.searchMessageContents ?? [],
   selectedHasTypes: overrides?.selectedHasTypes ?? [],
   userIds,
   mentionIds: overrides?.mentionIds ?? [],
@@ -133,7 +133,7 @@ const hasAnyFilter = (c: SearchCriteria | null | undefined): boolean => {
     (c.selectedHasTypes?.length ?? 0) > 0 ||
     (c.attachmentExtensions?.length ?? 0) > 0 ||
     !!c.attachmentFilename ||
-    !!c.searchMessageContent ||
+    (c.searchMessageContents?.length ?? 0) > 0 ||
     !!c.searchAfterDate ||
     !!c.searchBeforeDate ||
     (c.isPinned !== undefined && c.isPinned !== IsPinnedType.UNSET)

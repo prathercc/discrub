@@ -4,7 +4,7 @@ import { IsPinnedType } from 'discrub-core/discord-enum';
 export const defaultCriteria: SearchCriteria = {
   searchBeforeDate: null,
   searchAfterDate: null,
-  searchMessageContent: null,
+  searchMessageContents: [],
   selectedHasTypes: [],
   userIds: [],
   mentionIds: [],

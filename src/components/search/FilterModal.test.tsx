@@ -1,3 +1,4 @@
+import { within } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent } from '@testing-library/react';
 import FilterModal, { inferDateMode } from './FilterModal';
@@ -54,7 +55,7 @@ describe('FilterModal', () => {
   describe('search section', () => {
     it('should call onServerSearch when Search button is clicked', () => {
       const onServerSearch = vi.fn();
-      const savedSearchCriteria = { ...defaultCriteria, searchMessageContent: 'test' };
+      const savedSearchCriteria = { ...defaultCriteria, searchMessageContents: ['test'] };
       renderWithProviders(<FilterModal {...defaultProps} onServerSearch={onServerSearch} savedSearchCriteria={savedSearchCriteria} />);
       fireEvent.click(screen.getByRole('button', { name: /^Search$/ }));
       expect(onServerSearch).toHaveBeenCalled();
@@ -97,7 +98,7 @@ describe('FilterModal', () => {
   describe('refine section', () => {
     it('should call onRefine when Apply Refine is clicked', () => {
       const onRefine = vi.fn();
-      const savedRefineCriteria = { ...defaultCriteria, searchMessageContent: 'local' };
+      const savedRefineCriteria = { ...defaultCriteria, searchMessageContents: ['local'] };
       renderWithProviders(<FilterModal {...defaultProps} onRefine={onRefine} savedRefineCriteria={savedRefineCriteria} />);
       fireEvent.click(screen.getByRole('button', { name: /Apply Refine/ }));
       expect(onRefine).toHaveBeenCalled();
@@ -111,7 +112,7 @@ describe('FilterModal', () => {
 
     it('should call onClearRefine when refine Clear is clicked', () => {
       const onClearRefine = vi.fn();
-      const savedRefineCriteria = { ...defaultCriteria, searchMessageContent: 'test' };
+      const savedRefineCriteria = { ...defaultCriteria, searchMessageContents: ['test'] };
       renderWithProviders(<FilterModal {...defaultProps} onClearRefine={onClearRefine} savedRefineCriteria={savedRefineCriteria} />);
       // Refine clear is the second Clear button
       const clearButtons = screen.getAllByRole('button', { name: /Clear/ });
@@ -168,11 +169,11 @@ describe('FilterModal', () => {
 
   describe('independent state', () => {
     it('should maintain separate criteria for search and refine', () => {
-      const savedSearchCriteria = { ...defaultCriteria, searchMessageContent: 'server query' };
-      const savedRefineCriteria = { ...defaultCriteria, searchMessageContent: 'local filter' };
+      const savedSearchCriteria = { ...defaultCriteria, searchMessageContents: ['server query'] };
+      const savedRefineCriteria = { ...defaultCriteria, searchMessageContents: ['local filter'] };
       renderWithProviders(<FilterModal {...defaultProps} savedSearchCriteria={savedSearchCriteria} savedRefineCriteria={savedRefineCriteria} />);
-      expect(screen.getByDisplayValue('server query')).toBeInTheDocument();
-      expect(screen.getByDisplayValue('local filter')).toBeInTheDocument();
+      expect(within(screen.getByTestId('content-filter-search')).getByText('server query')).toBeInTheDocument();
+      expect(within(screen.getByTestId('content-filter-refine')).getByText('local filter')).toBeInTheDocument();
     });
 
     it('should not persist changes to parent until apply is clicked', () => {
@@ -266,13 +267,12 @@ describe('FilterModal', () => {
       expect(screen.getByText('Filters')).toBeInTheDocument();
     });
 
-    it('should convert empty content string to null on apply', () => {
+    it('should clear rather than search when the last content term is removed and applied', () => {
       const onServerSearch = vi.fn();
-      const saved = { ...defaultCriteria, searchMessageContent: 'old' };
+      const saved = { ...defaultCriteria, searchMessageContents: ['old'] };
       renderWithProviders(<FilterModal {...defaultProps} onServerSearch={onServerSearch} savedSearchCriteria={saved} />);
-      const input = screen.getByPlaceholderText('Search message content...');
-      // Clear the content
-      fireEvent.change(input, { target: { value: '' } });
+      // Remove the only term chip
+      fireEvent.click(within(screen.getByTestId('content-filter-search')).getByTestId('CancelIcon'));
       // Apply — should call onClearSearch since filters are empty but there are changes
       // The button is enabled because searchHasChanges is true
       fireEvent.click(screen.getByRole('button', { name: /^Search$/ }));
@@ -367,19 +367,19 @@ describe('FilterModal', () => {
     });
 
     it('preserves saved criteria when opened in packageMode', () => {
-      const saved = { ...defaultCriteria, searchMessageContent: 'pizza' };
+      const saved = { ...defaultCriteria, searchMessageContents: ['pizza'] };
       renderWithProviders(<FilterModal {...defaultProps} packageMode savedSearchCriteria={saved} />);
-      expect(screen.getByDisplayValue('pizza')).toBeInTheDocument();
+      expect(within(screen.getByTestId('content-filter-search')).getByText('pizza')).toBeInTheDocument();
     });
 
     it('respects applyButtonLabel in packageMode (e.g. "Apply filters")', () => {
-      renderWithProviders(<FilterModal {...defaultProps} packageMode applyButtonLabel="Apply filters" savedSearchCriteria={{ ...defaultCriteria, searchMessageContent: 'pizza' }} />);
+      renderWithProviders(<FilterModal {...defaultProps} packageMode applyButtonLabel="Apply filters" savedSearchCriteria={{ ...defaultCriteria, searchMessageContents: ['pizza'] }} />);
       expect(screen.getByRole('button', { name: /Apply filters/i })).toBeInTheDocument();
     });
 
     it('dispatches the Apply action with the typed criteria', () => {
       const onServerSearch = vi.fn();
-      const saved = { ...defaultCriteria, searchMessageContent: 'hello' };
+      const saved = { ...defaultCriteria, searchMessageContents: ['hello'] };
       renderWithProviders(
         <FilterModal
           {...defaultProps}
@@ -390,7 +390,7 @@ describe('FilterModal', () => {
         />,
       );
       fireEvent.click(screen.getByRole('button', { name: /Apply filters/i }));
-      expect(onServerSearch).toHaveBeenCalledWith(expect.objectContaining({ searchMessageContent: 'hello' }));
+      expect(onServerSearch).toHaveBeenCalledWith(expect.objectContaining({ searchMessageContents: ['hello'] }));
     });
 
     // ── #182 + #172: between-mode dates flow through packageMode apply ──
@@ -431,7 +431,7 @@ describe('FilterModal', () => {
       const onServerSearch = vi.fn();
       const saved = {
         ...defaultCriteria,
-        searchMessageContent: 'pizza',
+        searchMessageContents: ['pizza'],
         isPinned: IsPinnedType.YES,
         userIds: ['9999'],
       };
@@ -450,7 +450,7 @@ describe('FilterModal', () => {
       // this test pins that the apply doesn't crash and the content lands.
       expect(onServerSearch).toHaveBeenCalled();
       const arg = onServerSearch.mock.calls[0][0];
-      expect(arg.searchMessageContent).toBe('pizza');
+      expect(arg.searchMessageContents).toEqual(['pizza']);
     });
   });
 

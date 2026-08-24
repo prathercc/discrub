@@ -34,7 +34,7 @@ const baseCriteria: SearchCriteria = {
   mentionIds: [],
   selectedHasTypes: [],
   channelIds: [],
-  searchMessageContent: null,
+  searchMessageContents: [],
   searchAfterDate: null,
   searchBeforeDate: null,
   isPinned: 'null',

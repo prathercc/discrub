@@ -61,9 +61,9 @@ const buildChipsFromCriteria = (criteria: SearchCriteria, layer: 'search' | 'ref
     chips.push({ key: `${layer}-author`, label: `author: ${criteria.authorType}`, field: 'authorType', layer });
   }
 
-  if (criteria.searchMessageContent) {
-    chips.push({ key: `${layer}-content`, label: `content: ${criteria.searchMessageContent}`, field: 'searchMessageContent', layer });
-  }
+  criteria.searchMessageContents?.forEach((term) => {
+    chips.push({ key: `${layer}-content-${term}`, label: `content: ${term}`, field: 'searchMessageContents', value: term, layer });
+  });
 
   criteria.attachmentExtensions?.forEach((ext) => {
     chips.push({ key: `${layer}-ext-${ext}`, label: `file type: ${ext}`, field: 'attachmentExtensions', value: ext, layer });

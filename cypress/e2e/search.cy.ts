@@ -13,11 +13,24 @@
 const API = '**/api/v10';
 
 /**
+ * Helper: remove any content-term chips already in the search section
+ * (#244 turned the content box into a chip input, so `.clear()` on the
+ * box no longer drops a previously applied term).
+ */
+const clearContentTerms = () => {
+  cy.get('[role="dialog"]').then(($dialog) => {
+    const chips = $dialog.find('[data-testid="content-filter-search"] .MuiChip-deleteIcon');
+    if (chips.length > 0) cy.wrap(chips).click({ multiple: true });
+  });
+};
+
+/**
  * Helper: Open filter modal, type content, and apply
  */
 const searchViaModal = (content: string) => {
   cy.contains('button', 'Filters').click();
   cy.get('[role="dialog"]').should('be.visible');
+  clearContentTerms();
   cy.get('[role="dialog"]').find('input[placeholder="Search message content..."]').clear().type(content);
   // Click the Search button (contained variant in the search section)
   cy.get('[role="dialog"]').find('button[class*="contained"]').contains('Search').click();
@@ -29,6 +42,7 @@ const searchViaModal = (content: string) => {
 const searchViaEnter = (content: string) => {
   cy.contains('button', 'Filters').click();
   cy.get('[role="dialog"]').should('be.visible');
+  clearContentTerms();
   cy.get('[role="dialog"]').find('input[placeholder="Search message content..."]').clear().type(`${content}{enter}`);
 };
 
@@ -1181,7 +1195,7 @@ describe('Search & Filters', () => {
       cy.window().then((win) => {
         const state = (win as any).__store__.getState();
         expect(state.message.refineCriteria).to.not.be.null;
-        expect(state.message.refineCriteria.searchMessageContent).to.eq('Hello');
+        expect(state.message.refineCriteria.searchMessageContents).to.deep.eq(['Hello']);
       });
 
       // Append synthetic raw messages to state.messages — this is the same
@@ -1557,9 +1571,9 @@ describe('Search & Filters', () => {
       searchViaModal('project');
       cy.wait('@guildSearch');
 
-      // Reopen modal — search content should be pre-populated
+      // Reopen modal — the applied term shows as a chip (#244: the box is a draft field)
       cy.contains('button', 'Filters').click();
-      cy.get('[role="dialog"]').find('input[placeholder="Search message content..."]').should('have.value', 'project');
+      cy.get('[role="dialog"]').find('[data-testid="content-filter-search"] .MuiChip-label').should('contain', 'project');
     });
 
     it('clear all with both layers active restores all messages (gap #7)', () => {

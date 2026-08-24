@@ -239,7 +239,7 @@ describe('messageFiltering — system message type refine (#201)', () => {
       createMockMessage({ id: 'normal-hello', type: 0, content: 'hello' }) as Message,
     ];
     const result = applyRefineCriteria(msgs, {
-      searchMessageContent: 'hello',
+      searchMessageContents: ['hello'],
       systemMessageGroups: ['pins'],
       systemMessageMode: 'only',
     } as any);

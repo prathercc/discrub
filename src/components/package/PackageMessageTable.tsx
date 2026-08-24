@@ -184,8 +184,8 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
       if (!filterCriteria) return;
       const next: SearchCriteria = { ...filterCriteria };
       switch (field) {
-        case 'searchMessageContent':
-          next.searchMessageContent = null;
+        case 'searchMessageContents':
+          next.searchMessageContents = (next.searchMessageContents ?? []).filter((t) => t !== value);
           break;
         case 'searchAfterDate':
           next.searchAfterDate = null;

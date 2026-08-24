@@ -345,7 +345,7 @@ describe('packageSlice — exportPackageChannel', () => {
     const baseCriteria: SearchCriteria = {
       searchBeforeDate: null,
       searchAfterDate: null,
-      searchMessageContent: null,
+      searchMessageContents: [],
       selectedHasTypes: [] as HasType[],
       userIds: [],
       mentionIds: [],
@@ -358,9 +358,9 @@ describe('packageSlice — exportPackageChannel', () => {
       const store = await primedStore();
       store.dispatch(setPackageFilterCriteria({
         channelId: '200',
-        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+        criteria: { ...baseCriteria, searchMessageContents: ['hello'] },
       }));
-      expect(selectPackageFilterCriteria('200')(store.getState())!.searchMessageContent).toBe('hello');
+      expect(selectPackageFilterCriteria('200')(store.getState())!.searchMessageContents).toEqual(['hello']);
       // A different channel keeps its own (unset) state.
       expect(selectPackageFilterCriteria('300')(store.getState())).toBeNull();
     });
@@ -369,7 +369,7 @@ describe('packageSlice — exportPackageChannel', () => {
       const store = await primedStore();
       store.dispatch(setPackageFilterCriteria({
         channelId: '200',
-        criteria: { ...baseCriteria, searchMessageContent: 'hi' },
+        criteria: { ...baseCriteria, searchMessageContents: ['hi'] },
       }));
       store.dispatch(setPackageFilterCriteria({ channelId: '200', criteria: null }));
       expect(selectPackageFilterCriteria('200')(store.getState())).toBeNull();
@@ -379,7 +379,7 @@ describe('packageSlice — exportPackageChannel', () => {
       const store = await primedStore();
       store.dispatch(setPackageFilterCriteria({
         channelId: '200',
-        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+        criteria: { ...baseCriteria, searchMessageContents: ['hello'] },
       }));
       store.dispatch(clearPackageFilterCriteria('200'));
       expect(selectPackageFilterCriteria('200')(store.getState())).toBeNull();
@@ -392,7 +392,7 @@ describe('packageSlice — exportPackageChannel', () => {
       // Channel 200 has 3 messages: "hello", "with, comma", "multi\nline"
       store.dispatch(setPackageFilterCriteria({
         channelId: '200',
-        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+        criteria: { ...baseCriteria, searchMessageContents: ['hello'] },
       }));
 
       await store.dispatch(exportPackageChannel(exportArgs('200')));
@@ -442,7 +442,7 @@ describe('packageSlice — exportPackageChannel', () => {
       // Set a content filter on channel 200; export channel 300.
       store.dispatch(setPackageFilterCriteria({
         channelId: '200',
-        criteria: { ...baseCriteria, searchMessageContent: 'pizza' },
+        criteria: { ...baseCriteria, searchMessageContents: ['pizza'] },
       }));
 
       await store.dispatch(exportPackageChannel(exportArgs('300')));
@@ -456,7 +456,7 @@ describe('packageSlice — exportPackageChannel', () => {
       const store = await primedStore();
       store.dispatch(setPackageFilterCriteria({
         channelId: '200',
-        criteria: { ...baseCriteria, searchMessageContent: 'hello' },
+        criteria: { ...baseCriteria, searchMessageContents: ['hello'] },
       }));
       expect(selectPackageFilterCriteria('200')(store.getState())).not.toBeNull();
 

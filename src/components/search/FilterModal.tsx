@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -7,7 +7,6 @@ import {
   Box,
   Typography,
   Button,
-  TextField,
   Chip,
   Collapse,
   ToggleButton,
@@ -24,6 +23,7 @@ import type { SearchCriteria, ExportUserMap } from 'discrub-core/types/discrub-t
 import DateRangeFilter, { type DateFilterMode } from './filters/DateRangeFilter';
 import MessageTypeFilter from './filters/MessageTypeFilter';
 import AttachmentFilter from './filters/AttachmentFilter';
+import ContentFilter, { withDraft } from './filters/ContentFilter';
 import UserPicker from '@components/ui/UserPicker';
 import TourFootnote from '@components/welcome/TourFootnote';
 import PinnedFilter from './filters/PinnedFilter';
@@ -130,6 +130,16 @@ const FilterModal = ({
 
   // Refine section state
   const [refineCriteria, setRefineCriteria] = useState<RefineCriteria>(savedRefineCriteria ?? defaultCriteria);
+  // Content-term drafts (typed, not yet a chip). A non-empty draft counts as
+  // a pending change and is folded into the terms on apply (#244).
+  const [searchDraft, setSearchDraft] = useState('');
+  const [refineDraft, setRefineDraft] = useState('');
+  useEffect(() => {
+    if (!open) {
+      setSearchDraft('');
+      setRefineDraft('');
+    }
+  }, [open]);
   const [refineExpanded, setRefineExpanded] = useState(true);
 
   const updateSearchCriteria = (updater: SearchCriteria | ((prev: SearchCriteria) => SearchCriteria)) => {
@@ -150,36 +160,60 @@ const FilterModal = ({
     return base + sys;
   }, [refineCriteria]);
 
-  const searchHasChanges = JSON.stringify(searchCriteria) !== JSON.stringify(savedSearchCriteria ?? defaultCriteria);
-  const refineHasChanges = JSON.stringify(refineCriteria) !== JSON.stringify(savedRefineCriteria ?? defaultCriteria);
+  const searchHasChanges =
+    searchDraft.trim().length > 0 ||
+    JSON.stringify(searchCriteria) !== JSON.stringify(savedSearchCriteria ?? defaultCriteria);
+  const refineHasChanges =
+    refineDraft.trim().length > 0 ||
+    JSON.stringify(refineCriteria) !== JSON.stringify(savedRefineCriteria ?? defaultCriteria);
 
   // --- Search section handlers ---
-  const handleSearchApply = () => {
-    if (searchFilterCount === 0) {
+  /**
+   * Apply the search section. `overrides` lets an input that just changed a
+   * field (ContentFilter on Enter) apply with the new value before React has
+   * flushed the state update, so the count and the criteria both include it.
+   */
+  const handleSearchApply = (overrides?: Partial<SearchCriteria>) => {
+    if (!overrides && searchDraft.trim()) {
+      overrides = { searchMessageContents: withDraft(searchCriteria.searchMessageContents ?? [], searchDraft) };
+    }
+    setSearchDraft('');
+    const next = overrides ? { ...searchCriteria, ...overrides } : searchCriteria;
+    if (overrides) updateSearchCriteria(next);
+    if (countActiveFilters(next) === 0) {
       onClearSearch();
     } else {
-      onServerSearch(searchCriteria);
+      onServerSearch(next);
     }
     onClose();
   };
 
   const handleSearchClear = () => {
+    setSearchDraft('');
     updateSearchCriteria(defaultCriteria);
     setDateMode(null);
     onClearSearch();
   };
 
   // --- Refine section handlers ---
-  const handleRefineApply = () => {
-    if (refineFilterCount === 0) {
+  const handleRefineApply = (overrides?: Partial<RefineCriteria>) => {
+    if (!overrides && refineDraft.trim()) {
+      overrides = { searchMessageContents: withDraft(refineCriteria.searchMessageContents ?? [], refineDraft) };
+    }
+    setRefineDraft('');
+    const next = overrides ? { ...refineCriteria, ...overrides } : refineCriteria;
+    if (overrides) updateRefineCriteria(next);
+    const sys = next.systemMessageGroups && next.systemMessageGroups.length > 0 ? 1 : 0;
+    if (countActiveFilters(next) + sys === 0) {
       onClearRefine();
     } else {
-      onRefine(refineCriteria);
+      onRefine(next);
     }
     onClose();
   };
 
   const handleRefineClear = () => {
+    setRefineDraft('');
     updateRefineCriteria(defaultCriteria);
     onClearRefine();
   };
@@ -260,15 +294,16 @@ const FilterModal = ({
           <Collapse in={searchExpanded}>
             <Box sx={sectionBodySx}>
               {/* Content first — most common filter */}
-              <Box>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>Message Content</Typography>
-                <TextField
-                  fullWidth size="small" placeholder="Search message content..."
-                  value={searchCriteria.searchMessageContent || ''}
-                  onChange={(e) => updateSearchCriteria((p) => ({ ...p, searchMessageContent: e.target.value || null }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleSearchApply(); }}
-                />
-              </Box>
+              <ContentFilter
+                mode={packageMode ? 'refine' : 'search'}
+                placeholder="Search message content..."
+                testId="content-filter-search"
+                terms={searchCriteria.searchMessageContents ?? []}
+                draft={searchDraft}
+                onDraftChange={setSearchDraft}
+                onChange={(terms) => updateSearchCriteria((p) => ({ ...p, searchMessageContents: terms }))}
+                onSubmit={(terms) => handleSearchApply({ searchMessageContents: terms })}
+              />
 
               {!effectiveHideAuthorFilters && (
                 <Box data-testid="filter-modal-search-from">
@@ -319,10 +354,10 @@ const FilterModal = ({
 
             {/* Sticky action bar */}
             <Box sx={actionBarSx(true)}>
-              <Button size="small" onClick={handleSearchClear} disabled={searchFilterCount === 0} sx={{ textTransform: 'none' }} data-testid="clear-search-filters">
+              <Button size="small" onClick={handleSearchClear} disabled={searchFilterCount === 0 && !searchDraft.trim()} sx={{ textTransform: 'none' }} data-testid="clear-search-filters">
                 Clear{searchFilterCount > 0 ? ` (${searchFilterCount})` : ''}
               </Button>
-              <Button variant="contained" size="small" startIcon={<SearchIcon />} onClick={handleSearchApply} disabled={searchFilterCount === 0 && !searchHasChanges}>
+              <Button variant="contained" size="small" startIcon={<SearchIcon />} onClick={() => handleSearchApply()} disabled={searchFilterCount === 0 && !searchHasChanges}>
                 {applyButtonLabel ?? 'Search'}
               </Button>
             </Box>
@@ -351,15 +386,15 @@ const FilterModal = ({
           <Collapse in={refineExpanded}>
             <Box sx={sectionBodySx}>
               {/* Content first */}
-              <Box>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>Content</Typography>
-                <TextField
-                  fullWidth size="small" placeholder="Filter by content..."
-                  value={refineCriteria.searchMessageContent || ''}
-                  onChange={(e) => updateRefineCriteria((p) => ({ ...p, searchMessageContent: e.target.value || null }))}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleRefineApply(); }}
-                />
-              </Box>
+              <ContentFilter
+                mode="refine"
+                label="Content"
+                terms={refineCriteria.searchMessageContents ?? []}
+                draft={refineDraft}
+                onDraftChange={setRefineDraft}
+                onChange={(terms) => updateRefineCriteria((p) => ({ ...p, searchMessageContents: terms }))}
+                onSubmit={(terms) => handleRefineApply({ searchMessageContents: terms })}
+              />
 
               <Box>
                 <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>From</Typography>
@@ -406,10 +441,10 @@ const FilterModal = ({
 
             {/* Sticky action bar */}
             <Box sx={actionBarSx(false)}>
-              <Button size="small" onClick={handleRefineClear} disabled={refineFilterCount === 0} sx={{ textTransform: 'none' }} data-testid="clear-refine-filters">
+              <Button size="small" onClick={handleRefineClear} disabled={refineFilterCount === 0 && !refineDraft.trim()} sx={{ textTransform: 'none' }} data-testid="clear-refine-filters">
                 Clear{refineFilterCount > 0 ? ` (${refineFilterCount})` : ''}
               </Button>
-              <Button variant="outlined" size="small" startIcon={<RefineIcon />} onClick={handleRefineApply} disabled={refineFilterCount === 0 && !refineHasChanges}>
+              <Button variant="outlined" size="small" startIcon={<RefineIcon />} onClick={() => handleRefineApply()} disabled={refineFilterCount === 0 && !refineHasChanges}>
                 Apply Refine
               </Button>
             </Box>

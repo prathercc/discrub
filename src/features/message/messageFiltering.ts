@@ -24,7 +24,7 @@ export type RefineCriteria = SearchCriteria & {
  */
 export const criteriaIsActive = (criteria: RefineCriteria | null | undefined): boolean => {
   if (!criteria) return false;
-  if (criteria.searchMessageContent) return true;
+  if (criteria.searchMessageContents && criteria.searchMessageContents.length > 0) return true;
   if (criteria.searchAfterDate || criteria.searchBeforeDate) return true;
   if (criteria.selectedHasTypes && criteria.selectedHasTypes.length > 0) return true;
   if (criteria.userIds && criteria.userIds.length > 0) return true;
@@ -120,9 +120,10 @@ export const applyRefineCriteria = (
       : null;
 
   return messages.filter((msg) => {
-    if (c.searchMessageContent) {
+    if (c.searchMessageContents && c.searchMessageContents.length > 0) {
       const content = msg.content?.toLowerCase() || '';
-      if (!content.includes(c.searchMessageContent.toLowerCase())) return false;
+      // Any-of across terms (#244).
+      if (!c.searchMessageContents.some((term) => content.includes(term.toLowerCase()))) return false;
     }
 
     if (c.searchAfterDate || c.searchBeforeDate) {

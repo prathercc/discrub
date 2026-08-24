@@ -1728,7 +1728,7 @@ describe('messageSlice', () => {
       const { setRefineCriteria } = await import('./messageSlice');
       testStore.dispatch(
         setRefineCriteria({
-          searchMessageContent: 'important',
+          searchMessageContents: ['important'],
         } as any),
       );
 
@@ -1811,7 +1811,7 @@ describe('messageSlice', () => {
       );
       // Apply refine restricting to "match"
       testStore.dispatch(
-        setRefineCriteria({ searchMessageContent: 'match' } as any),
+        setRefineCriteria({ searchMessageContents: ['match'] } as any),
       );
 
       const beforeFiltered = testStore.getState().message.filteredMessages.length;
@@ -1838,7 +1838,7 @@ describe('messageSlice', () => {
 
       const { setRefineCriteria, fetchMoreMessages } = await import('./messageSlice');
       testStore.dispatch(
-        setRefineCriteria({ searchMessageContent: 'rare-match' } as any),
+        setRefineCriteria({ searchMessageContents: ['rare-match'] } as any),
       );
 
       // 5 new messages, none match "rare-match"
@@ -1875,7 +1875,7 @@ describe('messageSlice', () => {
 
       const { setRefineCriteria, fetchMoreMessages } = await import('./messageSlice');
       testStore.dispatch(
-        setRefineCriteria({ searchMessageContent: 'match' } as any),
+        setRefineCriteria({ searchMessageContents: ['match'] } as any),
       );
 
       const newPage = [
@@ -1945,7 +1945,7 @@ describe('messageSlice', () => {
 
       const { setRefineCriteria, clearRefineCriteria } = await import('./messageSlice');
       testStore.dispatch(
-        setRefineCriteria({ searchMessageContent: 'match' } as any),
+        setRefineCriteria({ searchMessageContents: ['match'] } as any),
       );
       expect(testStore.getState().message.filteredMessages).toHaveLength(1);
 
@@ -4861,7 +4861,7 @@ describe('messageSlice', () => {
         searchCriteria: {
           searchAfterDate: new Date('2026-01-01'),
           searchBeforeDate: null,
-          searchMessageContent: 'hello',
+          searchMessageContents: ['hello'],
           selectedHasTypes: [],
           userIds: ['old-user'],
           mentionIds: ['old-mention'],
@@ -4880,7 +4880,7 @@ describe('messageSlice', () => {
                 searchCriteria: {
                   searchAfterDate: null,
                   searchBeforeDate: null,
-                  searchMessageContent: 'thread-content',
+                  searchMessageContents: ['thread-content'],
                   selectedHasTypes: [],
                   userIds: ['thread-old-user'],
                   mentionIds: [],
@@ -4951,7 +4951,7 @@ describe('messageSlice', () => {
       const criteriaUsed = call[4];
       expect(criteriaUsed.userIds).toEqual(['target-user']);
       // Other filter fields preserved
-      expect(criteriaUsed.searchMessageContent).toBe('hello');
+      expect(criteriaUsed.searchMessageContents).toEqual(['hello']);
       expect(criteriaUsed.searchAfterDate).toEqual(new Date('2026-01-01'));
       // mentionIds untouched in author mode
       expect(criteriaUsed.mentionIds).toEqual(['old-mention']);
@@ -4996,7 +4996,7 @@ describe('messageSlice', () => {
 
       // Thread search uses the thread's existing criteria — searchMessageContent='thread-content' should survive
       const criteriaUsed = mockDiscordService.fetchSearchMessageData.mock.calls[0][4];
-      expect(criteriaUsed.searchMessageContent).toBe('thread-content');
+      expect(criteriaUsed.searchMessageContents).toEqual(['thread-content']);
       expect(criteriaUsed.userIds).toEqual(['target-user']);
     });
 
@@ -5158,7 +5158,7 @@ describe('messageSlice', () => {
           searchCriteria: {
             searchAfterDate: null,
             searchBeforeDate: null,
-            searchMessageContent: 'foo',
+            searchMessageContents: ['foo'],
             selectedHasTypes: [],
             userIds: [],
             mentionIds: [],
@@ -5192,7 +5192,7 @@ describe('messageSlice', () => {
     const baseCriteria = {
       searchAfterDate: null,
       searchBeforeDate: null,
-      searchMessageContent: 'foo',
+      searchMessageContents: ['foo'],
       selectedHasTypes: [],
       userIds: [],
       mentionIds: [],
@@ -5724,7 +5724,7 @@ describe('messageSlice', () => {
       it('emits a filtered opening status entry with a filter count when criteria are active', async () => {
         const testStore = await buildStoreWithReactions(
           false,
-          seedSearchActive({ searchMessageContent: 'hi', userIds: ['u1', 'u2'] }),
+          seedSearchActive({ searchMessageContents: ['hi'], userIds: ['u1', 'u2'] }),
         );
         mockTwoPageThenEmpty(5);
         vi.mocked(addStatusEntry).mockClear();
@@ -5738,7 +5738,7 @@ describe('messageSlice', () => {
       it('uses singular wording when exactly one filter is active', async () => {
         const testStore = await buildStoreWithReactions(
           false,
-          seedSearchActive({ searchMessageContent: 'hi' }),
+          seedSearchActive({ searchMessageContents: ['hi'] }),
         );
         mockTwoPageThenEmpty(5);
         vi.mocked(addStatusEntry).mockClear();
@@ -5752,7 +5752,7 @@ describe('messageSlice', () => {
       it('emits a filtered completion entry when filters are active', async () => {
         const testStore = await buildStoreWithReactions(
           false,
-          seedSearchActive({ searchMessageContent: 'hi' }),
+          seedSearchActive({ searchMessageContents: ['hi'] }),
         );
         mockTwoPageThenEmpty(5);
         vi.mocked(addStatusEntry).mockClear();

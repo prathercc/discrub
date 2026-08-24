@@ -12,7 +12,7 @@ import { HasType, IsPinnedType } from 'discrub-core/discord-enum';
 const baseCriteria: SearchCriteria = {
   searchBeforeDate: null,
   searchAfterDate: null,
-  searchMessageContent: null,
+  searchMessageContents: [],
   selectedHasTypes: [] as HasType[],
   userIds: [],
   mentionIds: [],
@@ -50,7 +50,7 @@ describe('packageFilter', () => {
     });
 
     it('returns true for content criterion', () => {
-      expect(hasAnyPackageCriterion({ ...baseCriteria, searchMessageContent: 'foo' })).toBe(true);
+      expect(hasAnyPackageCriterion({ ...baseCriteria, searchMessageContents: ['foo'] })).toBe(true);
     });
 
     it('returns true for after-date criterion', () => {
@@ -62,25 +62,25 @@ describe('packageFilter', () => {
     });
 
     it('returns false for an empty-string content criterion', () => {
-      expect(hasAnyPackageCriterion({ ...baseCriteria, searchMessageContent: '' })).toBe(false);
+      expect(hasAnyPackageCriterion({ ...baseCriteria, searchMessageContents: [] })).toBe(false);
     });
   });
 
   describe('matchesPackageFilter — content', () => {
     it('matches a message containing the substring (case-insensitive)', () => {
       const m = msg({ content: 'Hello World!' });
-      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContent: 'world' })).toBe(true);
-      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContent: 'WORLD' })).toBe(true);
+      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContents: ['world'] })).toBe(true);
+      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContents: ['WORLD'] })).toBe(true);
     });
 
     it('excludes a message that does not contain the substring', () => {
       const m = msg({ content: 'Hello World!' });
-      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContent: 'pizza' })).toBe(false);
+      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContents: ['pizza'] })).toBe(false);
     });
 
     it('excludes a message with empty content from a non-empty substring filter', () => {
       const m = msg({ content: '' });
-      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContent: 'anything' })).toBe(false);
+      expect(matchesPackageFilter(m, { ...baseCriteria, searchMessageContents: ['anything'] })).toBe(false);
     });
   });
 
@@ -139,7 +139,7 @@ describe('packageFilter', () => {
       const m = msg({ content: 'pizza' });
       expect(matchesPackageFilter(m, {
         ...baseCriteria,
-        searchMessageContent: 'pizza',
+        searchMessageContents: ['pizza'],
         isPinned: IsPinnedType.YES,
       })).toBe(true);
     });
@@ -148,7 +148,7 @@ describe('packageFilter', () => {
       const m = msg({ content: 'pizza' });
       expect(matchesPackageFilter(m, {
         ...baseCriteria,
-        searchMessageContent: 'pizza',
+        searchMessageContents: ['pizza'],
         userIds: ['nonexistent'],
         mentionIds: ['nonexistent'],
         selectedHasTypes: [HasType.IMAGE],
@@ -161,7 +161,7 @@ describe('packageFilter', () => {
       const m = msg({ content: 'pizza', timestamp: '2026-01-15T12:00:00Z' });
       const criteria = {
         ...baseCriteria,
-        searchMessageContent: 'pizza',
+        searchMessageContents: ['pizza'],
         searchAfterDate: new Date('2026-01-01T00:00:00Z'),
         searchBeforeDate: new Date('2026-02-01T00:00:00Z'),
       };
@@ -191,7 +191,7 @@ describe('packageFilter', () => {
     });
 
     it('filters by content', () => {
-      const out = applyPackageFilter(messages, { ...baseCriteria, searchMessageContent: 'pizza' });
+      const out = applyPackageFilter(messages, { ...baseCriteria, searchMessageContents: ['pizza'] });
       expect(out.map((m) => m.id)).toEqual(['a', 'c']);
     });
 
@@ -207,7 +207,7 @@ describe('packageFilter', () => {
     it('filters by content AND date together', () => {
       const out = applyPackageFilter(messages, {
         ...baseCriteria,
-        searchMessageContent: 'pizza',
+        searchMessageContents: ['pizza'],
         searchAfterDate: new Date('2026-01-01T00:00:00Z'),
         searchBeforeDate: new Date('2026-01-31T23:59:59Z'),
       });
@@ -215,7 +215,7 @@ describe('packageFilter', () => {
     });
 
     it('returns an empty array when no messages match', () => {
-      const out = applyPackageFilter(messages, { ...baseCriteria, searchMessageContent: 'tacos' });
+      const out = applyPackageFilter(messages, { ...baseCriteria, searchMessageContents: ['tacos'] });
       expect(out).toEqual([]);
     });
   });

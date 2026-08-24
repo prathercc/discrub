@@ -37,7 +37,7 @@ import { addStatusEntry, showOperationTip } from '@features/status/statusSlice';
 const EMPTY_EXPORT_CRITERIA: SearchCriteria = {
   searchAfterDate: null,
   searchBeforeDate: null,
-  searchMessageContent: null,
+  searchMessageContents: [],
   selectedHasTypes: [],
   userIds: [],
   mentionIds: [],
@@ -580,7 +580,7 @@ const hasAnyFilter = (c: SearchCriteria | null | undefined): boolean => {
     (c.selectedHasTypes?.length ?? 0) > 0 ||
     (c.attachmentExtensions?.length ?? 0) > 0 ||
     !!c.attachmentFilename ||
-    !!c.searchMessageContent ||
+    (c.searchMessageContents?.length ?? 0) > 0 ||
     !!c.searchAfterDate ||
     !!c.searchBeforeDate
   );

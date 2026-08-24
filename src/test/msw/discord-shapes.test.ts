@@ -40,7 +40,7 @@ const FIXTURE_REPLY_ID = '7700000000000000111';
 const emptyCriteria: SearchCriteria = {
   searchBeforeDate: null,
   searchAfterDate: null,
-  searchMessageContent: null,
+  searchMessageContents: [],
   selectedHasTypes: [],
   userIds: [],
   mentionIds: [],

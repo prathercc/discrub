@@ -98,8 +98,8 @@ describe('Package refine (#172)', () => {
       cy.get('[role="dialog"]').find('button[class*="contained"]').contains(/Apply filters|Search/).click();
 
       cy.get('[data-testid="package-refine-button"]').click();
-      // The input should have the previously saved value.
-      cy.get('[role="dialog"]').find('input[placeholder*="Search message content"]').should('have.value', 'hello');
+      // The previously saved term shows as a chip (the box itself is a draft field).
+      cy.get('[role="dialog"]').find('[data-testid="content-filter-search"] .MuiChip-label').should('contain', 'hello');
       // Cancel without changing.
       cy.get('[role="dialog"]').contains('button', 'Cancel').click();
 

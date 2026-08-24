@@ -18,9 +18,10 @@ export function matchesPackageFilter(
 ): boolean {
   if (!criteria) return true;
 
-  if (criteria.searchMessageContent) {
-    const needle = criteria.searchMessageContent.toLowerCase();
-    if (!message.content.toLowerCase().includes(needle)) return false;
+  if (criteria.searchMessageContents && criteria.searchMessageContents.length > 0) {
+    const haystack = message.content.toLowerCase();
+    // Any-of across terms (#244).
+    if (!criteria.searchMessageContents.some((term) => haystack.includes(term.toLowerCase()))) return false;
   }
 
   if (criteria.searchAfterDate || criteria.searchBeforeDate) {
@@ -94,7 +95,7 @@ export function hasAnyPackageCriterion(
 ): boolean {
   if (!criteria) return false;
   return Boolean(
-    (criteria.searchMessageContent && criteria.searchMessageContent.length > 0) ||
+    (criteria.searchMessageContents && criteria.searchMessageContents.length > 0) ||
     criteria.searchAfterDate ||
     criteria.searchBeforeDate ||
     (criteria.attachmentExtensions && criteria.attachmentExtensions.length > 0) ||

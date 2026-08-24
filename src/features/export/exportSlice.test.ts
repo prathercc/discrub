@@ -841,7 +841,7 @@ describe('exportSlice', () => {
       const criteria = {
         searchAfterDate: new Date('2025-01-01T00:00:00.000Z'),
         searchBeforeDate: null,
-        searchMessageContent: null,
+        searchMessageContents: [],
         selectedHasTypes: [],
         userIds: [],
         mentionIds: [],
@@ -880,7 +880,7 @@ describe('exportSlice', () => {
       const existing = {
         searchAfterDate: new Date('2024-12-25T00:00:00.000Z'),
         searchBeforeDate: null,
-        searchMessageContent: null,
+        searchMessageContents: [],
         selectedHasTypes: [],
         userIds: [],
         mentionIds: [],
@@ -909,7 +909,7 @@ describe('exportSlice', () => {
       store.dispatch(setExportCriteria({
         searchAfterDate: null,
         searchBeforeDate: null,
-        searchMessageContent: 'hello',
+        searchMessageContents: ['hello'],
         selectedHasTypes: [],
         userIds: ['user-1'],
         mentionIds: [],
@@ -929,7 +929,7 @@ describe('exportSlice', () => {
         dateRange: { after: '2025-05-01T00:00:00.000Z', before: null },
       }));
       const c = selectExportCriteria(store.getState());
-      expect(c?.searchMessageContent).toBe('hello');
+      expect(c?.searchMessageContents).toEqual(['hello']);
       expect(c?.userIds).toEqual(['user-1']);
       expect((c?.searchAfterDate as Date).toISOString()).toBe('2025-05-01T00:00:00.000Z');
       expect(c?.searchBeforeDate).toBeNull();
@@ -1142,7 +1142,7 @@ describe('exportSlice', () => {
           separateThreads: false,
           includeMedia: false,
           guildId: 'g-1',
-          searchCriteria: { searchMessageContent: 'x' } as any,
+          searchCriteria: { searchMessageContents: ['x'] } as any,
         })
       );
 
@@ -1210,7 +1210,7 @@ describe('exportSlice', () => {
           separateThreads: false,
           includeMedia: false,
           guildId: 'g-1',
-          searchCriteria: { searchMessageContent: 'x' } as any,
+          searchCriteria: { searchMessageContents: ['x'] } as any,
         })
       );
 
@@ -1409,7 +1409,7 @@ describe('exportSlice', () => {
           separateThreads: false,
           includeMedia: false,
           guildId: 'g-1',
-          searchCriteria: { searchMessageContent: 'x' } as any,
+          searchCriteria: { searchMessageContents: ['x'] } as any,
         })
       );
 
@@ -1492,7 +1492,7 @@ describe('exportSlice', () => {
           separateThreads: false,
           includeMedia: false,
           guildId: 'g-1',
-          searchCriteria: { searchMessageContent: 'x' } as any,
+          searchCriteria: { searchMessageContents: ['x'] } as any,
         })
       );
 
@@ -1593,7 +1593,7 @@ describe('exportSlice', () => {
           separateThreads: false,
           includeMedia: false,
           guildId: 'g-1',
-          searchCriteria: { searchMessageContent: 'x' } as any,
+          searchCriteria: { searchMessageContents: ['x'] } as any,
         }),
       );
 
@@ -1684,7 +1684,7 @@ describe('exportSlice', () => {
           separateThreads: false,
           includeMedia: false,
           guildId: 'g-1',
-          searchCriteria: { searchMessageContent: 'x' } as any,
+          searchCriteria: { searchMessageContents: ['x'] } as any,
         }),
       );
 

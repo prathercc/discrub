@@ -286,7 +286,7 @@ describe('ServerView', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
       await userEvent.type(
         await screen.findByPlaceholderText('Search message content...'),
-        'hello',
+        'hello,',
       );
       await userEvent.click(screen.getByRole('button', { name: 'Search' }));
       expect(await screen.findByText('content: hello')).toBeInTheDocument();
@@ -314,7 +314,7 @@ describe('ServerView', () => {
       await userEvent.click(screen.getByRole('button', { name: 'Filters' }));
       await userEvent.type(
         await screen.findByPlaceholderText('Search message content...'),
-        'hello',
+        'hello,',
       );
       await userEvent.click(screen.getByRole('button', { name: 'Search' }));
       expect(await screen.findByText('content: hello')).toBeInTheDocument();
@@ -801,7 +801,7 @@ describe('ServerView', () => {
       // On main tab, trigger a local refine filter to trigger warning
       await user.click(screen.getByTestId('search-filters-button'));
       const refineInput = screen.getByPlaceholderText('Filter by content...');
-      await user.type(refineInput, 'Hello');
+      await user.type(refineInput, 'Hello,');
       await user.click(screen.getByRole('button', { name: /Apply Refine/ }));
 
       // Warning should be visible on main tab
@@ -845,7 +845,7 @@ describe('ServerView', () => {
 
       // Trigger warning on main tab via Refine
       await user.click(screen.getByTestId('search-filters-button'));
-      await user.type(screen.getByPlaceholderText('Filter by content...'), 'test');
+      await user.type(screen.getByPlaceholderText('Filter by content...'), 'test,');
       await user.click(screen.getByRole('button', { name: /Apply Refine/ }));
       expect(screen.getByText(/Filtering Loaded Messages Only/)).toBeInTheDocument();
 
@@ -912,7 +912,7 @@ describe('ServerView', () => {
 
       // Trigger warning on thread tab via Refine (client-side filter with hasMore)
       await user.click(screen.getByTestId('search-filters-button'));
-      await user.type(screen.getByPlaceholderText('Filter by content...'), 'message 1');
+      await user.type(screen.getByPlaceholderText('Filter by content...'), 'message 1,');
       await user.click(screen.getByRole('button', { name: /Apply Refine/ }));
       expect(screen.getByText(/Filtering Loaded Messages Only/)).toBeInTheDocument();
 

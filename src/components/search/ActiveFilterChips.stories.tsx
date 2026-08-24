@@ -23,17 +23,17 @@ export const NoFilters: Story = {
 };
 
 export const SearchOnly: Story = {
-  args: { ...baseArgs, searchCriteria: { ...defaultCriteria, searchMessageContent: 'hello', userIds: ['123'] }, refineCriteria: defaultCriteria },
+  args: { ...baseArgs, searchCriteria: { ...defaultCriteria, searchMessageContents: ['hello'], userIds: ['123'] }, refineCriteria: defaultCriteria },
 };
 
 export const RefineOnly: Story = {
-  args: { ...baseArgs, searchCriteria: defaultCriteria, refineCriteria: { ...defaultCriteria, searchMessageContent: 'local', selectedHasTypes: [HasType.IMAGE] } },
+  args: { ...baseArgs, searchCriteria: defaultCriteria, refineCriteria: { ...defaultCriteria, searchMessageContents: ['local'], selectedHasTypes: [HasType.IMAGE] } },
 };
 
 export const BothLayers: Story = {
   args: {
     ...baseArgs,
-    searchCriteria: { ...defaultCriteria, searchMessageContent: 'server query', isPinned: IsPinnedType.YES, authorType: AuthorType.BOT },
-    refineCriteria: { ...defaultCriteria, searchMessageContent: 'refine text', userIds: ['456'] },
+    searchCriteria: { ...defaultCriteria, searchMessageContents: ['server query'], isPinned: IsPinnedType.YES, authorType: AuthorType.BOT },
+    refineCriteria: { ...defaultCriteria, searchMessageContents: ['refine text'], userIds: ['456'] },
   },
 };

@@ -1008,7 +1008,7 @@ describe('purgeSlice thunks', () => {
       const filterCriteria = {
         searchBeforeDate: null,
         searchAfterDate: new Date('2025-01-01T00:00:00Z'),
-        searchMessageContent: 'pineapple',
+        searchMessageContents: ['pineapple'],
         selectedHasTypes: ['image'] as any,
         userIds: [], // dialog may leave this blank; author comes from PurgeConfig.targetUserIds
         mentionIds: [],
@@ -1030,7 +1030,7 @@ describe('purgeSlice thunks', () => {
       expect(mockFetchSearchMessageData).toHaveBeenCalled();
       const criteriaArg = mockFetchSearchMessageData.mock.calls[0][4];
       expect(criteriaArg.userIds).to.deep.equal([CURRENT_USER.id]); // loop-author wins
-      expect(criteriaArg.searchMessageContent).to.equal('pineapple');
+      expect(criteriaArg.searchMessageContents).to.deep.equal(['pineapple']);
       expect(criteriaArg.searchAfterDate).to.deep.equal(new Date('2025-01-01T00:00:00Z'));
       expect(criteriaArg.selectedHasTypes).to.deep.equal(['image']);
     });
@@ -1053,7 +1053,7 @@ describe('purgeSlice thunks', () => {
 
       const criteriaArg = mockFetchSearchMessageData.mock.calls[0][4];
       expect(criteriaArg.userIds).to.deep.equal([CURRENT_USER.id]);
-      expect(criteriaArg.searchMessageContent).to.be.null;
+      expect(criteriaArg.searchMessageContents).to.deep.equal([]);
       expect(criteriaArg.searchAfterDate).to.be.null;
       expect(criteriaArg.selectedHasTypes).to.deep.equal([]);
     });
@@ -1772,7 +1772,7 @@ describe('purgeSlice thunks', () => {
           searchCriteria: {
             searchBeforeDate: null,
             searchAfterDate: new Date('2026-06-01T00:00:00.000Z'),
-            searchMessageContent: '',
+            searchMessageContents: [],
             selectedHasTypes: [],
             userIds: [],
             mentionIds: [],
@@ -1869,7 +1869,7 @@ describe('purgeSlice thunks', () => {
     const pinnedCriteria = (): SearchCriteria => ({
       searchBeforeDate: null,
       searchAfterDate: null,
-      searchMessageContent: '',
+      searchMessageContents: [],
       selectedHasTypes: [],
       userIds: [],
       mentionIds: [],
@@ -2080,7 +2080,7 @@ describe('purgeSlice thunks', () => {
       const criteria = {
         searchBeforeDate: null,
         searchAfterDate: null,
-        searchMessageContent: '',
+        searchMessageContents: [],
         selectedHasTypes: [],
         userIds: [],
         mentionIds: [],
@@ -2255,7 +2255,7 @@ describe('purgeSlice thunks', () => {
       const pinnedExclusionCriteria = {
         searchBeforeDate: null,
         searchAfterDate: null,
-        searchMessageContent: '',
+        searchMessageContents: [],
         selectedHasTypes: [],
         userIds: [],
         mentionIds: [],
@@ -2632,7 +2632,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'foo',
+            searchMessageContents: ['foo'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -2645,7 +2645,7 @@ describe('purgeSlice thunks', () => {
       );
 
       // Hit is the only message that should reach the per-reaction loop —
-      // neighbour fails the `searchMessageContent: 'foo'` predicate.
+      // neighbour fails the `searchMessageContents: ['foo']` predicate.
       expect(mockGetReactions).toHaveBeenCalledTimes(1);
       expect(mockGetReactions).toHaveBeenCalledWith(
         expect.any(String), 'ch1', 'hit', expect.any(String), expect.anything(), null,
@@ -3040,7 +3040,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3125,7 +3125,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3181,7 +3181,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3245,7 +3245,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3302,7 +3302,7 @@ describe('purgeSlice thunks', () => {
           config: { mode: 'clearReactions', targetUserIds: [], retainAttachedMedia: false, deleteAttachmentsOnly: false },
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3355,7 +3355,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3398,7 +3398,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3457,7 +3457,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3506,7 +3506,7 @@ describe('purgeSlice thunks', () => {
           config: { mode: 'clearReactions', targetUserIds: [], retainAttachedMedia: false, deleteAttachmentsOnly: false },
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],
@@ -3564,7 +3564,7 @@ describe('purgeSlice thunks', () => {
           config: reactionsConfig(['targetUser']),
           guildId: 'guild1',
           searchCriteria: {
-            searchMessageContent: 'hello',
+            searchMessageContents: ['hello'],
             userIds: [],
             mentionIds: [],
             selectedHasTypes: [],

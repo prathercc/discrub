@@ -34,22 +34,22 @@ export const Empty: Story = { args: { ...baseArgs } };
 export const WithSearchFilters: Story = {
   args: {
     ...baseArgs,
-    savedSearchCriteria: { ...defaultCriteria, searchMessageContent: 'hello world', userIds: ['222333444555666777'] },
+    savedSearchCriteria: { ...defaultCriteria, searchMessageContents: ['hello world'], userIds: ['222333444555666777'] },
   },
 };
 
 export const WithRefineFilters: Story = {
   args: {
     ...baseArgs,
-    savedRefineCriteria: { ...defaultCriteria, searchMessageContent: 'local filter', selectedHasTypes: [HasType.IMAGE] },
+    savedRefineCriteria: { ...defaultCriteria, searchMessageContents: ['local filter'], selectedHasTypes: [HasType.IMAGE] },
   },
 };
 
 export const BothLayersActive: Story = {
   args: {
     ...baseArgs,
-    savedSearchCriteria: { ...defaultCriteria, searchMessageContent: 'project', isPinned: IsPinnedType.YES },
-    savedRefineCriteria: { ...defaultCriteria, searchMessageContent: 'docs' },
+    savedSearchCriteria: { ...defaultCriteria, searchMessageContents: ['project'], isPinned: IsPinnedType.YES },
+    savedRefineCriteria: { ...defaultCriteria, searchMessageContents: ['docs'] },
   },
 };
 

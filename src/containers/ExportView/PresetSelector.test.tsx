@@ -285,7 +285,7 @@ describe('PresetSelector', () => {
       store.dispatch(setExportCriteria({
         searchAfterDate: new Date('2025-02-01T00:00:00.000Z'),
         searchBeforeDate: null,
-        searchMessageContent: null,
+        searchMessageContents: [],
         selectedHasTypes: [],
         userIds: [],
         mentionIds: [],
@@ -319,7 +319,7 @@ describe('PresetSelector', () => {
       store.dispatch(setExportCriteria({
         searchAfterDate: new Date('2025-02-01T00:00:00.000Z'),
         searchBeforeDate: null,
-        searchMessageContent: null,
+        searchMessageContents: [],
         selectedHasTypes: [],
         userIds: [],
         mentionIds: [],

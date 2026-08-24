@@ -415,7 +415,7 @@ export const bulkEditChannels = createAsyncThunk<
         const criteria: SearchCriteria = {
           searchBeforeDate: searchCriteria?.searchBeforeDate ?? null,
           searchAfterDate: searchCriteria?.searchAfterDate ?? null,
-          searchMessageContent: searchCriteria?.searchMessageContent ?? null,
+          searchMessageContents: searchCriteria?.searchMessageContents ?? [],
           selectedHasTypes: searchCriteria?.selectedHasTypes ?? [],
           userIds: [currentUserId],
           mentionIds: searchCriteria?.mentionIds ?? [],
@@ -2133,7 +2133,7 @@ export const applyUserFilter = createAsyncThunk(
     const fallback: SearchCriteria = {
       searchAfterDate: null,
       searchBeforeDate: null,
-      searchMessageContent: null,
+      searchMessageContents: [],
       selectedHasTypes: [],
       userIds: [],
       mentionIds: [],

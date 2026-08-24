@@ -26,7 +26,7 @@ describe('ActiveFilterChips', () => {
   });
 
   it('should render refine chips as gray outlined', () => {
-    render(<ActiveFilterChips {...defaultProps} refineCriteria={{ ...defaultCriteria, searchMessageContent: 'local' }} />);
+    render(<ActiveFilterChips {...defaultProps} refineCriteria={{ ...defaultCriteria, searchMessageContents: ['local'] }} />);
     const chip = screen.getByText('content: local').closest('.MuiChip-root');
     expect(chip?.classList.toString()).toContain('MuiChip-outlined');
   });
@@ -35,8 +35,8 @@ describe('ActiveFilterChips', () => {
     render(
       <ActiveFilterChips
         {...defaultProps}
-        searchCriteria={{ ...defaultCriteria, searchMessageContent: 'server' }}
-        refineCriteria={{ ...defaultCriteria, searchMessageContent: 'local' }}
+        searchCriteria={{ ...defaultCriteria, searchMessageContents: ['server'] }}
+        refineCriteria={{ ...defaultCriteria, searchMessageContents: ['local'] }}
       />
     );
     expect(screen.getByText('content: server')).toBeInTheDocument();
@@ -63,12 +63,12 @@ describe('ActiveFilterChips', () => {
       <ActiveFilterChips
         {...defaultProps}
         onClearRefineFilter={onClearRefineFilter}
-        refineCriteria={{ ...defaultCriteria, searchMessageContent: 'test' }}
+        refineCriteria={{ ...defaultCriteria, searchMessageContents: ['test'] }}
       />
     );
     const deleteButtons = screen.getAllByTestId('CancelIcon');
     fireEvent.click(deleteButtons[0]);
-    expect(onClearRefineFilter).toHaveBeenCalledWith('searchMessageContent', undefined);
+    expect(onClearRefineFilter).toHaveBeenCalledWith('searchMessageContents', 'test');
   });
 
   it('should call onClearAll when clear all is clicked', () => {
@@ -85,12 +85,12 @@ describe('ActiveFilterChips', () => {
   });
 
   it('should render search icon on search chips', () => {
-    render(<ActiveFilterChips {...defaultProps} searchCriteria={{ ...defaultCriteria, searchMessageContent: 'test' }} />);
+    render(<ActiveFilterChips {...defaultProps} searchCriteria={{ ...defaultCriteria, searchMessageContents: ['test'] }} />);
     expect(screen.getByTestId('SearchIcon')).toBeInTheDocument();
   });
 
   it('should render refine icon on refine chips', () => {
-    render(<ActiveFilterChips {...defaultProps} refineCriteria={{ ...defaultCriteria, searchMessageContent: 'test' }} />);
+    render(<ActiveFilterChips {...defaultProps} refineCriteria={{ ...defaultCriteria, searchMessageContents: ['test'] }} />);
     expect(screen.getByTestId('FilterListIcon')).toBeInTheDocument();
   });
 
@@ -100,7 +100,7 @@ describe('ActiveFilterChips', () => {
         {...defaultProps}
         searchCriteria={{
           ...defaultCriteria,
-          searchMessageContent: 'server',
+          searchMessageContents: ['server'],
           userIds: ['111'],
           selectedHasTypes: [HasType.IMAGE],
           searchAfterDate: new Date(2026, 0, 1),
@@ -110,7 +110,7 @@ describe('ActiveFilterChips', () => {
         }}
         refineCriteria={{
           ...defaultCriteria,
-          searchMessageContent: 'local',
+          searchMessageContents: ['local'],
           userIds: ['333'],
         }}
       />
