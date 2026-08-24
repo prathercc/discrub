@@ -589,4 +589,6 @@ in derivative or competing works.
 
 ---
 
+Want something built? Sponsor a feature or commission a theme through [Ko-fi Commissions](https://ko-fi.com/prathercc/commissions), or write to workbench@pratherbytecraft.com about a Discord bot of your own.
+
 Built by [Prather Bytecraft](https://github.com/pratherbytecraft) · [pratherbytecraft.com](https://pratherbytecraft.com)

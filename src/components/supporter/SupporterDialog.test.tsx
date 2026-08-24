@@ -338,4 +338,13 @@ describe('SupporterDialog', () => {
       expect(stateStore.remove).toHaveBeenCalledTimes(3);
     });
   });
+
+  it('offers theme commissions under the theme grid', () => {
+    renderDialog();
+    const note = screen.getByTestId('supporter-commission-note');
+    expect(note).toHaveTextContent('Want a theme of your own?');
+    const link = screen.getByRole('link', { name: 'Commission one on Ko-fi' });
+    expect(link).toHaveAttribute('href', 'https://ko-fi.com/prathercc/commissions');
+    expect(link).toHaveAttribute('target', '_blank');
+  });
 });

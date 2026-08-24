@@ -68,6 +68,7 @@ import {
   KOFI_MONTHLY_URL,
   KOFI_SUPPORTER_YEARLY_URL,
   KOFI_BLEEDING_EDGE_YEARLY_URL,
+  KOFI_COMMISSIONS_URL,
   HOSTED_URL,
 } from '@services/kofiLinks';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
@@ -516,6 +517,17 @@ const SupporterDialog = () => {
             cardWidth={104}
             centered
           />
+          <Typography
+            variant="caption"
+            sx={{ display: 'block', color: 'text.secondary', textAlign: 'center', mt: 1.5 }}
+            data-testid="supporter-commission-note"
+          >
+            Want a theme of your own?{' '}
+            <Link href={KOFI_COMMISSIONS_URL} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ fontWeight: 600 }}>
+              Commission one on Ko-fi
+            </Link>
+            .
+          </Typography>
         </Box>
 
         <FormControlLabel

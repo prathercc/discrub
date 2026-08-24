@@ -420,35 +420,35 @@ describe('TopBar', () => {
     });
 
     const openIdeasFromMenu = () => {
-      fireEvent.click(screen.getByLabelText('More options'));
-      fireEvent.click(screen.getByText('Ideas & Contact'));
+      fireEvent.click(screen.getByLabelText('Ideas & Contact'));
     };
 
-    it('should show Ideas menu item in More menu when logged in', () => {
+    it('should show an Ideas & Contact icon in the top bar when logged in', () => {
       renderLoggedIn();
+      expect(screen.getByTestId('topbar-ideas')).toBeInTheDocument();
       fireEvent.click(screen.getByLabelText('More options'));
-      expect(screen.getByText('Ideas & Contact')).toBeInTheDocument();
+      expect(screen.queryByTestId('more-menu-ideas')).toBeNull();
     });
 
     it('should open Ideas dialog on click', () => {
       renderLoggedIn();
       openIdeasFromMenu();
-      expect(screen.getByText(/Have an idea for a feature/)).toBeInTheDocument();
+      expect(screen.getByText(/Feature ideas, bug reports/)).toBeInTheDocument();
     });
 
-    it('should show email link', () => {
+    it('should show the support email link', () => {
       renderLoggedIn();
       openIdeasFromMenu();
-      expect(screen.getByText('prathercc@gmail.com')).toBeInTheDocument();
+      expect(screen.getByText('support@pratherbytecraft.com')).toBeInTheDocument();
     });
 
     it('should close dialog on Escape', async () => {
       renderLoggedIn();
       openIdeasFromMenu();
-      expect(screen.getByText(/Have an idea for a feature/)).toBeInTheDocument();
+      expect(screen.getByText(/Feature ideas, bug reports/)).toBeInTheDocument();
       fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
       await waitFor(() => {
-        expect(screen.queryByText(/Have an idea for a feature/)).toBeNull();
+        expect(screen.queryByText(/Feature ideas, bug reports/)).toBeNull();
       });
     });
   });

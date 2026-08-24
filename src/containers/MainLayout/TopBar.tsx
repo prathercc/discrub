@@ -13,7 +13,6 @@ import {
   Campaign as AnnouncementIcon,
   EmojiObjects as IdeasIcon,
   Reddit as RedditIcon,
-  Email as EmailIcon,
   WarningAmber as WarningIcon,
   MoreVert as MoreIcon,
   Menu as MenuIcon,
@@ -48,6 +47,7 @@ import { BleedingStack } from '@components/supporter/BleedingTitle';
 import { isBleedingEdgeBuild } from '@services/hostedGate';
 import UserProfileModal from '@components/modals/UserProfileModal';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import IdeasContactDialog from '@components/dialogs/IdeasContactDialog';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
 import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 import { selectIsMinimized } from '@features/app/appSlice';
@@ -358,6 +358,19 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               </IconButton>
             </Tooltip>
 
+            {!isCompact && (
+              <Tooltip title="Ideas & Contact" enterDelay={0} arrow>
+                <IconButton
+                  color="inherit"
+                  onClick={() => setIdeasOpen(true)}
+                  aria-label="Ideas & Contact"
+                  data-testid="topbar-ideas"
+                >
+                  <IdeasIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+
             {!isCompact && <CompatibilityPopover placement="topbar" />}
 
             {!isCompact && (
@@ -420,17 +433,20 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                 </ListItemIcon>
                 <ListItemText>r/discrub</ListItemText>
               </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  setIdeasOpen(true);
-                  setMoreMenuAnchor(null);
-                }}
-              >
-                <ListItemIcon>
-                  <IdeasIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Ideas & Contact</ListItemText>
-              </MenuItem>
+              {isCompact && (
+                <MenuItem
+                  onClick={() => {
+                    setIdeasOpen(true);
+                    setMoreMenuAnchor(null);
+                  }}
+                  data-testid="more-menu-ideas"
+                >
+                  <ListItemIcon>
+                    <IdeasIcon fontSize="small" />
+                  </ListItemIcon>
+                  <ListItemText>Ideas & Contact</ListItemText>
+                </MenuItem>
+              )}
               <MenuItem
                 onClick={() => {
                   dispatch(fetchAnnouncementMarkdownThunk());
@@ -595,47 +611,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={ideasOpen}
-        onClose={() => setIdeasOpen(false)}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{ sx: { bgcolor: 'background.paper' } }}
-      >
-        <DialogContent sx={{ textAlign: 'center', py: 4, px: 3, position: 'relative' }}>
-          <DialogCloseIcon onClose={() => setIdeasOpen(false)} label="Close Ideas" />
-          <IdeasIcon sx={{ fontSize: 40, color: 'primary.main', mb: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-            Ideas & Contact
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Have an idea for a feature, found a bug, or want something similar built?
-            I'd love to hear from you!
-          </Typography>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <Box
-              component="a"
-              href="mailto:prathercc@gmail.com"
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 1.5,
-                px: 2,
-                py: 1.25,
-                borderRadius: 1,
-                bgcolor: 'action.hover',
-                color: 'text.secondary',
-                textDecoration: 'none',
-                transition: 'background-color 150ms ease',
-                '&:hover': { bgcolor: 'action.selected', color: 'text.primary' },
-              }}
-            >
-              <EmailIcon sx={{ fontSize: 18, color: 'primary.main' }} />
-              <Typography variant="body2">prathercc@gmail.com</Typography>
-            </Box>
-          </Box>
-        </DialogContent>
-      </Dialog>
+      <IdeasContactDialog open={ideasOpen} onClose={() => setIdeasOpen(false)} />
     </AppBar>
   );
 };
