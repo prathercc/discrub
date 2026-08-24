@@ -34,7 +34,7 @@ export const BOTS: BotEntry[] = [
     name: 'Retrostat',
     tagline: 'Retrospective statistics for any date range',
     pitch:
-      'The metrics you gather by hand in Discrub, delivered inside your server with a chart and a CSV. Nothing to set up first.',
+      'The metrics you gather by hand in Discrub, delivered inside your server with a chart and a CSV. Minimal setup.',
     chips: ['Top posters', 'Most mentioned', 'Busiest channels', 'Weekly recaps'],
     installUrl: `${SITE}/go/retrostat?from=discrub`,
     pageUrl: `${SITE}/retrostat`,
