@@ -23,6 +23,7 @@ import {
   Reply as ReplyIcon,
 } from '@mui/icons-material';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import BotNudge from '@components/welcome/BotNudge';
 import type { Message } from 'discrub-core/types/discord-types';
 import { generateMentionCounts, exportMentionCountsCSV } from '@/utils/analyticsUtils';
 import type { MentionCount } from '@/utils/analyticsUtils';
@@ -203,6 +204,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap }: AnalyticsModalProp
             </Table>
           </TableContainer>
         )}
+        {mentionCounts.length > 0 && <BotNudge />}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 1.5 }}>
         <Button onClick={onClose}>Cancel</Button>

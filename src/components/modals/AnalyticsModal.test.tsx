@@ -256,4 +256,20 @@ describe('AnalyticsModal', () => {
     URL.revokeObjectURL = originalRevokeObjectURL;
     vi.restoreAllMocks();
   });
+
+  it('shows the Retrostat nudge only when there are results', () => {
+    const { unmount } = renderWithProviders(
+      <AnalyticsModal open onClose={mockOnClose} messages={[createMessage('hi <@111>')]} userMap={userMap} />,
+      { preloadedState: createBaseState() },
+    );
+    expect(screen.getByTestId('bot-nudge')).toBeInTheDocument();
+    unmount();
+
+    renderWithProviders(
+      <AnalyticsModal open onClose={mockOnClose} messages={[createMessage('no mentions')]} userMap={userMap} />,
+      { preloadedState: createBaseState() },
+    );
+    expect(screen.getByText('No mentions found')).toBeInTheDocument();
+    expect(screen.queryByTestId('bot-nudge')).not.toBeInTheDocument();
+  });
 });
