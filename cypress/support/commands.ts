@@ -33,6 +33,23 @@ Cypress.Commands.add('interceptDiscordApi', () => {
     },
   }).as('getAnnouncementMarkdownGist');
 
+  // Past-announcements archive gist (browse mode); two entries, newest first
+  cy.intercept('GET', '**/gists/d57525174377b474cb7c90210d3ab979', {
+    statusCode: 200,
+    body: {
+      files: {
+        'index.json': {
+          content: JSON.stringify([
+            { version: '2.1.0', date: '2026-08-23', title: 'Discrub 2.1.0', file: '2.1.0.md' },
+            { version: '2.0.10', date: '2026-08-16', title: 'Discrub 2.0.10', file: '2.0.10.md' },
+          ]),
+        },
+        '2.1.0.md': { content: '# Archived notes for 2.1.0' },
+        '2.0.10.md': { content: '# Archived notes for 2.0.10' },
+      },
+    },
+  }).as('getAnnouncementArchiveGist');
+
   // Guild member lookup
   cy.intercept('GET', `${API}/guilds/*/members/*`, {
     statusCode: 200,

@@ -11,7 +11,20 @@ import {
   setFocusedView,
   toggleFocusedView,
 } from '@features/app/appSlice';
-import { fetchAnnouncement, dismissAnnouncement, selectHasNewAnnouncement, selectAnnouncementMarkdown, selectIsLoadingMarkdown, selectMarkdownError } from '@features/announcement/announcementSlice';
+import {
+  fetchAnnouncement,
+  dismissAnnouncement,
+  fetchAnnouncementArchiveThunk,
+  selectArchiveVersion,
+  selectHasNewAnnouncement,
+  selectAnnouncementMarkdown,
+  selectIsLoadingMarkdown,
+  selectMarkdownError,
+  selectAnnouncementArchive,
+  selectIsLoadingArchive,
+  selectArchiveError,
+  selectSelectedArchiveVersion,
+} from '@features/announcement/announcementSlice';
 import { selectIsExporting, selectExportError, resetExport } from '@features/export/exportSlice';
 import { selectIsPurging, selectPurgeError } from '@features/purge/purgeSlice';
 import { showToast } from '@features/status/statusSlice';
@@ -139,6 +152,17 @@ const MainLayout = () => {
     dispatch(fetchAnnouncement());
   }, [dispatch, settings]);
 
+  const announcementArchive = useAppSelector(selectAnnouncementArchive);
+  const isLoadingArchive = useAppSelector(selectIsLoadingArchive);
+  const archiveError = useAppSelector(selectArchiveError);
+  const selectedArchiveVersion = useAppSelector(selectSelectedArchiveVersion);
+
+  // The dialog's version rail needs the archive whenever it opens (auto-show
+  // or View Announcement). Cached in the slice, so this is one request per session.
+  useEffect(() => {
+    if (hasNewAnnouncement) dispatch(fetchAnnouncementArchiveThunk());
+  }, [hasNewAnnouncement, dispatch]);
+
   const handleDismissAnnouncement = () => {
     dispatch(dismissAnnouncement());
   };
@@ -258,6 +282,11 @@ const MainLayout = () => {
         markdown={announcementMarkdown}
         isLoading={isLoadingMarkdown}
         error={markdownError}
+        archive={announcementArchive}
+        isLoadingArchive={isLoadingArchive}
+        archiveError={archiveError}
+        selectedVersion={selectedArchiveVersion}
+        onSelectVersion={(version) => dispatch(selectArchiveVersion(version))}
       />
 
       <HotkeysReferenceModal

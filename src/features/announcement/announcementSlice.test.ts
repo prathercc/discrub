@@ -1,6 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createTestStore } from '../../test/test-utils';
-import announcementReducer, { fetchAnnouncement, dismissAnnouncement, reopenAnnouncement } from './announcementSlice';
+import announcementReducer, {
+  fetchAnnouncement,
+  dismissAnnouncement,
+  reopenAnnouncement,
+  fetchAnnouncementArchiveThunk,
+  selectArchiveVersion,
+  fetchAnnouncementMarkdownThunk,
+} from './announcementSlice';
 import appReducer from '@features/app/appSlice';
 import { initialAnnouncementState } from './announcementTypes';
 import { initialAppState } from '@features/app/appTypes';
@@ -36,10 +43,12 @@ vi.mock('@/extension/storage', () => {
 
 const mockFetchAnnouncementData = vi.fn();
 const mockFetchAnnouncementMarkdown = vi.fn();
+const mockFetchAnnouncementArchive = vi.fn();
 
 vi.mock('discrub-core/github-service', () => ({
   fetchAnnouncementData: (...args: unknown[]) => mockFetchAnnouncementData(...args),
   fetchAnnouncementMarkdown: (...args: unknown[]) => mockFetchAnnouncementMarkdown(...args),
+  fetchAnnouncementArchive: (...args: unknown[]) => mockFetchAnnouncementArchive(...args),
 }));
 
 describe('announcementSlice', () => {
@@ -143,6 +152,28 @@ describe('announcementSlice', () => {
       expect(state.hasNew).toBe(false);
       expect(state.isLoading).toBe(false);
     });
+    it('does not close a dialog the user reopened while the boot fetch was still pending', async () => {
+      let resolveData: (value: { rev: string }) => void = () => {};
+      mockFetchAnnouncementData.mockReturnValue(new Promise((resolve) => { resolveData = resolve; }));
+      mockFetchAnnouncementMarkdown.mockResolvedValue('Reopened content');
+
+      const store = createStore({ [DiscrubSetting.CACHED_ANNOUNCEMENT_REV]: 'rev-1' });
+      const boot = store.dispatch(fetchAnnouncement());
+
+      // User opens More → View Announcement before boot settles.
+      await store.dispatch(fetchAnnouncementMarkdownThunk());
+      store.dispatch(reopenAnnouncement());
+      expect(store.getState().announcement.hasNew).toBe(true);
+
+      // Boot resolves with "nothing new" (rev matches cached, markdown skipped).
+      resolveData({ rev: 'rev-1' });
+      await boot;
+
+      const state = store.getState().announcement;
+      expect(state.hasNew).toBe(true);
+      expect(state.markdown).toBe('Reopened content');
+      expect(state.rev).toBe('rev-1');
+    });
   });
 
   describe('dismissAnnouncement', () => {
@@ -197,6 +228,79 @@ describe('announcementSlice', () => {
       store.dispatch(reopenAnnouncement());
 
       expect(store.getState().announcement.hasNew).toBe(true);
+    });
+  });
+
+  describe('fetchAnnouncementArchiveThunk', () => {
+    const ARCHIVE = [
+      { version: '2.1.0', date: '2026-08-23', title: 'Discrub 2.1.0', markdown: '# 2.1.0' },
+      { version: '2.0.10', date: '2026-08-16', title: 'Discrub 2.0.10', markdown: '# 2.0.10' },
+    ];
+
+    it('loads the archive and leaves the live announcement selected', async () => {
+      mockFetchAnnouncementArchive.mockResolvedValue(ARCHIVE);
+      const store = createStore();
+
+      const pending = store.dispatch(fetchAnnouncementArchiveThunk());
+      expect(store.getState().announcement.isLoadingArchive).toBe(true);
+      await pending;
+
+      const state = store.getState().announcement;
+      expect(state.isLoadingArchive).toBe(false);
+      expect(state.archive).toEqual(ARCHIVE);
+      expect(state.selectedVersion).toBeNull();
+      expect(state.archiveError).toBeNull();
+    });
+
+    it('is a no-op once the archive is cached or while a fetch is in flight', async () => {
+      mockFetchAnnouncementArchive.mockResolvedValue(ARCHIVE);
+      const store = createStore();
+      const first = store.dispatch(fetchAnnouncementArchiveThunk());
+      store.dispatch(fetchAnnouncementArchiveThunk());
+      await first;
+      await store.dispatch(dismissAnnouncement());
+      await store.dispatch(fetchAnnouncementArchiveThunk());
+
+      expect(mockFetchAnnouncementArchive).toHaveBeenCalledTimes(1);
+      expect(store.getState().announcement.archive).toEqual(ARCHIVE);
+    });
+
+    it('reports an error when the archive is empty or the fetch fails, and retries next time', async () => {
+      mockFetchAnnouncementArchive.mockResolvedValue([]);
+      const store = createStore();
+      await store.dispatch(fetchAnnouncementArchiveThunk());
+      expect(store.getState().announcement.archiveError).toMatch(/No previous announcements/);
+      expect(store.getState().announcement.archive).toBeNull();
+
+      mockFetchAnnouncementArchive.mockRejectedValue(new Error('boom'));
+      await store.dispatch(fetchAnnouncementArchiveThunk());
+      expect(store.getState().announcement.archiveError).toMatch(/Failed to load/);
+      expect(mockFetchAnnouncementArchive).toHaveBeenCalledTimes(2);
+    });
+
+    it('selectArchiveVersion accepts existing versions or null (live), nothing else', async () => {
+      mockFetchAnnouncementArchive.mockResolvedValue(ARCHIVE);
+      const store = createStore();
+      await store.dispatch(fetchAnnouncementArchiveThunk());
+
+      store.dispatch(selectArchiveVersion('2.0.10'));
+      expect(store.getState().announcement.selectedVersion).toBe('2.0.10');
+      store.dispatch(selectArchiveVersion('9.9.9'));
+      expect(store.getState().announcement.selectedVersion).toBe('2.0.10');
+      store.dispatch(selectArchiveVersion(null));
+      expect(store.getState().announcement.selectedVersion).toBeNull();
+    });
+
+    it('dismiss returns to the live announcement but keeps the archive cached', async () => {
+      mockFetchAnnouncementArchive.mockResolvedValue(ARCHIVE);
+      const store = createStore();
+      await store.dispatch(fetchAnnouncementArchiveThunk());
+      store.dispatch(selectArchiveVersion('2.0.10'));
+      await store.dispatch(dismissAnnouncement());
+
+      const state = store.getState().announcement;
+      expect(state.selectedVersion).toBeNull();
+      expect(state.archive).toEqual(ARCHIVE);
     });
   });
 });
