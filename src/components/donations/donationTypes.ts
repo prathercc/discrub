@@ -4,6 +4,13 @@ export enum DonationView {
   SKY = 'SKY',
 }
 
+/**
+ * Persisted under `Discrub-state`; true once the user has opened the Sky
+ * tab. Until then the tab carries a nova-mint shimmer — the gift button's
+ * "intrigue once, never nag" pattern.
+ */
+export const SKY_SEEN_STORAGE_KEY = 'donations:skySeen';
+
 export enum LeaderboardPeriod {
   ALL_TIME = 'ALL_TIME',
   LAST_30_DAYS = 'LAST_30_DAYS',

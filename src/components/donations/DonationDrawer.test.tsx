@@ -80,16 +80,27 @@ describe('DonationDrawer', () => {
     renderDrawer('true');
     expect(screen.getByText('Feed')).toBeInTheDocument();
     expect(screen.getByText('Top')).toBeInTheDocument();
-    expect(screen.getByText('Sky')).toBeInTheDocument();
+    expect(screen.getByTestId('donation-tab-sky')).toBeInTheDocument();
   });
 
   it('shows the Supporter Constellation on the Sky tab, one star per donor', () => {
     renderDrawer('true');
-    fireEvent.click(screen.getByText('Sky'));
+    fireEvent.click(screen.getByTestId('donation-tab-sky'));
     expect(screen.getByTestId('supporter-sky')).toBeInTheDocument();
     // The fixture has two donors, so the sky holds two stars.
     expect(screen.getAllByTestId('sky-star')).toHaveLength(2);
     expect(screen.getByTestId('sky-expand')).toBeInTheDocument();
+  });
+
+  it('twinkles the unvisited Sky tab, then calms it for good after the first visit', async () => {
+    renderDrawer('true');
+    // Nothing stored yet: the tab carries the new-star spark.
+    expect(await screen.findByText('Sky ✦')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('donation-tab-sky'));
+    expect(screen.getByText('Sky')).toBeInTheDocument();
+    expect(screen.queryByText('Sky ✦')).not.toBeInTheDocument();
+    const { storage } = await import('@/extension/storage');
+    expect(storage.state.set).toHaveBeenCalledWith('donations:skySeen', true);
   });
 
   it('should render donation cards in feed view', () => {
