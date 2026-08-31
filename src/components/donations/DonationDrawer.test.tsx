@@ -92,15 +92,12 @@ describe('DonationDrawer', () => {
     expect(screen.getByTestId('sky-expand')).toBeInTheDocument();
   });
 
-  it('twinkles the unvisited Sky tab, then calms it for good after the first visit', async () => {
+  it('keeps the Sky tab in its new-star dress, visited or not', () => {
     renderDrawer('true');
-    // Nothing stored yet: the tab carries the new-star spark.
-    expect(await screen.findByText('Sky ✦')).toBeInTheDocument();
+    expect(screen.getByText('Sky ✦')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('donation-tab-sky'));
-    expect(screen.getByText('Sky')).toBeInTheDocument();
-    expect(screen.queryByText('Sky ✦')).not.toBeInTheDocument();
-    const { storage } = await import('@/extension/storage');
-    expect(storage.state.set).toHaveBeenCalledWith('donations:skySeen', true);
+    // The spark is the tab's permanent style, not a one-time attention bid.
+    expect(screen.getByText('Sky ✦')).toBeInTheDocument();
   });
 
   it('should render donation cards in feed view', () => {

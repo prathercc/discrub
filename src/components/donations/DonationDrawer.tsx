@@ -1,11 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Drawer, Box, Tabs, Tab, keyframes, useMediaQuery, useTheme } from '@mui/material';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectSetting, selectKofiOverlayOpen, setKofiOverlayOpen } from '@features/app/appSlice';
-import { storage } from '@/extension/storage';
 import { useDonations } from './useDonations';
-import { DonationView, SKY_SEEN_STORAGE_KEY } from './donationTypes';
+import { DonationView } from './donationTypes';
 import DonationFeed from './DonationFeed';
 import DonationLeaderboard from './DonationLeaderboard';
 import SupporterSky from './SupporterSky';
@@ -43,23 +42,7 @@ const DonationDrawer = () => {
   const { donations, isLoading } = useDonations(open);
   const [view, setView] = useState<DonationView>(DonationView.FEED);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  // Intrigue once, never nag (the gift-button pattern): the Sky tab
-  // shimmers until its first visit, then stays calm forever.
-  const [skySeen, setSkySeen] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    storage.state
-      .get<boolean>(SKY_SEEN_STORAGE_KEY)
-      .then((value) => {
-        if (!cancelled) setSkySeen(Boolean(value));
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const handleScroll = useCallback(() => {
     if (!scrollRef.current) return;
@@ -72,10 +55,6 @@ const DonationDrawer = () => {
   const handleViewChange = (_: unknown, newValue: DonationView) => {
     setView(newValue);
     setVisibleCount(PAGE_SIZE);
-    if (newValue === DonationView.SKY && !skySeen) {
-      setSkySeen(true);
-      storage.state.set(SKY_SEEN_STORAGE_KEY, true).catch(() => {});
-    }
     // Reset scroll position on tab switch
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
@@ -125,23 +104,22 @@ const DonationDrawer = () => {
         >
           <Tab label="Feed" value={DonationView.FEED} />
           <Tab label="Top" value={DonationView.LEADERBOARD} />
+          {/* The Sky keeps its intrigue for good (owner call 2026-08-31):
+              the new-star spark and mint shimmer are its permanent dress,
+              not a one-time attention bid. */}
           <Tab
-            label={skySeen ? 'Sky' : 'Sky ✦'}
+            label="Sky ✦"
             value={DonationView.SKY}
             data-testid="donation-tab-sky"
-            sx={
-              skySeen
-                ? undefined
-                : {
-                    color: `${NOVA} !important`,
-                    animation: `${skyShimmer} 3s ease-in-out infinite`,
-                    '&.Mui-selected': { color: `${NOVA} !important` },
-                    '@media (prefers-reduced-motion: reduce)': {
-                      animation: 'none',
-                      textShadow: '0 0 8px rgba(124, 232, 196, 0.5)',
-                    },
-                  }
-            }
+            sx={{
+              color: `${NOVA} !important`,
+              animation: `${skyShimmer} 3s ease-in-out infinite`,
+              '&.Mui-selected': { color: `${NOVA} !important` },
+              '@media (prefers-reduced-motion: reduce)': {
+                animation: 'none',
+                textShadow: '0 0 8px rgba(124, 232, 196, 0.5)',
+              },
+            }}
           />
         </Tabs>
 
