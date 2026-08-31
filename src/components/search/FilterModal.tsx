@@ -21,6 +21,7 @@ import {
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import type { SearchCriteria, ExportUserMap } from 'discrub-core/types/discrub-types';
 import DateRangeFilter, { type DateFilterMode } from './filters/DateRangeFilter';
+import { isInvalidDate } from '@/utils/dateValidation';
 import MessageTypeFilter from './filters/MessageTypeFilter';
 import AttachmentFilter from './filters/AttachmentFilter';
 import ContentFilter, { withDraft } from './filters/ContentFilter';
@@ -160,6 +161,13 @@ const FilterModal = ({
     return base + sys;
   }, [refineCriteria]);
 
+  // #250: MUI's pickers emit an Invalid Date while a typed value is
+  // incomplete. It must never reach Apply — downstream it NaN-poisons the
+  // date-to-snowflake conversion and a purge/search/export silently matches
+  // nothing. The fields show the error; Apply stays off until it's resolved.
+  const searchDatesInvalid =
+    isInvalidDate(searchCriteria.searchAfterDate) || isInvalidDate(searchCriteria.searchBeforeDate);
+
   const searchHasChanges =
     searchDraft.trim().length > 0 ||
     JSON.stringify(searchCriteria) !== JSON.stringify(savedSearchCriteria ?? defaultCriteria);
@@ -174,6 +182,9 @@ const FilterModal = ({
    * flushed the state update, so the count and the criteria both include it.
    */
   const handleSearchApply = (overrides?: Partial<SearchCriteria>) => {
+    // Covers the Enter-to-apply paths (content field) as well as the button,
+    // which is disabled while a date is invalid.
+    if (searchDatesInvalid) return;
     if (!overrides && searchDraft.trim()) {
       overrides = { searchMessageContents: withDraft(searchCriteria.searchMessageContents ?? [], searchDraft) };
     }
@@ -357,7 +368,7 @@ const FilterModal = ({
               <Button size="small" onClick={handleSearchClear} disabled={searchFilterCount === 0 && !searchDraft.trim()} sx={{ textTransform: 'none' }} data-testid="clear-search-filters">
                 Clear{searchFilterCount > 0 ? ` (${searchFilterCount})` : ''}
               </Button>
-              <Button variant="contained" size="small" startIcon={<SearchIcon />} onClick={() => handleSearchApply()} disabled={searchFilterCount === 0 && !searchHasChanges}>
+              <Button variant="contained" size="small" startIcon={<SearchIcon />} onClick={() => handleSearchApply()} disabled={(searchFilterCount === 0 && !searchHasChanges) || searchDatesInvalid}>
                 {applyButtonLabel ?? 'Search'}
               </Button>
             </Box>

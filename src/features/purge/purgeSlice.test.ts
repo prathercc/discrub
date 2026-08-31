@@ -145,6 +145,24 @@ describe('purgeSlice', () => {
       expect(store.getState().purge.isPurging).toBe(false);
     });
 
+    it('records per-channel errors on fulfilled and clears them on the next pending (#250)', () => {
+      store.dispatch({ type: 'purge/bulkPurgeChannels/pending' });
+      store.dispatch({
+        type: 'purge/bulkPurgeChannels/fulfilled',
+        payload: { success: true, errors: ['#general: The number NaN cannot be converted to a BigInt', '#memes: HTTP 403'] },
+      });
+      expect(store.getState().purge.channelErrorCount).toBe(2);
+
+      store.dispatch({ type: 'purge/bulkPurgeChannels/pending' });
+      expect(store.getState().purge.channelErrorCount).toBe(0);
+    });
+
+    it('leaves channelErrorCount at zero on a clean fulfilled (#250)', () => {
+      store.dispatch({ type: 'purge/bulkPurgeChannels/pending' });
+      store.dispatch({ type: 'purge/bulkPurgeChannels/fulfilled', payload: { success: true } });
+      expect(store.getState().purge.channelErrorCount).toBe(0);
+    });
+
     it('should set error on rejected', () => {
       store.dispatch({ type: 'purge/bulkPurgeChannels/pending' });
       store.dispatch({ type: 'purge/bulkPurgeChannels/rejected', payload: 'Network error' });

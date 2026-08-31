@@ -60,10 +60,16 @@ export interface PurgeState {
   isPurging: boolean;
   purgeProgress: PurgeProgress | null;
   purgeError: string | null;
+  // #250 — channels that errored during an otherwise-completed run. The
+  // run itself fulfills (other channels finished), but the completion
+  // toast must not read as a clean success when this is non-zero; the
+  // per-channel details are in the status log.
+  channelErrorCount: number;
 }
 
 export const initialPurgeState: PurgeState = {
   isPurging: false,
   purgeProgress: null,
   purgeError: null,
+  channelErrorCount: 0,
 };

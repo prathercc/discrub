@@ -26,7 +26,7 @@ import {
   selectSelectedArchiveVersion,
 } from '@features/announcement/announcementSlice';
 import { selectIsExporting, selectExportError, resetExport } from '@features/export/exportSlice';
-import { selectIsPurging, selectPurgeError } from '@features/purge/purgeSlice';
+import { selectIsPurging, selectPurgeError, selectPurgeChannelErrorCount } from '@features/purge/purgeSlice';
 import { showToast } from '@features/status/statusSlice';
 import { setDiscrubCancelled, setDiscrubPaused } from '@features/app/appSlice';
 import { selectIsOperationRunning } from '@features/app/operationSelectors';
@@ -87,6 +87,7 @@ const MainLayout = () => {
   const exportError = useAppSelector(selectExportError);
   const isPurging = useAppSelector(selectIsPurging);
   const purgeError = useAppSelector(selectPurgeError);
+  const purgeChannelErrorCount = useAppSelector(selectPurgeChannelErrorCount);
   const isOperationRunning = useAppSelector(selectIsOperationRunning);
   const prevIsExporting = useRef(false);
   const prevIsPurging = useRef(false);
@@ -112,12 +113,19 @@ const MainLayout = () => {
     if (prevIsPurging.current && !isPurging) {
       if (purgeError) {
         dispatch(showToast({ level: 'error', message: `Purge failed: ${purgeError}` }));
+      } else if (purgeChannelErrorCount > 0) {
+        // #250: a run where a channel errored is not a clean success even
+        // though the thunk fulfilled; the details are in the status log.
+        dispatch(showToast({
+          level: 'warning',
+          message: `Purge finished, but ${purgeChannelErrorCount} ${purgeChannelErrorCount === 1 ? 'channel' : 'channels'} had errors (see the status log)`,
+        }));
       } else {
         dispatch(showToast({ level: 'success', message: 'Purge complete' }));
       }
     }
     prevIsPurging.current = isPurging;
-  }, [isPurging, purgeError, dispatch]);
+  }, [isPurging, purgeError, purgeChannelErrorCount, dispatch]);
 
   // Reset pause/cancel flags when any operation completes
   useEffect(() => {

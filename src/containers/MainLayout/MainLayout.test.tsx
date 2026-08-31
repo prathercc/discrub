@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, waitFor } from '@testing-library/react';
+import { act, fireEvent, waitFor } from '@testing-library/react';
 import { renderWithProviders, screen } from '../../test/test-utils';
 import MainLayout from './MainLayout';
 import { createBaseState } from '../../test/state-factories';
@@ -102,6 +102,45 @@ describe('MainLayout', () => {
     expect(screen.getByTestId('sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('serverview')).toBeInTheDocument();
     expect(screen.getByTestId('donation-drawer')).toBeInTheDocument();
+  });
+
+  describe('purge completion toast (#250)', () => {
+    // Drive the real reducers: pending puts the run in flight, fulfilled
+    // ends it — MainLayout watches the isPurging transition.
+    it('warns instead of celebrating when channels errored', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: createBaseState(),
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/bulkPurgeChannels/pending' });
+      });
+      act(() => {
+        store.dispatch({
+          type: 'purge/bulkPurgeChannels/fulfilled',
+          payload: { success: true, errors: ['#general: NaN cannot be converted to a BigInt'] },
+        });
+      });
+      const toast = store.getState().status.toast;
+      expect(toast.isVisible).toBe(true);
+      expect(toast.level).toBe('warning');
+      expect(toast.message).toBe('Purge finished, but 1 channel had errors (see the status log)');
+    });
+
+    it('still celebrates a clean run', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: createBaseState(),
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/bulkPurgeChannels/pending' });
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/bulkPurgeChannels/fulfilled', payload: { success: true } });
+      });
+      const toast = store.getState().status.toast;
+      expect(toast.isVisible).toBe(true);
+      expect(toast.level).toBe('success');
+      expect(toast.message).toBe('Purge complete');
+    });
   });
 
   describe('focus mode', () => {

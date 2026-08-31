@@ -326,6 +326,64 @@ describe('DateRangeFilter', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Before' }));
     expect(onDateModeChange).toHaveBeenCalledWith(null);
   });
+
+  describe('incomplete dates (#250)', () => {
+    it('marks the After field and explains, when startDate is an Invalid Date', () => {
+      render(
+        <DateRangeFilter
+          startDate={new Date(NaN)}
+          endDate={null}
+          onStartDateChange={vi.fn()}
+          onEndDateChange={vi.fn()}
+          dateMode="after"
+          onDateModeChange={vi.fn()}
+        />
+      );
+      expect(screen.getByText('Finish the date and time, or clear the field')).toBeInTheDocument();
+    });
+
+    it('marks the Before field when endDate is an Invalid Date', () => {
+      render(
+        <DateRangeFilter
+          startDate={null}
+          endDate={new Date(NaN)}
+          onStartDateChange={vi.fn()}
+          onEndDateChange={vi.fn()}
+          dateMode="before"
+          onDateModeChange={vi.fn()}
+        />
+      );
+      expect(screen.getByText('Finish the date and time, or clear the field')).toBeInTheDocument();
+    });
+
+    it('marks the During field with its own wording', () => {
+      render(
+        <DateRangeFilter
+          startDate={new Date(NaN)}
+          endDate={new Date(NaN)}
+          onStartDateChange={vi.fn()}
+          onEndDateChange={vi.fn()}
+          dateMode="during"
+          onDateModeChange={vi.fn()}
+        />
+      );
+      expect(screen.getByText('Finish the date, or clear the field')).toBeInTheDocument();
+    });
+
+    it('shows no helper for real dates', () => {
+      render(
+        <DateRangeFilter
+          startDate={new Date(2026, 7, 29, 10, 0)}
+          endDate={new Date(2026, 7, 30, 10, 0)}
+          onStartDateChange={vi.fn()}
+          onEndDateChange={vi.fn()}
+          dateMode="between"
+          onDateModeChange={vi.fn()}
+        />
+      );
+      expect(screen.queryByText(/Finish the date/)).not.toBeInTheDocument();
+    });
+  });
 });
 
 describe('MessageTypeFilter', () => {

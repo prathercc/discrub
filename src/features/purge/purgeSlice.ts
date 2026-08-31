@@ -22,6 +22,7 @@ import { iterateSearchMessagesRedux } from '@utils/searchPagination';
 import { applyRefineCriteria, criteriaIsActive, messageHasFileOrLink } from '@features/message/messageFiltering';
 import { nextMilestone } from '@utils/searchPagination';
 import { isDeletedUserEntry } from '@utils/userDisplayUtils';
+import { dropInvalidDate } from '@utils/dateValidation';
 
 /** Progress throttle — dispatch progress every N messages in messages mode */
 const PROGRESS_THROTTLE_MESSAGES = 10;
@@ -107,8 +108,12 @@ const buildSearchCriteria = (
   userIds: string[],
   overrides?: SearchCriteria | null,
 ): SearchCriteria => ({
-  searchBeforeDate: overrides?.searchBeforeDate ?? null,
-  searchAfterDate: overrides?.searchAfterDate ?? null,
+  // #250 belt-and-braces: an Invalid Date is truthy, survives `??`, and
+  // NaN-poisons the date-to-snowflake conversion, so the scan would match
+  // nothing while the run still reports success. The FilterModal refuses
+  // to apply one; drop it here too in case criteria arrive another way.
+  searchBeforeDate: dropInvalidDate(overrides?.searchBeforeDate),
+  searchAfterDate: dropInvalidDate(overrides?.searchAfterDate),
   searchMessageContents: overrides?.searchMessageContents ?? [],
   selectedHasTypes: overrides?.selectedHasTypes ?? [],
   userIds,
@@ -2280,6 +2285,7 @@ const purgeSlice = createSlice({
       state.isPurging = false;
       state.purgeProgress = null;
       state.purgeError = null;
+      state.channelErrorCount = 0;
     },
   },
   extraReducers: (builder) => {
@@ -2289,9 +2295,11 @@ const purgeSlice = createSlice({
         state.isPurging = true;
         state.purgeError = null;
         state.purgeProgress = null;
+        state.channelErrorCount = 0;
       })
-      .addCase(bulkPurgeChannels.fulfilled, (state) => {
+      .addCase(bulkPurgeChannels.fulfilled, (state, action) => {
         state.isPurging = false;
+        state.channelErrorCount = action.payload.errors?.length ?? 0;
       })
       .addCase(bulkPurgeChannels.rejected, (state, action) => {
         state.isPurging = false;
@@ -2302,9 +2310,11 @@ const purgeSlice = createSlice({
         state.isPurging = true;
         state.purgeError = null;
         state.purgeProgress = null;
+        state.channelErrorCount = 0;
       })
-      .addCase(bulkPurgeDMs.fulfilled, (state) => {
+      .addCase(bulkPurgeDMs.fulfilled, (state, action) => {
         state.isPurging = false;
+        state.channelErrorCount = action.payload.errors?.length ?? 0;
       })
       .addCase(bulkPurgeDMs.rejected, (state, action) => {
         state.isPurging = false;
@@ -2319,5 +2329,6 @@ export const selectPurge = (state: RootState) => state.purge;
 export const selectIsPurging = (state: RootState) => state.purge.isPurging;
 export const selectPurgeProgress = (state: RootState) => state.purge.purgeProgress;
 export const selectPurgeError = (state: RootState) => state.purge.purgeError;
+export const selectPurgeChannelErrorCount = (state: RootState) => state.purge.channelErrorCount;
 
 export default purgeSlice.reducer;

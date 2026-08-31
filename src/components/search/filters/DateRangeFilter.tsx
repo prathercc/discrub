@@ -5,6 +5,7 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { startOfDay, endOfDay } from 'date-fns';
+import { isInvalidDate } from '@/utils/dateValidation';
 
 export type DateFilterMode = 'before' | 'after' | 'during' | 'between' | null;
 
@@ -33,6 +34,12 @@ const DateRangeFilter = ({
   const beforeActive = dateMode === 'before' || dateMode === 'between';
   const afterActive = dateMode === 'after' || dateMode === 'between';
   const duringActive = dateMode === 'during';
+
+  // #250: while a typed value is incomplete the picker reports an Invalid
+  // Date. Mark the field so the disabled Apply button has a visible reason.
+  const startInvalid = isInvalidDate(startDate);
+  const endInvalid = isInvalidDate(endDate);
+  const INCOMPLETE = 'Finish the date and time, or clear the field';
 
   const groupValue: string[] = duringActive
     ? ['during']
@@ -128,6 +135,8 @@ const DateRangeFilter = ({
                     textField: {
                       size: 'small',
                       sx: { minWidth: 200 },
+                      error: startInvalid,
+                      helperText: startInvalid ? 'Finish the date, or clear the field' : undefined,
                     },
                   }}
                 />
@@ -142,6 +151,8 @@ const DateRangeFilter = ({
                         textField: {
                           size: 'small',
                           sx: { minWidth: 240 },
+                          error: startInvalid,
+                          helperText: startInvalid ? INCOMPLETE : undefined,
                         },
                       }}
                     />
@@ -155,6 +166,8 @@ const DateRangeFilter = ({
                         textField: {
                           size: 'small',
                           sx: { minWidth: 240 },
+                          error: endInvalid,
+                          helperText: endInvalid ? INCOMPLETE : undefined,
                         },
                       }}
                     />

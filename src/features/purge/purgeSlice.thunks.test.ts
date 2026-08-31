@@ -483,6 +483,44 @@ describe('purgeSlice thunks', () => {
       expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm3', 'ch2');
     });
 
+    it('#250: an Invalid Date in the criteria is dropped, not NaN-poisoning the scan', async () => {
+      // The pre-fix behavior: an incomplete DateTimePicker value (Invalid
+      // Date) reached the date-to-snowflake conversion, every channel threw
+      // "The number NaN cannot be converted to a BigInt", zero messages were
+      // deleted, and the run still fulfilled as a success.
+      const msg = mockMessage('m1');
+      setupSearchResults([[msg]]);
+      mockDeleteMessage.mockResolvedValue({ success: true, status: 204 });
+
+      const result = await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([CURRENT_USER.id]),
+          guildId: 'guild1',
+          searchCriteria: {
+            searchAfterDate: new Date(NaN),
+            searchBeforeDate: new Date(NaN),
+            searchMessageContents: [],
+            selectedHasTypes: [],
+            userIds: [CURRENT_USER.id],
+            mentionIds: [],
+            channelIds: [],
+            isPinned: IsPinnedType.UNSET,
+            attachmentExtensions: [],
+            attachmentFilename: null,
+          },
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      expect((result.payload as { errors?: string[] }).errors).toBeUndefined();
+      expect(mockDeleteMessage).toHaveBeenCalledWith(TOKEN, 'm1', 'ch1');
+      // The criteria that reached the search API carry no invalid bounds.
+      const criteriaArg = mockFetchSearchMessageData.mock.calls[0]![4];
+      expect(criteriaArg.searchAfterDate).toBeNull();
+      expect(criteriaArg.searchBeforeDate).toBeNull();
+    });
+
     it('retains messages with attachments (edits instead of deletes)', async () => {
       const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
       const msgWithAttachment = mockMessage('m1', 0, [attachment]);

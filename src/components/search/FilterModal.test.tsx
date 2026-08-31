@@ -69,6 +69,47 @@ describe('FilterModal', () => {
       expect(searchBtn).toBeDisabled();
     });
 
+    describe('incomplete dates (#250)', () => {
+      // What MUI's DateTimePicker emits while the typed value is incomplete.
+      const invalidAfter = { ...defaultCriteria, searchAfterDate: new Date(NaN) };
+
+      it('disables the Search button while a date is an Invalid Date', () => {
+        renderWithProviders(<FilterModal {...defaultProps} savedSearchCriteria={invalidAfter} />);
+        const searchButtons = screen.getAllByRole('button', { name: /^Search$/ });
+        const searchBtn = searchButtons.find(btn => btn.classList.contains('MuiButton-contained'));
+        expect(searchBtn).toBeDisabled();
+      });
+
+      it('shows the field-level explanation', () => {
+        renderWithProviders(<FilterModal {...defaultProps} savedSearchCriteria={invalidAfter} />);
+        expect(screen.getByText('Finish the date and time, or clear the field')).toBeInTheDocument();
+      });
+
+      it('refuses the Enter-to-apply path too, so no criteria reach the caller', () => {
+        const onServerSearch = vi.fn();
+        renderWithProviders(
+          <FilterModal {...defaultProps} onServerSearch={onServerSearch} savedSearchCriteria={invalidAfter} />
+        );
+        const input = screen.getByPlaceholderText('Search message content...');
+        fireEvent.change(input, { target: { value: 'receipt' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(onServerSearch).not.toHaveBeenCalled();
+      });
+
+      it('applies normally once the date is real', () => {
+        const onServerSearch = vi.fn();
+        const valid = { ...defaultCriteria, searchAfterDate: new Date(2026, 7, 29, 10, 0) };
+        renderWithProviders(
+          <FilterModal {...defaultProps} onServerSearch={onServerSearch} savedSearchCriteria={valid} />
+        );
+        const searchButtons = screen.getAllByRole('button', { name: /^Search$/ });
+        const searchBtn = searchButtons.find(btn => btn.classList.contains('MuiButton-contained'));
+        expect(searchBtn).not.toBeDisabled();
+        fireEvent.click(searchBtn!);
+        expect(onServerSearch).toHaveBeenCalled();
+      });
+    });
+
     it('should call onClearSearch when search Clear is clicked', () => {
       const onClearSearch = vi.fn();
       const savedSearchCriteria = { ...defaultCriteria, userIds: ['123'] };
