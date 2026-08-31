@@ -93,9 +93,9 @@ const Pin = ({ id }: { id?: string }) => (
   />
 );
 
-const PinnedCard = ({ bot, index }: { bot: BotEntry; index: number }) => (
+const PinnedCard = ({ bot, index, active = true }: { bot: BotEntry; index: number; active?: boolean }) => (
   <Box
-    data-testid={`corkboard-bot-${bot.id}`}
+    data-testid={active ? `corkboard-bot-${bot.id}` : `corkboard-bot-${bot.id}-stowed`}
     sx={{
       position: 'relative',
       width: { xs: '100%', sm: 300 },
@@ -387,7 +387,7 @@ const BotsCorkboard = () => {
         >
           <Threads threads={threads} />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, width: { xs: '100%', sm: 'auto' } }}>
-            <Box sx={{ position: 'relative' }}>
+            <Box sx={{ position: 'relative', display: 'grid' }}>
               {/* Paper backs peeking out behind the active card, one per
                   other bot (capped at two), so the slot visibly holds a
                   stack — the "there's more here" cue the lone card lacked. */}
@@ -415,16 +415,30 @@ const BotsCorkboard = () => {
                       <Pin />
                     </Box>
                   ))}
-              <Box
-                key={activeBot.id}
-                sx={{
-                  position: 'relative',
-                  animation: 'corkboardCardFade 220ms ease',
-                  '@keyframes corkboardCardFade': { from: { opacity: 0.2 }, to: { opacity: 1 } },
-                }}
-              >
-                <PinnedCard bot={activeBot} index={activeIndex} />
-              </Box>
+              {/* Every card occupies the same grid cell, so the slot always
+                  reserves the tallest bot's height and the board never
+                  grows or shrinks on a flip (owner ask 2026-08-31). The
+                  inactive cards are invisible, inert, and out of the
+                  accessibility tree; the flip is a crossfade. */}
+              {BOTS.map((bot, index) => {
+                const active = index === activeIndex;
+                return (
+                  <Box
+                    key={bot.id}
+                    aria-hidden={!active}
+                    style={{ visibility: active ? 'visible' : 'hidden' }}
+                    sx={{
+                      gridArea: '1 / 1',
+                      position: 'relative',
+                      opacity: active ? 1 : 0,
+                      transition: 'opacity 220ms ease, visibility 220ms',
+                      pointerEvents: active ? 'auto' : 'none',
+                    }}
+                  >
+                    <PinnedCard bot={bot} index={index} active={active} />
+                  </Box>
+                );
+              })}
             </Box>
             {showControls && (
               <Box
@@ -511,10 +525,37 @@ const BotsCorkboard = () => {
               width: { xs: '100%', sm: 'auto' },
             }}
           >
-            {activeBot.sticker && (
-              <StickyNote testId="corkboard-sticky" tilt={2.2} tint="#fff3a3" pinId={`sticky-${activeBot.id}`}>
-                {activeBot.sticker}
-              </StickyNote>
+            {/* Same fixed-size trick as the card slot: every sticker note
+                shares one grid cell, so a stickerless bot leaves a quiet
+                gap instead of reflowing the column. */}
+            {BOTS.some((bot) => bot.sticker) && (
+              <Box sx={{ display: 'grid' }}>
+                {BOTS.filter((bot) => bot.sticker).map((bot) => {
+                  const active = bot.id === activeBot.id;
+                  return (
+                    <Box
+                      key={bot.id}
+                      aria-hidden={!active}
+                      style={{ visibility: active ? 'visible' : 'hidden' }}
+                      sx={{
+                        gridArea: '1 / 1',
+                        opacity: active ? 1 : 0,
+                        transition: 'opacity 220ms ease, visibility 220ms',
+                        pointerEvents: active ? 'auto' : 'none',
+                      }}
+                    >
+                      <StickyNote
+                        testId={active ? 'corkboard-sticky' : `corkboard-sticky-${bot.id}-stowed`}
+                        tilt={2.2}
+                        tint="#fff3a3"
+                        pinId={`sticky-${bot.id}`}
+                      >
+                        {bot.sticker}
+                      </StickyNote>
+                    </Box>
+                  );
+                })}
+              </Box>
             )}
             <StickyNote testId="corkboard-idea" tilt={-1.5} tint="#b9e6ff">
               Have an idea for a bot?{' '}

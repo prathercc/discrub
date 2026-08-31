@@ -22,7 +22,7 @@ export const DEVELOPER: DeveloperEntry = {
   name: 'Aaron Prather',
   handle: 'prathercc',
   message:
-    "Hey! I'm the one building Discrub, Retrostat, and more. If you want to see what's coming next, follow me on GitHub.",
+    "Hey! I'm the one building Discrub and every bot on this board. If you want to see what's coming next, follow me on GitHub.",
   avatar,
   profileUrl: 'https://github.com/prathercc',
 };
