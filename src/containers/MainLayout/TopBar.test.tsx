@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders, screen, fireEvent, waitFor } from '../../test/test-utils';
 import TopBar from './TopBar';
-import { createBaseState } from '../../test/state-factories';
+import { createBaseState, createAuthenticatedState } from '../../test/state-factories';
 import { createMockUser } from '../../test/fixtures';
 import { initialSupporterState } from '@features/supporter/supporterTypes';
 
@@ -599,5 +599,62 @@ describe('TopBar wide layout (md and up)', () => {
   it('keeps one tour target for the extras regardless of layout', () => {
     render();
     expect(document.querySelector('[data-tour="topbar-extras"]')).toContainElement(screen.getByLabelText('Supporter Wall'));
+  });
+
+  describe('compact bot spotlight', () => {
+    beforeEach(() => {
+      // The spotlight waits for `lg` ("(min-width:1200px)"); match that too.
+      window.matchMedia = ((query: string) => ({
+        matches: /min-width:\s*(900|1200)px/.test(query),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
+    });
+
+    it('waits for a bar wide enough (lg), even away from home', () => {
+      // Only the wide-describe's 900px mock: md matches, lg does not.
+      window.matchMedia = ((query: string) => ({
+        matches: /min-width:\s*900px/.test(query),
+        media: query,
+        onchange: null,
+        addListener: () => {},
+        removeListener: () => {},
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        dispatchEvent: () => false,
+      })) as typeof window.matchMedia;
+      renderWithProviders(<TopBar />, { preloadedState: createAuthenticatedState() });
+      expect(screen.queryByTestId('topbar-bot-spot')).not.toBeInTheDocument();
+    });
+
+    it('stays off the welcome screen, where the corkboard already has the job', () => {
+      render();
+      expect(screen.queryByTestId('topbar-bot-spot')).not.toBeInTheDocument();
+    });
+
+    it('appears once a channel is selected', () => {
+      renderWithProviders(<TopBar />, { preloadedState: createAuthenticatedState() });
+      expect(screen.getByTestId('topbar-bot-spot')).toBeInTheDocument();
+      expect(screen.getByTestId('bot-spot-add')).toBeInTheDocument();
+    });
+
+    it('appears in the package view', () => {
+      const state = createBaseState({ user: { currentUser, isLoading: false, error: null } });
+      state.app = { ...state.app, sidebarView: 'package' };
+      renderWithProviders(<TopBar />, { preloadedState: state });
+      expect(screen.getByTestId('topbar-bot-spot')).toBeInTheDocument();
+    });
+
+    it('steps aside while a heavy operation is running', () => {
+      const state = createAuthenticatedState();
+      state.purge = { ...state.purge, isPurging: true };
+      renderWithProviders(<TopBar />, { preloadedState: state });
+      expect(screen.queryByTestId('topbar-bot-spot')).not.toBeInTheDocument();
+    });
   });
 });

@@ -64,6 +64,12 @@ export const BOTS: BotEntry[] = [
   },
 ];
 
+/**
+ * Counted install redirect with a per-placement source, so the site's
+ * analytics can tell the corkboard and the TopBar spotlight apart.
+ */
+export const installUrlFor = (botId: string, source: string) => `${SITE}/go/${botId}?from=${source}`;
+
 /** Where bot ideas go; mirrors the site's workbench address. */
 export const BOT_IDEA_MAILTO = 'mailto:workbench@pratherbytecraft.com?subject=Bot%20idea';
 

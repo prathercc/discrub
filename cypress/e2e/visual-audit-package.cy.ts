@@ -119,7 +119,7 @@ describe('Visual Audit — Data Package', () => {
     cy.uploadPackage();
     cy.contains('Left Servers').parent().find('button').click();
     cy.contains('Old Guild Channel').click();
-    cy.contains(/Read only — left server/i).should('be.visible');
+    cy.contains(/Read only · left server/i).should('be.visible');
     snap('13-orphan-channel-readonly');
   });
 

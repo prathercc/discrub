@@ -982,7 +982,7 @@ describe('Export zip contents (#230/#234/#235 + gifv skip, group DM naming, F26 
       cy.get('[aria-label="Cancel"]').click({ force: true });
 
       // The operation unwinds: cancellation status entry + controls gone.
-      expectStatusEntry('Export: Cancelled — general');
+      expectStatusEntry('Export: Cancelled · general');
       cy.get('[aria-label="Cancel"]').should('not.exist');
 
       // Cancel reached INTO the in-flight download: no re-attempt of the

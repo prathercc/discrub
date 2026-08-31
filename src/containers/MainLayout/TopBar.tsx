@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   AppBar, Toolbar, Avatar, Typography, IconButton, Box, Tooltip,
   Dialog, DialogContent, Menu, MenuItem, ListItemIcon, ListItemText,
@@ -25,11 +25,12 @@ import { selectCurrentUser } from '@features/user/userSlice';
 import { clearToken, forgetRememberedToken } from '@features/auth/authSlice';
 import { clearCurrentUser } from '@features/user/userSlice';
 import { clearGuilds, setSelectedGuild } from '@features/guild/guildSlice';
-import { clearChannels, setSelectedChannel } from '@features/channel/channelSlice';
-import { clearDMs, setSelectedDm } from '@features/dm/dmSlice';
+import { clearChannels, setSelectedChannel, selectSelectedChannel } from '@features/channel/channelSlice';
+import { clearDMs, setSelectedDm, selectSelectedDm } from '@features/dm/dmSlice';
 import { clearMessages } from '@features/message/messageSlice';
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
-import { selectSetting, updateSetting, setMinimized, setKofiOverlayOpen } from '@features/app/appSlice';
+import { selectSetting, updateSetting, setMinimized, setKofiOverlayOpen, selectSidebarView } from '@features/app/appSlice';
+import TopBarBotSpot from '@components/welcome/TopBarBotSpot';
 import { selectIsHeavyOperationRunning, selectOperationSummary } from '@features/app/operationSelectors';
 import { reopenAnnouncement, fetchAnnouncementMarkdownThunk } from '@features/announcement/announcementSlice';
 import { isOverlayMode, closeOverlay, minimizeOverlay } from '@/extension/messaging';
@@ -80,8 +81,31 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
   // View Announcement sit inline and the More menu (which would be empty)
   // is not rendered at all.
   const isWide = useMediaQuery(theme.breakpoints.up('md'));
+  // The bot spotlight needs real acreage. A window media query alone lies
+  // here — the donation drawer takes 320px off the bar — so the bar's
+  // middle is measured directly and the spotlight renders only when the
+  // gap can actually hold it. The `lg` gate spares narrow windows the
+  // observer entirely; jsdom (no ResizeObserver) keeps the default true
+  // so tests exercise the spotlight under the mocked media query.
+  const hasSpotRoom = useMediaQuery(theme.breakpoints.up('lg'));
+  const middleRef = useRef<HTMLDivElement>(null);
+  const [middleFits, setMiddleFits] = useState(true);
+  useLayoutEffect(() => {
+    const el = middleRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    // ~400px holds the spot with the tagline ellipsizing; below that the
+    // card collapses into its buttons and the bar is better off bare.
+    const measure = () => setMiddleFits(el.offsetWidth >= 400);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
   const currentUser = useAppSelector(selectCurrentUser);
   const cachedUserMap = useAppSelector(selectCachedUserMap);
+  const selectedChannel = useAppSelector(selectSelectedChannel);
+  const selectedDm = useAppSelector(selectSelectedDm);
+  const sidebarView = useAppSelector(selectSidebarView);
   const showKofiFeed = useAppSelector(selectSetting(DiscrubSetting.APP_SHOW_KOFI_FEED));
   const isOperationRunning = useAppSelector(selectIsHeavyOperationRunning);
   const operationSummary = useAppSelector(selectOperationSummary);
@@ -211,7 +235,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
           />
         </Tooltip>
 
-        <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           {isBleedingEdgeBuild() ? (
             /* Hosted build (and local dev): the wordmark keeps bleeding after sign-in, scaled to the bar. */
             <BleedingStack size="bar" />
@@ -244,6 +268,18 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
           >
             v{__APP_VERSION__}
           </Typography>
+        </Box>
+
+        {/* The bar's flexible middle. Away from the welcome screen (the
+            corkboard's home) it carries the compact bot spotlight; it
+            steps aside whenever a heavy operation needs the user's eyes,
+            and only bars 1200px and up have the room for it at all. */}
+        <Box ref={middleRef} sx={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 0, px: 1, overflow: 'hidden' }}>
+          {hasSpotRoom &&
+            middleFits &&
+            currentUser &&
+            !isOperationRunning &&
+            (Boolean(selectedChannel || selectedDm) || sidebarView === 'package') && <TopBarBotSpot />}
         </Box>
 
         {currentUser && (

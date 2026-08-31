@@ -98,7 +98,7 @@ describe('Data package import', () => {
       // Left Servers section is collapsed by default — expand it first.
       cy.contains('Left Servers').parent().find('button').click();
       cy.contains('Old Guild Channel').click();
-      cy.contains(/Read only — left server/i).should('be.visible');
+      cy.contains(/Read only · left server/i).should('be.visible');
     });
   });
 

@@ -37,7 +37,7 @@ describe('Authentication', () => {
     });
 
     it('shows disclaimer text', () => {
-      cy.contains('This is an unofficial tool').should('be.visible');
+      cy.contains('Discrub is an unofficial tool').should('be.visible');
     });
   });
 
