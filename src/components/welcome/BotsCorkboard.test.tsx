@@ -131,17 +131,21 @@ describe('BotsCorkboard', () => {
     expect(screen.getByTestId(`corkboard-dot-${BOTS[0].id}`)).toHaveAttribute('aria-current', 'false');
   });
 
-  it('shows a bot without a sticker with no sticky note and no thread', async () => {
+  it('shows each bot its own sticky note, strung to that bot alone', async () => {
     renderWithProviders(<BotsCorkboard />);
     await screen.findByTestId('corkboard-sticky');
-    const stickerless = BOTS.find((bot) => !bot.sticker);
-    expect(stickerless).toBeDefined();
-    fireEvent.click(screen.getByTestId(`corkboard-dot-${stickerless!.id}`));
-    await screen.findByTestId(`corkboard-bot-${stickerless!.id}`);
-    expect(screen.queryByTestId('corkboard-sticky')).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId(`corkboard-thread-sticky-${stickerless!.id}-bot-${stickerless!.id}`),
-    ).not.toBeInTheDocument();
+    for (const bot of BOTS) {
+      expect(bot.sticker).toBeTruthy();
+      fireEvent.click(screen.getByTestId(`corkboard-dot-${bot.id}`));
+      await screen.findByTestId(`corkboard-bot-${bot.id}`);
+      expect(screen.getByTestId('corkboard-sticky')).toHaveTextContent(bot.sticker!);
+      expect(screen.getByTestId(`corkboard-thread-sticky-${bot.id}-bot-${bot.id}`)).toBeInTheDocument();
+      for (const other of BOTS.filter((b) => b.id !== bot.id)) {
+        expect(
+          screen.queryByTestId(`corkboard-thread-sticky-${other.id}-bot-${other.id}`),
+        ).not.toBeInTheDocument();
+      }
+    }
   });
 
   it('shows the founders sticky note', async () => {

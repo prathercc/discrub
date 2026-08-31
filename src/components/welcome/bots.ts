@@ -49,6 +49,7 @@ export const BOTS: BotEntry[] = [
     chips: ['Count then delete', 'Any age', 'Nightly rules', 'Receipts'],
     installUrl: `${SITE}/go/scour?from=discrub`,
     pageUrl: `${SITE}/scour`,
+    sticker: 'Free to use. Nightly rules tidy up while you sleep.',
   },
   {
     id: 'vested',

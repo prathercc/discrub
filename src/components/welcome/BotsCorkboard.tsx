@@ -443,7 +443,24 @@ const BotsCorkboard = () => {
             {showControls && (
               <Box
                 data-testid="corkboard-carousel-controls"
-                sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}
+                sx={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 0.75,
+                  alignSelf: 'center',
+                  width: 'fit-content',
+                  mx: 'auto',
+                  // The stack's lower paper back reaches ~9px below the slot,
+                  // so the plaque needs its own clearance on top of the
+                  // column gap.
+                  mt: 1.5,
+                  px: 1.5,
+                  py: 0.75,
+                  borderRadius: 999,
+                  bgcolor: 'background.paper',
+                  boxShadow: '0 6px 14px rgba(0,0,0,0.35)',
+                }}
               >
                 <IconButton
                   size="small"
@@ -479,7 +496,7 @@ const BotsCorkboard = () => {
                       background:
                         index === activeIndex
                           ? 'radial-gradient(circle at 35% 35%, #ff8a80, #c62828 70%)'
-                          : 'rgba(0,0,0,0.25)',
+                          : 'rgba(255,255,255,0.28)',
                       boxShadow: index === activeIndex ? '0 1px 2px rgba(0,0,0,0.45)' : 'none',
                     }}
                   />
