@@ -40,6 +40,16 @@ export const BOTS: BotEntry[] = [
     pageUrl: `${SITE}/retrostat`,
     sticker: 'Become a founder. The first 100 servers get Premium for life.',
   },
+  {
+    id: 'scour',
+    name: 'Scour',
+    tagline: 'Delete messages by rule, any age, with a receipt',
+    pitch:
+      'The cleanups you run by hand in Discrub, working from inside your server. Count first, delete after you confirm, and nightly rules keep it tidy.',
+    chips: ['Count then delete', 'Any age', 'Nightly rules', 'Receipts'],
+    installUrl: `${SITE}/go/scour?from=discrub`,
+    pageUrl: `${SITE}/scour`,
+  },
 ];
 
 /** Where bot ideas go; mirrors the site's workbench address. */

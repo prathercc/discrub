@@ -1,12 +1,15 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Box, Button, Chip, Collapse, IconButton, Link, Typography, Tooltip } from '@mui/material';
 import {
+  ChevronLeft as PrevIcon,
+  ChevronRight as NextIcon,
   ExpandMore as ExpandIcon,
   OpenInNew as OpenIcon,
 } from '@mui/icons-material';
 import { storage } from '@/extension/storage';
 import { BOTS, BOT_IDEA_MAILTO, CORKBOARD_COLLAPSED_STORAGE_KEY, type BotEntry } from './bots';
 import RetrostatMark from './RetrostatMark';
+import ScourMark from './ScourMark';
 import DeveloperCard from './DeveloperCard';
 
 /**
@@ -25,6 +28,7 @@ import DeveloperCard from './DeveloperCard';
 
 const MARKS: Record<string, (size: number) => React.ReactNode> = {
   retrostat: (size) => <RetrostatMark size={size} />,
+  scour: (size) => <ScourMark size={size} />,
 };
 
 /** Small seeded tilt so the pins look hand-placed but never move between renders. */
@@ -221,18 +225,20 @@ const Threads = ({ threads }: { threads: Thread[] }) => (
   </Box>
 );
 
-/** Pin pairs to string together: each bot's sticker note to that bot's card. */
-const THREAD_PAIRS: [string, string][] = BOTS.filter((bot) => bot.sticker).map((bot) => [
-  `sticky-${bot.id}`,
-  `bot-${bot.id}`,
-]);
-
 const BotsCorkboard = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const boardRef = useRef<HTMLDivElement>(null);
   const open = loaded && !collapsed;
-  const threads = useThreads(boardRef, THREAD_PAIRS, open);
+  const activeBot = BOTS[Math.min(activeIndex, BOTS.length - 1)];
+  // One carousel slot: only the active bot's card is pinned, so only its
+  // sticker (when it has one) gets a thread.
+  const threadPairs = useMemo<[string, string][]>(
+    () => (activeBot?.sticker ? [[`sticky-${activeBot.id}`, `bot-${activeBot.id}`]] : []),
+    [activeBot],
+  );
+  const threads = useThreads(boardRef, threadPairs, open);
 
   useEffect(() => {
     let cancelled = false;
@@ -256,8 +262,9 @@ const BotsCorkboard = () => {
     storage.state.set(CORKBOARD_COLLAPSED_STORAGE_KEY, next).catch(() => {});
   };
 
-  if (BOTS.length === 0) return null;
-  const stickerBot = BOTS.find((bot) => bot.sticker);
+  if (BOTS.length === 0 || !activeBot) return null;
+  const showControls = BOTS.length > 1;
+  const step = (delta: number) => setActiveIndex((i) => (i + delta + BOTS.length) % BOTS.length);
 
   return (
     <Box data-testid="bots-corkboard" sx={{ mb: 5, maxWidth: 900, mx: 'auto' }}>
@@ -307,9 +314,58 @@ const BotsCorkboard = () => {
           })}
         >
           <Threads threads={threads} />
-          {BOTS.map((bot, index) => (
-            <PinnedCard key={bot.id} bot={bot} index={index} />
-          ))}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, width: { xs: '100%', sm: 'auto' } }}>
+            <PinnedCard key={activeBot.id} bot={activeBot} index={activeIndex} />
+            {showControls && (
+              <Box
+                data-testid="corkboard-carousel-controls"
+                sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75 }}
+              >
+                <IconButton
+                  size="small"
+                  onClick={() => step(-1)}
+                  aria-label="Previous bot"
+                  data-testid="corkboard-prev"
+                  sx={{ color: 'rgba(0,0,0,0.55)', '&:hover': { color: '#2b2400' } }}
+                >
+                  <PrevIcon fontSize="small" />
+                </IconButton>
+                {BOTS.map((bot, index) => (
+                  <Box
+                    key={bot.id}
+                    component="button"
+                    type="button"
+                    onClick={() => setActiveIndex(index)}
+                    aria-label={`Show ${bot.name}`}
+                    aria-current={index === activeIndex}
+                    data-testid={`corkboard-dot-${bot.id}`}
+                    sx={{
+                      width: 11,
+                      height: 11,
+                      p: 0,
+                      borderRadius: '50%',
+                      border: '1px solid rgba(0,0,0,0.4)',
+                      cursor: 'pointer',
+                      background:
+                        index === activeIndex
+                          ? 'radial-gradient(circle at 35% 35%, #ff8a80, #c62828 70%)'
+                          : 'rgba(0,0,0,0.25)',
+                      boxShadow: index === activeIndex ? '0 1px 2px rgba(0,0,0,0.45)' : 'none',
+                    }}
+                  />
+                ))}
+                <IconButton
+                  size="small"
+                  onClick={() => step(1)}
+                  aria-label="Next bot"
+                  data-testid="corkboard-next"
+                  sx={{ color: 'rgba(0,0,0,0.55)', '&:hover': { color: '#2b2400' } }}
+                >
+                  <NextIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            )}
+          </Box>
           <Box
             sx={{
               display: 'flex',
@@ -319,9 +375,9 @@ const BotsCorkboard = () => {
               width: { xs: '100%', sm: 'auto' },
             }}
           >
-            {stickerBot && (
-              <StickyNote testId="corkboard-sticky" tilt={2.2} tint="#fff3a3" pinId={`sticky-${stickerBot.id}`}>
-                {stickerBot.sticker}
+            {activeBot.sticker && (
+              <StickyNote testId="corkboard-sticky" tilt={2.2} tint="#fff3a3" pinId={`sticky-${activeBot.id}`}>
+                {activeBot.sticker}
               </StickyNote>
             )}
             <StickyNote testId="corkboard-idea" tilt={-1.5} tint="#b9e6ff">

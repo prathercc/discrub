@@ -22,18 +22,59 @@ describe('BotsCorkboard', () => {
     stateSet.mockReset().mockResolvedValue(undefined);
   });
 
-  it('renders a pinned card for every bot with a counted install link', async () => {
+  it('shows one bot at a time with a counted install link, starting at the first', async () => {
     renderWithProviders(<BotsCorkboard />);
-    for (const bot of BOTS) {
-      expect(await screen.findByTestId(`corkboard-bot-${bot.id}`)).toBeInTheDocument();
-      expect(screen.getByText(bot.name)).toBeInTheDocument();
-      expect(screen.getByText(bot.tagline)).toBeInTheDocument();
+    const first = BOTS[0];
+    expect(await screen.findByTestId(`corkboard-bot-${first.id}`)).toBeInTheDocument();
+    expect(screen.getByText(first.name)).toBeInTheDocument();
+    expect(screen.getByText(first.tagline)).toBeInTheDocument();
+    for (const bot of BOTS.slice(1)) {
+      expect(screen.queryByTestId(`corkboard-bot-${bot.id}`)).not.toBeInTheDocument();
     }
     const install = screen.getAllByRole('link', { name: 'Add to Discord' });
-    expect(install).toHaveLength(BOTS.length);
+    expect(install).toHaveLength(1);
     expect(install[0]).toHaveAttribute('href', 'https://pratherbytecraft.com/go/retrostat?from=discrub');
     expect(install[0]).toHaveAttribute('target', '_blank');
     expect(install[0]).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('reaches every bot through the carousel arrows, wrapping around', async () => {
+    renderWithProviders(<BotsCorkboard />);
+    await screen.findByTestId(`corkboard-bot-${BOTS[0].id}`);
+    for (const bot of BOTS.slice(1)) {
+      fireEvent.click(screen.getByTestId('corkboard-next'));
+      expect(await screen.findByTestId(`corkboard-bot-${bot.id}`)).toBeInTheDocument();
+      expect(
+        screen.getByRole('link', { name: 'Add to Discord' }),
+      ).toHaveAttribute('href', bot.installUrl);
+    }
+    fireEvent.click(screen.getByTestId('corkboard-next'));
+    expect(await screen.findByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('corkboard-prev'));
+    expect(await screen.findByTestId(`corkboard-bot-${BOTS[BOTS.length - 1].id}`)).toBeInTheDocument();
+  });
+
+  it('jumps straight to a bot from its dot and marks it current', async () => {
+    renderWithProviders(<BotsCorkboard />);
+    await screen.findByTestId(`corkboard-bot-${BOTS[0].id}`);
+    const last = BOTS[BOTS.length - 1];
+    fireEvent.click(screen.getByTestId(`corkboard-dot-${last.id}`));
+    expect(await screen.findByTestId(`corkboard-bot-${last.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`corkboard-dot-${last.id}`)).toHaveAttribute('aria-current', 'true');
+    expect(screen.getByTestId(`corkboard-dot-${BOTS[0].id}`)).toHaveAttribute('aria-current', 'false');
+  });
+
+  it('shows a bot without a sticker with no sticky note and no thread', async () => {
+    renderWithProviders(<BotsCorkboard />);
+    await screen.findByTestId('corkboard-sticky');
+    const stickerless = BOTS.find((bot) => !bot.sticker);
+    expect(stickerless).toBeDefined();
+    fireEvent.click(screen.getByTestId(`corkboard-dot-${stickerless!.id}`));
+    await screen.findByTestId(`corkboard-bot-${stickerless!.id}`);
+    expect(screen.queryByTestId('corkboard-sticky')).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId(`corkboard-thread-sticky-${stickerless!.id}-bot-${stickerless!.id}`),
+    ).not.toBeInTheDocument();
   });
 
   it('shows the founders sticky note', async () => {
