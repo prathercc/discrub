@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from 'react';
-import { Box, Dialog, IconButton, Stack, Tooltip, Typography, alpha } from '@mui/material';
+import { Box, Dialog, IconButton, Link, Stack, Tooltip, Typography, alpha } from '@mui/material';
 import { OpenInFull as ExpandIcon, CloseFullscreen as CollapseIcon } from '@mui/icons-material';
 import type { Donation } from 'discrub-core/types/discrub-types';
 import {
@@ -149,7 +149,7 @@ const StarDot = memo(function StarDot({ star, isActive, onEnter, onLeave, onTogg
   );
 });
 
-function StarTooltip({ star }: { star: PlacedStar }) {
+function StarTooltip({ star, compact }: { star: PlacedStar; compact?: boolean }) {
   const { supporter, tier, x, y } = star;
   const joinedDays = daysSinceJoined(supporter);
   const joinedLabel = joinedDays === 0 ? 'today' : joinedDays === 1 ? 'yesterday' : `${joinedDays} days ago`;
@@ -167,7 +167,9 @@ function StarTooltip({ star }: { star: PlacedStar }) {
       data-testid="sky-tooltip"
       sx={{
         position: 'absolute',
-        left: `${Math.min(72, Math.max(28, x))}%`,
+        // In the narrow drawer a star-anchored x pushes the card off the
+        // panel, so compact mode centers it and only tracks the star's y.
+        left: compact ? '50%' : `${Math.min(72, Math.max(28, x))}%`,
         top: `${y}%`,
         transform: below ? 'translate(-50%, 18px)' : 'translate(-50%, calc(-100% - 16px))',
         zIndex: 10,
@@ -310,52 +312,60 @@ function SkyPanel({ stars, onExpandToggle, expanded, compact }: SkyPanelProps) {
           },
         }}
       >
-        {DUST.map((d, i) => (
-          <Box
-            key={i}
-            sx={{
-              position: 'absolute',
-              left: `${d.x}%`,
-              top: `${d.y}%`,
-              width: d.size,
-              height: d.size,
-              borderRadius: '50%',
-              backgroundColor: '#e7e9f4',
-              opacity: d.opacity,
-              pointerEvents: 'none',
-            }}
-          />
-        ))}
-        {stars.map((star) => (
-          <StarDot
-            key={star.supporter.donorId}
-            star={star}
-            isActive={active?.supporter.donorId === star.supporter.donorId}
-            onEnter={handleEnter}
-            onLeave={handleLeave}
-            onToggle={handleToggle}
-          />
-        ))}
-        {labeledStars.map((star) => (
-          <Typography
-            key={`label-${star.supporter.donorId}`}
-            sx={{
-              position: 'absolute',
-              left: `${star.x}%`,
-              top: `${star.y}%`,
-              transform: `translate(-50%, ${star.size / 2 + 8}px)`,
-              fontFamily: 'monospace',
-              fontSize: compact ? 10 : 11,
-              color: alpha(star.tier.color, 0.85),
-              textShadow: '0 1px 6px rgba(0,0,0,0.9)',
-              pointerEvents: 'none',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {star.supporter.name.trim()}
-          </Typography>
-        ))}
-        {active && <StarTooltip star={active} />}
+        {/* The star field sits inside a small frame inset, so edge stars
+            (the percent clamps assume the site's wide sky) and their glow
+            never clip against the panel border. Positions inside the field
+            are the untouched parity coordinates. */}
+        <Box sx={{ position: 'absolute', inset: '12px 14px' }}>
+          {DUST.map((d, i) => (
+            <Box
+              key={i}
+              sx={{
+                position: 'absolute',
+                left: `${d.x}%`,
+                top: `${d.y}%`,
+                width: d.size,
+                height: d.size,
+                borderRadius: '50%',
+                backgroundColor: '#e7e9f4',
+                opacity: d.opacity,
+                pointerEvents: 'none',
+              }}
+            />
+          ))}
+          {stars.map((star) => (
+            <StarDot
+              key={star.supporter.donorId}
+              star={star}
+              isActive={active?.supporter.donorId === star.supporter.donorId}
+              onEnter={handleEnter}
+              onLeave={handleLeave}
+              onToggle={handleToggle}
+            />
+          ))}
+          {labeledStars.map((star) => (
+            <Typography
+              key={`label-${star.supporter.donorId}`}
+              sx={{
+                position: 'absolute',
+                // The label is presentation, not position: clamp it inward
+                // on the narrow panel so long names stay readable.
+                left: `${compact ? Math.min(88, Math.max(12, star.x)) : star.x}%`,
+                top: `${star.y}%`,
+                transform: `translate(-50%, ${star.size / 2 + 8}px)`,
+                fontFamily: 'monospace',
+                fontSize: compact ? 10 : 11,
+                color: alpha(star.tier.color, 0.85),
+                textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+                pointerEvents: 'none',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {star.supporter.name.trim()}
+            </Typography>
+          ))}
+          {active && <StarTooltip star={active} compact={compact} />}
+        </Box>
         {onExpandToggle && (
           <Tooltip title={expanded ? 'Close the sky' : 'Open the full sky'} enterDelay={0} arrow>
             <IconButton
@@ -427,9 +437,14 @@ const SupporterSky = ({ donations }: { donations: Donation[] }) => {
     <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', minHeight: 0 }}>
       <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1, flexShrink: 0 }}>
         Every supporter is a star with a permanent place in the sky, the same spot as on{' '}
-        <Box component="span" sx={{ whiteSpace: 'nowrap' }}>
+        <Link
+          href="https://pratherbytecraft.com/#supporters"
+          target="_blank"
+          rel="noopener noreferrer"
+          sx={{ whiteSpace: 'nowrap' }}
+        >
           pratherbytecraft.com
-        </Box>
+        </Link>
         . Hover or tap one.
       </Typography>
       <Box sx={{ flex: 1, minHeight: 0 }}>

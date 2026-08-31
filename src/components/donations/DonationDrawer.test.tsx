@@ -100,7 +100,7 @@ describe('DonationDrawer', () => {
 
   it('should show footer with donation stats', () => {
     renderDrawer('true');
-    expect(screen.getByText(/2 supporters have raised over \$60 for Discrub's development/)).toBeInTheDocument();
+    expect(screen.getByText(/2 supporters have raised over \$60 to keep these tools free/)).toBeInTheDocument();
   });
 
   it('should show Ko-Fi support button', () => {

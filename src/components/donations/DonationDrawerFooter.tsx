@@ -24,8 +24,8 @@ const DonationDrawerFooter = ({ donations }: DonationDrawerFooterProps) => {
     >
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 1 }}>
         <Typography variant="caption" sx={{ color: 'text.disabled', textAlign: 'center' }}>
-          {uniqueDonors} supporter{uniqueDonors !== 1 ? 's' : ''} {uniqueDonors !== 1 ? 'have' : 'has'} raised over ${Math.floor(totalDollars)} for
-          Discrub's development, thank you!
+          {uniqueDonors} supporter{uniqueDonors !== 1 ? 's' : ''} {uniqueDonors !== 1 ? 'have' : 'has'} raised over ${Math.floor(totalDollars)} to
+          keep these tools free, thank you!
         </Typography>
         <HeartIcon sx={{ fontSize: 14, color: '#ff5e5b' }} />
       </Box>
