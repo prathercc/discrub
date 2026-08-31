@@ -79,10 +79,10 @@ Search and Refine criteria are cleared automatically when you switch to a differ
 Click any avatar or username to view a Discord-style profile card with display names, server nicknames, role colors, role list with icons, badges, account details, and profile customization info.
 
 The profile modal also exposes two **one-click filter shortcuts**:
-- **Filter messages by [name]** — narrows the channel to messages they authored
-- **Filter messages mentioning [name]** — narrows to messages where they're @mentioned
+- **Filter messages by [name]**: narrows the channel to messages they authored
+- **Filter messages mentioning [name]**: narrows to messages where they're @mentioned
 
-Other active filters (date, content, etc.) are preserved when you apply either — only the user scope changes.
+Other active filters (date, content, etc.) are preserved when you apply either; only the user scope changes.
 
 ![User Profile](docs/screenshots/messages/user-profile.png)
 
@@ -96,7 +96,7 @@ Distraction-free reading mode that hides the sidebar and status panel for a full
 
 ### Tour Mode & Targeted Help
 
-First-time users get a **guided tour** of the app — server browsing, multi-select, filters, exports, focus mode, and the message feed. Skippable, non-blocking, and tracked per-version (so future major changes can re-trigger the relevant steps without nagging users who've already seen them).
+First-time users get a **guided tour** of the app: server browsing, multi-select, filters, exports, focus mode, and the message feed. Skippable, non-blocking, and tracked per-version (so future major changes can re-trigger the relevant steps without nagging users who've already seen them).
 
 For day-to-day "what does this do?" moments, look for the small **`?` icons** placed next to the trickier affordances:
 - Multi-select toggle (in channel and DM lists)
@@ -109,7 +109,7 @@ For day-to-day "what does this do?" moments, look for the small **`?` icons** pl
 - Operation Delays setting
 - Export preset dropdown
 
-Click any `?` for a short paragraph explaining how the feature actually works — independent of the main tour and always available.
+Click any `?` for a short paragraph explaining how the feature actually works, independent of the main tour and always available.
 
 ### Export
 
@@ -124,8 +124,8 @@ Export messages in five formats with granular control:
 | **Media Only** | Download attachments without message content |
 
 **HTML Templates:**
-- **Discord Layout** (default) — wraps exports in a Discord-like shell with server sidebar, channel navigation grouped under your server's categories (just like Discord), and theme toggle
-- **Standard** — clean standalone HTML pages
+- **Discord Layout** (default): wraps exports in a Discord-like shell with server sidebar, channel navigation grouped under your server's categories (just like Discord), and theme toggle
+- **Standard**: clean standalone HTML pages
 
 **Export Features:**
 - 10 built-in presets (Quick Text Backup, Full Archive, Plain Text, Data Analysis, Media Gallery, etc.)
@@ -150,6 +150,7 @@ Export messages in five formats with granular control:
 - Oversized exports split into multiple zip parts (`export.zip`, `export-part2.zip`, ...) under a safe size, so a single archive can't corrupt past the 4 GB / 65,535-entry limit
 - Saved presets can remember an optional date range, so a recurring export doesn't need the dates re-entered each time
 - A screen wake lock is held during long exports and purges, so the run doesn't stall when your display sleeps
+- Operation pacing runs on a worker timer, so switching to another tab no longer slows a long purge or export to a crawl (browsers throttle ordinary timers in background tabs; keep the tab open, since tab-sleep or memory saver can still end a run early)
 
 ![Export Dialog](docs/screenshots/export/export-dialog.png)
 ![Media Settings](docs/screenshots/export/media-settings.png)
@@ -158,10 +159,10 @@ Export messages in five formats with granular control:
 
 Delete messages and reactions across one or multiple channels with user targeting:
 
-- **Messages Mode** — search-based deletion with per-user targeting, with an optional **"Also delete system messages"** section to opt specific system-message categories (pins, joins, boosts, etc.) into the sweep alongside your matched messages
-- **Attachments Only** — strip attachments from messages without deleting the text (own messages only — Discord API limitation)
-- **Reactions Mode** — remove specific users' reactions from all messages (your own without permission, any user with Manage Messages)
-- **Clear All Reactions** (admin) — bulk remove all reactions using a single API call per message
+- **Messages Mode**: search-based deletion with per-user targeting, with an optional **"Also delete system messages"** section to opt specific system-message categories (pins, joins, boosts, etc.) into the sweep alongside your matched messages
+- **Attachments Only**: strip attachments from messages without deleting the text (own messages only, a Discord API limitation)
+- **Reactions Mode**: remove specific users' reactions from all messages (your own without permission, any user with Manage Messages)
+- **Clear All Reactions** (admin): bulk remove all reactions using a single API call per message
 
 Features: multi-channel selection with one-click "Select all", filters integration (narrow by author, content, date, has-types) for both bulk export and bulk purge, retain-attachments option, thread-aware discovery (auto-unarchives during purge and re-archives when done), DM support (own messages only), pause/resume/cancel.
 
@@ -184,21 +185,21 @@ View who reacted to any message, with per-user reaction management:
 
 - View reacting users with avatars
 - Remove individual reactions (own reactions, or any with Manage Messages permission)
-- Admin bulk removal — remove all reactions or all of a specific emoji in one API call
+- Admin bulk removal: remove all reactions or all of a specific emoji in one API call
 - Batch removal across selected messages with Discord-style emoji picker and user selection
-- Batch **addition** across selected messages — pick one or more emoji (server custom emoji plus the full unicode set, or paste an emoji/shortcode) and apply them to every selected message, with a live "messages × emoji" count and paced, cancelable execution that buckets any failures (no permission, rate limited, message gone)
-- `reaction.me` optimization — skips unnecessary API calls for emojis the user hasn't reacted to
+- Batch **addition** across selected messages: pick one or more emoji (server custom emoji plus the full unicode set, or paste an emoji/shortcode) and apply them to every selected message, with a live "messages × emoji" count and paced, cancelable execution that buckets any failures (no permission, rate limited, message gone)
+- `reaction.me` optimization: skips unnecessary API calls for emojis the user hasn't reacted to
 
 ![Reaction Modal](docs/screenshots/reactions/reaction-modal.png)
 
 ### Message Operations
 
-- **Delete** — single or bulk message deletion with confirmation
-- **Edit** — single or bulk message editing, including across multiple selected channels or DMs at once (your own messages only), with pause/cancel and per-channel progress
-- **Attachment Management** — delete individual attachments or all from a message
-- **Strip Attachments Only** — keep the message text but remove its attachments (own messages only — Discord API limitation)
-- **Remove Reactions** — batch removal from toolbar with emoji/user selection
-- **Stale-feed reload toast** — after a purge that targets the channel you're currently viewing, a one-click toast offers to reload the feed so you see Discord's post-purge state instead of the cached snapshot
+- **Delete**: single or bulk message deletion with confirmation
+- **Edit**: single or bulk message editing, including across multiple selected channels or DMs at once (your own messages only), with pause/cancel and per-channel progress
+- **Attachment Management**: delete individual attachments or all from a message
+- **Strip Attachments Only**: keep the message text but remove its attachments (own messages only, a Discord API limitation)
+- **Remove Reactions**: batch removal from toolbar with emoji/user selection
+- **Stale-feed reload toast**: after a purge that targets the channel you're currently viewing, a one-click toast offers to reload the feed so you see Discord's post-purge state instead of the cached snapshot
 
 ### Forum Channels
 
@@ -217,13 +218,13 @@ The **Load Thread** modal now auto-discovers active and archived threads in the 
 
 ### Analytics
 
-Message analytics with mention frequency, user engagement metrics, and CSV export. Includes "Skip Replies" option to exclude reply mentions from counts.
+Nine reports over whatever messages you have loaded: Overview (the headline numbers, Wrapped-style), Most mentioned, Most active members, Most reactions received, Most reacted messages, Most active threads, Keyword mentions, Most linked domains, and Most attachments shared. Every ranked report has a chart and a CSV export, and a "Skip Replies" option excludes reply mentions from mention counts.
 
 ![Analytics](docs/screenshots/analytics/analytics-modal.png)
 
 ### Data Package Import & Rehydration
 
-Import the ZIP from Discord's "Request All of My Data" export and browse, analyze, bulk-edit, bulk-delete, or re-export your full message history — including servers you've left. Processing happens entirely in your browser; the package file never leaves your device.
+Import the ZIP from Discord's "Request All of My Data" export and browse, analyze, bulk-edit, bulk-delete, or re-export your full message history, including servers you've left. Processing happens entirely in your browser; the package file never leaves your device.
 
 The importer handles large packages (multi-gigabyte archives, tens of thousands of entries via ZIP64) and packages exported in any Discord locale (French, German, Spanish, Simplified Chinese, Cyrillic, etc.). Folder-name conventions vary by locale, so Discrub identifies the account, messages, and servers directories by their content rather than by name. Multi-attachment messages render every attachment, not just the first.
 
@@ -239,7 +240,7 @@ The importer handles large packages (multi-gigabyte archives, tens of thousands 
 
 ![Package message browser](docs/screenshots/package/package-message-browser.png)
 
-**Tier 2 rehydration (opt-in, per channel).** Click "Load rich data" to fetch live `Message` objects from Discord — real reactions, reply quotes, named mentions, embeds, stickers, and fresh signed CDN URLs for attachments. The button surfaces an estimated runtime on hover (X messages, expected duration) so multi-hour rehydrates don't start without warning. A guild-wide search preflight covers most messages in a single pass before per-message lookups begin; the status log shows how many of the package's messages were served by that scan. Results persist to IndexedDB so enriched channels load instantly on return. Pause/resume/cancel work the same as every other long-running operation; partial results are saved on cancel.
+**Tier 2 rehydration (opt-in, per channel).** Click "Load rich data" to fetch live `Message` objects from Discord: real reactions, reply quotes, named mentions, embeds, stickers, and fresh signed CDN URLs for attachments. The button surfaces an estimated runtime on hover (X messages, expected duration) so multi-hour rehydrates don't start without warning. A guild-wide search preflight covers most messages in a single pass before per-message lookups begin; the status log shows how many of the package's messages were served by that scan. Results persist to IndexedDB so enriched channels load instantly on return. Pause/resume/cancel work the same as every other long-running operation; partial results are saved on cancel.
 
 ![Package rehydrated](docs/screenshots/package/package-rehydrated.png)
 
@@ -249,11 +250,11 @@ Exports work identically to live exports (same dialog, all presets, all template
 
 Comprehensive settings across multiple tabs:
 
-- **Display** — date and time format
-- **User Data** — display name and nickname lookup toggles, reaction enrichment, user data refresh rate
-- **Operation Delays** — configurable search and delete delays with randomization modifier (with a built-in `?` explainer covering Discord rate limits)
-- **Export Preferences** — default format, template, media types, and all export options
-- **Purge Behavior** — default mode (Delete, Strip Attachments Only, Remove Reactions) and media retention
+- **Display**: date and time format, DM list ordering (most recent first, alphabetical, or Discord's own order)
+- **User Data**: display name and nickname lookup toggles, reaction enrichment, user data refresh rate
+- **Operation Delays**: configurable search and delete delays with randomization modifier (with a built-in `?` explainer covering Discord rate limits)
+- **Export Preferences**: default format, template, media types, and all export options
+- **Purge Behavior**: default mode (Delete, Strip Attachments Only, Remove Reactions) and media retention
 
 ![Settings](docs/screenshots/settings/settings-dialog.png)
 
@@ -266,9 +267,9 @@ Terminal-style operation log with color-coded entries ([INFO], [OK], [ERR], [WAR
 ### Pause, Resume & Cancel
 
 All long-running operations (export, purge, load all, delete, edit, reaction removal) support:
-- **Pause** — temporarily halt the operation
-- **Resume** — continue from where you left off
-- **Cancel** — abort the operation
+- **Pause**: temporarily halt the operation
+- **Resume**: continue from where you left off
+- **Cancel**: abort the operation
 
 Controls appear in the status bar whenever an operation is running. In Focus Mode (or anywhere the status panel is hidden), a floating pause control appears during heavy operations so pausing is always within reach, and the `Space` hotkey keeps working.
 
@@ -283,15 +284,15 @@ Supporters unlock eight more cosmetic themes (AMOLED Void, Synthwave, Bytecraft,
 
 ### Additional Features
 
-- **Donation Wall** — Ko-Fi supporter feed with tier system and leaderboard
-- **Ideas & Contact** — direct links to email and GitHub issues
-- **Announcements** — in-app announcements rendered from GitHub-hosted markdown, with a version-aware re-trigger so users see fresh announcements once, plus a rail of every previous announcement in the same dialog
-- **From the Discrub team** — a corkboard on the welcome screen with the studio's Discord bots (Retrostat first) and a note from the developer
-- **Role Colors & Icons** — author names colored by highest-position role, with role icons next to author names in the feed and user profiles
-- **Copy to Clipboard** — copy server, channel, or DM lists
-- **Reset Discrub Data** — escape hatch in Settings that wipes Discrub's local IndexedDB databases, useful for recovering from corrupted state without uninstalling the extension
-- **Error Logging** — persistent error log with download capability
-- **Tab Close Protection** — warns when closing tab during active operations
+- **Donation Wall**: Ko-Fi supporter feed with tier system and leaderboard
+- **Ideas & Contact**: direct links to email and GitHub issues
+- **Announcements**: in-app announcements rendered from GitHub-hosted markdown, with a version-aware re-trigger so users see fresh announcements once, plus a rail of every previous announcement in the same dialog
+- **From the Discrub team**: a corkboard on the welcome screen with the studio's Discord bots (Retrostat first) and a note from the developer
+- **Role Colors & Icons**: author names colored by highest-position role, with role icons next to author names in the feed and user profiles
+- **Copy to Clipboard**: copy server, channel, or DM lists
+- **Reset Discrub Data**: escape hatch in Settings that wipes Discrub's local IndexedDB databases, useful for recovering from corrupted state without uninstalling the extension
+- **Error Logging**: persistent error log with download capability
+- **Tab Close Protection**: warns when closing tab during active operations
 
 ---
 
@@ -306,7 +307,7 @@ Supporters unlock eight more cosmetic themes (AMOLED Void, Synthwave, Bytecraft,
 | Settings storage | localStorage | Browser extension storage |
 | Installation | None (visit URL) | Install from Web Store / Add-ons |
 | Auto-update | Always latest | Browser auto-updates |
-| Discrub Classic | Not available | Built-in — select from launcher splash screen |
+| Discrub Classic | Not available | Built-in (select from the launcher splash screen) |
 
 ### What differs by setup
 
@@ -320,7 +321,7 @@ Purging, searching and bulk operations behave the same everywhere. Three things 
 
 "Manual" means you paste your Discord token each visit, or tick "Keep me logged in" to keep it in that browser (the extension reads it for you). "Smaller parts" means each zip part is held in memory before it downloads (Firefox extension pages have no service worker; iOS stages through Safari's storage quota), so those setups default to 500 MB parts under Export settings → Max zip size. "Most files" means the hosted build fetches media through Discord's proxy, which refuses a few formats; skipped files are listed in the status log and the messages themselves are always complete.
 
-Both versions use the same codebase and make identical API calls from your browser. The extension includes Discrub Classic (the original interface) as a built-in option — when you first launch Discrub, a splash screen lets you choose between Discrub 2.0 and Discrub Classic. Your choice is remembered for future sessions.
+Both versions use the same codebase and make identical API calls from your browser. The extension includes Discrub Classic (the original interface) as a built-in option: when you first launch Discrub, a splash screen lets you choose between Discrub 2.0 and Discrub Classic. Your choice is remembered for future sessions.
 
 ---
 
@@ -334,7 +335,7 @@ Both versions use the same codebase and make identical API calls from your brows
    - Press `F12` to open DevTools
    - Go to the **Network** tab
    - Click on any request to `discord.com/api`
-   - Find the `Authorization` header value — that's your token
+   - Find the `Authorization` header value; that's your token
 3. Paste your token on the Discrub landing page
 4. Browse your servers and start exporting!
 
@@ -354,7 +355,7 @@ Treat the token like a password: anyone holding it can act as your account. Neve
 
 1. Install from the [official Chrome Web Store listing](https://chromewebstore.google.com/detail/plhdclenpaecffbcefjmpkkbdpkmhhbj) (or [load manually](#still-prefer-discrub-classic))
 2. Navigate to [discord.com](https://discord.com)
-3. Click the Discrub icon on the page — a launcher splash screen appears
+3. Click the Discrub icon on the page; a launcher splash screen appears
 4. Choose **Discrub 2.0** (modern interface) or **Discrub Classic** (original interface)
 5. Discrub auto-retrieves your Discord token and loads the selected version
 
@@ -381,7 +382,7 @@ You can manually install the legacy extension from the [releases page](https://g
 4. Enable **Developer mode** (toggle in the top-right corner)
 5. Click **Load unpacked**
 6. Select the extracted folder
-7. Navigate to [discord.com](https://discord.com) — the Discrub Classic overlay will appear
+7. Navigate to [discord.com](https://discord.com); the Discrub Classic overlay appears
 
 **Firefox:**
 1. Download the latest Firefox `.zip` from [Releases](https://github.com/pratherbytecraft/discrub-ext/releases)
@@ -389,9 +390,9 @@ You can manually install the legacy extension from the [releases page](https://g
 3. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`
 4. Click **Load Temporary Add-on**
 5. Select any file inside the extracted folder (e.g., `manifest.json`)
-6. Navigate to [discord.com](https://discord.com) — the Discrub Classic overlay will appear
+6. Navigate to [discord.com](https://discord.com); the Discrub Classic overlay appears
 
-> Note: Firefox temporary add-ons are removed when the browser closes. For persistent installation, the add-on must be signed or installed from Firefox Add-ons.
+> Firefox temporary add-ons are removed when the browser closes. For persistent installation, the add-on must be signed or installed from Firefox Add-ons.
 
 ---
 
@@ -399,7 +400,7 @@ You can manually install the legacy extension from the [releases page](https://g
 
 Build and tooling notes for project development and source-level review.
 Official Discrub distributions are the Chrome Web Store and Firefox Add-ons
-listings — see [Getting Started](#getting-started).
+listings; see [Getting Started](#getting-started).
 
 ### Prerequisites
 
@@ -449,7 +450,7 @@ npm run build:extension
 # Unit tests (Vitest)
 npm test
 
-# E2E tests (Cypress — requires dev server running)
+# E2E tests (Cypress; requires a running dev server)
 npm run cy:run
 
 # Cross-browser E2E
@@ -473,7 +474,7 @@ Runs the demo Cypress spec and copies screenshots to `docs/screenshots/`.
 
 ### Is Discrub safe to use?
 
-Yes. Discrub runs entirely in your browser — your Discord token never leaves your device. There is no backend server, no data collection, no analytics. All Discord API calls originate from your browser's IP address, the same as if you were using Discord directly.
+Yes. Discrub runs entirely in your browser; your Discord token never leaves your device. There is no backend server, no data collection, no analytics. All Discord API calls originate from your browser's IP address, the same as if you were using Discord directly.
 
 ### Will I get rate limited?
 
@@ -485,7 +486,7 @@ Discrub uses your own user token to access data you already have permission to s
 
 ### Why not use a bot instead?
 
-Bots require server admin permissions to be added, and they use a different authentication flow. Discrub works with your personal user token, giving you access to everything you can already see — including DMs, which bots cannot access.
+Bots require server admin permissions to be added, and they use a different authentication flow. Discrub works with your personal user token, giving you access to everything you can already see, including DMs, which bots cannot access.
 
 ### Can I export DMs?
 
@@ -493,7 +494,7 @@ Yes. Switch to the DMs tab, select a conversation, and export like any channel.
 
 ### What's the difference between Standard and Discord Layout templates?
 
-**Discord Layout** (default) wraps the export in a Discord-like interface with a server sidebar, channel navigation, and theme toggle — ideal for bulk exports where you want to browse between channels. **Standard** produces clean, standalone HTML pages without the shell wrapper.
+**Discord Layout** (default) wraps the export in a Discord-like interface with a server sidebar, channel navigation, and theme toggle, ideal for bulk exports where you want to browse between channels. **Standard** produces clean, standalone HTML pages without the shell wrapper.
 
 ### Why can't I see some channels?
 
@@ -503,7 +504,7 @@ Channels you lack permission to view are shown with a lock icon and dimmed appea
 
 Yes. In the export dialog, expand "Files & Media" to enable media download. You can toggle individual types (images, videos, audio). Media is downloaded from Discord's CDN and included in the export ZIP.
 
-> **Note:** The "Other files" type (PDFs, ZIPs, etc.) is only available in extension mode due to browser CORS restrictions on non-media file downloads.
+> The "Other files" type (PDFs, ZIPs, etc.) is only available in extension mode due to browser CORS restrictions on non-media file downloads.
 
 ### Is there a message limit?
 
@@ -511,7 +512,7 @@ No practical limit. Discord's search API returns up to 5,000 results per query, 
 
 ### Can I purge other users' messages or reactions?
 
-Purging other users' messages requires the **Manage Messages** permission in that channel. Without it, you can only delete your own messages. The same applies to reactions — you can always remove your own reactions, but removing others' requires Manage Messages.
+Purging other users' messages requires the **Manage Messages** permission in that channel. Without it, you can only delete your own messages. The same applies to reactions: you can always remove your own reactions, but removing others' requires Manage Messages.
 
 ### How do I pause or cancel an operation?
 
@@ -535,7 +536,7 @@ Use the Ideas & Contact button (the lightbulb in the top bar) to reach support@p
 
 ### How do I update Discrub?
 
-- **Web app:** Always serves the latest version — just refresh the page
+- **Web app:** Always serves the latest version; refresh the page
 - **Extension:** Chrome and Firefox auto-update extensions. For manual installs, re-download from the releases page
 
 ### Does Discrub work offline?
@@ -552,7 +553,7 @@ This refers to non-media attachments like PDFs, ZIP files, documents, etc. Due t
 
 ### How are role colors determined?
 
-Discrub displays author names in the color of their highest-position role that has a non-zero color — the same logic Discord uses. Role icons (custom images or unicode emojis) from the highest-position role are also shown next to author names.
+Discrub displays author names in the color of their highest-position role that has a non-zero color, the same logic Discord uses. Role icons (custom images or unicode emojis) from the highest-position role are also shown next to author names.
 
 ---
 
@@ -571,7 +572,7 @@ Discrub displays author names in the color of their highest-position role that h
 ## Security
 
 Worried your copy was tampered with, or found something to report? See
-[SECURITY.md](SECURITY.md) — it lists the only official store URLs, the extension's
+[SECURITY.md](SECURITY.md); it lists the only official store URLs, the extension's
 full permission set, and step-by-step recipes to verify a downloaded package against
 published SHA-256 checksums (`store/SHA256SUMS.txt`, `scripts/verify-extension.mjs`).
 

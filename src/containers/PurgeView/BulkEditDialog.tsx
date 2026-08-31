@@ -142,11 +142,11 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
             </Typography>
           </Alert>
 
-          {/* #206: long edit runs benefit from the same foreground hint as purge. */}
+          {/* #206 wake lock + #247 worker pacing: same caveat wording as the purge dialog. */}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            Large edits can run for a while. Discrub keeps your screen awake, but for very
-            long runs keep this tab in the foreground and turn off your browser&rsquo;s
-            battery-saver / tab-sleep so edits aren&rsquo;t paused.
+            Large edits can run for a while. Discrub keeps your screen awake and keeps
+            editing at full pace even when this tab is in the background. Leave the tab
+            open; a browser&rsquo;s tab-sleep or memory saver can still end a run early.
           </Typography>
         </Box>
       </DialogContent>
