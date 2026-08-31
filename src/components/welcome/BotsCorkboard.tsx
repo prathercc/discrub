@@ -389,11 +389,11 @@ const BotsCorkboard = () => {
                   aria-label="Previous bot"
                   data-testid="corkboard-prev"
                   sx={{
-                    color: '#f7ecd8',
-                    bgcolor: 'rgba(43,36,0,0.5)',
-                    border: '1px solid rgba(0,0,0,0.35)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                    '&:hover': { bgcolor: 'rgba(43,36,0,0.75)', color: '#ffffff' },
+                    color: '#3d2f10',
+                    bgcolor: '#f7ecd8',
+                    border: '1px solid rgba(0,0,0,0.3)',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.45)',
+                    '&:hover': { bgcolor: '#fff8e8', color: '#1f1703' },
                   }}
                 >
                   <PrevIcon fontSize="small" />
@@ -428,11 +428,11 @@ const BotsCorkboard = () => {
                   aria-label="Next bot"
                   data-testid="corkboard-next"
                   sx={{
-                    color: '#f7ecd8',
-                    bgcolor: 'rgba(43,36,0,0.5)',
-                    border: '1px solid rgba(0,0,0,0.35)',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
-                    '&:hover': { bgcolor: 'rgba(43,36,0,0.75)', color: '#ffffff' },
+                    color: '#3d2f10',
+                    bgcolor: '#f7ecd8',
+                    border: '1px solid rgba(0,0,0,0.3)',
+                    boxShadow: '0 2px 5px rgba(0,0,0,0.45)',
+                    '&:hover': { bgcolor: '#fff8e8', color: '#1f1703' },
                   }}
                 >
                   <NextIcon fontSize="small" />
