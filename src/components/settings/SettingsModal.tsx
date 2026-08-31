@@ -242,7 +242,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
                 Saved token
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Your Discord token is saved on this device so you stay signed in between visits. Forgetting it keeps this session signed in; you'll paste the token again next time.
+                Your Discord token is saved on this device so you stay logged in between visits. Forgetting it won't log you out right now, but you'll need to paste your token again next visit.
               </Typography>
               <Box>
                 <Button

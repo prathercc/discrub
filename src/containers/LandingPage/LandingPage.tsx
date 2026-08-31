@@ -411,7 +411,7 @@ const LandingPage = () => {
                   ? 'Invalid token - please check and try again'
                   : rememberMe
                     ? 'Your token will be saved on this device until you log out'
-                    : 'Your token is stored in memory only (session-only)'
+                    : 'Your token is only kept until you close this tab'
               }
               disabled={isLoading || !gateSatisfied}
               autoFocus={!isExtension && !hostedGate}
@@ -435,7 +435,7 @@ const LandingPage = () => {
                   </Button>
                 }
               >
-                A token is saved on this device.
+                A token from your last session is saved on this device.
               </Alert>
             )}
 

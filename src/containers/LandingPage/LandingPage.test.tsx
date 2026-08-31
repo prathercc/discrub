@@ -203,7 +203,7 @@ describe('LandingPage', () => {
       expect(box.checked).toBe(false);
       expect(screen.getByText('Keep me logged in')).toBeInTheDocument();
       expect(screen.getByText('Only do this on a device you trust')).toBeInTheDocument();
-      expect(screen.getByText('Your token is stored in memory only (session-only)')).toBeInTheDocument();
+      expect(screen.getByText('Your token is only kept until you close this tab')).toBeInTheDocument();
     });
 
     it('hides the checkbox in extension mode (the token bridge handles auth there)', async () => {

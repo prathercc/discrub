@@ -60,7 +60,7 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
   },
   logout: {
     title: 'Sign Out',
-    content: "Sign out when you're done. Your token is never stored. It's cleared immediately.",
+    content: "Sign out when you're done. Your token is cleared, including any saved copy on this device.",
   },
 
   // ── Contextual (channel-view) ──────────────────────────────────────

@@ -76,7 +76,7 @@ describe('Authentication', () => {
       cy.get('[data-testid="landing-remember-token"]').should('not.be.checked');
       cy.contains('Keep me logged in').should('be.visible');
       cy.contains('Only do this on a device you trust').should('be.visible');
-      cy.contains('stored in memory only').should('be.visible');
+      cy.contains('only kept until you close this tab').should('be.visible');
     });
 
     it('remembers the token, restores it on reload, and forgets it on Logout', () => {

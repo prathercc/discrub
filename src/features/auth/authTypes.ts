@@ -33,4 +33,4 @@ export const REMEMBERED_TOKEN_STORAGE_KEY = 'auth:rememberedToken';
 
 /** Shown when a remembered token no longer authenticates and gets dropped. */
 export const REMEMBERED_TOKEN_EXPIRED_MESSAGE =
-  'Your saved token no longer works and has been removed. Please sign in again.';
+  'Your saved token no longer works and has been removed. Please log in again.';
