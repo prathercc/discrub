@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { renderWithProviders, screen } from '../../test/test-utils';
+import { renderWithProviders, screen, fireEvent } from '../../test/test-utils';
 import DonationDrawer from './DonationDrawer';
 import { createBaseState } from '../../test/state-factories';
 import { defaultSettings } from '@features/app/appSlice';
@@ -76,10 +76,20 @@ describe('DonationDrawer', () => {
     vi.clearAllMocks();
   });
 
-  it('should render two tabs', () => {
+  it('should render three tabs', () => {
     renderDrawer('true');
     expect(screen.getByText('Feed')).toBeInTheDocument();
     expect(screen.getByText('Top')).toBeInTheDocument();
+    expect(screen.getByText('Sky')).toBeInTheDocument();
+  });
+
+  it('shows the Supporter Constellation on the Sky tab, one star per donor', () => {
+    renderDrawer('true');
+    fireEvent.click(screen.getByText('Sky'));
+    expect(screen.getByTestId('supporter-sky')).toBeInTheDocument();
+    // The fixture has two donors, so the sky holds two stars.
+    expect(screen.getAllByTestId('sky-star')).toHaveLength(2);
+    expect(screen.getByTestId('sky-expand')).toBeInTheDocument();
   });
 
   it('should render donation cards in feed view', () => {

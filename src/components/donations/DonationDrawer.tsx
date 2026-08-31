@@ -7,6 +7,7 @@ import { useDonations } from './useDonations';
 import { DonationView } from './donationTypes';
 import DonationFeed from './DonationFeed';
 import DonationLeaderboard from './DonationLeaderboard';
+import SupporterSky from './SupporterSky';
 import DonationDrawerFooter from './DonationDrawerFooter';
 
 export const DRAWER_WIDTH = 320;
@@ -95,6 +96,7 @@ const DonationDrawer = () => {
         >
           <Tab label="Feed" value={DonationView.FEED} />
           <Tab label="Top" value={DonationView.LEADERBOARD} />
+          <Tab label="Sky" value={DonationView.SKY} data-testid="donation-tab-sky" />
         </Tabs>
 
         <Box
@@ -119,6 +121,8 @@ const DonationDrawer = () => {
             </Box>
           ) : view === DonationView.FEED ? (
             <DonationFeed donations={donations} visibleCount={visibleCount} />
+          ) : view === DonationView.SKY ? (
+            <SupporterSky donations={donations} />
           ) : (
             <DonationLeaderboard donations={donations} visibleCount={visibleCount} />
           )}

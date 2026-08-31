@@ -1,6 +1,7 @@
 export enum DonationView {
   FEED = 'FEED',
   LEADERBOARD = 'LEADERBOARD',
+  SKY = 'SKY',
 }
 
 export enum LeaderboardPeriod {
