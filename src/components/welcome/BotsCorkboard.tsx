@@ -10,6 +10,7 @@ import { storage } from '@/extension/storage';
 import { BOTS, BOT_IDEA_MAILTO, CORKBOARD_COLLAPSED_STORAGE_KEY, type BotEntry } from './bots';
 import RetrostatMark from './RetrostatMark';
 import ScourMark from './ScourMark';
+import VestedMark from './VestedMark';
 import DeveloperCard from './DeveloperCard';
 
 /**
@@ -29,6 +30,7 @@ import DeveloperCard from './DeveloperCard';
 const MARKS: Record<string, (size: number) => React.ReactNode> = {
   retrostat: (size) => <RetrostatMark size={size} />,
   scour: (size) => <ScourMark size={size} />,
+  vested: (size) => <VestedMark size={size} />,
 };
 
 /** Small seeded tilt so the pins look hand-placed but never move between renders. */

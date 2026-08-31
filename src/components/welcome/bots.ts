@@ -50,6 +50,17 @@ export const BOTS: BotEntry[] = [
     installUrl: `${SITE}/go/scour?from=discrub`,
     pageUrl: `${SITE}/scour`,
   },
+  {
+    id: 'vested',
+    name: 'Vested',
+    tagline: 'Timed roles that expire on their own',
+    pitch:
+      'Grant a role for a week, a month, or until a date, and Vested takes it back on time. Every grant keeps its story: who gave it, when, and why.',
+    chips: ['Timed roles', 'Auto expiry', 'Audit trail', 'One permission'],
+    installUrl: `${SITE}/go/vested?from=discrub`,
+    pageUrl: `${SITE}/vested`,
+    sticker: 'Become a founder. The first 100 servers get Premium for life.',
+  },
 ];
 
 /** Where bot ideas go; mirrors the site's workbench address. */
