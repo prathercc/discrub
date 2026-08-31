@@ -18,11 +18,14 @@ import DeveloperCard from './DeveloperCard';
  * Prather Bytecraft Discord bots. Deliberately styled unlike the feature
  * cards (those are what Discrub does) so it reads as a board, not a banner.
  *
- * - Data-driven from `bots.ts`; one pinned card per bot, a Discord-style
- *   message from the developer (`DeveloperCard`), plus sticky notes.
+ * - Data-driven from `bots.ts`; one carousel slot showing the active bot's
+ *   card on top of a stack of paper backs (so the slot visibly holds more
+ *   than one card), a Discord-style message from the developer
+ *   (`DeveloperCard`), plus sticky notes.
  * - Collapsible; the folded state persists in `Discrub-state` and the board
  *   never re-expands on its own.
- * - No animation loops, no autoplay. Hover lifts a card slightly.
+ * - Gentle auto-rotate: pauses on hover, waits out a longer grace after a
+ *   manual pick, and sits still under prefers-reduced-motion.
  * - A red thread runs from each bot's sticker note to that bot's pin, drawn
  *   as an SVG overlay from measured pin positions (re-measured on resize).
  */
@@ -38,6 +41,13 @@ const tiltFor = (index: number) => [-1.6, 1.2, -0.8, 1.8][index % 4];
 
 /** How long a bot holds the carousel slot before it flips on its own. */
 const AUTO_ADVANCE_MS = 7000;
+
+/**
+ * After a manual pick, how long the rotation waits before resuming. Long
+ * enough to read the chosen card in peace, short enough that the board
+ * doesn't die the first time someone touches it (owner ask 2026-08-31).
+ */
+const MANUAL_RESUME_MS = 20000;
 
 /**
  * Animates to its content's measured height so bot flips glide instead of
@@ -260,7 +270,9 @@ const BotsCorkboard = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(true);
+  // Bumped by every manual pick; the rotation effect restarts and waits the
+  // longer MANUAL_RESUME_MS grace before flipping again.
+  const [interactions, setInteractions] = useState(0);
   const [hovered, setHovered] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const open = loaded && !collapsed;
@@ -295,24 +307,30 @@ const BotsCorkboard = () => {
     storage.state.set(CORKBOARD_COLLAPSED_STORAGE_KEY, next).catch(() => {});
   };
 
-  // Gentle auto-rotate (owner ask 2026-08-30): flips on its own until the
-  // user touches a control, pauses while the pointer is over the board, and
+  // Gentle auto-rotate (owner ask 2026-08-30): flips on its own, pauses
+  // while the pointer is over the board, waits out a longer grace after a
+  // manual pick instead of stopping for good (owner ask 2026-08-31), and
   // sits still for anyone who asked their OS for reduced motion.
   useEffect(() => {
-    if (!open || !autoPlay || hovered || BOTS.length < 2) return;
+    if (!open || hovered || BOTS.length < 2) return;
     if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    const timer = setInterval(() => setActiveIndex((i) => (i + 1) % BOTS.length), AUTO_ADVANCE_MS);
-    return () => clearInterval(timer);
-  }, [open, autoPlay, hovered]);
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      setActiveIndex((i) => (i + 1) % BOTS.length);
+      timer = setTimeout(tick, AUTO_ADVANCE_MS);
+    };
+    timer = setTimeout(tick, interactions > 0 ? MANUAL_RESUME_MS : AUTO_ADVANCE_MS);
+    return () => clearTimeout(timer);
+  }, [open, hovered, interactions]);
 
   if (BOTS.length === 0 || !activeBot) return null;
   const showControls = BOTS.length > 1;
   const step = (delta: number) => {
-    setAutoPlay(false); // the user took the wheel; never fight them
+    setInteractions((n) => n + 1);
     setActiveIndex((i) => (i + delta + BOTS.length) % BOTS.length);
   };
   const jumpTo = (index: number) => {
-    setAutoPlay(false);
+    setInteractions((n) => n + 1);
     setActiveIndex(index);
   };
 
@@ -369,14 +387,44 @@ const BotsCorkboard = () => {
         >
           <Threads threads={threads} />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, width: { xs: '100%', sm: 'auto' } }}>
-            <Box
-              key={activeBot.id}
-              sx={{
-                animation: 'corkboardCardFade 220ms ease',
-                '@keyframes corkboardCardFade': { from: { opacity: 0.2 }, to: { opacity: 1 } },
-              }}
-            >
-              <PinnedCard bot={activeBot} index={activeIndex} />
+            <Box sx={{ position: 'relative' }}>
+              {/* Paper backs peeking out behind the active card, one per
+                  other bot (capped at two), so the slot visibly holds a
+                  stack — the "there's more here" cue the lone card lacked. */}
+              {showControls &&
+                [
+                  { rotate: 3.2, x: 9, y: 5 },
+                  { rotate: -2.4, x: -8, y: 9 },
+                ]
+                  .slice(0, Math.min(2, BOTS.length - 1))
+                  .map((back) => (
+                    <Box
+                      key={`${back.rotate}`}
+                      aria-hidden
+                      data-testid="corkboard-stack-back"
+                      sx={{
+                        position: 'absolute',
+                        inset: 0,
+                        borderRadius: 1,
+                        bgcolor: 'background.paper',
+                        filter: 'brightness(0.72)',
+                        transform: `rotate(${back.rotate}deg) translate(${back.x}px, ${back.y}px)`,
+                        boxShadow: '0 4px 10px rgba(0,0,0,0.3)',
+                      }}
+                    >
+                      <Pin />
+                    </Box>
+                  ))}
+              <Box
+                key={activeBot.id}
+                sx={{
+                  position: 'relative',
+                  animation: 'corkboardCardFade 220ms ease',
+                  '@keyframes corkboardCardFade': { from: { opacity: 0.2 }, to: { opacity: 1 } },
+                }}
+              >
+                <PinnedCard bot={activeBot} index={activeIndex} />
+              </Box>
             </Box>
             {showControls && (
               <Box
@@ -437,6 +485,20 @@ const BotsCorkboard = () => {
                 >
                   <NextIcon fontSize="small" />
                 </IconButton>
+                <Typography
+                  variant="caption"
+                  data-testid="corkboard-counter"
+                  sx={{
+                    ml: 0.5,
+                    color: '#f7ecd8',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    textShadow: '0 1px 2px rgba(0,0,0,0.55)',
+                    userSelect: 'none',
+                  }}
+                >
+                  {activeIndex + 1} / {BOTS.length}
+                </Typography>
               </Box>
             )}
           </Box>

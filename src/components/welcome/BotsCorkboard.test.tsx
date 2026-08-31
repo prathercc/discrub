@@ -66,16 +66,37 @@ describe('BotsCorkboard', () => {
         vi.advanceTimersByTime(7000);
       });
       expect(screen.getByTestId(`corkboard-bot-${BOTS[1].id}`)).toBeInTheDocument();
-      // A manual pick stops the auto-rotate for good.
+      // A manual pick pauses the rotation for a longer grace, then it
+      // resumes on its own (owner ask 2026-08-31: never dead, never pushy).
       fireEvent.click(screen.getByTestId(`corkboard-dot-${BOTS[0].id}`));
       expect(screen.getByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
       act(() => {
-        vi.advanceTimersByTime(30000);
+        vi.advanceTimersByTime(19000);
       });
       expect(screen.getByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[1].id}`)).toBeInTheDocument();
+      // And once resumed, the normal cadence is back.
+      act(() => {
+        vi.advanceTimersByTime(7000);
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[2].id}`)).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it('shows the stack backs and the position counter so the slot reads as a carousel', async () => {
+    renderWithProviders(<BotsCorkboard />);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getAllByTestId('corkboard-stack-back')).toHaveLength(Math.min(2, BOTS.length - 1));
+    expect(screen.getByTestId('corkboard-counter')).toHaveTextContent(`1 / ${BOTS.length}`);
+    fireEvent.click(screen.getByTestId('corkboard-next'));
+    expect(screen.getByTestId('corkboard-counter')).toHaveTextContent(`2 / ${BOTS.length}`);
   });
 
   it('pauses the auto-rotate while the pointer is over the board', async () => {
