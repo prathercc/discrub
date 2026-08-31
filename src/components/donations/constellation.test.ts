@@ -116,15 +116,23 @@ describe('constellation (site-parity spec copy)', () => {
   });
 
   describe('novas and names', () => {
-    it('caps the pulsing stars at the newest arrivals', () => {
+    it('caps the pulsing stars at the newest arrivals plus the reigning top supporter', () => {
       const now = new Date('2026-08-31T00:00:00Z');
       const supporters = aggregateSupporters(
         Array.from({ length: 10 }, (_, i) =>
-          donation({ donorId: `new-${i}`, transactionId: `t-${i}`, timestamp: `2026-08-${21 + (i % 9)}T00:00:00Z` }),
+          donation({
+            donorId: `new-${i}`,
+            transactionId: `t-${i}`,
+            amount: i === 3 ? 500 : 5,
+            timestamp: `2026-08-${21 + (i % 9)}T00:00:00Z`,
+          }),
         ),
         now,
       );
-      expect(pickNovaIds(supporters, now).size).toBe(MAX_NOVA_STARS);
+      const novaIds = pickNovaIds(supporters, now);
+      // Five newest arrivals plus the top supporter (site parity).
+      expect(novaIds.size).toBe(MAX_NOVA_STARS + 1);
+      expect(novaIds.has('new-3')).toBe(true);
     });
 
     it('shows placeholder donors as quiet supporters', () => {

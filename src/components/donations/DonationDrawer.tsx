@@ -102,7 +102,13 @@ const DonationDrawer = () => {
         <Box
           ref={scrollRef}
           onScroll={handleScroll}
-          sx={{ flex: 1, overflow: 'auto', p: 1.5 }}
+          // The Sky tab fills the column instead of scrolling: the sky
+          // itself stretches to take every spare pixel.
+          sx={
+            view === DonationView.SKY
+              ? { flex: 1, overflow: 'hidden', p: 1.5, display: 'flex', flexDirection: 'column', minHeight: 0 }
+              : { flex: 1, overflow: 'auto', p: 1.5 }
+          }
         >
           {isLoading ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

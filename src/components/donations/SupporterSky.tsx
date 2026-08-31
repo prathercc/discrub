@@ -8,7 +8,9 @@ import {
   aggregateSupporters,
   daysSinceJoined,
   displayName,
+  findNewestStar,
   formatTotal,
+  isGenericName,
   isNewSupporter,
   mulberry32,
   pickNovaIds,
@@ -20,8 +22,8 @@ import {
  * The Supporter Constellation, ported from the pratherbytecraft.com
  * Supporter Wall (2026-08-31, owner ask): the same night sky, fed by the
  * same donation data the drawer already holds, with every star in the
- * same seeded spot as on the site. Mini mode lives in the drawer's Sky
- * tab; the expand control opens the full-screen sky.
+ * same seeded spot as on the site. Mini mode fills the drawer's Sky tab
+ * top to bottom; the expand control opens the full-screen sky.
  */
 
 const FLAME = '#ff9d5c';
@@ -220,7 +222,7 @@ function TierLegend({ compact }: { compact?: boolean }) {
       direction="row"
       justifyContent="center"
       alignItems="center"
-      sx={{ mt: compact ? 1.25 : 2, flexWrap: 'wrap', columnGap: compact ? 1.5 : 3, rowGap: 0.75 }}
+      sx={{ mt: compact ? 1 : 2, flexWrap: 'wrap', columnGap: compact ? 1.5 : 3, rowGap: 0.75 }}
     >
       {[...CONSTELLATION_TIERS].reverse().map((tier) => (
         <Stack key={tier.key} direction="row" spacing={0.6} alignItems="center">
@@ -245,14 +247,29 @@ function TierLegend({ compact }: { compact?: boolean }) {
 
 interface SkyPanelProps {
   stars: PlacedStar[];
-  height: number | string;
   onExpandToggle?: () => void;
   expanded?: boolean;
+  compact?: boolean;
 }
 
-function SkyPanel({ stars, height, onExpandToggle, expanded }: SkyPanelProps) {
+/**
+ * The sky plus its stats row and legend, filling whatever height the
+ * parent gives it (the sky itself takes all the slack).
+ */
+function SkyPanel({ stars, onExpandToggle, expanded, compact }: SkyPanelProps) {
   const [active, setActive] = useState<PlacedStar | null>(null);
   const [pinned, setPinned] = useState(false);
+
+  const monthlyCount = useMemo(() => stars.filter((s) => s.supporter.isActiveSubscriber).length, [stars]);
+  const newestStar = useMemo(() => findNewestStar(stars), [stars]);
+  // Named Gigabyte/Megabyte stars carry a persistent label, as on the site.
+  const labeledStars = useMemo(
+    () =>
+      stars.filter(
+        (s) => (s.tier.key === 'gigabyte' || s.tier.key === 'megabyte') && !isGenericName(s.supporter.name),
+      ),
+    [stars],
+  );
 
   const handleEnter = (star: PlacedStar) => {
     if (!pinned) setActive(star);
@@ -272,73 +289,129 @@ function SkyPanel({ stars, height, onExpandToggle, expanded }: SkyPanelProps) {
   };
 
   return (
-    <Box
-      data-testid="supporter-sky"
-      sx={{
-        position: 'relative',
-        height,
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: 'divider',
-        overflow: 'hidden',
-        background:
-          'radial-gradient(ellipse 60% 50% at 22% 28%, rgba(88, 101, 242, 0.09), transparent 65%), ' +
-          'radial-gradient(ellipse 55% 45% at 78% 72%, rgba(139, 92, 246, 0.08), transparent 65%), ' +
-          'radial-gradient(ellipse 40% 35% at 60% 15%, rgba(124, 232, 196, 0.04), transparent 60%), ' +
-          '#05060c',
-        '@media (prefers-reduced-motion: reduce)': {
-          '& *': { animation: 'none !important' },
-        },
-      }}
-    >
-      {DUST.map((d, i) => (
-        <Box
-          key={i}
-          sx={{
-            position: 'absolute',
-            left: `${d.x}%`,
-            top: `${d.y}%`,
-            width: d.size,
-            height: d.size,
-            borderRadius: '50%',
-            backgroundColor: '#e7e9f4',
-            opacity: d.opacity,
-            pointerEvents: 'none',
-          }}
-        />
-      ))}
-      {stars.map((star) => (
-        <StarDot
-          key={star.supporter.donorId}
-          star={star}
-          isActive={active?.supporter.donorId === star.supporter.donorId}
-          onEnter={handleEnter}
-          onLeave={handleLeave}
-          onToggle={handleToggle}
-        />
-      ))}
-      {active && <StarTooltip star={active} />}
-      {onExpandToggle && (
-        <Tooltip title={expanded ? 'Close the sky' : 'Open the full sky'} enterDelay={0} arrow>
-          <IconButton
-            size="small"
-            onClick={onExpandToggle}
-            aria-label={expanded ? 'Close the sky' : 'Open the full sky'}
-            data-testid="sky-expand"
+    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
+      <Box
+        data-testid="supporter-sky"
+        sx={{
+          position: 'relative',
+          flex: 1,
+          minHeight: 240,
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          overflow: 'hidden',
+          background:
+            'radial-gradient(ellipse 60% 50% at 22% 28%, rgba(88, 101, 242, 0.09), transparent 65%), ' +
+            'radial-gradient(ellipse 55% 45% at 78% 72%, rgba(139, 92, 246, 0.08), transparent 65%), ' +
+            'radial-gradient(ellipse 40% 35% at 60% 15%, rgba(124, 232, 196, 0.04), transparent 60%), ' +
+            '#05060c',
+          '@media (prefers-reduced-motion: reduce)': {
+            '& *': { animation: 'none !important' },
+          },
+        }}
+      >
+        {DUST.map((d, i) => (
+          <Box
+            key={i}
             sx={{
               position: 'absolute',
-              top: 6,
-              right: 6,
-              zIndex: 6,
-              color: 'rgba(231, 233, 244, 0.7)',
-              bgcolor: 'rgba(10, 13, 26, 0.6)',
-              '&:hover': { color: '#f2f3ff', bgcolor: 'rgba(10, 13, 26, 0.85)' },
+              left: `${d.x}%`,
+              top: `${d.y}%`,
+              width: d.size,
+              height: d.size,
+              borderRadius: '50%',
+              backgroundColor: '#e7e9f4',
+              opacity: d.opacity,
+              pointerEvents: 'none',
+            }}
+          />
+        ))}
+        {stars.map((star) => (
+          <StarDot
+            key={star.supporter.donorId}
+            star={star}
+            isActive={active?.supporter.donorId === star.supporter.donorId}
+            onEnter={handleEnter}
+            onLeave={handleLeave}
+            onToggle={handleToggle}
+          />
+        ))}
+        {labeledStars.map((star) => (
+          <Typography
+            key={`label-${star.supporter.donorId}`}
+            sx={{
+              position: 'absolute',
+              left: `${star.x}%`,
+              top: `${star.y}%`,
+              transform: `translate(-50%, ${star.size / 2 + 8}px)`,
+              fontFamily: 'monospace',
+              fontSize: compact ? 10 : 11,
+              color: alpha(star.tier.color, 0.85),
+              textShadow: '0 1px 6px rgba(0,0,0,0.9)',
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
             }}
           >
-            {expanded ? <CollapseIcon sx={{ fontSize: 16 }} /> : <ExpandIcon sx={{ fontSize: 16 }} />}
-          </IconButton>
-        </Tooltip>
-      )}
+            {star.supporter.name.trim()}
+          </Typography>
+        ))}
+        {active && <StarTooltip star={active} />}
+        {onExpandToggle && (
+          <Tooltip title={expanded ? 'Close the sky' : 'Open the full sky'} enterDelay={0} arrow>
+            <IconButton
+              size="small"
+              onClick={onExpandToggle}
+              aria-label={expanded ? 'Close the sky' : 'Open the full sky'}
+              data-testid="sky-expand"
+              sx={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                zIndex: 6,
+                color: 'rgba(231, 233, 244, 0.7)',
+                bgcolor: 'rgba(10, 13, 26, 0.6)',
+                '&:hover': { color: '#f2f3ff', bgcolor: 'rgba(10, 13, 26, 0.85)' },
+              }}
+            >
+              {expanded ? <CollapseIcon sx={{ fontSize: 16 }} /> : <ExpandIcon sx={{ fontSize: 16 }} />}
+            </IconButton>
+          </Tooltip>
+        )}
+      </Box>
+
+      <Stack
+        direction="row"
+        spacing={compact ? 1.5 : 4}
+        justifyContent="center"
+        sx={{ mt: compact ? 1 : 2, flexWrap: 'wrap', rowGap: 0.5 }}
+        data-testid="sky-stats"
+      >
+        <Typography sx={{ color: 'text.secondary', fontSize: compact ? 11 : 14, fontFamily: 'monospace' }}>
+          {stars.length} stars
+        </Typography>
+        {monthlyCount > 0 && (
+          <Typography sx={{ color: FLAME, fontSize: compact ? 11 : 14, fontFamily: 'monospace' }}>
+            {monthlyCount} burning monthly
+          </Typography>
+        )}
+        {newestStar && (
+          <Typography
+            data-testid="sky-newest"
+            onClick={() => handleToggle(newestStar)}
+            sx={{
+              color: NOVA,
+              fontSize: compact ? 11 : 14,
+              fontFamily: 'monospace',
+              cursor: 'pointer',
+              '&:hover': { textDecoration: 'underline' },
+            }}
+          >
+            {`newest: ${displayName(newestStar.supporter)} ✦`}
+          </Typography>
+        )}
+      </Stack>
+
+      <TierLegend compact={compact} />
     </Box>
   );
 }
@@ -351,16 +424,17 @@ const SupporterSky = ({ donations }: { donations: Donation[] }) => {
   }, [donations]);
 
   return (
-    <Box>
-      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1 }}>
+    <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, height: '100%', minHeight: 0 }}>
+      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', mb: 1, flexShrink: 0 }}>
         Every supporter is a star with a permanent place in the sky, the same spot as on{' '}
         <Box component="span" sx={{ whiteSpace: 'nowrap' }}>
           pratherbytecraft.com
         </Box>
         . Hover or tap one.
       </Typography>
-      <SkyPanel stars={stars} height={430} onExpandToggle={() => setExpanded(true)} />
-      <TierLegend compact />
+      <Box sx={{ flex: 1, minHeight: 0 }}>
+        <SkyPanel stars={stars} onExpandToggle={() => setExpanded(true)} compact />
+      </Box>
 
       <Dialog
         fullScreen
@@ -368,14 +442,15 @@ const SupporterSky = ({ donations }: { donations: Donation[] }) => {
         onClose={() => setExpanded(false)}
         PaperProps={{ sx: { bgcolor: 'background.default', p: { xs: 2, sm: 4 } } }}
       >
-        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>
+        <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5, flexShrink: 0 }}>
           The Supporter Constellation
         </Typography>
-        <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 2 }}>
+        <Typography sx={{ fontSize: '0.85rem', color: 'text.secondary', mb: 2, flexShrink: 0 }}>
           Everyone who has supported Discrub, each with a permanent place in the sky.
         </Typography>
-        <SkyPanel stars={stars} height="calc(100vh - 220px)" onExpandToggle={() => setExpanded(false)} expanded />
-        <TierLegend />
+        <Box sx={{ flex: 1, minHeight: 0 }}>
+          <SkyPanel stars={stars} onExpandToggle={() => setExpanded(false)} expanded />
+        </Box>
       </Dialog>
     </Box>
   );

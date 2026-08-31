@@ -200,13 +200,26 @@ export function daysSinceJoined(s: Supporter, now: Date = new Date()): number {
 
 /** The newest arrivals, capped, for the nova pulse. */
 export function pickNovaIds(supporters: Supporter[], now: Date = new Date()): Set<string> {
-  return new Set(
+  const ids = new Set(
     supporters
       .filter((s) => isNewSupporter(s, now))
       .sort((a, b) => new Date(b.firstTimestamp).getTime() - new Date(a.firstTimestamp).getTime())
       .slice(0, MAX_NOVA_STARS)
       .map((s) => s.donorId),
   );
+  // The reigning top supporter always pulses too (supporters arrive
+  // sorted by total, descending) — site parity.
+  if (supporters.length > 0) ids.add(supporters[0].donorId);
+  return ids;
+}
+
+/** The most recently arrived star, for the clickable "newest" stat. */
+export function findNewestStar(stars: PlacedStar[]): PlacedStar | null {
+  return stars.length === 0
+    ? null
+    : stars.reduce((a, b) =>
+        new Date(a.supporter.firstTimestamp).getTime() >= new Date(b.supporter.firstTimestamp).getTime() ? a : b,
+      );
 }
 
 /**
