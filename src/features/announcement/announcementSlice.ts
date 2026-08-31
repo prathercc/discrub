@@ -26,7 +26,7 @@ export const fetchAnnouncement = createAsyncThunk(
       // be misread and a previously-dismissed announcement could pop
       // back up. Fail closed: skip the check until settings exist.
       if (!settings) {
-        return rejectWithValue('Settings not loaded yet — try again');
+        return rejectWithValue('Settings not loaded yet; try again');
       }
       // Settings can also be PARTIAL during boot if a `updateSetting`
       // landed before `loadSettings.fulfilled` (the dispatch in

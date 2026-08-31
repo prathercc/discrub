@@ -128,7 +128,7 @@ async function fetchReactionData(
 
   dispatch(addStatusEntry({
     level: 'info',
-    message: `Export: Fetching reaction details — ${messagesWithReactions.length} messages, ${totalEmojis} reactions, ~${totalReactors} total reactors. This may take a while.`,
+    message: `Export: Fetching reaction details: ${messagesWithReactions.length} messages, ${totalEmojis} reactions, ~${totalReactors} total reactors. This may take a while.`,
   }));
 
   try {
@@ -162,7 +162,7 @@ async function fetchReactionData(
     return result.reactionMap;
   } catch (error) {
     const msg = error instanceof Error ? error.message : 'Unknown error';
-    dispatch(addStatusEntry({ level: 'warning', message: `Export: Could not fetch reaction data — ${msg}` }));
+    dispatch(addStatusEntry({ level: 'warning', message: `Export: Could not fetch reaction data: ${msg}` }));
     return undefined;
   }
 }
@@ -270,7 +270,7 @@ function buildZipOptions(
       if (partIndex >= 2) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Export reached the size limit — continuing in a new file (${fileName})`,
+          message: `Export reached the size limit; continuing in a new file (${fileName})`,
         }));
       }
     },
@@ -278,13 +278,13 @@ function buildZipOptions(
       const gb = (size / 1_000_000_000).toFixed(1);
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `${fileName} is ${gb} GB on its own — too large for one zip file and may not open correctly.`,
+        message: `${fileName} is ${gb} GB on its own, too large for one zip file and may not open correctly.`,
       }));
     },
     onPathCollision: ({ requestedPath, finalPath }) => {
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `Two files wanted the name ${requestedPath} — saved the second as ${finalPath} and kept going.`,
+        message: `Two files wanted the name ${requestedPath}; saved the second as ${finalPath} and kept going.`,
       }));
     },
   };
@@ -554,14 +554,14 @@ export const exportMessages = createAsyncThunk<
       if (error instanceof CancelledError) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Export: Cancelled — ${channelName}`,
+          message: `Export: Cancelled · ${channelName}`,
         }));
         return rejectWithValue('Export cancelled');
       }
       const errorMsg = error instanceof Error ? error.message : 'Failed to export messages';
       dispatch(addStatusEntry({
         level: 'error',
-        message: `Export: Failed on ${channelName} — ${errorMsg}`,
+        message: `Export: Failed on ${channelName}: ${errorMsg}`,
       }));
       return rejectWithValue(errorMsg);
     }
@@ -657,7 +657,7 @@ async function fetchAllChannelMessages(
           if ((page as { stillIndexing?: boolean }).stillIndexing) {
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Discord is still indexing ${label} — this export may be missing messages. Re-run it after indexing finishes for a complete set.`,
+              message: `Discord is still indexing ${label}; this export may be missing messages. Re-run it after indexing finishes for a complete set.`,
             }));
           }
         }
@@ -1091,7 +1091,7 @@ export const bulkExportChannels = createAsyncThunk<
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: Starting channel ${i + 1}/${expandedChannels.length} — ${channelName}`,
+          message: `Bulk export: Starting channel ${i + 1}/${expandedChannels.length}: ${channelName}`,
         }));
 
         try {
@@ -1177,7 +1177,7 @@ export const bulkExportChannels = createAsyncThunk<
           errors.push(`${channelName}: ${errorMsg}`);
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Bulk export: Failed on ${channelName} — ${errorMsg}`,
+            message: `Bulk export: Failed on ${channelName}: ${errorMsg}`,
           }));
           // Continue with next channel
         }
@@ -1356,7 +1356,7 @@ export const bulkExportDMs = createAsyncThunk<
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: Starting DM ${i + 1}/${channels.length} — ${dmName}`,
+          message: `Bulk export: Starting DM ${i + 1}/${channels.length}: ${dmName}`,
         }));
 
         try {
@@ -1440,7 +1440,7 @@ export const bulkExportDMs = createAsyncThunk<
           errors.push(`${dmName}: ${errorMsg}`);
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Bulk export: Failed on ${dmName} — ${errorMsg}`,
+            message: `Bulk export: Failed on ${dmName}: ${errorMsg}`,
           }));
         }
 

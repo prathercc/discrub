@@ -547,7 +547,7 @@ export const deletePackageMessages = createAsyncThunk<
 
   const channel = state.package.parsed?.channels.find((c) => c.id === channelId);
   if (!channel) return rejectWithValue('Channel not found in package');
-  if (channel.isOrphan) return rejectWithValue("You are no longer in this server — messages can't be deleted");
+  if (channel.isOrphan) return rejectWithValue("You are no longer in this server, so messages can't be deleted");
 
   // Filter out messages we already know don't exist on Discord — either
   // because this user deleted them previously or because rehydration
@@ -820,7 +820,7 @@ export const exportPackageChannel = createAsyncThunk<
       onPathCollision: ({ requestedPath, finalPath }: { requestedPath: string; finalPath: string }) => {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Two files wanted the name ${requestedPath} — saved the second as ${finalPath} and kept going.`,
+          message: `Two files wanted the name ${requestedPath}; saved the second as ${finalPath} and kept going.`,
         }));
       },
     };

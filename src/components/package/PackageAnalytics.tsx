@@ -114,7 +114,7 @@ const PackageAnalytics = () => {
           <Stack direction="row" alignItems="center" spacing={2}>
             <Typography variant="body2" color="text.secondary" sx={{ flexGrow: 1 }}>
               Build month-by-month and hour-of-day breakdowns. Reads every
-              channel's CSV once — this may take a moment for large packages.
+              channel's CSV once; this may take a moment for large packages.
             </Typography>
             <Button
               variant="outlined"
@@ -292,7 +292,7 @@ const TimelineCharts = ({ stats }: { stats: ReturnType<typeof computeTimelineSta
         {stats.firstTimestamp && (
           <Box>
             <Typography variant="h6">
-              {formatDate(stats.firstTimestamp)} –{' '}
+              {formatDate(stats.firstTimestamp)} to{' '}
               {formatDate(stats.lastTimestamp ?? stats.firstTimestamp)}
             </Typography>
             <Typography variant="caption" color="text.secondary">
@@ -341,7 +341,7 @@ const TimelineCharts = ({ stats }: { stats: ReturnType<typeof computeTimelineSta
           {stats.byHour.map((b) => (
             <Box
               key={b.hour}
-              title={`${b.hour}:00 UTC — ${b.count.toLocaleString()}`}
+              title={`${b.hour}:00 UTC · ${b.count.toLocaleString()}`}
               sx={{
                 flexGrow: 1,
                 height: `${(b.count / maxHour) * 100}%`,

@@ -365,7 +365,7 @@ export function validatePackage(
 
   if (!authenticatedUserId) {
     warnings.push(
-      'Not signed in — analytics and browsing are available, but deleting or editing messages requires authentication.',
+      'Not signed in: analytics and browsing are available, but deleting or editing messages requires authentication.',
     );
     return { ok: true, readOnly: true, warnings, errors };
   }

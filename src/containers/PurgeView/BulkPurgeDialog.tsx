@@ -330,7 +330,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
             </ToggleButtonGroup>
             {uiMode === 'attachmentsOnly' && (
               <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
-                Strips media but preserves the message text. Discord only allows you to edit messages you authored — other users' messages can't be stripped via the API and will fail.
+                Strips media but preserves the message text. Discord only allows you to edit messages you authored; other users' messages can't be stripped via the API and will fail.
               </Typography>
             )}
             {uiMode === 'clearReactions' && (
@@ -369,8 +369,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                           filterCount={filterCount}
                           onOpen={openFilterModal}
                           helperText={isMessagesFamily
-                            ? "Optional — narrow by date range, content, attachments, etc."
-                            : "Optional — narrow which messages to scan by author, date, content, etc."}
+                            ? "Optional: narrow by date range, content, attachments, etc."
+                            : "Optional: narrow which messages to scan by author, date, content, etc."}
                         />
                       </Box>
                     )}
@@ -399,7 +399,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                         <BulkFilterButton
                           filterCount={filterCount}
                           onOpen={openFilterModal}
-                          helperText="Optional — narrow which messages to scan by author, date, content, etc. (reactor picker above is independent)."
+                          helperText="Optional: narrow which messages to scan by author, date, content, etc. (reactor picker above is independent)."
                         />
                       </Box>
                     )}
@@ -415,7 +415,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
               <BulkFilterButton
                 filterCount={filterCount}
                 onOpen={openFilterModal}
-                helperText="Optional — narrow which messages to clear reactions from by author, date, content, etc."
+                helperText="Optional: narrow which messages to clear reactions from by author, date, content, etc."
               />
             </Box>
           )}
@@ -529,7 +529,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
                 <SystemMessageTypePicker
                   selectedGroups={selectedSystemGroups}
                   onChange={setSelectedSystemGroups}
-                  description={`By default the purge leaves Discord's automatic notices in place — the "pinned a message" trail, join and boost notices, and so on. Check any you also want removed.`}
+                  description={`By default the purge leaves Discord's automatic notices in place: the "pinned a message" trail, join and boost notices, and so on. Check any you also want removed.`}
                 />
               </AccordionDetails>
             </Accordion>

@@ -133,11 +133,11 @@ export function generateExportReadme(options: {
   const { format, isDiscordShell, isBulk, channelName } = options;
 
   const shellInstructions = isDiscordShell
-    ? `<li><strong>Open <code>shell.html</code></strong> — This is the main entry point. It provides a Discord-like interface with a server sidebar, channel list, and top bar.</li>
-      <li><strong>Navigate channels</strong> — ${isBulk ? 'Click channels in the left sidebar to switch between them.' : 'Your exported channel is loaded automatically.'}</li>
-      <li><strong>Pick a theme</strong> — Use the theme dropdown in the top bar to restyle the export. It opens in the theme the app was using when you exported.</li>`
-    : `<li><strong>Open the HTML file${isBulk ? 's' : ''}</strong> — ${isBulk ? 'Each channel has its own HTML file. Open any of them directly in your browser.' : `Open <code>${channelName || 'the HTML file'}</code> in your browser.`}</li>
-      <li><strong>Pick a theme</strong> — Use the theme dropdown in the top-right corner to restyle the export. It opens in the theme the app was using when you exported.</li>`;
+    ? `<li><strong>Open <code>shell.html</code></strong>: This is the main entry point. It provides a Discord-like interface with a server sidebar, channel list, and top bar.</li>
+      <li><strong>Navigate channels</strong>: ${isBulk ? 'Click channels in the left sidebar to switch between them.' : 'Your exported channel is loaded automatically.'}</li>
+      <li><strong>Pick a theme</strong>: Use the theme dropdown in the top bar to restyle the export. It opens in the theme the app was using when you exported.</li>`
+    : `<li><strong>Open the HTML file${isBulk ? 's' : ''}</strong>: ${isBulk ? 'Each channel has its own HTML file. Open any of them directly in your browser.' : `Open <code>${channelName || 'the HTML file'}</code> in your browser.`}</li>
+      <li><strong>Pick a theme</strong>: Use the theme dropdown in the top-right corner to restyle the export. It opens in the theme the app was using when you exported.</li>`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -171,22 +171,22 @@ export function generateExportReadme(options: {
 
   <h2>Features</h2>
   <ul>
-    <li><strong>Search</strong> — Use the search bar to find messages by content. Matches are highlighted in yellow.</li>
-    <li><strong>Pagination</strong> — Large exports are split into pages. Use the navigation buttons at the bottom to move between pages.</li>
-    <li><strong>Media</strong> — If media was included, avatars, attachments, and emojis are in the <code>avatars/</code>, <code>media/</code>, and <code>emojis/</code> folders. Images can be clicked to open a full-size lightbox.</li>
-    <li><strong>User profiles</strong> — Click any avatar or username to see user details, badges, and message count.</li>
-    <li><strong>Reactions</strong> — Click reaction counts to see who reacted (if detailed reaction data was exported).</li>
-    <li><strong>Threads</strong> — Thread messages may be in separate files inside a <code>threads/</code> folder.</li>
+    <li><strong>Search</strong>: Use the search bar to find messages by content. Matches are highlighted in yellow.</li>
+    <li><strong>Pagination</strong>: Large exports are split into pages. Use the navigation buttons at the bottom to move between pages.</li>
+    <li><strong>Media</strong>: If media was included, avatars, attachments, and emojis are in the <code>avatars/</code>, <code>media/</code>, and <code>emojis/</code> folders. Images can be clicked to open a full-size lightbox.</li>
+    <li><strong>User profiles</strong>: Click any avatar or username to see user details, badges, and message count.</li>
+    <li><strong>Reactions</strong>: Click reaction counts to see who reacted (if detailed reaction data was exported).</li>
+    <li><strong>Threads</strong>: Thread messages may be in separate files inside a <code>threads/</code> folder.</li>
   </ul>
 
   <h2>File Structure</h2>
   <ul>
-    ${isDiscordShell ? '<li><code>shell.html</code> — Main entry point (Discord layout)</li>' : ''}
-    <li><code>*.html</code> / <code>*.csv</code> / <code>*.json</code> — Exported message data</li>
-    <li><code>avatars/</code> — Downloaded user avatars</li>
-    <li><code>media/</code> — Downloaded attachments (images, videos, audio)</li>
-    <li><code>emojis/</code> — Downloaded custom emojis</li>
-    <li><code>threads/</code> — Thread message files (if threads were exported separately)</li>
+    ${isDiscordShell ? '<li><code>shell.html</code>: Main entry point (Discord layout)</li>' : ''}
+    <li><code>*.html</code> / <code>*.csv</code> / <code>*.json</code>: Exported message data</li>
+    <li><code>avatars/</code>: Downloaded user avatars</li>
+    <li><code>media/</code>: Downloaded attachments (images, videos, audio)</li>
+    <li><code>emojis/</code>: Downloaded custom emojis</li>
+    <li><code>threads/</code>: Thread message files (if threads were exported separately)</li>
   </ul>
 </body>
 </html>`;
@@ -1152,7 +1152,7 @@ class ExportService {
                  } else if (previewMedia && isVideo && isBrowserPlayable) {
                    previewHtml = `<video class="attachment-preview" controls src="${href}"></video>`;
                  } else if (previewMedia && isVideo && !isBrowserPlayable) {
-                   previewHtml = `<div class="video-unsupported"><span class="video-unsupported-icon">🎬</span><span class="video-unsupported-text">.${ext.toUpperCase()} preview not available — <a href="${href}" ${isLocal ? '' : 'target="_blank" rel="noopener noreferrer"'}>download to play</a></span></div>`;
+                   previewHtml = `<div class="video-unsupported"><span class="video-unsupported-icon">🎬</span><span class="video-unsupported-text">.${ext.toUpperCase()} preview not available · <a href="${href}" ${isLocal ? '' : 'target="_blank" rel="noopener noreferrer"'}>download to play</a></span></div>`;
                  }
 
                  return `

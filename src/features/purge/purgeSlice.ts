@@ -232,7 +232,7 @@ async function* iterateReactionPurgeMessages(
             aroundFailuresReported.add(aroundChannelId);
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't fetch context for some matched messages (${err instanceof Error ? err.message : 'network error'}) — their reactions will be skipped`,
+              message: `Couldn't fetch context for some matched messages (${err instanceof Error ? err.message : 'network error'}); their reactions will be skipped`,
             }));
           }
           continue;
@@ -245,7 +245,7 @@ async function* iterateReactionPurgeMessages(
             aroundFailuresReported.add(aroundChannelId);
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't fetch context for some matched messages (HTTP ${aroundResp?.status ?? '?'}) — their reactions will be skipped`,
+              message: `Couldn't fetch context for some matched messages (HTTP ${aroundResp?.status ?? '?'}); their reactions will be skipped`,
             }));
           }
           continue;
@@ -365,7 +365,7 @@ async function* iterateDeletedUserScan(
           scanIncomplete = true;
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `History scan of ${channelLabel} stopped early after a failed request (${scannedThisChannel.toLocaleString()} messages in) — results may be incomplete. Re-run the purge to cover the rest.`,
+            message: `History scan of ${channelLabel} stopped early after a failed request (${scannedThisChannel.toLocaleString()} messages in); results may be incomplete. Re-run the purge to cover the rest.`,
           }));
         }
         break;
@@ -402,7 +402,7 @@ async function* iterateDeletedUserScan(
         nextScanMilestone += 500;
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Scanned ${scannedTotal.toLocaleString()} messages in ${channelLabel} — ${aggregatedCount.toLocaleString()} from this user so far`,
+          message: `Scanned ${scannedTotal.toLocaleString()} messages in ${channelLabel}, ${aggregatedCount.toLocaleString()} from this user so far`,
         }));
       }
 
@@ -417,7 +417,7 @@ async function* iterateDeletedUserScan(
   dispatch(addStatusEntry({
     level: scanIncomplete ? 'warning' : 'info',
     message: scanIncomplete
-      ? `Scan of ${channelLabel} stopped early: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user — results may be incomplete`
+      ? `Scan of ${channelLabel} stopped early: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user; results may be incomplete`
       : `Scan of ${channelLabel} complete: ${scannedTotal.toLocaleString()} messages checked, ${aggregatedCount.toLocaleString()} from this user`,
   }));
 }
@@ -697,7 +697,7 @@ async function purgeChannelMessages(
     if (targetIsDeleted) {
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `This user's account is deleted, so Discord's search can't find their messages — scanning the full history of ${label} instead (this takes longer)…`,
+        message: `This user's account is deleted, so Discord's search can't find their messages. Scanning the full history of ${label} instead (this takes longer)…`,
       }));
     } else {
       dispatch(addStatusEntry({
@@ -767,7 +767,7 @@ async function purgeChannelMessages(
             // and reporting success would silently miss the rest.
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Discord is still indexing ${label} — this count may be incomplete. Re-run the purge after indexing finishes to catch anything missed.`,
+              message: `Discord is still indexing ${label}; this count may be incomplete. Re-run the purge after indexing finishes to catch anything missed.`,
             }));
           }
         } else if ((page as { stillIndexing?: boolean }).stillIndexing) {
@@ -776,7 +776,7 @@ async function purgeChannelMessages(
           // cause of "purge found nothing in my group DM" reports.
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Discord is still indexing ${label} — search may return nothing until indexing finishes. Try this purge again in a little while.`,
+            message: `Discord is still indexing ${label}; search may return nothing until indexing finishes. Try this purge again in a little while.`,
           }));
         }
       }
@@ -934,8 +934,8 @@ async function purgeChannelMessages(
               dispatch(addStatusEntry({
                 level: 'warning',
                 message: status === 403
-                  ? `Missing permission to un-archive thread ${threadId} — its messages will be skipped`
-                  : `Failed to un-archive thread ${threadId} (HTTP ${status ?? '?'}) — its messages will be skipped`,
+                  ? `Missing permission to un-archive thread ${threadId}; its messages will be skipped`
+                  : `Failed to un-archive thread ${threadId} (HTTP ${status ?? '?'}); its messages will be skipped`,
               }));
             }
           }
@@ -981,7 +981,7 @@ async function purgeChannelMessages(
               totalFailed++;
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Couldn't delete attachment-only message (HTTP ${response.status ?? '?'}) — message ${message.id}`,
+                message: `Couldn't delete attachment-only message (HTTP ${response.status ?? '?'}) · message ${message.id}`,
               }));
             }
           } else {
@@ -998,7 +998,7 @@ async function purgeChannelMessages(
               totalFailed++;
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Couldn't strip attachments (HTTP ${response.status ?? '?'}) — message ${message.id}`,
+                message: `Couldn't strip attachments (HTTP ${response.status ?? '?'}) · message ${message.id}`,
               }));
             }
           }
@@ -1020,7 +1020,7 @@ async function purgeChannelMessages(
               totalFailed++;
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Couldn't clear message text (HTTP ${response.status ?? '?'}) — message ${message.id}`,
+                message: `Couldn't clear message text (HTTP ${response.status ?? '?'}) · message ${message.id}`,
               }));
             }
           }
@@ -1043,7 +1043,7 @@ async function purgeChannelMessages(
             totalFailed++;
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't delete (HTTP ${response.status ?? '?'}) — message ${message.id}`,
+              message: `Couldn't delete (HTTP ${response.status ?? '?'}) · message ${message.id}`,
             }));
           }
         }
@@ -1091,7 +1091,7 @@ async function purgeChannelMessages(
   if (totalSkippedNotAuthor > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Skipped ${totalSkippedNotAuthor} message${totalSkippedNotAuthor !== 1 ? 's' : ''} authored by other users — Discord only allows you to edit your own messages.`,
+      message: `Skipped ${totalSkippedNotAuthor} message${totalSkippedNotAuthor !== 1 ? 's' : ''} authored by other users. Discord only lets you edit your own messages.`,
     }));
   }
 
@@ -1102,7 +1102,7 @@ async function purgeChannelMessages(
   if (totalSkippedUnexpectedAuthor > 0) {
     dispatch(addStatusEntry({
       level: 'warning',
-      message: `Skipped ${totalSkippedUnexpectedAuthor} message${totalSkippedUnexpectedAuthor !== 1 ? 's' : ''} returned by search whose author didn't match the target — likely an API anomaly.`,
+      message: `Skipped ${totalSkippedUnexpectedAuthor} message${totalSkippedUnexpectedAuthor !== 1 ? 's' : ''} returned by search whose author didn't match the target, likely an API anomaly.`,
     }));
   }
 
@@ -1113,7 +1113,7 @@ async function purgeChannelMessages(
   if (totalSkippedPinned > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Preserved ${totalSkippedPinned} pinned message${totalSkippedPinned !== 1 ? 's' : ''} — your filter is set to exclude pinned messages.`,
+      message: `Preserved ${totalSkippedPinned} pinned message${totalSkippedPinned !== 1 ? 's' : ''}. Your filter excludes pinned messages.`,
     }));
   }
 
@@ -1279,8 +1279,8 @@ function createThreadMutationGuard(
       dispatch(addStatusEntry({
         level: 'warning',
         message: resp.status === 403
-          ? `Missing permission to un-archive thread ${channelId} — its reactions will be skipped`
-          : `Failed to un-archive thread ${channelId} (HTTP ${resp.status ?? '?'}) — its reactions will be skipped`,
+          ? `Missing permission to un-archive thread ${channelId}; its reactions will be skipped`
+          : `Failed to un-archive thread ${channelId} (HTTP ${resp.status ?? '?'}); its reactions will be skipped`,
       }));
       return false;
     },
@@ -1419,12 +1419,12 @@ async function purgeChannelClearAllReactions(
       if (withReactions > 0) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Scanning — batch ${fetchPageCount}: ${scanned} messages, ${withReactions} with reactions${filterSuffix}`,
+          message: `Scanning batch ${fetchPageCount}: ${scanned} messages, ${withReactions} with reactions${filterSuffix}`,
         }));
       } else if (fetchPageCount === 1 || fetchPageCount % 5 === 0) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Scanning — batch ${fetchPageCount}: ${totalScanned + scanned} messages scanned, no reactions found yet${filterSuffix}`,
+          message: `Scanning batch ${fetchPageCount}: ${totalScanned + scanned} messages scanned, no reactions found yet${filterSuffix}`,
         }));
       }
 
@@ -1469,7 +1469,7 @@ async function purgeChannelClearAllReactions(
             totalFailed++;
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't clear reactions (HTTP ${delResp.status ?? '?'}) — message ${msg.id}`,
+              message: `Couldn't clear reactions (HTTP ${delResp.status ?? '?'}) · message ${msg.id}`,
             }));
           }
 
@@ -1573,12 +1573,12 @@ async function purgeChannelReactions(
     if (withReactions > 0) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Scanning — batch ${fetchPageCount}: ${scanned} messages, ${withReactions} with reactions${filterSuffix}`,
+        message: `Scanning batch ${fetchPageCount}: ${scanned} messages, ${withReactions} with reactions${filterSuffix}`,
       }));
     } else if (fetchPageCount === 1 || fetchPageCount % 5 === 0) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Scanning — batch ${fetchPageCount}: ${totalScanned + scanned} messages scanned, no reactions found yet${filterSuffix}`,
+        message: `Scanning batch ${fetchPageCount}: ${totalScanned + scanned} messages scanned, no reactions found yet${filterSuffix}`,
       }));
     }
 
@@ -1660,7 +1660,7 @@ async function purgeChannelReactions(
                   totalFailed++;
                   dispatch(addStatusEntry({
                     level: 'warning',
-                    message: `Couldn't remove reaction ${reaction.emoji.name || '?'} (HTTP ${delResp.status ?? '?'}) — message ${message.id}`,
+                    message: `Couldn't remove reaction ${reaction.emoji.name || '?'} (HTTP ${delResp.status ?? '?'}) · message ${message.id}`,
                   }));
                 }
 
@@ -1799,7 +1799,7 @@ export const bulkPurgeChannels = createAsyncThunk<
         };
 
         const channelThreads = threadMap?.get(channel.id);
-        const threadInfo = channelThreads?.length ? ` — ${channelThreads.length} thread${channelThreads.length !== 1 ? 's' : ''} discovered` : '';
+        const threadInfo = channelThreads?.length ? ` · ${channelThreads.length} thread${channelThreads.length !== 1 ? 's' : ''} discovered` : '';
         dispatch(addStatusEntry({
           level: 'info',
           message: `${modeLabel}: Starting ${isDm ? '' : '#'}${channelName} (${i + 1} of ${channels.length})${threadInfo}`,
@@ -1884,7 +1884,7 @@ export const bulkPurgeChannels = createAsyncThunk<
                   milestoneBoundary = nextMilestone(scanned);
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} — ${scanned} messages scanned, ${reactionsCleared} cleared`,
+                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} · ${scanned} messages scanned, ${reactionsCleared} cleared`,
                   }));
                 }
               },
@@ -1942,7 +1942,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               : '';
             dispatch(addStatusEntry({
               level: totalFailedClears > 0 ? 'warning' : 'success',
-              message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} — ${totalCleared} message${totalCleared !== 1 ? 's' : ''} cleared of reactions${failedSuffix}`,
+              message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} · ${totalCleared} message${totalCleared !== 1 ? 's' : ''} cleared of reactions${failedSuffix}`,
             }));
           } else if (isReactionsMode) {
             let milestoneBoundary = nextMilestone(0);
@@ -1971,7 +1971,7 @@ export const bulkPurgeChannels = createAsyncThunk<
                   milestoneBoundary = nextMilestone(scanned);
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} — ${scanned} messages scanned, ${reactionsRemoved} reactions removed`,
+                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} · ${scanned} messages scanned, ${reactionsRemoved} reactions removed`,
                   }));
                 }
               },
@@ -2031,7 +2031,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               : '';
             dispatch(addStatusEntry({
               level: totalFailedRemoves > 0 ? 'warning' : 'success',
-              message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} — ${totalChannelReactions} reactions removed${removeFailedSuffix}`,
+              message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} · ${totalChannelReactions} reactions removed${removeFailedSuffix}`,
             }));
           } else {
             let milestoneBoundary = nextMilestone(0);
@@ -2083,7 +2083,7 @@ export const bulkPurgeChannels = createAsyncThunk<
                   );
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} — ${processed} messages processed (${detail})`,
+                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} · ${processed} messages processed (${detail})`,
                   }));
                 }
               },
@@ -2119,7 +2119,7 @@ export const bulkPurgeChannels = createAsyncThunk<
               );
               dispatch(addStatusEntry({
                 level: result.failed > 0 ? 'warning' : 'success',
-                message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} — ${detail}`,
+                message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} · ${detail}`,
               }));
             }
           }
@@ -2156,7 +2156,7 @@ export const bulkPurgeChannels = createAsyncThunk<
           errors.push(`${channelName}: ${errorMsg}`);
           dispatch(addStatusEntry({
             level: 'error',
-            message: `${modeLabel}: Error processing ${isDm ? '' : '#'}${channelName} — ${errorMsg}`,
+            message: `${modeLabel}: Error processing ${isDm ? '' : '#'}${channelName} · ${errorMsg}`,
           }));
         } finally {
           // Re-archive every thread the registry un-archived — runs on
@@ -2188,12 +2188,12 @@ export const bulkPurgeChannels = createAsyncThunk<
         if (isReactionsMode) {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `${modeLabel}: Cancelled — ${completedStats.reactionsRemoved} reactions removed`,
+            message: `${modeLabel}: Cancelled · ${completedStats.reactionsRemoved} reactions removed`,
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `${modeLabel}: Cancelled — ${totalDetail}`,
+            message: `${modeLabel}: Cancelled · ${totalDetail}`,
           }));
         }
       } else {
@@ -2204,12 +2204,12 @@ export const bulkPurgeChannels = createAsyncThunk<
         if (isReactionsMode) {
           dispatch(addStatusEntry({
             level: 'success',
-            message: `${modeLabel}: Complete — ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${completedStats.reactionsRemoved} reactions removed`,
+            message: `${modeLabel}: Complete · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${completedStats.reactionsRemoved} reactions removed`,
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'success',
-            message: `${modeLabel}: Complete — ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${totalDetail}`,
+            message: `${modeLabel}: Complete · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${totalDetail}`,
           }));
         }
 
@@ -2222,7 +2222,7 @@ export const bulkPurgeChannels = createAsyncThunk<
         if (selectedChannel && channels.some((c) => c.id === selectedChannel.id)) {
           dispatch(showToast({
             level: 'success',
-            message: `${modeLabel} complete — feed may be out of date`,
+            message: `${modeLabel} complete (feed may be out of date)`,
             duration: 10000,
             action: { type: 'reloadChannel', channelId: selectedChannel.id, label: 'Reload feed' },
           }));

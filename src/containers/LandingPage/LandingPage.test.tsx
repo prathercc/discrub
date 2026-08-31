@@ -93,7 +93,7 @@ describe('LandingPage', () => {
       renderWithProviders(<LandingPage />, {
         preloadedState: createBaseState(),
       });
-      expect(screen.getByText(/This is an unofficial tool/)).toBeInTheDocument();
+      expect(screen.getByText(/Discrub is an unofficial tool/)).toBeInTheDocument();
     });
   });
 
@@ -140,7 +140,7 @@ describe('LandingPage', () => {
           auth: { token: null, isAuthenticated: false, isLoading: false, error: 'Bad token', manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
         }),
       });
-      expect(screen.getByText(/Invalid token - please check and try again/)).toBeInTheDocument();
+      expect(screen.getByText(/Invalid token. Check it and try again/)).toBeInTheDocument();
     });
   });
 

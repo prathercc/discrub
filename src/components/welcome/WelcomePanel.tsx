@@ -36,7 +36,7 @@ interface FeatureCard {
 
 const GETTING_STARTED_STEPS = [
   { icon: <ServerIcon />, text: 'Select a server from the sidebar, or switch to the DMs tab' },
-  { icon: <SearchIcon />, text: 'Browse channels and load messages — use search and filters to find specific content' },
+  { icon: <SearchIcon />, text: 'Browse channels and load messages, then use search and filters to find specific content' },
   { icon: <ExportIcon />, text: 'Export messages in HTML, CSV, JSON, or media-only with 9 built-in presets' },
   { icon: <PurgeIcon />, text: 'Delete messages or remove reactions across one or multiple channels' },
 ];
@@ -82,7 +82,7 @@ const FEATURE_CARDS: FeatureCard[] = [
     id: 'settings',
     icon: <SettingsIcon />,
     title: 'Settings',
-    description: 'Operation delays, export defaults, display format, purge behavior, and media type preferences — all customizable.',
+    description: 'Operation delays, export defaults, display format, purge behavior, and media type preferences, all customizable.',
   },
   {
     id: 'theme',
@@ -304,7 +304,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
           Welcome to the next major version of Discrub. Everything you know still works, plus forum channels,
           export presets, Discord layout HTML, analytics, bulk reaction removal, and much more.
-          The extension version includes Discrub Classic as a built-in option — select your preferred version
+          The extension version includes Discrub Classic as a built-in option; select your preferred version
           from the launcher splash screen.
         </Typography>
         <Link

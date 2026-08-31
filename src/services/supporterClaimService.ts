@@ -53,7 +53,7 @@ export class SupporterClaimError extends Error {
 }
 
 const FALLBACK_MESSAGE =
-  'Could not reach the supporter server. Please try again in a moment.';
+  'Could not reach the supporter server. Try again in a moment.';
 
 async function postForKey(
   endpoint: string,

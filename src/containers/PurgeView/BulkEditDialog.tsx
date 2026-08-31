@@ -108,7 +108,7 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
           <SelectedChannelsPill channels={channels} mode={isDmMode ? 'dms' : 'channels'} />
 
           <Alert severity="info" variant="outlined" sx={{ py: 0.5 }}>
-            Only messages you authored can be edited — Discord rejects edits to other
+            Only messages you authored can be edited; Discord rejects edits to other
             people&rsquo;s messages, so those are skipped automatically.
           </Alert>
 
@@ -127,7 +127,7 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
             <BulkFilterButton
               filterCount={filterCount}
               onOpen={openFilterModal}
-              helperText="Optional — narrow which of your messages to edit by date range or content."
+              helperText="Optional: narrow which of your messages to edit by date range or content."
             />
           </Box>
 

@@ -140,7 +140,7 @@ describe('Background Script', () => {
 
       expect(sendResponse).toHaveBeenCalledWith({
         success: false,
-        error: 'No Discord tabs open. Please open discord.com first.',
+        error: 'No Discord tabs open. Open discord.com first.',
       });
     });
 
@@ -246,7 +246,7 @@ describe('Background Script', () => {
 
       expect(sendResponse).toHaveBeenCalledWith({
         success: false,
-        error: 'No Discord tabs open. Please open discord.com first.',
+        error: 'No Discord tabs open. Open discord.com first.',
       });
     });
 

@@ -902,7 +902,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                   // narrowed the visible set down.
                   if (isRefined) {
                     return pagination.hasMore
-                      ? `${visible} visible · ${loaded} loaded — scroll for more`
+                      ? `${visible} visible · ${loaded} loaded · scroll for more`
                       : `${visible} visible · ${loaded} loaded`;
                   }
                   return `${loaded} message${loaded !== 1 ? 's' : ''}`;

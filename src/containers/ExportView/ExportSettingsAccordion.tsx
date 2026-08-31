@@ -470,7 +470,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                 <Box sx={{ pl: 4, mt: 1 }}>
                   <Alert severity="warning" sx={{ py: 0.5 }}>
                     Estimated media size is {formatBytes(enabledSize)}.
-                    {largestCategory && ` ${largestCategory.category} accounts for ${Math.round((largestCategory.totalBytes / enabledSize) * 100)}% — consider unchecking it to reduce download size.`}
+                    {largestCategory && ` ${largestCategory.category} accounts for ${Math.round((largestCategory.totalBytes / enabledSize) * 100)}%; consider unchecking it to reduce download size.`}
                   </Alert>
                 </Box>
               </Collapse>

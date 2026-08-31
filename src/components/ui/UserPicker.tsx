@@ -145,10 +145,10 @@ const UserPicker = ({
       } else if (response.status === 403) {
         setLookupError('Access denied for this user');
       } else {
-        setLookupError('Lookup failed. Please try again.');
+        setLookupError('Lookup failed. Try again.');
       }
     } catch {
-      setLookupError('Lookup failed. Please try again.');
+      setLookupError('Lookup failed. Try again.');
     } finally {
       setLookupLoading(false);
     }

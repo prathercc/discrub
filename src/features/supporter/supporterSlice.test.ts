@@ -406,7 +406,7 @@ describe('supporterSlice', () => {
       const store = makeStore();
       await store.dispatch(applyPastedSupporterKey('DSCRB-AAAA-2222'));
 
-      expect(store.getState().supporter.claimError).toContain('update Discrub');
+      expect(store.getState().supporter.claimError).toContain('Update Discrub');
       expect(stateData[SUPPORTER_KEY_STORAGE_KEY]).toBeUndefined();
     });
 

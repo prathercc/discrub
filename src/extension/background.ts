@@ -33,7 +33,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           console.warn('[Discrub Background] No Discord tabs found');
           sendResponse({
             success: false,
-            error: 'No Discord tabs open. Please open discord.com first.'
+            error: 'No Discord tabs open. Open discord.com first.'
           });
           return;
         }
@@ -82,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                 console.warn('[Discrub Background] No Discord tabs found');
                 sendResponse({
                   success: false,
-                  error: 'No Discord tabs open. Please open discord.com first.'
+                  error: 'No Discord tabs open. Open discord.com first.'
                 });
                 return;
               }
@@ -285,7 +285,7 @@ const openExtensionOverlay = () => {
                 );
               });
             } else {
-              console.warn('[Discrub Background] No Discord tabs found. Please open discord.com first.');
+              console.warn('[Discrub Background] No Discord tabs found. Open discord.com first.');
             }
           }
         );

@@ -156,7 +156,7 @@ export const refreshSupporterKey = createAsyncThunk(
       const verification = await verifySupporterKey(result.key);
       if (verification.status !== 'valid' || !verification.payload) {
         return rejectWithValue(
-          'The server issued a key this app version could not verify. Please update Discrub and try again.',
+          'The server issued a key this app version could not verify. Update Discrub and try again.',
         );
       }
       const now = Date.now();
@@ -169,7 +169,7 @@ export const refreshSupporterKey = createAsyncThunk(
       if (error instanceof SupporterClaimError) {
         return rejectWithValue(error.message);
       }
-      return rejectWithValue('Something went wrong refreshing your key. Please try again.');
+      return rejectWithValue('Something went wrong refreshing your key. Try again.');
     }
   },
 );
@@ -194,7 +194,7 @@ export const applyPastedSupporterKey = createAsyncThunk(
         const verification = await verifySupporterKey(result.key);
         if (verification.status !== 'valid' || !verification.payload) {
           return rejectWithValue(
-            'The server issued a key this app version could not verify. Please update Discrub and try again.',
+            'The server issued a key this app version could not verify. Update Discrub and try again.',
           );
         }
         const now = Date.now();
@@ -208,7 +208,7 @@ export const applyPastedSupporterKey = createAsyncThunk(
           return rejectWithValue(error.message);
         }
         return rejectWithValue(
-          'Something went wrong applying your key. Please try again.',
+          'Something went wrong applying your key. Try again.',
         );
       }
     }

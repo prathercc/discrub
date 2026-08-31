@@ -122,7 +122,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
       // Close modal
       onClose();
     } catch {
-      setErrors(['Failed to save settings. Please try again.']);
+      setErrors(['Failed to save settings. Try again.']);
     } finally {
       setSaving(false);
     }

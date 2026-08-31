@@ -391,7 +391,7 @@ export const ThemeGrid = ({
               <Box component="span" sx={{ fontWeight: 600 }}>
                 {bar.label}
               </Box>
-              {bar.locked && ' — Locked'}
+              {bar.locked && ' · Locked'}
             </Typography>
             {!bar.locked && (
               <Button

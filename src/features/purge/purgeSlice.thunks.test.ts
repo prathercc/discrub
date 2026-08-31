@@ -4082,7 +4082,7 @@ describe('purgeSlice thunks', () => {
         messages.some((m) => m.includes('Completed #general')),
       ).toBe(true);
       expect(
-        messages.some((m) => m.includes('Purge: Complete —')),
+        messages.some((m) => m.includes('Purge: Complete ·')),
       ).toBe(true);
     });
 
@@ -4869,7 +4869,7 @@ describe('purgeSlice thunks', () => {
       // Verify completion summary
       const entries = store.getState().status.entries;
       const completeEntry = entries.find(
-        (e) => e.level === 'success' && e.message.includes('Purge: Complete —'),
+        (e) => e.level === 'success' && e.message.includes('Purge: Complete ·'),
       );
       expect(completeEntry).toBeDefined();
       expect(completeEntry!.message).toContain('84 messages deleted');
@@ -4998,7 +4998,7 @@ describe('purgeSlice thunks', () => {
       expect(messages.some((m) => m.includes('Completed #beta'))).toBe(true);
       expect(messages.some((m) => m.includes('Starting #gamma (3 of 3)'))).toBe(true);
       expect(messages.some((m) => m.includes('Completed #gamma'))).toBe(true);
-      expect(messages.some((m) => m.includes('Purge: Complete —') && m.includes('10 messages deleted'))).toBe(true);
+      expect(messages.some((m) => m.includes('Purge: Complete ·') && m.includes('10 messages deleted'))).toBe(true);
     });
 
     // Reactions mode — full pipeline
@@ -5102,7 +5102,7 @@ describe('purgeSlice thunks', () => {
 
       const entries = store.getState().status.entries;
       const completeEntry = entries.find(
-        (e) => e.level === 'success' && e.message.includes('Reaction purge: Complete —'),
+        (e) => e.level === 'success' && e.message.includes('Reaction purge: Complete ·'),
       );
       expect(completeEntry).toBeDefined();
       expect(completeEntry!.message).toContain('50 reactions removed');

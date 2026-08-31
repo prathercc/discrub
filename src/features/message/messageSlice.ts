@@ -48,7 +48,7 @@ const maybeEmitPhantomLoadStatus = (
     dispatch(
       addStatusEntry({
         level: 'info',
-        message: `Loaded ${newPage.length} more — 0 matched the active refine`,
+        message: `Loaded ${newPage.length} more, 0 matched the active refine`,
       }),
     );
   }
@@ -482,13 +482,13 @@ export const bulkEditChannels = createAsyncThunk<
         } catch (error) {
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Bulk edit: ${isDm ? '' : '#'}${channelName} — ${error instanceof Error ? error.message : 'failed'}`,
+            message: `Bulk edit: ${isDm ? '' : '#'}${channelName}: ${error instanceof Error ? error.message : 'failed'}`,
           }));
         }
 
         dispatch(addStatusEntry({
           level: 'success',
-          message: `Bulk edit: Completed ${isDm ? '' : '#'}${channelName} — ${channelEdited} edited`,
+          message: `Bulk edit: Completed ${isDm ? '' : '#'}${channelName} · ${channelEdited} edited`,
         }));
 
         if (cancelled) break;
@@ -496,7 +496,7 @@ export const bulkEditChannels = createAsyncThunk<
 
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Bulk edit complete — ${stats.edited} edited${stats.skipped > 0 ? `, ${stats.skipped} skipped` : ''}${stats.failed > 0 ? `, ${stats.failed} failed` : ''}`,
+        message: `Bulk edit complete · ${stats.edited} edited${stats.skipped > 0 ? `, ${stats.skipped} skipped` : ''}${stats.failed > 0 ? `, ${stats.failed} failed` : ''}`,
       }));
       return stats;
     } catch (error) {
@@ -987,13 +987,13 @@ export const batchAddReactions = createAsyncThunk(
       if (failed > 0) skips.push(`${failed} failed`);
 
       if (added > 0) {
-        const tail = skips.length ? ` — ${skips.join(', ')}` : '';
+        const tail = skips.length ? ` · ${skips.join(', ')}` : '';
         dispatch(addStatusEntry({
           level: skips.length ? 'warning' : 'success',
           message: `Added ${added} reaction${added !== 1 ? 's' : ''}${tail}`,
         }));
       } else if (skips.length) {
-        dispatch(addStatusEntry({ level: 'warning', message: `No reactions added — ${skips.join(', ')}` }));
+        dispatch(addStatusEntry({ level: 'warning', message: `No reactions added: ${skips.join(', ')}` }));
       } else {
         dispatch(addStatusEntry({ level: 'info', message: 'No reactions added' }));
       }
@@ -1267,7 +1267,7 @@ export const searchMessages = createAsyncThunk(
 
       if (!response.success || !response.data) {
         return rejectWithValue(
-          'Failed to search messages. Please check your connection and try again.'
+          'Failed to search messages. Check your connection and try again.'
         );
       }
 
@@ -1282,7 +1282,7 @@ export const searchMessages = createAsyncThunk(
       if (response.data.doing_deep_historical_index && rawMessages.length === 0) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: 'Discord is still indexing this conversation — search may return nothing until indexing finishes. Try again in a little while.',
+          message: 'Discord is still indexing this conversation; search may return nothing until indexing finishes. Try again in a little while.',
         }));
       }
 
@@ -1696,7 +1696,7 @@ export const loadAllSearchResults = createAsyncThunk(
           if (pageResult.incomplete) {
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Search Load All stopped at ${aggregated.length} of ${pageResult.totalResults} matches — Discord stopped serving new results before the reported total, so some matches may be missing.`,
+              message: `Search Load All stopped at ${aggregated.length} of ${pageResult.totalResults} matches; Discord stopped serving new results before the reported total, so some matches may be missing.`,
             }));
             continue;
           }

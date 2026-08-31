@@ -661,7 +661,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
           sx={{ p: 0.25 }}
         />
         <Tooltip
-          title={copied ? 'Copied!' : 'Copy text'}
+          title={copied ? 'Copied' : 'Copy text'}
           placement="top"
           arrow
         >

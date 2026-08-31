@@ -152,10 +152,10 @@ export function buildExportFooterHtml(
  */
 export async function processFooterIconFile(file: File): Promise<string> {
   if (!FOOTER_ICON_ACCEPTED_TYPES.includes(file.type)) {
-    throw new Error('Please choose a PNG, JPEG, or WebP image.');
+    throw new Error('Choose a PNG, JPEG, or WebP image.');
   }
   if (file.size > FOOTER_ICON_MAX_UPLOAD_BYTES) {
-    throw new Error('That image is too large. Please choose one under 5MB.');
+    throw new Error('That image is too large. Choose one under 5MB.');
   }
 
   const targetSize = FOOTER_ICON_SIZE * 2; // 2x for crisp HiDPI rendering

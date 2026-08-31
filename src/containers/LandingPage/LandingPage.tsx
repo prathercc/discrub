@@ -139,11 +139,11 @@ const LandingPage = () => {
         // On success, App.tsx will automatically switch to the main layout
       } else {
         console.warn('[Discrub] Auto-auth failed:', response.error || 'No token found');
-        setAutoAuthError(response.error || 'Could not retrieve token from Discord. Please ensure you are logged into discord.com.');
+        setAutoAuthError(response.error || 'Could not retrieve token from Discord. Make sure you are logged in to discord.com.');
       }
     } catch (error) {
       console.error('[Discrub] Auto-authentication failed:', error);
-      setAutoAuthError('Failed to authenticate. Please try manual entry.');
+      setAutoAuthError('Failed to authenticate. Try manual entry.');
     } finally {
       setAutoAuthLoading(false);
     }
@@ -408,7 +408,7 @@ const LandingPage = () => {
               error={Boolean(authError)}
               helperText={
                 authError
-                  ? 'Invalid token - please check and try again'
+                  ? 'Invalid token. Check it and try again'
                   : rememberMe
                     ? 'Your token will be saved on this device until you log out'
                     : 'Your token is only kept until you close this tab'
@@ -510,7 +510,7 @@ const LandingPage = () => {
             )}
 
             <Typography variant="caption" color="text.secondary" textAlign="center">
-              Note: This is an unofficial tool. Use at your own risk.
+              Discrub is an unofficial tool. Use at your own risk.
             </Typography>
           </Stack>
         </form>

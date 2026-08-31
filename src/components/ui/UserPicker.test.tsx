@@ -218,7 +218,7 @@ describe('UserPicker', () => {
       fireEvent.click(screen.getByText(/Look up ID "777777"/));
 
       await waitFor(() => {
-        expect(screen.getByText('Lookup failed. Please try again.')).toBeInTheDocument();
+        expect(screen.getByText('Lookup failed. Try again.')).toBeInTheDocument();
       });
     });
 

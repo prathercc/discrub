@@ -46,8 +46,8 @@ export const selectOperationSummary = createSelector(
           return {
             isRunning: true, isPaused, tier: 'heavy',
             label: isPaused
-              ? `Paused — ${channelLabel}`
-              : `Removing reactions... ${channelLabel} — ${progress.processed} scanned (${totalRemoved} removed)`,
+              ? `Paused · ${channelLabel}`
+              : `Removing reactions... ${channelLabel} · ${progress.processed} scanned (${totalRemoved} removed)`,
             progress: pct,
           };
         }
@@ -56,8 +56,8 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused — ${channelLabel}`
-            : `Purging... ${channelLabel} — ${progress.processed} processed (${totalDeleted} deleted)`,
+            ? `Paused · ${channelLabel}`
+            : `Purging... ${channelLabel} · ${progress.processed} processed (${totalDeleted} deleted)`,
           progress: pct,
         };
       }
@@ -66,11 +66,11 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? 'Paused — Purging'
+            ? 'Paused · Purging'
             : `Purging... ${progress.processed} processed (${progress.deleted} deleted)`,
         };
       }
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Purging' : 'Purging...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Purging' : 'Purging...' };
     }
 
     // Export
@@ -83,11 +83,11 @@ export const selectOperationSummary = createSelector(
           const pct = Math.round((progress.current / progress.total) * 100);
           return {
             isRunning: true, isPaused, tier: 'heavy',
-            label: isPaused ? `Paused — ${channelLabel}` : `${channelLabel} (${progress.stage})... ${pct}%`,
+            label: isPaused ? `Paused · ${channelLabel}` : `${channelLabel} (${progress.stage})... ${pct}%`,
             progress: pct,
           };
         }
-        return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? `Paused — ${channelLabel}` : channelLabel };
+        return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? `Paused · ${channelLabel}` : channelLabel };
       }
       if (progress) {
         const pct = progress.total > 0
@@ -95,31 +95,31 @@ export const selectOperationSummary = createSelector(
           : 0;
         return {
           isRunning: true, isPaused, tier: 'heavy',
-          label: isPaused ? 'Paused — Exporting' : `Exporting (${progress.stage})... ${pct}%`,
+          label: isPaused ? 'Paused · Exporting' : `Exporting (${progress.stage})... ${pct}%`,
           progress: pct,
         };
       }
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Exporting' : 'Exporting...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Exporting' : 'Exporting...' };
     }
 
     // Deleting messages (heavy — destructive)
     if (messageState.isDeleting) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Deleting messages' : 'Deleting messages...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Deleting messages' : 'Deleting messages...' };
     }
 
     // Editing messages (heavy — modifying)
     if (messageState.isEditing) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Editing messages' : 'Editing messages...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Editing messages' : 'Editing messages...' };
     }
 
     // Removing reactions (heavy — destructive, supports pause/cancel)
     if (messageState.isRemovingReactions) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Removing reactions' : 'Removing reactions...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Removing reactions' : 'Removing reactions...' };
     }
 
     // Adding reactions (heavy — bulk PUT fan-out, supports pause/cancel; Backlog #202)
     if (messageState.isAddingReactions) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Adding reactions' : 'Adding reactions...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Adding reactions' : 'Adding reactions...' };
     }
 
     // Loading all messages (heavy — long-running, many API calls)
@@ -127,7 +127,7 @@ export const selectOperationSummary = createSelector(
     const threadLoadingAll = threadTabValues.some((tab) => tab.pagination.isLoadingAll);
 
     if (messageState.pagination.isLoadingAll || threadLoadingAll) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Loading all messages' : 'Loading all messages...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Loading all messages' : 'Loading all messages...' };
     }
 
     // Package export (heavy — bulk media download + zip build, can
@@ -144,7 +144,7 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused — Package export (${progress.stage})`
+            ? `Paused · Package export (${progress.stage})`
             : `Package export (${progress.stage})... ${pct}%`,
           progress: pct,
         };
@@ -153,13 +153,13 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused — Package export (${progress.stage})`
+            ? `Paused · Package export (${progress.stage})`
             : `Package export (${progress.stage})...`,
         };
       }
       return {
         isRunning: true, isPaused, tier: 'heavy',
-        label: isPaused ? 'Paused — Package export' : 'Package export...',
+        label: isPaused ? 'Paused · Package export' : 'Package export...',
       };
     }
 
@@ -173,14 +173,14 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused — Rehydrating (${progress.current}/${progress.total})`
+            ? `Paused · Rehydrating (${progress.current}/${progress.total})`
             : `Rehydrating... ${progress.current}/${progress.total} (${pct}%)`,
           progress: pct,
         };
       }
       return {
         isRunning: true, isPaused, tier: 'heavy',
-        label: isPaused ? 'Paused — Rehydrating' : 'Rehydrating...',
+        label: isPaused ? 'Paused · Rehydrating' : 'Rehydrating...',
       };
     }
 
@@ -196,12 +196,12 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused — Seeding ${channelLabel}`
-            : `Seeding ${channelLabel} — ${current}/${total}`,
+            ? `Paused · Seeding ${channelLabel}`
+            : `Seeding ${channelLabel} · ${current}/${total}`,
           progress: pct,
         };
       }
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused — Seeding' : 'Seeding...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Seeding' : 'Seeding...' };
     }
 
     // ── LIGHT OPERATIONS (spinner + status log only) ─────────────

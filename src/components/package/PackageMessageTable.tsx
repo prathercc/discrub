@@ -373,13 +373,13 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
   const enrichDisabledReason = !token
     ? 'Sign in to rehydrate'
     : channel.isOrphan
-      ? "You're no longer in this server — can't rehydrate"
+      ? "You're no longer in this server, so rehydration is unavailable"
       : readOnly
-        ? 'Package is read-only (different user) — rehydration disabled'
+        ? 'Package is read-only (different user), so rehydration is disabled'
         : activeEnrichmentChannelId
-          ? `Another channel (${activeEnrichmentChannelId}) is rehydrating — wait for it to finish`
+          ? `Another channel (${activeEnrichmentChannelId}) is rehydrating; wait for it to finish`
           : anotherOpBlocking
-            ? 'Another operation is running — wait for it to finish'
+            ? 'Another operation is running; wait for it to finish'
             : null;
 
   const handleEnrich = useCallback(
@@ -400,7 +400,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
     : readOnly
       ? 'Package is read-only (mismatched user)'
       : channel.isOrphan
-        ? "You are no longer in this server — can't delete"
+        ? "You are no longer in this server, so deleting is unavailable"
         : null;
 
   // Rows known to be gone on Discord can't be selected — exclude them
@@ -1131,7 +1131,7 @@ const MessageKindChip = memo(function MessageKindChip({
 }) {
   if (gone === 'deleted') {
     return (
-      <Tooltip title="This message was deleted on Discord — only the package snapshot remains." arrow>
+      <Tooltip title="This message was deleted on Discord; only the package snapshot remains." arrow>
         <Typography
           variant="caption"
           sx={{
@@ -1167,7 +1167,7 @@ const MessageKindChip = memo(function MessageKindChip({
   }
   if (enriched) {
     return (
-      <Tooltip title="Rehydrated — live reactions, mentions, and embeds from Discord." arrow>
+      <Tooltip title="Rehydrated: live reactions, mentions, and embeds from Discord." arrow>
         <Typography
           variant="caption"
           sx={{
@@ -1495,9 +1495,9 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
       <EnrichedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
       <Typography variant="caption" sx={{ flexGrow: 1 }}>
         {status === 'cancelled'
-          ? 'Rehydration cancelled — '
+          ? 'Rehydration cancelled: '
           : status === 'failed'
-            ? 'Rehydration failed — '
+            ? 'Rehydration failed: '
             : ''}
         Rehydrate to see reactions, mentions, and fresh CDN URLs.
       </Typography>

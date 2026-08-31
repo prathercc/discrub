@@ -62,7 +62,7 @@ export function generateDiscordShellSingle(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${options.serverName} — #${channelName}</title>
+  <title>${options.serverName} · #${channelName}</title>
   <style>${getShellCSS(themeSet)}</style>
 </head>
 <body>
@@ -102,7 +102,7 @@ export function generateDiscordShellBulk(
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${options.serverName} — Bulk Export</title>
+  <title>${options.serverName} · Bulk Export</title>
   <style>${getShellCSS(themeSet)}</style>
 </head>
 <body>

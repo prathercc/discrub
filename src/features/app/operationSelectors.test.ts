@@ -144,7 +144,7 @@ describe('operationSelectors', () => {
       });
       const summary = selectOperationSummary(state);
       expect(summary.isPaused).toBe(true);
-      expect(summary.label).toBe('Paused — Channel 3/4: random');
+      expect(summary.label).toBe('Paused · Channel 3/4: random');
     });
 
     it('should return loading all messages when isLoadingAll', () => {
@@ -239,7 +239,7 @@ describe('operationSelectors', () => {
         },
       });
       const summary = selectOperationSummary(state);
-      expect(summary).toEqual({ isRunning: true, isPaused: true, label: 'Paused — Deleting messages', tier: 'heavy' });
+      expect(summary).toEqual({ isRunning: true, isPaused: true, label: 'Paused · Deleting messages', tier: 'heavy' });
     });
 
     it('should prioritize isDeleting over isLoading', () => {
@@ -277,7 +277,7 @@ describe('operationSelectors', () => {
         },
       });
       const summary = selectOperationSummary(state);
-      expect(summary).toEqual({ isRunning: true, isPaused: true, label: 'Paused — Removing reactions', tier: 'heavy' });
+      expect(summary).toEqual({ isRunning: true, isPaused: true, label: 'Paused · Removing reactions', tier: 'heavy' });
     });
   });
 
@@ -334,7 +334,7 @@ describe('operationSelectors', () => {
       });
       const summary = selectOperationSummary(state);
       expect(summary.isPaused).toBe(true);
-      expect(summary.label).toBe('Paused — Package export');
+      expect(summary.label).toBe('Paused · Package export');
     });
 
     it('selectIsHeavyOperationRunning is true while a package export runs', () => {
@@ -537,7 +537,7 @@ describe('operationSelectors', () => {
       expect(summary).toEqual({
         isRunning: true,
         isPaused: false,
-        label: 'Purging... Channel 2/3: general — 25 processed (50 deleted)',
+        label: 'Purging... Channel 2/3: general · 25 processed (50 deleted)',
         progress: 33,
         tier: 'heavy',
       });
@@ -568,7 +568,7 @@ describe('operationSelectors', () => {
       expect(summary).toEqual({
         isRunning: true,
         isPaused: false,
-        label: 'Removing reactions... Channel 1/2: memes — 100 scanned (20 removed)',
+        label: 'Removing reactions... Channel 1/2: memes · 100 scanned (20 removed)',
         progress: 0,
         tier: 'heavy',
       });
@@ -601,7 +601,7 @@ describe('operationSelectors', () => {
       });
       const summary = selectOperationSummary(state);
       expect(summary.isPaused).toBe(true);
-      expect(summary.label).toBe('Paused — Channel 3/4: dev-chat');
+      expect(summary.label).toBe('Paused · Channel 3/4: dev-chat');
     });
 
     it('should calculate correct progress percentage for bulk purge', () => {

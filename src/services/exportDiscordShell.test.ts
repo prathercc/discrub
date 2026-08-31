@@ -108,7 +108,7 @@ describe('generateDiscordShellSingle', () => {
 
   it('title includes server and channel name', () => {
     const html = generateDiscordShellSingle('<p>Test</p>', baseOptions);
-    expect(html).toContain('<title>Test Server — #general</title>');
+    expect(html).toContain('<title>Test Server · #general</title>');
   });
 });
 
