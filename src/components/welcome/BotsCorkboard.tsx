@@ -34,6 +34,35 @@ const MARKS: Record<string, (size: number) => React.ReactNode> = {
 /** Small seeded tilt so the pins look hand-placed but never move between renders. */
 const tiltFor = (index: number) => [-1.6, 1.2, -0.8, 1.8][index % 4];
 
+/** How long a bot holds the carousel slot before it flips on its own. */
+const AUTO_ADVANCE_MS = 7000;
+
+/**
+ * Animates to its content's measured height so bot flips glide instead of
+ * jumping (cards and stickies differ per bot). Height stays `auto` where
+ * ResizeObserver is missing (jsdom), so tests and old hosts see no change.
+ */
+const AnimatedHeight = ({ children }: { children: React.ReactNode }) => {
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return;
+    const measure = () => setHeight(el.offsetHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Box sx={{ height, transition: 'height 240ms ease', overflow: 'visible' }}>
+      <Box ref={innerRef}>{children}</Box>
+    </Box>
+  );
+};
+
 const Pin = ({ id }: { id?: string }) => (
   <Box
     aria-hidden
@@ -229,6 +258,8 @@ const BotsCorkboard = () => {
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [hovered, setHovered] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
   const open = loaded && !collapsed;
   const activeBot = BOTS[Math.min(activeIndex, BOTS.length - 1)];
@@ -262,9 +293,26 @@ const BotsCorkboard = () => {
     storage.state.set(CORKBOARD_COLLAPSED_STORAGE_KEY, next).catch(() => {});
   };
 
+  // Gentle auto-rotate (owner ask 2026-08-30): flips on its own until the
+  // user touches a control, pauses while the pointer is over the board, and
+  // sits still for anyone who asked their OS for reduced motion.
+  useEffect(() => {
+    if (!open || !autoPlay || hovered || BOTS.length < 2) return;
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const timer = setInterval(() => setActiveIndex((i) => (i + 1) % BOTS.length), AUTO_ADVANCE_MS);
+    return () => clearInterval(timer);
+  }, [open, autoPlay, hovered]);
+
   if (BOTS.length === 0 || !activeBot) return null;
   const showControls = BOTS.length > 1;
-  const step = (delta: number) => setActiveIndex((i) => (i + delta + BOTS.length) % BOTS.length);
+  const step = (delta: number) => {
+    setAutoPlay(false); // the user took the wheel; never fight them
+    setActiveIndex((i) => (i + delta + BOTS.length) % BOTS.length);
+  };
+  const jumpTo = (index: number) => {
+    setAutoPlay(false);
+    setActiveIndex(index);
+  };
 
   return (
     <Box data-testid="bots-corkboard" sx={{ mb: 5, maxWidth: 900, mx: 'auto' }}>
@@ -288,8 +336,12 @@ const BotsCorkboard = () => {
         </Tooltip>
       </Box>
       <Collapse in={open} timeout={160} unmountOnExit>
+        <AnimatedHeight>
         <Box
           ref={boardRef}
+          data-testid="corkboard-board"
+          onMouseEnter={() => setHovered(true)}
+          onMouseLeave={() => setHovered(false)}
           sx={(theme) => ({
             position: 'relative',
             width: 'fit-content',
@@ -315,7 +367,15 @@ const BotsCorkboard = () => {
         >
           <Threads threads={threads} />
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25, width: { xs: '100%', sm: 'auto' } }}>
-            <PinnedCard key={activeBot.id} bot={activeBot} index={activeIndex} />
+            <Box
+              key={activeBot.id}
+              sx={{
+                animation: 'corkboardCardFade 220ms ease',
+                '@keyframes corkboardCardFade': { from: { opacity: 0.2 }, to: { opacity: 1 } },
+              }}
+            >
+              <PinnedCard bot={activeBot} index={activeIndex} />
+            </Box>
             {showControls && (
               <Box
                 data-testid="corkboard-carousel-controls"
@@ -326,7 +386,13 @@ const BotsCorkboard = () => {
                   onClick={() => step(-1)}
                   aria-label="Previous bot"
                   data-testid="corkboard-prev"
-                  sx={{ color: 'rgba(0,0,0,0.55)', '&:hover': { color: '#2b2400' } }}
+                  sx={{
+                    color: '#f7ecd8',
+                    bgcolor: 'rgba(43,36,0,0.5)',
+                    border: '1px solid rgba(0,0,0,0.35)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    '&:hover': { bgcolor: 'rgba(43,36,0,0.75)', color: '#ffffff' },
+                  }}
                 >
                   <PrevIcon fontSize="small" />
                 </IconButton>
@@ -335,7 +401,7 @@ const BotsCorkboard = () => {
                     key={bot.id}
                     component="button"
                     type="button"
-                    onClick={() => setActiveIndex(index)}
+                    onClick={() => jumpTo(index)}
                     aria-label={`Show ${bot.name}`}
                     aria-current={index === activeIndex}
                     data-testid={`corkboard-dot-${bot.id}`}
@@ -359,7 +425,13 @@ const BotsCorkboard = () => {
                   onClick={() => step(1)}
                   aria-label="Next bot"
                   data-testid="corkboard-next"
-                  sx={{ color: 'rgba(0,0,0,0.55)', '&:hover': { color: '#2b2400' } }}
+                  sx={{
+                    color: '#f7ecd8',
+                    bgcolor: 'rgba(43,36,0,0.5)',
+                    border: '1px solid rgba(0,0,0,0.35)',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                    '&:hover': { bgcolor: 'rgba(43,36,0,0.75)', color: '#ffffff' },
+                  }}
                 >
                   <NextIcon fontSize="small" />
                 </IconButton>
@@ -389,6 +461,7 @@ const BotsCorkboard = () => {
           </Box>
           <DeveloperCard pin={<Pin />} tilt={1.4} />
         </Box>
+        </AnimatedHeight>
       </Collapse>
     </Box>
   );

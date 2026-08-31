@@ -1,4 +1,4 @@
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { act, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderWithProviders } from '@/test/test-utils';
 import BotsCorkboard from './BotsCorkboard';
@@ -52,6 +52,52 @@ describe('BotsCorkboard', () => {
     expect(await screen.findByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('corkboard-prev'));
     expect(await screen.findByTestId(`corkboard-bot-${BOTS[BOTS.length - 1].id}`)).toBeInTheDocument();
+  });
+
+  it('advances on its own every few seconds until the user takes over', async () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(<BotsCorkboard />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(7000);
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[1].id}`)).toBeInTheDocument();
+      // A manual pick stops the auto-rotate for good.
+      fireEvent.click(screen.getByTestId(`corkboard-dot-${BOTS[0].id}`));
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
+      act(() => {
+        vi.advanceTimersByTime(30000);
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('pauses the auto-rotate while the pointer is over the board', async () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(<BotsCorkboard />);
+      await act(async () => {
+        await Promise.resolve();
+      });
+      fireEvent.mouseEnter(screen.getByTestId('corkboard-board'));
+      act(() => {
+        vi.advanceTimersByTime(21000);
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[0].id}`)).toBeInTheDocument();
+      fireEvent.mouseLeave(screen.getByTestId('corkboard-board'));
+      act(() => {
+        vi.advanceTimersByTime(7000);
+      });
+      expect(screen.getByTestId(`corkboard-bot-${BOTS[1].id}`)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('jumps straight to a bot from its dot and marks it current', async () => {
