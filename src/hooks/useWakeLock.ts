@@ -12,8 +12,9 @@ import { selectIsOperationRunning } from '@features/app/operationSelectors';
  * Firefox without the flag, older browsers, jsdom).
  *
  * Caveat: a screen wake lock keeps the *display* awake; it does not exempt a
- * *backgrounded* tab from timer throttling when the user switches away. That's
- * the (deferred) Web Worker offload arm — this solves the "screen off" half.
+ * *backgrounded* tab from timer throttling when the user switches away. That
+ * half is #247: worker-driven pacing (`workerTimers.ts`) plus the Web Lock in
+ * `useOperationThrottleOptOut` — this solves the "screen off" half.
  */
 export function useWakeLock(): void {
   const isOperationRunning = useAppSelector(selectIsOperationRunning);

@@ -6,6 +6,8 @@ import { store } from './app/store';
 import ThemeWrapper from './theme/ThemeWrapper';
 import ErrorBoundary from './components/ErrorBoundary';
 import { addStatusEntry, installUnloadFlushListener } from './features/status/statusSlice';
+import { setSleepImplementation } from 'discrub-core/common-utils';
+import { throttleImmuneSleep } from './utils/workerTimers';
 
 // Log session start
 store.dispatch(addStatusEntry({ level: 'session', message: 'New session established' }));
@@ -16,6 +18,11 @@ store.dispatch(addStatusEntry({ level: 'session', message: 'New session establis
 // installed for the lifetime of the page; no uninstaller bookkeeping
 // needed at the app root.
 installUnloadFlushListener();
+
+// #247: drive discrub-core's pacing waits (per-request delays, 429/202
+// sleeps) from a worker timer so background-tab throttling cannot stall
+// a running operation.
+setSleepImplementation(throttleImmuneSleep);
 
 // Expose Redux store on window for Cypress E2E testing
 if (import.meta.env.DEV) {

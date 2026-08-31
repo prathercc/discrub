@@ -45,6 +45,7 @@ import { useGlobalErrorHandler } from '@/hooks/useGlobalErrorHandler';
 import { useOperationStatusBroadcast } from '@/hooks/useOperationStatusBroadcast';
 import { useRestoreListener } from '@/hooks/useRestoreListener';
 import { useWakeLock } from '@/hooks/useWakeLock';
+import { useOperationThrottleOptOut } from '@/hooks/useOperationThrottleOptOut';
 import { useTour } from '@/hooks/useTour';
 import StatusPanel from '@components/ui/StatusPanel';
 import FloatingPauseControl from '@components/ui/FloatingPauseControl';
@@ -138,6 +139,7 @@ const MainLayout = () => {
   useOperationStatusBroadcast();
   useRestoreListener();
   useWakeLock();
+  useOperationThrottleOptOut();
 
   // Wait for settings to load before checking the announcement gist —
   // otherwise the cached-rev comparison races against the IDB-backed

@@ -6,6 +6,7 @@ import type {
 } from 'discrub-core/messages';
 import { selectDiscrubPaused, selectDiscrubCancelled } from '@features/app/appSlice';
 import { addStatusEntry } from '@features/status/statusSlice';
+import { throttleImmuneSleep } from '@/utils/workerTimers';
 
 /**
  * Creates a ShouldStopCallback that bridges discrub-core's pause/cancel
@@ -17,7 +18,7 @@ export const createShouldStop = (
 ): ShouldStopCallback => {
   return async () => {
     while (selectDiscrubPaused(getState())) {
-      await new Promise((r) => setTimeout(r, 200));
+      await throttleImmuneSleep(200);
       if (selectDiscrubCancelled(getState())) return true;
     }
     return selectDiscrubCancelled(getState());

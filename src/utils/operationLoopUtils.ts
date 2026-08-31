@@ -1,5 +1,6 @@
 import type { RootState } from '@/app/store';
 import { selectDiscrubPaused, selectDiscrubCancelled } from '@features/app/appSlice';
+import { throttleImmuneSleep } from './workerTimers';
 
 /**
  * Error thrown when an operation is cancelled by the user.
@@ -26,7 +27,7 @@ export class CancelledError extends Error {
  */
 export const waitWhilePaused = async (getState: () => RootState): Promise<void> => {
   while (selectDiscrubPaused(getState())) {
-    await new Promise((r) => setTimeout(r, 200));
+    await throttleImmuneSleep(200);
     if (selectDiscrubCancelled(getState())) return;
   }
 };
@@ -49,14 +50,17 @@ export const cancellableDelay = async (
   signal?: AbortSignal,
 ): Promise<boolean> => {
   const interval = 200;
-  let elapsed = 0;
-  while (elapsed < delayMs) {
+  // Wall-clock accounting (#247): a chunk that oversleeps under browser
+  // throttling is credited in full, so the delay never stretches past the
+  // real time asked for.
+  const start = Date.now();
+  while (Date.now() - start < delayMs) {
     if (signal?.aborted || checkCancelled(getState)) return true;
     await waitWhilePaused(getState);
     if (signal?.aborted || checkCancelled(getState)) return true;
-    const remaining = delayMs - elapsed;
-    await new Promise((r) => setTimeout(r, Math.min(interval, remaining)));
-    elapsed += interval;
+    const remaining = delayMs - (Date.now() - start);
+    if (remaining <= 0) break;
+    await throttleImmuneSleep(Math.min(interval, remaining));
   }
   return signal?.aborted || checkCancelled(getState);
 };
