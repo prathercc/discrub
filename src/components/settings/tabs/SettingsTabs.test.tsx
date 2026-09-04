@@ -38,10 +38,14 @@ describe('OperationDelaysTab', () => {
 
   it('should show effective delay ranges', () => {
     render(<OperationDelaysTab formValues={defaultSettings} onChange={vi.fn()} />);
-    // Search: 1s base, 0.5s modifier → "Effective delay: 0.5s – 1.5s"
-    // Delete: 2s base, 0.5s modifier → "Effective delay: 1.5s – 2.5s"
+    // The modifier only adds (calculateRandomDelay = base + random(0..modifier)),
+    // so the range starts at the base, never below it.
+    // Search: 1s base, 0.5s modifier → "Effective delay: 1s – 1.5s"
+    // Delete: 2s base, 0.5s modifier → "Effective delay: 2s – 2.5s"
     const ranges = screen.getAllByText(/Effective delay:/);
     expect(ranges.length).toBe(2);
+    expect(screen.getByText('Effective delay: 1s – 1.5s')).toBeInTheDocument();
+    expect(screen.getByText('Effective delay: 2s – 2.5s')).toBeInTheDocument();
   });
 
   it('should display default delay values', () => {

@@ -212,6 +212,11 @@ const DelaySlider = ({
   );
 };
 
+/**
+ * The modifier only ever adds: every loop paces with `calculateRandomDelay`,
+ * which sleeps base + random(0..modifier). So the effective range is
+ * [base, base + modifier], never below the base.
+ */
 export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabProps) => {
   const searchDelay = parseFloat(formValues[DiscrubSetting.SEARCH_DELAY]) || 0;
   const deleteDelay = parseFloat(formValues[DiscrubSetting.DELETE_DELAY]) || 0;
@@ -229,12 +234,12 @@ export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabP
 
       <DelaySlider config={SEARCH_CONFIG} value={searchDelay} onChange={onChange} />
       <Typography variant="caption" color="text.secondary" sx={{ mt: -2 }}>
-        Effective delay: {parseFloat(Math.max(searchDelay - modifier, 0).toFixed(1))}s – {parseFloat((searchDelay + modifier).toFixed(1))}s
+        Effective delay: {parseFloat(searchDelay.toFixed(1))}s – {parseFloat((searchDelay + modifier).toFixed(1))}s
       </Typography>
 
       <DelaySlider config={DELETE_CONFIG} value={deleteDelay} onChange={onChange} />
       <Typography variant="caption" color="text.secondary" sx={{ mt: -2 }}>
-        Effective delay: {parseFloat(Math.max(deleteDelay - modifier, 0).toFixed(1))}s – {parseFloat((deleteDelay + modifier).toFixed(1))}s
+        Effective delay: {parseFloat(deleteDelay.toFixed(1))}s – {parseFloat((deleteDelay + modifier).toFixed(1))}s
       </Typography>
 
       <DelaySlider config={MODIFIER_CONFIG} value={modifier} onChange={onChange} />

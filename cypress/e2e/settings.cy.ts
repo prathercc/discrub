@@ -48,7 +48,7 @@ describe('Settings', () => {
         $input[0].dispatchEvent(new Event('input', { bubbles: true }));
       });
     cy.get('[role="dialog"]').contains('Safest').should('be.visible');
-    cy.get('[role="dialog"]').contains('Effective delay: 29.5s – 30.5s').should('be.visible');
+    cy.get('[role="dialog"]').contains('Effective delay: 30s – 30.5s').should('be.visible');
     cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
     cy.readIdbStore('settings').then((values) => {
       expect(values).to.include('30.0');
