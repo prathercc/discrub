@@ -212,7 +212,7 @@ Full support for forum/media channels (Discord channel types 15 and 16):
 - Discovers active and archived threads (public and private), so freshly-active posts show up alongside the archive
 - Bulk exports expand forum channels into their posts automatically: every post is exported as its own unit and the Discord Layout shell groups them under the forum's name, so selecting a forum in a bulk export actually captures its content
 
-The **Load Thread** modal now auto-discovers active and archived threads in the current channel and renders a clickable list, so threads whose starter message has been deleted are still reachable without having to copy a thread ID by hand. The manual ID input remains as a fallback for power users.
+The **Load Thread** modal now auto-discovers active and archived threads in the current channel and renders a clickable list (name, member and message counts, and an Archived chip with when it was archived), so threads whose starter message has been deleted are still reachable without having to copy a thread ID by hand. The manual ID input remains as a fallback for power users.
 
 ![Forum Threads](docs/screenshots/forum/thread-list.png)
 
@@ -272,6 +272,8 @@ All long-running operations (export, purge, load all, delete, edit, reaction rem
 - **Cancel**: abort the operation
 
 Controls appear in the status bar whenever an operation is running. In Focus Mode (or anywhere the status panel is hidden), a floating pause control appears during heavy operations so pausing is always within reach, and the `Space` hotkey keeps working.
+
+A dropped connection doesn't end a run. Exports, purge scans, thread Load All and package rehydration retry a failed page fetch with backoff (network errors and server 5xx only; a 4xx is final). Exports and Load All pause when the retries run out so you can fix the network and Resume from the same page; a purge scan that still can't continue says so in the status log instead of finishing as if it had covered everything.
 
 ### Themes
 
