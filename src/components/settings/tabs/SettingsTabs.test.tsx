@@ -1,7 +1,14 @@
 import { describe, it, expect, vi } from 'vitest';
 import { screen, fireEvent, renderWithProviders } from '@/test/test-utils';
 import type { ReactElement } from 'react';
-import { OperationDelaysTab } from './OperationDelaysTab';
+import {
+  OperationDelaysTab,
+  SAFEST_COLOR,
+  buildRailGradient,
+  secondsToSlider,
+  sliderToSeconds,
+  type DelaySliderConfig,
+} from './OperationDelaysTab';
 
 // The tabs read custom palette tokens (cta) that only exist on the app's
 // registry themes, and DisplayTab's embedded ThemePicker dispatches
@@ -85,6 +92,88 @@ describe('OperationDelaysTab', () => {
     };
     render(<OperationDelaysTab formValues={settings} onChange={vi.fn()} />);
     expect(screen.getByText('Safe')).toBeInTheDocument();
+  });
+
+  describe('Safest zone (above 10s, up to 30s)', () => {
+    const config: DelaySliderConfig = {
+      key: DiscrubSetting.SEARCH_DELAY,
+      label: 'x', description: 'x',
+      min: 0, max: 10, step: 0.1,
+      recommendedMin: 1, recommendedMax: 3,
+      safest: { from: 10, to: 30, step: 0.5 },
+    };
+
+    it('shows the Safest label and color past 10s', () => {
+      const settings = { ...defaultSettings, [DiscrubSetting.SEARCH_DELAY]: '15' };
+      render(<OperationDelaysTab formValues={settings} onChange={vi.fn()} />);
+      const label = screen.getByText('Safest');
+      expect(label).toBeInTheDocument();
+      expect(label).toHaveStyle({ color: SAFEST_COLOR });
+      expect(screen.getAllByText('15s').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('applies to the delete slider too', () => {
+      const settings = { ...defaultSettings, [DiscrubSetting.DELETE_DELAY]: '30' };
+      render(<OperationDelaysTab formValues={settings} onChange={vi.fn()} />);
+      expect(screen.getByText('Safest')).toBeInTheDocument();
+      expect(screen.getAllByText('30s').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('keeps the Safe label at exactly 10s', () => {
+      const settings = { ...defaultSettings, [DiscrubSetting.SEARCH_DELAY]: '10' };
+      render(<OperationDelaysTab formValues={settings} onChange={vi.fn()} />);
+      expect(screen.getAllByText('Safe').length).toBeGreaterThanOrEqual(1);
+      expect(screen.queryByText('Safest')).not.toBeInTheDocument();
+    });
+
+    it('extends the search and delete sliders to 30s but leaves the modifier at 5s', () => {
+      render(<OperationDelaysTab formValues={defaultSettings} onChange={vi.fn()} />);
+      const maxes = screen.getAllByRole('slider').map((el) => el.getAttribute('aria-valuemax'));
+      expect(maxes).toEqual(['30', '30', '5']);
+    });
+
+    it('reports the slider position in seconds after the compressed stretch', () => {
+      const onChange = vi.fn();
+      render(<OperationDelaysTab formValues={defaultSettings} onChange={onChange} />);
+      const [search] = screen.getAllByRole('slider');
+      // The rail's last tick is 14 (10 ticks of 0.1s, then 4 ticks worth 5s each): 30s.
+      fireEvent.change(search, { target: { value: '14' } });
+      expect(onChange).toHaveBeenCalledWith(DiscrubSetting.SEARCH_DELAY, '30.0');
+      fireEvent.change(search, { target: { value: '12' } });
+      expect(onChange).toHaveBeenCalledWith(DiscrubSetting.SEARCH_DELAY, '20.0');
+      fireEvent.change(search, { target: { value: '7' } });
+      expect(onChange).toHaveBeenCalledWith(DiscrubSetting.SEARCH_DELAY, '7.0');
+    });
+
+    it('maps seconds to slider ticks and back (0.1s ticks below 10s, 0.5s above)', () => {
+      expect(secondsToSlider(5, config)).toBe(5);
+      expect(secondsToSlider(10, config)).toBe(10);
+      expect(secondsToSlider(20, config)).toBeCloseTo(12);
+      expect(secondsToSlider(30, config)).toBeCloseTo(14);
+      expect(secondsToSlider(45, config)).toBeCloseTo(14);
+      expect(sliderToSeconds(5, config)).toBe(5);
+      expect(sliderToSeconds(10.1, config)).toBe(10.5);
+      expect(sliderToSeconds(12, config)).toBe(20);
+      expect(sliderToSeconds(14, config)).toBe(30);
+      expect(sliderToSeconds(14.5, config)).toBe(30);
+      for (const secs of [0, 0.3, 7.7, 10, 12.5, 29.5, 30]) {
+        expect(sliderToSeconds(secondsToSlider(secs, config), config)).toBeCloseTo(secs);
+      }
+    });
+
+    it('is the identity for sliders without a Safest zone', () => {
+      const plain = { ...config, safest: undefined };
+      expect(secondsToSlider(4.2, plain)).toBe(4.2);
+      expect(sliderToSeconds(4.2, plain)).toBe(4.2);
+      expect(buildRailGradient(plain, '#5865f2')).not.toContain(SAFEST_COLOR);
+    });
+
+    it('ends the rail gradient in the Safest color, starting where the blue zone ends', () => {
+      const gradient = buildRailGradient(config, '#5865f2');
+      // 10s sits at tick 10 of 14 on the rail.
+      expect(gradient).toContain(`#5865f2 ${(10 / 14) * 100}%`);
+      expect(gradient).toContain(`${SAFEST_COLOR} 100%`);
+    });
   });
 });
 

@@ -114,7 +114,7 @@ export const tourCatalog: Record<string, TourCatalogEntry> = {
   },
   'operation-delays': {
     title: 'Operation Delays',
-    content: "Discord rate-limits how often user tokens can call its API. These delays insert pauses between operations to stay under the limits. Lower delays go faster but risk a 429 response (and a forced wait). The defaults are tuned conservatively, so only change them if you know what you're doing.",
+    content: "Discord rate-limits how often user tokens can call its API. These delays insert pauses between operations to stay under the limits. Lower delays go faster but risk a 429 response (and a forced wait). The defaults are tuned conservatively, so only change them if you know what you're doing. Anything above 10s is the Safest zone, for very long runs such as a full-server export.",
   },
   'export-presets': {
     title: 'Export Presets',

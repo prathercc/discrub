@@ -478,7 +478,7 @@ Yes. Discrub runs entirely in your browser; your Discord token never leaves your
 
 ### Will I get rate limited?
 
-Discrub includes configurable delays between API calls (default: 1s search, 2s delete) with randomization to avoid patterns. If Discord does rate limit you (HTTP 429), Discrub automatically waits the required `retry_after` duration before retrying. You can adjust delays in Settings > Operation Delays.
+Discrub includes configurable delays between API calls (default: 1s search, 2s delete) with randomization to avoid patterns. If Discord does rate limit you (HTTP 429), Discrub automatically waits the required `retry_after` duration before retrying. You can adjust delays in Settings > Operation Delays. Search and delete delays go up to 30s; anything above 10s is marked Safest and is meant for very long runs such as a full-server export.
 
 ### What about Discord's Terms of Service?
 

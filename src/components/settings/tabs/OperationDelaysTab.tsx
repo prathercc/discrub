@@ -8,7 +8,22 @@ interface OperationDelaysTabProps {
   onChange: (key: DiscrubSetting, value: string) => void;
 }
 
-interface DelaySliderConfig {
+/**
+ * The Safest zone: an extra stretch of rail past `safestFrom` seconds, for
+ * very long runs (day-long exports) where the user wants the slowest pace
+ * available. It's compressed on the rail (`step` seconds per slider tick)
+ * so the zones below keep their shape.
+ */
+interface SafestZoneConfig {
+  /** Seconds where the Safest zone starts (the previous rail maximum). */
+  from: number;
+  /** Seconds at the end of the rail. */
+  to: number;
+  /** Seconds per slider tick inside the zone. */
+  step: number;
+}
+
+export interface DelaySliderConfig {
   key: DiscrubSetting;
   label: string;
   description: string;
@@ -17,7 +32,32 @@ interface DelaySliderConfig {
   step: number;
   recommendedMin: number;
   recommendedMax: number;
+  safest?: SafestZoneConfig;
 }
+
+/** Slider position (in ticks of `config.step`) for a value in seconds. */
+export const secondsToSlider = (seconds: number, config: DelaySliderConfig): number => {
+  const { safest } = config;
+  if (!safest || seconds <= safest.from) return seconds;
+  const clamped = Math.min(seconds, safest.to);
+  return safest.from + ((clamped - safest.from) / safest.step) * config.step;
+};
+
+/** Seconds for a slider position; the inverse of `secondsToSlider`. */
+export const sliderToSeconds = (position: number, config: DelaySliderConfig): number => {
+  const { safest } = config;
+  if (!safest || position <= safest.from) return position;
+  const seconds = safest.from + ((position - safest.from) / config.step) * safest.step;
+  return parseFloat(Math.min(seconds, safest.to).toFixed(1));
+};
+
+/** The rail's last position: `max` seconds, or the end of the Safest zone. */
+const sliderMax = (config: DelaySliderConfig): number =>
+  config.safest ? secondsToSlider(config.safest.to, config) : config.max;
+
+/** 10s–30s in half-second ticks, on top of a 0–10s rail. */
+const SAFEST_ZONE: SafestZoneConfig = { from: 10, to: 30, step: 0.5 };
+export const SAFEST_COLOR = '#26a69a';
 
 const SEARCH_CONFIG: DelaySliderConfig = {
   key: DiscrubSetting.SEARCH_DELAY,
@@ -25,6 +65,7 @@ const SEARCH_CONFIG: DelaySliderConfig = {
   description: 'Base delay between search/fetch operations',
   min: 0, max: 10, step: 0.1,
   recommendedMin: 1, recommendedMax: 3,
+  safest: SAFEST_ZONE,
 };
 
 const DELETE_CONFIG: DelaySliderConfig = {
@@ -33,6 +74,7 @@ const DELETE_CONFIG: DelaySliderConfig = {
   description: 'Base delay between delete and edit operations',
   min: 0, max: 10, step: 0.1,
   recommendedMin: 2, recommendedMax: 4,
+  safest: SAFEST_ZONE,
 };
 
 const MODIFIER_CONFIG: DelaySliderConfig = {
@@ -49,29 +91,34 @@ const MODIFIER_CONFIG: DelaySliderConfig = {
  * - Amber (below recommended): Low — faster but less safe
  * - Green (recommended range): Recommended — balanced speed and safety
  * - Blue (above recommended): Safe — very safe but slower operations
+ * - Teal (past the old maximum): Safest — the slowest pace, for day-long runs
  */
-const getZoneColor = (value: number, config: DelaySliderConfig, safeColor: string): string => {
+export const getZoneColor = (value: number, config: DelaySliderConfig, safeColor: string): string => {
   if (value === 0) return '#f44336';
   if (value < config.recommendedMin) return '#ff9800';
   if (value <= config.recommendedMax) return '#4caf50';
+  if (config.safest && value > config.safest.from) return SAFEST_COLOR;
   return safeColor; // theme accent — safe but slow
 };
 
-const getZoneLabel = (value: number, config: DelaySliderConfig): string => {
+export const getZoneLabel = (value: number, config: DelaySliderConfig): string => {
   if (value === 0) return 'Risky';
   if (value < config.recommendedMin) return 'Low';
   if (value <= config.recommendedMax) return 'Recommended';
+  if (config.safest && value > config.safest.from) return 'Safest';
   return 'Safe';
 };
 
 /**
  * Build a CSS linear-gradient for the slider rail with blended transitions.
- * Red → amber → green → blue, with smooth color transitions between zones.
+ * Red → amber → green → blue (→ teal for the Safest zone), with smooth color
+ * transitions between zones. Positions are in slider ticks, so the Safest
+ * zone's compression is honoured.
  */
-const buildRailGradient = (config: DelaySliderConfig, safeColor: string): string => {
-  const { min, max, recommendedMin, recommendedMax } = config;
-  const range = max - min;
-  const toPct = (v: number) => ((v - min) / range) * 100;
+export const buildRailGradient = (config: DelaySliderConfig, safeColor: string): string => {
+  const { min, max, recommendedMin, recommendedMax, safest } = config;
+  const range = sliderMax(config) - min;
+  const toPct = (v: number) => ((secondsToSlider(v, config) - min) / range) * 100;
 
   // Blend midpoints between zones for smooth transitions
   const redMid = toPct(recommendedMin * 0.25);
@@ -80,6 +127,9 @@ const buildRailGradient = (config: DelaySliderConfig, safeColor: string): string
   void toPct((recommendedMin + recommendedMax) / 2);
   const greenToBlue = toPct(recommendedMax);
   const blueMid = toPct(recommendedMax + (max - recommendedMax) * 0.5);
+  const tail = safest
+    ? `${safeColor} ${toPct(safest.from)}%, ${SAFEST_COLOR} ${toPct(safest.from + (safest.to - safest.from) * 0.5)}%, ${SAFEST_COLOR} 100%`
+    : `${safeColor} 100%`;
 
   return `linear-gradient(to right, `
     + `#f44336 0%, `
@@ -87,7 +137,7 @@ const buildRailGradient = (config: DelaySliderConfig, safeColor: string): string
     + `#4caf50 ${amberToGreen}%, `
     + `#4caf50 ${greenToBlue}%, `
     + `${safeColor} ${blueMid}%, `
-    + `${safeColor} 100%)`;
+    + tail + `)`;
 };
 
 const DelaySlider = ({
@@ -123,16 +173,22 @@ const DelaySlider = ({
         </Box>
       </Box>
       <Slider
-        value={value}
-        onChange={(_, newValue) => onChange(config.key, (newValue as number).toFixed(1))}
+        value={secondsToSlider(value, config)}
+        onChange={(_, newValue) => onChange(config.key, sliderToSeconds(newValue as number, config).toFixed(1))}
         min={config.min}
-        max={config.max}
+        max={sliderMax(config)}
         step={config.step}
+        scale={(position) => sliderToSeconds(position, config)}
         valueLabelDisplay="auto"
         valueLabelFormat={(v) => `${parseFloat(v.toFixed(1))}s`}
         marks={[
           { value: config.min, label: `${config.min}s` },
-          { value: config.max, label: `${config.max}s` },
+          ...(config.safest
+            ? [
+                { value: config.safest.from, label: `${config.safest.from}s` },
+                { value: sliderMax(config), label: `${config.safest.to}s` },
+              ]
+            : [{ value: config.max, label: `${config.max}s` }]),
         ]}
         sx={{
           '& .MuiSlider-track': { display: 'none' },
@@ -166,6 +222,7 @@ export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabP
       <Alert severity="info" sx={{ '& .MuiAlert-message': { display: 'flex', alignItems: 'center' } }}>
         <Box component="span">
           These delays prevent Discord rate-limit errors. Defaults are tuned conservatively.
+          Above 10s is the Safest zone, meant for very long runs such as full-server exports.
         </Box>
         <TourFootnote stepKey="operation-delays" />
       </Alert>

@@ -35,6 +35,27 @@ describe('Settings', () => {
     });
   });
 
+  // ─── Safest zone (2.1.3): delay sliders reach 30s ─────────────────
+  it('lets the search delay reach 30s in the Safest zone and persists it', () => {
+    cy.get('[aria-label="Settings"]').click();
+    // The rail's last tick is 14: ten 0.1s ticks to 10s, then 0.5s ticks to 30s.
+    cy.get('[role="dialog"] input[type="range"]')
+      .first()
+      .should('have.attr', 'aria-valuemax', '30')
+      .then(($input) => {
+        const setter = Object.getOwnPropertyDescriptor(Object.getPrototypeOf($input[0]), 'value')!.set!;
+        setter.call($input[0], '14');
+        $input[0].dispatchEvent(new Event('input', { bubbles: true }));
+      });
+    cy.get('[role="dialog"]').contains('Safest').should('be.visible');
+    cy.get('[role="dialog"]').contains('Effective delay: 29.5s – 30.5s').should('be.visible');
+    cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
+    cy.readIdbStore('settings').then((values) => {
+      expect(values).to.include('30.0');
+    });
+    cy.window().its('__store__').invoke('getState').its('app.settings.searchDelay2').should('eq', '30.0');
+  });
+
   // ─── Unsaved-changes prompt (#164) ───────────────────────────────
   // Cancel/X/backdrop/Esc all route through handleClose; when there
   // are unsaved edits, a confirmation appears before discarding.
