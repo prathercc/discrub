@@ -847,6 +847,80 @@ describe('Content Script', () => {
     });
   });
 
+  // #251: Discord's SPA can tear the iframe (or the whole dialog) out from under
+  // us while overlayState still says "open". Clicking the icon then only
+  // re-focused an invisible dialog. The handlers now detect that and rebuild.
+  describe('Self-heal for a stale overlay (#251)', () => {
+    const openViaButton = () => {
+      document.getElementById('discrub-floating-button')!.click();
+      return document.getElementById('discrub-overlay')!;
+    };
+
+    it('rebuilds the overlay when the iframe is gone but the dialog remains', () => {
+      const dialog = openViaButton();
+      const focusSpy = vi.spyOn(dialog, 'focus');
+      dialog.querySelector('#discrub-iframe')!.remove();
+
+      document.getElementById('discrub-floating-button')!.click();
+
+      const rebuilt = document.getElementById('discrub-overlay')!;
+      expect(rebuilt).not.toBe(dialog);
+      expect(rebuilt.querySelector('#discrub-iframe')).not.toBeNull();
+      expect(document.querySelectorAll('#discrub-overlay').length).toBe(1);
+      expect(focusSpy).not.toHaveBeenCalled();
+      expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('stale'));
+    });
+
+    it('rebuilds the overlay when the whole dialog was removed from the DOM', () => {
+      const dialog = openViaButton();
+      dialog.remove();
+      expect(document.getElementById('discrub-overlay')).toBeNull();
+
+      document.getElementById('discrub-floating-button')!.click();
+
+      const rebuilt = document.getElementById('discrub-overlay');
+      expect(rebuilt).not.toBeNull();
+      expect(rebuilt!.querySelector('#discrub-iframe')).not.toBeNull();
+    });
+
+    it('rebuilds on the injectOverlay runtime message too', () => {
+      const dialog = openViaButton();
+      dialog.querySelector('#discrub-iframe')!.remove();
+      const sendResponse = vi.fn();
+
+      messageListener({ action: 'injectOverlay' }, {} as chrome.runtime.MessageSender, sendResponse);
+
+      expect(sendResponse).toHaveBeenCalledWith({ success: true });
+      const rebuilt = document.getElementById('discrub-overlay')!;
+      expect(rebuilt).not.toBe(dialog);
+      expect(rebuilt.querySelector('#discrub-iframe')).not.toBeNull();
+    });
+
+    it('clears a minimized state and its floating tab when the dialog is stale', () => {
+      const dialog = openViaButton();
+      messageListener({ action: 'minimizeOverlay' }, {} as chrome.runtime.MessageSender, vi.fn());
+      fireAnimationEnd(dialog);
+      expect(document.getElementById('discrub-floating-tab')).not.toBeNull();
+      dialog.remove();
+
+      document.getElementById('discrub-floating-button')!.click();
+
+      expect(document.getElementById('discrub-floating-tab')).toBeNull();
+      const rebuilt = document.getElementById('discrub-overlay');
+      expect(rebuilt).not.toBeNull();
+      expect(rebuilt!.querySelector('#discrub-iframe')).not.toBeNull();
+    });
+
+    it('leaves a healthy open overlay alone (focus path unchanged)', () => {
+      const dialog = openViaButton();
+      const focusSpy = vi.spyOn(dialog, 'focus');
+      document.getElementById('discrub-floating-button')!.click();
+      expect(focusSpy).toHaveBeenCalled();
+      expect(document.getElementById('discrub-overlay')).toBe(dialog);
+      expect(console.warn).not.toHaveBeenCalledWith(expect.stringContaining('stale'));
+    });
+  });
+
   describe('Edge Cases', () => {
     it('should restore when injectOverlay called while minimized', () => {
       const sendResponse = vi.fn();

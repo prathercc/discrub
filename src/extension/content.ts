@@ -105,9 +105,56 @@ function isOverlayCurrentlyOpen(): boolean {
 }
 
 /**
+ * True when state says the overlay is open but the DOM disagrees: the dialog
+ * was detached (Discord's SPA re-rendered around it) or lost its iframe. In
+ * that state the dialog renders as nothing, and every icon click used to just
+ * re-focus the empty dialog ("clicking the icon does nothing", #251).
+ */
+function isOverlayStale(): boolean {
+  if (!overlayState.isOpen) return false;
+  const dialog = overlayState.dialogElement;
+  if (!dialog || !dialog.isConnected) return true;
+  const iframe = dialog.querySelector('#discrub-iframe');
+  return !iframe || iframe !== overlayState.iframeElement;
+}
+
+/**
+ * Drop a stale overlay so the next open takes the healthy path. Cleans up
+ * whatever is still attached (dialog, floating tab) and resets the state.
+ */
+function discardStaleOverlay(): void {
+  console.warn('[Discrub Content] Overlay state is stale (dialog or iframe missing); rebuilding');
+  removeFloatingTab();
+  const dialog = overlayState.dialogElement;
+  if (dialog) {
+    try {
+      if (dialog.open) dialog.close();
+    } catch {
+      // Detached dialogs can throw on close in some browsers; removal is what matters.
+    }
+    dialog.remove();
+  }
+  document.getElementById('discrub-overlay')?.remove();
+  const floatingButton = document.getElementById('discrub-floating-button');
+  if (floatingButton) floatingButton.style.display = 'flex';
+  overlayState.isOpen = false;
+  overlayState.isMinimized = false;
+  overlayState.isAnimating = false;
+  overlayState.currentView = null;
+  overlayState.dialogElement = null;
+  overlayState.iframeElement = null;
+  overlayState.floatingTabElement = null;
+}
+
+/**
  * Inject fullscreen overlay with launcher
  */
 function injectFullscreenOverlay(): void {
+  // Self-heal: a dialog that lost its iframe (or left the DOM) is rebuilt, not focused (#251).
+  if (isOverlayStale()) {
+    discardStaleOverlay();
+  }
+
   // If open and minimized, restore instead of creating new
   if (overlayState.isOpen && overlayState.isMinimized) {
     restoreFullscreenOverlay();
@@ -677,6 +724,9 @@ function injectFloatingButton(): void {
   // Click handler
   button.addEventListener('click', () => {
     console.log('[Discrub Content] Button clicked');
+    if (isOverlayStale()) {
+      discardStaleOverlay();
+    }
     if (overlayState.isMinimized) {
       restoreFullscreenOverlay();
     } else if (isOverlayCurrentlyOpen()) {
