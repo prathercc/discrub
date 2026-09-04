@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fireEvent, screen } from '@testing-library/react';
 import { renderWithProviders } from '@/test/test-utils';
-import ThreadLoadModal from './ThreadLoadModal';
+import ThreadLoadModal, { describeThread, sortThreadsForList } from './ThreadLoadModal';
 
 // Modal now uses Redux for the discovered-threads thunk (#150). All
 // non-discovery tests below should still work with a default store and
@@ -176,10 +176,67 @@ describe('ThreadLoadModal', () => {
       expect(screen.getAllByText('Archived').length).toBeGreaterThan(0);
     });
 
+    // Backlog #252: rows carry an icon, a bold name, a facts line
+    // (messages · members · archived when), and a Private chip for
+    // private threads. Active threads list before archived ones.
+    it('renders message and member counts under the thread name', async () => {
+      mockFetchActiveGuildThreads.mockResolvedValue({
+        success: true,
+        data: { threads: [{ id: '444', name: 'busy', type: 11, parent_id: 'parent', total_message_sent: 1234, member_count: 1 }] },
+      });
+      render(<ThreadLoadModal {...defaultProps} channel={textChannel} guildId="g1" />);
+      expect(await screen.findByText('1,234 messages · 1 member')).toBeInTheDocument();
+    });
+
+    it('marks private threads with a Private chip', async () => {
+      mockFetchActiveGuildThreads.mockResolvedValue({
+        success: true,
+        data: { threads: [{ id: '555', name: 'secret', type: 12, parent_id: 'parent' }] },
+      });
+      render(<ThreadLoadModal {...defaultProps} channel={textChannel} guildId="g1" />);
+      expect(await screen.findByText('secret')).toBeInTheDocument();
+      expect(screen.getByText('Private')).toBeInTheDocument();
+    });
+
+    it('lists active threads before archived ones', async () => {
+      mockFetchPublicThreads.mockResolvedValue({
+        success: true,
+        data: { threads: [{ id: '1', name: 'old', type: 11, parent_id: 'parent', thread_metadata: { archived: true } }] },
+      });
+      mockFetchActiveGuildThreads.mockResolvedValue({
+        success: true,
+        data: { threads: [{ id: '2', name: 'fresh', type: 11, parent_id: 'parent' }] },
+      });
+      render(<ThreadLoadModal {...defaultProps} channel={textChannel} guildId="g1" />);
+      await screen.findByText('old');
+      const list = screen.getByTestId('discovered-threads');
+      const names = Array.from(list.querySelectorAll('[data-testid^="discovered-thread-"]')).map((el) => el.getAttribute('data-testid'));
+      expect(names).toEqual(['discovered-thread-2', 'discovered-thread-1']);
+    });
+
     it('shows "No threads found" empty state when discovery returns nothing', async () => {
       // beforeEach defaults all endpoints to empty.
       render(<ThreadLoadModal {...defaultProps} channel={textChannel} guildId="g1" />);
       expect(await screen.findByText(/No threads found/i)).toBeInTheDocument();
+    });
+  });
+
+  describe('row helpers (#252)', () => {
+    it('describeThread joins the facts it has and skips the ones it lacks', () => {
+      expect(describeThread({ id: '1', type: 11, message_count: 1, member_count: 3 } as any)).toBe('1 message · 3 members');
+      expect(describeThread({ id: '1', type: 11, total_message_sent: 50, message_count: 40 } as any)).toBe('50 messages');
+      expect(describeThread({ id: '9', type: 11 } as any)).toBe('ID 9');
+    });
+
+    it('describeThread adds when an archived thread was archived', () => {
+      const text = describeThread({ id: '1', type: 11, member_count: 2, thread_metadata: { archived: true, archive_timestamp: new Date(Date.now() - 3 * 86_400_000).toISOString() } } as any);
+      expect(text).toBe('2 members · archived 3 days ago');
+      expect(describeThread({ id: '1', type: 11, thread_metadata: { archived: true } } as any)).toBe('archived');
+    });
+
+    it('sortThreadsForList keeps server order within the active and archived groups', () => {
+      const t = (id: string, archived: boolean) => ({ id, type: 11, thread_metadata: { archived } }) as any;
+      expect(sortThreadsForList([t('a', true), t('b', false), t('c', true), t('d', false)]).map((x) => x.id)).toEqual(['b', 'd', 'a', 'c']);
     });
   });
 });

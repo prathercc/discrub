@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -18,7 +18,12 @@ import {
   Tooltip,
 } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import type { Channel } from 'discrub-core/types/discord-types';
+import { timeAgo } from '@utils/timeAgo';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
@@ -123,6 +128,7 @@ const ThreadLoadModal = ({
   };
 
   const showDiscoveryList = !!channel && !!guildId;
+  const rows = useMemo(() => sortThreadsForList(discovered), [discovered]);
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
@@ -173,40 +179,25 @@ const ThreadLoadModal = ({
               {!discovering && discovered.length > 0 && (
                 <List
                   dense
+                  disablePadding
                   data-testid="discovered-threads"
                   sx={{
-                    maxHeight: 240,
+                    maxHeight: 264,
                     overflowY: 'auto',
                     border: '1px solid',
                     borderColor: 'divider',
                     borderRadius: 1,
+                    bgcolor: 'background.default',
                   }}
                 >
-                  {discovered.map((thread) => {
-                    const archived = !!(thread as any).thread_metadata?.archived;
-                    return (
-                      <ListItemButton
-                        key={thread.id}
-                        onClick={() => handlePickThread(thread)}
-                        data-testid={`discovered-thread-${thread.id}`}
-                      >
-                        <ListItemText
-                          primary={thread.name || `Thread ${thread.id}`}
-                          secondary={`ID ${thread.id}`}
-                          primaryTypographyProps={{ fontSize: '0.875rem', noWrap: true }}
-                          secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
-                        />
-                        {archived && (
-                          <Chip
-                            label="Archived"
-                            size="small"
-                            variant="outlined"
-                            sx={{ ml: 1, fontSize: '0.65rem', height: 20 }}
-                          />
-                        )}
-                      </ListItemButton>
-                    );
-                  })}
+                  {rows.map((thread, index) => (
+                    <ThreadRow
+                      key={thread.id}
+                      thread={thread}
+                      last={index === rows.length - 1}
+                      onPick={handlePickThread}
+                    />
+                  ))}
                 </List>
               )}
             </Box>
@@ -245,6 +236,104 @@ const ThreadLoadModal = ({
         </Button>
       </DialogActions>
     </Dialog>
+  );
+};
+
+/** Discord channel types for the two thread flavours that carry a lock. */
+const PRIVATE_THREAD = 12;
+
+/** Active threads first, then archived, keeping each group's server order. */
+export const sortThreadsForList = (threads: Channel[]): Channel[] => {
+  const active = threads.filter((t) => !t.thread_metadata?.archived);
+  const archived = threads.filter((t) => t.thread_metadata?.archived);
+  return [...active, ...archived];
+};
+
+const plural = (n: number, word: string) => `${n.toLocaleString()} ${word}${n === 1 ? '' : 's'}`;
+
+/**
+ * One line of facts under the thread name: message count, member count,
+ * and when it was archived. Fields the API left out are simply skipped, so
+ * a thread with no counts still gets a sensible line.
+ */
+export const describeThread = (thread: Channel): string => {
+  const parts: string[] = [];
+  const messages = thread.total_message_sent ?? thread.message_count;
+  if (typeof messages === 'number') parts.push(plural(messages, 'message'));
+  if (typeof thread.member_count === 'number') parts.push(plural(thread.member_count, 'member'));
+  const meta = thread.thread_metadata;
+  if (meta?.archived) {
+    parts.push(meta.archive_timestamp ? `archived ${timeAgo(meta.archive_timestamp)}` : 'archived');
+  }
+  return parts.length > 0 ? parts.join(' · ') : `ID ${thread.id}`;
+};
+
+const ThreadRow = ({
+  thread,
+  last,
+  onPick,
+}: {
+  thread: Channel;
+  last: boolean;
+  onPick: (thread: Channel) => void;
+}) => {
+  const archived = !!thread.thread_metadata?.archived;
+  const locked = thread.type === PRIVATE_THREAD || !!thread.thread_metadata?.locked;
+  const Icon = archived ? ArchiveOutlinedIcon : locked ? LockOutlinedIcon : ForumOutlinedIcon;
+  return (
+    <ListItemButton
+      onClick={() => onPick(thread)}
+      data-testid={`discovered-thread-${thread.id}`}
+      title={`Load ${thread.name || thread.id}`}
+      sx={{
+        gap: 1.25,
+        py: 0.75,
+        borderBottom: last ? 'none' : '1px solid',
+        borderColor: 'divider',
+        opacity: archived ? 0.72 : 1,
+        '&:hover': { opacity: 1 },
+        '&:hover .thread-row-go': { opacity: 1, transform: 'translateX(0)' },
+      }}
+    >
+      <Box
+        sx={{
+          width: 30,
+          height: 30,
+          borderRadius: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+          bgcolor: 'action.hover',
+          color: archived ? 'text.secondary' : 'primary.main',
+        }}
+      >
+        <Icon sx={{ fontSize: 18 }} />
+      </Box>
+      <ListItemText
+        primary={thread.name || `Thread ${thread.id}`}
+        secondary={describeThread(thread)}
+        primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 600, noWrap: true }}
+        secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}
+        sx={{ my: 0 }}
+      />
+      {archived && (
+        <Chip label="Archived" size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+      )}
+      {!archived && locked && (
+        <Chip label="Private" size="small" variant="outlined" sx={{ fontSize: '0.65rem', height: 20 }} />
+      )}
+      <ChevronRightIcon
+        className="thread-row-go"
+        fontSize="small"
+        sx={{
+          color: 'text.secondary',
+          opacity: 0,
+          transform: 'translateX(-4px)',
+          transition: 'opacity 120ms, transform 120ms',
+        }}
+      />
+    </ListItemButton>
   );
 };
 
