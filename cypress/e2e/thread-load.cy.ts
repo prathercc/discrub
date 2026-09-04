@@ -23,12 +23,84 @@ const loadThread = () => {
   cy.wait('@getThreadMessages');
 };
 
+const API = '**/api/v10';
+
+/**
+ * Thread discovery (#150) hits three endpoints when the modal opens. The
+ * active list comes from the fixture; the public-archived call returns one
+ * archived thread so the #252 row styling has both states to show.
+ */
+const interceptThreadDiscovery = () => {
+  cy.fixture('active-guild-threads.json').then((active) => {
+    cy.intercept('GET', `${API}/guilds/*/threads/active*`, { statusCode: 200, body: active }).as('getActiveThreads');
+  });
+  cy.intercept('GET', `${API}/channels/*/threads/archived/public*`, {
+    statusCode: 200,
+    body: {
+      threads: [{
+        id: '802000000000000099',
+        name: 'retired-thread',
+        type: 11,
+        parent_id: '801000000000000001',
+        message_count: 12,
+        member_count: 4,
+        thread_metadata: { archived: true, archive_timestamp: new Date(Date.now() - 2 * 86_400_000).toISOString() },
+      }],
+      members: [],
+      has_more: false,
+    },
+  }).as('getPublicThreads');
+  cy.fixture('archived-threads-empty.json').then((empty) => {
+    cy.intercept('GET', `${API}/channels/*/threads/archived/private*`, { statusCode: 200, body: empty }).as('getPrivateThreads');
+    cy.intercept('GET', `${API}/channels/*/users/@me/threads/archived/private*`, { statusCode: 200, body: empty }).as('getJoinedPrivateThreads');
+  });
+};
+
 describe('Thread Load', () => {
   beforeEach(() => {
     cy.login();
     cy.selectServer('Cypress Test Server');
     cy.selectChannel('general');
     cy.contains('[data-testid="message-feed-row"]', 'Hello everyone! Welcome to the server.').should('exist');
+  });
+
+  // Backlog #252: discovered rows carry counts, an archived state, and
+  // active threads list first. Clicking a row loads that thread.
+  describe('Discovered thread rows (#252)', () => {
+    beforeEach(() => {
+      interceptThreadDiscovery();
+      cy.contains('button', 'Load Thread').click();
+      cy.wait('@getActiveThreads');
+      cy.wait('@getPublicThreads');
+    });
+
+    it('shows message and member counts under each thread name', () => {
+      cy.get('[data-testid="discovered-thread-802000000000000001"]')
+        .should('contain.text', 'test-thread')
+        .and('contain.text', '5 messages · 3 members');
+    });
+
+    it('marks archived threads and says when they were archived', () => {
+      cy.get('[data-testid="discovered-thread-802000000000000099"]')
+        .should('contain.text', 'retired-thread')
+        .and('contain.text', '12 messages · 4 members · archived 2 days ago')
+        .and('contain.text', 'Archived');
+    });
+
+    it('lists active threads before archived ones', () => {
+      cy.get('[data-testid="discovered-threads"] [data-testid^="discovered-thread-"]').then(($rows) => {
+        const ids = $rows.toArray().map((el) => el.getAttribute('data-testid'));
+        expect(ids.indexOf('discovered-thread-802000000000000001')).to.be.lessThan(ids.indexOf('discovered-thread-802000000000000099'));
+      });
+    });
+
+    it('loads the thread when its row is clicked', () => {
+      interceptThreadLoad();
+      cy.get('[data-testid="discovered-thread-802000000000000001"]').click();
+      cy.wait('@getThread');
+      cy.wait('@getThreadMessages');
+      cy.get('[role="dialog"]').should('not.exist');
+    });
   });
 
   describe('Thread Load Button', () => {
