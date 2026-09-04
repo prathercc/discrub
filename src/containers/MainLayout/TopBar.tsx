@@ -409,7 +409,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                       }),
                 })}
               >
-                {isSupporter ? <StarIcon data-testid="supporter-badge-star" /> : <PaletteIcon />}
+                {/* Same palette glyph in both states — supporters told us the
+                    star made the themes entry look like a different button.
+                    Only the styling changes: the halo and pulse retire, and
+                    the tooltip reads "Supporter". */}
+                <PaletteIcon data-testid={isSupporter ? 'supporter-badge' : undefined} />
               </IconButton>
             </Tooltip>
 

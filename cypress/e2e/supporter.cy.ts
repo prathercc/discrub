@@ -210,14 +210,14 @@ describe('Supporter platform', () => {
 
   it('the gift button becomes the supporter badge and the avatar gains its ring', () => {
     visitApp();
-    cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
+    cy.get('[data-testid="supporter-badge"]').should('not.exist');
     cy.get('[data-testid="supporter-avatar-pip"]').should('not.exist');
     cy.then(() => signKey()).then((key) => {
       applyKeyViaDialog(key as string);
     });
     cy.get('[aria-label="Close Supporter dialog"]').click();
 
-    cy.get('[data-testid="supporter-badge-star"]').should('be.visible');
+    cy.get('[data-testid="supporter-badge"]').should('be.visible');
     cy.get('[data-testid="supporter-avatar-pip"]').should('be.visible');
     cy.get('[data-testid="gift-button"]')
       .should('have.attr', 'aria-label', 'Supporter')
@@ -227,7 +227,7 @@ describe('Supporter platform', () => {
     cy.get('[data-testid="gift-button"]').click();
     cy.get('[data-testid="supporter-remove-key"]').click();
     cy.get('[aria-label="Close Supporter dialog"]').click();
-    cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
+    cy.get('[data-testid="supporter-badge"]').should('not.exist');
     cy.get('[data-testid="supporter-avatar-pip"]').should('not.exist');
     cy.get('[data-testid="gift-button"]').should('have.attr', 'aria-label', 'Themes and Support');
   });
@@ -245,7 +245,7 @@ describe('Supporter platform', () => {
     visitApp({ freshDbs: false });
     cy.wait('@refreshOffline');
     cy.get('body').should('have.css', 'background-color', AMOLED_BG);
-    cy.get('[data-testid="supporter-badge-star"]').should('exist');
+    cy.get('[data-testid="supporter-badge"]').should('exist');
   });
 
   it('checks in once a day: the first boot with a key calls refresh, the next one does not', () => {
@@ -283,7 +283,7 @@ describe('Supporter platform', () => {
     // Second reload inside the day: no call at all.
     cy.intercept('POST', '**/supporter/refresh', cy.spy().as('refreshSpy'));
     visitApp({ freshDbs: false, stubRefresh: false });
-    cy.get('[data-testid="supporter-badge-star"]').should('exist');
+    cy.get('[data-testid="supporter-badge"]').should('exist');
     cy.get('@refreshSpy').should('not.have.been.called');
   });
 
@@ -302,7 +302,7 @@ describe('Supporter platform', () => {
     visitApp({ freshDbs: false, stubRefresh: false });
     cy.wait('@ended');
     cy.get('body').should('have.css', 'background-color', DARK_BG);
-    cy.get('[data-testid="supporter-badge-star"]').should('not.exist');
+    cy.get('[data-testid="supporter-badge"]').should('not.exist');
     cy.get('[data-testid="gift-button"]').click();
     cy.get('[data-testid="supporter-lapsed-note"]').should('be.visible');
     // The key is kept so Refresh works after a renewal.
@@ -335,7 +335,7 @@ describe('Supporter platform', () => {
     cy.intercept('POST', '**/supporter/redeem', cy.spy().as('redeemSpy'));
     cy.intercept('POST', '**/supporter/refresh', cy.spy().as('refreshSpy'));
     visitApp({ freshDbs: false });
-    cy.get('[data-testid="supporter-badge-star"]').should('exist');
+    cy.get('[data-testid="supporter-badge"]').should('exist');
     cy.get('@redeemSpy').should('not.have.been.called');
     cy.get('@refreshSpy').should('not.have.been.called');
   });

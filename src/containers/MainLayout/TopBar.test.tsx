@@ -520,14 +520,14 @@ describe('TopBar', () => {
 
     it('should show the gift icon and no ring pip for non-supporters', () => {
       renderWithKeyStatus('none');
-      expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
+      expect(screen.queryByTestId('supporter-badge')).toBeNull();
       expect(screen.queryByTestId('supporter-avatar-pip')).toBeNull();
       expect(screen.getByLabelText('Themes and Support')).toBeInTheDocument();
     });
 
-    it('should swap the gift for the supporter star and show the avatar pip with a valid key', () => {
+    it('should keep the palette icon, mark it as the supporter badge, and show the avatar pip with a valid key', () => {
       renderWithKeyStatus('valid');
-      expect(screen.getByTestId('supporter-badge-star')).toBeInTheDocument();
+      expect(screen.getByTestId('supporter-badge')).toBeInTheDocument();
       expect(screen.getByTestId('supporter-avatar-pip')).toBeVisible();
       expect(screen.getByLabelText('Supporter')).toBeInTheDocument();
       expect(screen.queryByLabelText('Themes and Support')).toBeNull();
@@ -544,7 +544,7 @@ describe('TopBar', () => {
 
     it('should treat an expired key as non-supporter', () => {
       renderWithKeyStatus('expired');
-      expect(screen.queryByTestId('supporter-badge-star')).toBeNull();
+      expect(screen.queryByTestId('supporter-badge')).toBeNull();
       expect(screen.getByLabelText('Themes and Support')).toBeInTheDocument();
     });
   });
