@@ -234,11 +234,14 @@ export const selectSidebarView = (state: RootState) => state.app.sidebarView;
 export const selectSetting = (key: DiscrubSetting) => (state: RootState) =>
   state.app.settings?.[key] ?? defaultSettings[key];
 
+// The delay sliders store one decimal ("0.5", "2.9"). These MUST parse as
+// floats: parseInt silently truncated "0.5" to 0 and "2.9" to 2, so every
+// operation loop slept less than the Settings tab showed (2.1.3 pacing audit).
 export const selectSearchDelay = (state: RootState) =>
-  parseInt(state.app.settings?.[DiscrubSetting.SEARCH_DELAY] ?? defaultSettings[DiscrubSetting.SEARCH_DELAY]);
+  parseFloat(state.app.settings?.[DiscrubSetting.SEARCH_DELAY] ?? defaultSettings[DiscrubSetting.SEARCH_DELAY]);
 
 export const selectDeleteDelay = (state: RootState) =>
-  parseInt(state.app.settings?.[DiscrubSetting.DELETE_DELAY] ?? defaultSettings[DiscrubSetting.DELETE_DELAY]);
+  parseFloat(state.app.settings?.[DiscrubSetting.DELETE_DELAY] ?? defaultSettings[DiscrubSetting.DELETE_DELAY]);
 
 export const selectDelayModifier = (state: RootState) =>
   parseFloat(state.app.settings?.[DiscrubSetting.DELAY_MODIFIER] ?? defaultSettings[DiscrubSetting.DELAY_MODIFIER]);

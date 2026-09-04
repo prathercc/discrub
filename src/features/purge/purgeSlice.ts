@@ -1624,6 +1624,12 @@ async function purgeChannelReactions(
       }));
     }
 
+    // Every GET /reactions must be preceded by a delay. Set after each
+    // lookup, cleared by any delay that ran since (delete delay, page
+    // delay), so emojis and messages with no matching reactors no longer
+    // fire back to back (2.1.3 pacing audit).
+    let reactorLookupPending = false;
+
     for (const message of filtered) {
       await waitWhilePaused(getState);
       if (checkCancelled(getState)) throw new CancelledError(partialReactions());
@@ -1651,6 +1657,11 @@ async function purgeChannelReactions(
           let hasMoreReactors = true;
 
           while (hasMoreReactors) {
+            if (reactorLookupPending) {
+              const lookupDelay = calculateRandomDelay(searchDelay, delayModifier);
+              const wasCancelled = await cancellableDelay(lookupDelay.delayMs, getState);
+              if (wasCancelled) throw new CancelledError(partialReactions());
+            }
             const reactorsResponse = await discordService.getReactions(
               token,
               targetChannelId,
@@ -1659,6 +1670,7 @@ async function purgeChannelReactions(
               ReactionType.NORMAL,
               reactorLastId,
             );
+            reactorLookupPending = true;
 
             if (!reactorsResponse.success || !reactorsResponse.data || reactorsResponse.data.length === 0) {
               hasMoreReactors = false;
@@ -1709,6 +1721,7 @@ async function purgeChannelReactions(
                 const delayCalc = calculateRandomDelay(deleteDelay, delayModifier);
                 const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
                 if (wasCancelled) throw new CancelledError(partialReactions());
+                reactorLookupPending = false;
               }
             }
 
@@ -1716,12 +1729,8 @@ async function purgeChannelReactions(
               hasMoreReactors = false;
             } else {
               reactorLastId = reactors[reactors.length - 1].id;
-              // Pace between reactor pages — the service no longer
-              // self-delays (#241). Matters when a full page contains
-              // no matching reactors, so no delete-delay ran above.
-              const pageDelay = calculateRandomDelay(searchDelay, delayModifier);
-              const wasCancelled = await cancellableDelay(pageDelay.delayMs, getState);
-              if (wasCancelled) throw new CancelledError(partialReactions());
+              // The next page is paced by the pending-lookup delay at
+              // the top of this loop.
             }
           }
         }

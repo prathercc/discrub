@@ -608,13 +608,13 @@ describe('appSlice', () => {
         expect(searchDelay).toBe(defaultSettings[DiscrubSetting.SEARCH_DELAY]);
       });
 
-      it('selectSearchDelay should return parsed int', () => {
+      it('selectSearchDelay should return parsed number', () => {
         const delay = selectSearchDelay(store.getState());
         expect(delay).toBe(5);
         expect(typeof delay).toBe('number');
       });
 
-      it('selectDeleteDelay should return parsed int', () => {
+      it('selectDeleteDelay should return parsed number', () => {
         const delay = selectDeleteDelay(store.getState());
         expect(delay).toBe(3);
         expect(typeof delay).toBe('number');
@@ -631,7 +631,60 @@ describe('appSlice', () => {
         store = createTestStore({ app: appReducer }, { app: { ...initialAppState, settings: null } });
 
         const delay = selectSearchDelay(store.getState());
-        expect(delay).toBe(parseInt(defaultSettings[DiscrubSetting.SEARCH_DELAY]));
+        expect(delay).toBe(parseFloat(defaultSettings[DiscrubSetting.SEARCH_DELAY]));
+      });
+
+      // 2.1.3 pacing audit: the sliders store one decimal and the loops
+      // must sleep exactly that. parseInt used to turn "0.5" into 0 (no
+      // delay at all) and "2.9" into 2.
+      describe('fractional delays (2.1.3 pacing audit)', () => {
+        const withDelays = (search: string, del: string) =>
+          createTestStore({ app: appReducer }, {
+            app: {
+              ...initialAppState,
+              settings: {
+                ...defaultSettings,
+                [DiscrubSetting.SEARCH_DELAY]: search,
+                [DiscrubSetting.DELETE_DELAY]: del,
+              },
+            },
+          });
+
+        it.each([
+          ['0.5', 0.5],
+          ['0.1', 0.1],
+          ['1.5', 1.5],
+          ['2.9', 2.9],
+          ['12.5', 12.5],
+          ['30', 30],
+        ])('selectSearchDelay keeps %s as %s', (stored, expected) => {
+          expect(selectSearchDelay(withDelays(stored, '2').getState())).toBe(expected);
+        });
+
+        it.each([
+          ['0.5', 0.5],
+          ['0.1', 0.1],
+          ['2.9', 2.9],
+          ['25.5', 25.5],
+        ])('selectDeleteDelay keeps %s as %s', (stored, expected) => {
+          expect(selectDeleteDelay(withDelays('1', stored).getState())).toBe(expected);
+        });
+
+        it('a sub-second search delay still produces a real sleep', async () => {
+          const { calculateRandomDelay } = await vi.importActual<typeof import('@/utils/delayUtils')>('@/utils/delayUtils');
+          const s = withDelays('0.5', '0.5').getState();
+          for (let i = 0; i < 25; i++) {
+            const { delayMs } = calculateRandomDelay(selectSearchDelay(s), selectDelayModifier(s));
+            expect(delayMs).toBeGreaterThanOrEqual(500);
+            expect(delayMs).toBeLessThanOrEqual(1000);
+          }
+        });
+
+        it('a zero delay is honored as zero', () => {
+          const s = withDelays('0', '0').getState();
+          expect(selectSearchDelay(s)).toBe(0);
+          expect(selectDeleteDelay(s)).toBe(0);
+        });
       });
     });
   });

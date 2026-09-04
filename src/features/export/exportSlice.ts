@@ -869,9 +869,17 @@ async function fetchThreadMessages(
 
   let threadMessages: Message[] = [];
 
-  for (const thread of threads) {
+  for (const [index, thread] of threads.entries()) {
     await waitWhilePaused(getState);
     if (checkCancelled(getState)) break;
+
+    // A channel walk sleeps only between pages, not after its last one,
+    // so consecutive threads fired back to back (2.1.3 pacing audit).
+    if (index > 0) {
+      const { delayMs } = calculateRandomDelay(searchDelay, delayModifier);
+      const wasCancelled = await cancellableDelay(delayMs, getState);
+      if (wasCancelled) break;
+    }
 
     const threadName = thread.name || `thread-${thread.id}`;
     dispatch(addStatusEntry({

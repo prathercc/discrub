@@ -2596,6 +2596,144 @@ describe('purgeSlice thunks', () => {
       expect(twoPageSleeps).toBe(onePageSleeps + 1);
     });
 
+    describe('reactor lookup pacing (2.1.3 pacing audit)', () => {
+      type Ev = 'get' | 'delete' | 'delay';
+      const record = (events: Ev[]) => {
+        mockGetReactions.mockImplementation(() => {
+          events.push('get');
+          return Promise.resolve({ success: true, data: [] as User[] });
+        });
+        mockDeleteReaction.mockImplementation(() => {
+          events.push('delete');
+          return Promise.resolve({ success: true, status: 204 });
+        });
+        (cancellableDelay as Mock).mockImplementation(() => {
+          events.push('delay');
+          return Promise.resolve(false);
+        });
+      };
+      const consecutive = (events: Ev[], a: Ev, b: Ev) =>
+        events.some((e, i) => e === a && events[i + 1] === b);
+      // The history walk sleeps before the first lookup; only the
+      // reactor phase is under test here.
+      const fromFirstGet = (events: Ev[]) => events.slice(events.indexOf('get'));
+
+      it('never fires two reactor lookups back to back across emojis', async () => {
+        const events: Ev[] = [];
+        record(events);
+        setupFetchMessages([[mockMessageWithReactions('m1', [
+          { emoji: { name: '👍' }, count: 1 },
+          { emoji: { name: '🔥' }, count: 1 },
+          { emoji: { name: '❤️' }, count: 1 },
+        ])]]);
+
+        await store.dispatch(bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['no-such-user']),
+          guildId: 'guild1',
+        }));
+
+        expect(events.filter((e) => e === 'get')).toHaveLength(3);
+        expect(consecutive(events, 'get', 'get')).toBe(false);
+        expect(events.filter((e) => e === 'delay').length).toBeGreaterThanOrEqual(2);
+      });
+
+      it('never fires two reactor lookups back to back across messages', async () => {
+        const events: Ev[] = [];
+        record(events);
+        setupFetchMessages([[
+          mockMessageWithReactions('m1', [{ emoji: { name: '👍' }, count: 1 }]),
+          mockMessageWithReactions('m2', [{ emoji: { name: '👍' }, count: 1 }]),
+          mockMessageWithReactions('m3', [{ emoji: { name: '🔥' }, count: 1 }, { emoji: { name: '👍' }, count: 1 }]),
+        ]]);
+
+        await store.dispatch(bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['no-such-user']),
+          guildId: 'guild1',
+        }));
+
+        expect(events.filter((e) => e === 'get')).toHaveLength(4);
+        expect(consecutive(events, 'get', 'get')).toBe(false);
+      });
+
+      it('uses the search delay for lookups and the delete delay after deletes, never both in a row', async () => {
+        const events: Ev[] = [];
+        record(events);
+        mockGetReactions.mockImplementation(() => {
+          events.push('get');
+          return Promise.resolve({ success: true, data: [{ id: 'target1', username: 't' }] as User[] });
+        });
+        setupFetchMessages([[mockMessageWithReactions('m1', [
+          { emoji: { name: '👍' }, count: 1 },
+          { emoji: { name: '🔥' }, count: 1 },
+        ])]]);
+        const { calculateRandomDelay } = await import('@utils/delayUtils');
+        (calculateRandomDelay as Mock).mockClear();
+
+        await store.dispatch(bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['target1']),
+          guildId: 'guild1',
+        }));
+
+        // get → delete → delete-delay → get → delete → delete-delay
+        expect(fromFirstGet(events)).toEqual(['get', 'delete', 'delay', 'get', 'delete', 'delay']);
+        expect(consecutive(fromFirstGet(events), 'delay', 'delay')).toBe(false);
+        // Default settings: delete delay 2s for the two delete gaps, no
+        // extra search-delay sleep because the delete delay already paced
+        // the second lookup.
+        const bases = (calculateRandomDelay as Mock).mock.calls.map((c) => c[0]);
+        expect(bases.slice(-2)).toEqual([2, 2]);
+      });
+
+      it('paces a lookup that follows a full page of non-matching reactors', async () => {
+        const events: Ev[] = [];
+        record(events);
+        const fullPage = Array.from({ length: 100 }, (_, i) => ({ id: `other${i}`, username: `o${i}` })) as User[];
+        let call = 0;
+        mockGetReactions.mockImplementation(() => {
+          events.push('get');
+          call++;
+          return Promise.resolve({ success: true, data: call === 1 ? fullPage : [] });
+        });
+        setupFetchMessages([[mockMessageWithReactions('m1', [{ emoji: { name: '🔥' }, count: 150 }])]]);
+        const { calculateRandomDelay } = await import('@utils/delayUtils');
+        (calculateRandomDelay as Mock).mockClear();
+
+        await store.dispatch(bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['no-such-user']),
+          guildId: 'guild1',
+        }));
+
+        expect(fromFirstGet(events)).toEqual(['get', 'delay', 'get']);
+        const bases = (calculateRandomDelay as Mock).mock.calls.map((c) => c[0]);
+        expect(bases[bases.length - 1]).toBe(1); // search delay
+      });
+
+      it('a cancel during the lookup delay stops the purge', async () => {
+        const events: Ev[] = [];
+        record(events);
+        (cancellableDelay as Mock).mockImplementation(() => {
+          events.push('delay');
+          return Promise.resolve(true);
+        });
+        setupFetchMessages([[mockMessageWithReactions('m1', [
+          { emoji: { name: '👍' }, count: 1 },
+          { emoji: { name: '🔥' }, count: 1 },
+        ])]]);
+
+        await store.dispatch(bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['no-such-user']),
+          guildId: 'guild1',
+        }));
+
+        expect(events.filter((e) => e === 'get')).toHaveLength(1);
+      });
+    });
+
     it('handles messages with multiple emoji reactions', async () => {
       const message = mockMessageWithReactions('m1', [
         { emoji: { name: '👍' }, count: 1 },

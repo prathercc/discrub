@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import exportReducer, {
   buildUniqueFolderNames,
@@ -2365,6 +2365,136 @@ describe('exportSlice', () => {
         'Reactions: 20/25 messages processed',
         'Reactions: 25/25 messages processed',
       ]);
+    });
+  });
+
+  describe('thread walk pacing (2.1.3 pacing audit)', () => {
+    afterEach(async () => {
+      const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+      vi.mocked(cancellableDelay).mockReset().mockResolvedValue(false);
+    });
+    type Ev = string;
+    const msg = (id: string, channelId: string, thread?: { id: string; name: string }) => ({
+      id, channel_id: channelId, timestamp: '2026-01-01T00:00:00.000Z',
+      author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+      content: 'msg', mentions: [], attachments: [], embeds: [], pinned: false, type: 0,
+      mention_everyone: false, edited_timestamp: null, tts: false, reactions: [],
+      ...(thread ? { thread: { id: thread.id, name: thread.name, type: 11 } } : {}),
+    });
+
+    const deps = async () => {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { getDiscordService } = await import('@services/discordService');
+      const buildStore = () => configureStore({
+      reducer: {
+        export: exportReducer, app: appReducer, auth: authReducer,
+        status: statusReducer, history: historyReducer, cache: cacheReducer,
+      } as any,
+      preloadedState: {
+        app: {
+          discrubPaused: false, discrubCancelled: false, isMinimized: false, focusedView: false,
+          kofiOverlayOpen: false, sidebarView: 'server' as const,
+          task: { status: 'idle' as const, message: '' }, settings: defaultSettings,
+        },
+      } as any,
+    });
+      return { buildStore, bulkExportChannels, getDiscordService };
+    };
+
+    const runWithThreads = async (threadCount: number, pagesPerThread = 1) => {
+      const { buildStore, bulkExportChannels, getDiscordService } = await deps();
+      const events: Ev[] = [];
+      const threads = Array.from({ length: threadCount }, (_, i) => ({ id: `t${i + 1}`, name: `thread-${i + 1}` }));
+      const parentPage = threads.map((t, i) => msg(`p${i + 1}`, 'ch-1', t));
+      const served: Record<string, number> = {};
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchMessageData: vi.fn().mockImplementation(async (_t: string, _last: string | null, channelId: string) => {
+          events.push(`fetch:${channelId}`);
+          if (channelId === 'ch-1') return { success: true, data: parentPage };
+          served[channelId] = (served[channelId] ?? 0) + 1;
+          const full = served[channelId] < pagesPerThread;
+          return { success: true, data: full
+            ? Array.from({ length: 100 }, (_, i) => msg(`${channelId}-${served[channelId]}-${i}`, channelId))
+            : [msg(`${channelId}-last`, channelId)] };
+        }),
+        fetchSearchMessageData: vi.fn(),
+        iterateSearchResults: async function* () {},
+      } as any);
+      const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+      vi.mocked(cancellableDelay).mockImplementation(async () => { events.push('delay'); return false; });
+      const { calculateRandomDelay } = await import('@/utils/delayUtils');
+      vi.mocked(calculateRandomDelay).mockClear();
+
+      await buildStore().dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-1', name: 'parent' } as any],
+          token: 'token', format: 'json', messagesPerPage: 100,
+          separateThreads: true, includeMedia: false, guildId: 'g-1',
+        })
+      );
+      return { events, bases: vi.mocked(calculateRandomDelay).mock.calls.map((c) => c[0]) };
+    };
+
+    const threadFetches = (events: Ev[]) => events.filter((e) => e.startsWith('fetch:t'));
+    const backToBackThreadFetches = (events: Ev[]) =>
+      events.some((e, i) => e.startsWith('fetch:t') && (events[i + 1] ?? '').startsWith('fetch:t')
+        && events[i + 1] !== e);
+
+    it('sleeps between consecutive thread walks', async () => {
+      const { events, bases } = await runWithThreads(3);
+      expect(threadFetches(events)).toEqual(['fetch:t1', 'fetch:t2', 'fetch:t3']);
+      expect(backToBackThreadFetches(events)).toBe(false);
+      // Exactly one sleep per thread boundary: between t1→t2 and t2→t3.
+      const first = events.indexOf('fetch:t1');
+      expect(events.slice(first).filter((e) => e === 'delay')).toHaveLength(2);
+      expect(bases.slice(-2)).toEqual([1, 1]); // search delay (default 1s)
+    });
+
+    it('does not sleep before the first thread or after the last', async () => {
+      const { events } = await runWithThreads(1);
+      const first = events.indexOf('fetch:t1');
+      expect(events.slice(first)).toEqual(['fetch:t1']);
+    });
+
+    it('keeps pacing when a thread has several pages', async () => {
+      const { events } = await runWithThreads(2, 2);
+      const first = events.indexOf('fetch:t1');
+      // t1 page 1, page delay, t1 page 2, boundary delay, t2 page 1, page delay, t2 page 2
+      expect(events.slice(first)).toEqual([
+        'fetch:t1', 'delay', 'fetch:t1', 'delay', 'fetch:t2', 'delay', 'fetch:t2',
+      ]);
+    });
+
+    it('a cancel during the thread boundary sleep stops the walk', async () => {
+      const { buildStore, bulkExportChannels, getDiscordService } = await deps();
+      const events: Ev[] = [];
+      const threads = [{ id: 't1', name: 'a' }, { id: 't2', name: 'b' }];
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchMessageData: vi.fn().mockImplementation(async (_t: string, _l: string | null, channelId: string) => {
+          events.push(`fetch:${channelId}`);
+          if (channelId === 'ch-1') return { success: true, data: threads.map((t, i) => msg(`p${i}`, 'ch-1', t)) };
+          return { success: true, data: [msg(`${channelId}-x`, channelId)] };
+        }),
+        fetchSearchMessageData: vi.fn(),
+        iterateSearchResults: async function* () {},
+      } as any);
+      const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+      vi.mocked(cancellableDelay).mockImplementation(async () => { events.push('delay'); return true; });
+
+      await buildStore().dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-1', name: 'parent' } as any],
+          token: 'token', format: 'json', messagesPerPage: 100,
+          separateThreads: true, includeMedia: false, guildId: 'g-1',
+        })
+      );
+      expect(threadFetches(events)).toEqual(['fetch:t1']);
     });
   });
 });

@@ -814,7 +814,13 @@ export const batchRemoveReactions = createAsyncThunk(
             // Continue on failure — partial success is acceptable
           }
         } else if (mode === 'emoji' && emojis) {
-          for (const emoji of emojis) {
+          for (const [i, emoji] of emojis.entries()) {
+            // One DELETE per emoji: pace between them, the per-message
+            // delay below covers the gap after the last (2.1.3 pacing audit).
+            if (i > 0) {
+              const { delayMs } = calculateRandomDelay(deleteDelay, delayModifier);
+              if (await cancellableDelay(delayMs, getState as () => RootState)) break;
+            }
             try {
               await discordService.deleteAllReactionsForEmoji(token, channelId, msg.id, emoji);
               didRemove = true;
@@ -829,8 +835,12 @@ export const batchRemoveReactions = createAsyncThunk(
             if (emojis) return emojis.includes(getEmojiKey(r.emoji));
             return true;
           });
-          for (const reaction of targetReactions) {
+          for (const [i, reaction] of targetReactions.entries()) {
             const emojiKey = getEmojiKey(reaction.emoji);
+            if (i > 0) {
+              const { delayMs } = calculateRandomDelay(deleteDelay, delayModifier);
+              if (await cancellableDelay(delayMs, getState as () => RootState)) break;
+            }
             try {
               await discordService.deleteReaction(token, channelId, msg.id, emojiKey, userId);
               didRemove = true;

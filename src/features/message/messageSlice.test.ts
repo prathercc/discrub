@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import messageReducer, {
   setMessages,
@@ -2717,6 +2717,113 @@ describe('messageSlice', () => {
       expect(result.type).toBe('message/batchRemoveReactions/fulfilled');
       expect(mockDiscordService.deleteAllReactionsForEmoji).toHaveBeenCalledTimes(2);
       expect(mockDiscordService.deleteAllReactionsForEmoji).toHaveBeenCalledWith('token', 'ch-1', 'msg-1', '👍');
+    });
+
+    describe('per-emoji pacing (2.1.3 pacing audit)', () => {
+      afterEach(async () => {
+        const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+        vi.mocked(cancellableDelay).mockReset().mockResolvedValue(false);
+      });
+      const recorder = async () => {
+        const events: string[] = [];
+        const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+        vi.mocked(cancellableDelay).mockImplementation(async () => { events.push('delay'); return false; });
+        const { calculateRandomDelay } = await import('@/utils/delayUtils');
+        vi.mocked(calculateRandomDelay).mockClear();
+        return { events, bases: () => vi.mocked(calculateRandomDelay).mock.calls.map((c) => c[0]) };
+      };
+      const backToBack = (events: string[]) =>
+        events.some((e, i) => e === 'delete' && events[i + 1] === 'delete');
+
+      it('emoji mode sleeps between emojis on one message', async () => {
+        const { events, bases } = await recorder();
+        const mockDiscordService = {
+          deleteAllReactionsForEmoji: vi.fn().mockImplementation(async () => { events.push('delete'); return { success: true }; }),
+        };
+        vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+        const messages = [{ id: 'msg-1', reactions: [
+          { emoji: { id: null, name: '👍' }, count: 1 },
+          { emoji: { id: null, name: '🔥' }, count: 1 },
+          { emoji: { id: null, name: '❤️' }, count: 1 },
+        ] }];
+        const testStore = await createStoreWithApp();
+        await testStore.dispatch(
+          batchRemoveReactions({ channelId: 'ch-1', messages, mode: 'emoji', emojis: ['👍', '🔥', '❤️'], token: 'token' })
+        );
+        expect(events).toEqual(['delete', 'delay', 'delete', 'delay', 'delete']);
+        expect(bases()).toEqual([2, 2]); // delete delay (default 2s)
+      });
+
+      it('emoji mode never fires two deletes back to back across messages', async () => {
+        const { events } = await recorder();
+        const mockDiscordService = {
+          deleteAllReactionsForEmoji: vi.fn().mockImplementation(async () => { events.push('delete'); return { success: true }; }),
+        };
+        vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+        const reactions = [{ emoji: { id: null, name: '👍' }, count: 1 }, { emoji: { id: null, name: '🔥' }, count: 1 }];
+        const messages = [{ id: 'msg-1', reactions }, { id: 'msg-2', reactions }];
+        const testStore = await createStoreWithApp();
+        await testStore.dispatch(
+          batchRemoveReactions({ channelId: 'ch-1', messages, mode: 'emoji', emojis: ['👍', '🔥'], token: 'token' })
+        );
+        expect(events.filter((e) => e === 'delete')).toHaveLength(4);
+        expect(backToBack(events)).toBe(false);
+        expect(events.filter((e) => e === 'delay')).toHaveLength(3);
+      });
+
+      it('user mode sleeps between the emojis a user reacted with', async () => {
+        const { events } = await recorder();
+        const mockDiscordService = {
+          deleteReaction: vi.fn().mockImplementation(async () => { events.push('delete'); return { success: true }; }),
+        };
+        vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+        const messages = [{ id: 'msg-1', reactions: [
+          { emoji: { id: null, name: '👍' }, count: 2 },
+          { emoji: { id: null, name: '❤️' }, count: 1 },
+          { emoji: { id: null, name: '🔥' }, count: 1, me: false },
+        ] }];
+        const testStore = await createStoreWithApp();
+        await testStore.dispatch(
+          batchRemoveReactions({ channelId: 'ch-1', messages, mode: 'user', userId: 'user-1', token: 'token' })
+        );
+        expect(events).toEqual(['delete', 'delay', 'delete']);
+      });
+
+      it('all mode is one request per message, paced per message', async () => {
+        const { events } = await recorder();
+        const mockDiscordService = {
+          deleteAllReactionsFromMessage: vi.fn().mockImplementation(async () => { events.push('delete'); return { success: true }; }),
+        };
+        vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+        const messages = [
+          { id: 'msg-1', reactions: [{ emoji: { id: null, name: '👍' }, count: 1 }] },
+          { id: 'msg-2', reactions: [{ emoji: { id: null, name: '👍' }, count: 1 }] },
+        ];
+        const testStore = await createStoreWithApp();
+        await testStore.dispatch(
+          batchRemoveReactions({ channelId: 'ch-1', messages, mode: 'all', token: 'token' })
+        );
+        expect(events).toEqual(['delete', 'delay', 'delete']);
+      });
+
+      it('a cancel during the per-emoji sleep stops the batch', async () => {
+        const { events } = await recorder();
+        const { cancellableDelay } = await import('@/utils/operationLoopUtils');
+        vi.mocked(cancellableDelay).mockImplementation(async () => { events.push('delay'); return true; });
+        const mockDiscordService = {
+          deleteAllReactionsForEmoji: vi.fn().mockImplementation(async () => { events.push('delete'); return { success: true }; }),
+        };
+        vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
+        const messages = [{ id: 'msg-1', reactions: [
+          { emoji: { id: null, name: '👍' }, count: 1 },
+          { emoji: { id: null, name: '🔥' }, count: 1 },
+        ] }, { id: 'msg-2', reactions: [{ emoji: { id: null, name: '👍' }, count: 1 }] }];
+        const testStore = await createStoreWithApp();
+        await testStore.dispatch(
+          batchRemoveReactions({ channelId: 'ch-1', messages, mode: 'emoji', emojis: ['👍', '🔥'], token: 'token' })
+        );
+        expect(events.filter((e) => e === 'delete')).toHaveLength(1);
+      });
     });
 
     it('should call deleteReaction per emoji in "user" mode', async () => {
