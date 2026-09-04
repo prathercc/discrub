@@ -97,6 +97,22 @@ vi.mock('@/utils/operationLoopUtils', async () => {
     ...actual,
     cancellableDelay: vi.fn().mockResolvedValue(false),
     waitWhilePaused: vi.fn().mockResolvedValue(undefined),
+    // Instant fake of withTransientRetry — same retry+predicate contract
+    // as the real helper minus the exponential backoff sleep (timing is
+    // covered by operationLoopUtils.test.ts).
+    withTransientRetry: vi.fn(async (fn: () => Promise<any>, opts: any) => {
+      const maxRetries = opts.maxRetries ?? 5;
+      const shouldRetry = opts.shouldRetry ?? actual.isTransientApiFailure;
+      let lastResponse: any = { success: false };
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        if (actual.checkCancelled(opts.getState)) return lastResponse;
+        lastResponse = await fn();
+        if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+        if (attempt === maxRetries) return lastResponse;
+        opts.onRetry?.(attempt + 1, 1000, lastResponse);
+      }
+      return lastResponse;
+    }),
   };
 });
 
@@ -1320,6 +1336,131 @@ describe('exportSlice', () => {
         // The success-level entry is the final one; looser match here.
         true
       )).toBe(true);
+    });
+  });
+
+  describe('Bulk export unfiltered walk transient retry (#245)', () => {
+    // One dropped packet mid-export used to throw "Failed to fetch messages
+    // for channel" and kill that channel's export. The walk now runs under
+    // withTransientRetry and pauses on exhaustion (same contract as Load All).
+    const page = (start: number, size: number) => ({
+      success: true,
+      data: Array.from({ length: size }, (_, i) => ({
+        id: `${start + i + 1}`,
+        channel_id: 'ch-flaky',
+        timestamp: '2026-01-01T00:00:00.000Z',
+        author: { id: 'u', username: 'u', discriminator: '0', global_name: null, avatar: null },
+        content: 'msg',
+        mentions: [], attachments: [], embeds: [], pinned: false, type: 0,
+        mention_everyone: false, edited_timestamp: null, tts: false, reactions: [],
+      })),
+    });
+
+    async function runFlakyExport(fetchMessageData: any) {
+      const { configureStore } = await import('@reduxjs/toolkit');
+      const { default: exportReducer, bulkExportChannels } = await import('./exportSlice');
+      const appReducer = (await import('@features/app/appSlice')).default;
+      const { defaultSettings } = await import('@features/app/appSlice');
+      const authReducer = (await import('@features/auth/authSlice')).default;
+      const statusReducer = (await import('@features/status/statusSlice')).default;
+      const historyReducer = (await import('@features/history/historySlice')).default;
+      const { getDiscordService } = await import('@services/discordService');
+
+      vi.mocked(getDiscordService).mockReturnValue({
+        fetchMessageData,
+        fetchSearchMessageData: vi.fn(),
+        iterateSearchResults: async function* () {},
+      } as any);
+
+      const testStore = configureStore({
+        reducer: {
+          export: exportReducer, app: appReducer, auth: authReducer,
+          status: statusReducer, history: historyReducer, cache: cacheReducer,
+        } as any,
+        preloadedState: {
+          app: {
+            discrubPaused: false, discrubCancelled: false, isMinimized: false,
+            focusedView: false, kofiOverlayOpen: false, sidebarView: 'server' as const,
+            task: { status: 'idle' as const, message: '' }, settings: defaultSettings,
+          },
+        } as any,
+      });
+
+      const pending = testStore.dispatch(
+        bulkExportChannels({
+          channels: [{ id: 'ch-flaky', name: 'flaky' } as any],
+          token: 'token', format: 'html', messagesPerPage: 100,
+          separateThreads: false, includeMedia: false, guildId: 'g-1',
+        })
+      );
+      return { testStore, pending };
+    }
+
+    it('retries a transient page failure and completes the channel walk', async () => {
+      const fetchMessageData = vi.fn()
+        .mockResolvedValueOnce(page(0, 100))
+        .mockResolvedValueOnce({ success: false, status: 503 })
+        .mockResolvedValueOnce({ success: false, status: undefined })
+        .mockResolvedValueOnce(page(100, 10));
+      const { testStore, pending } = await runFlakyExport(fetchMessageData);
+      const result: any = await pending;
+
+      expect(fetchMessageData).toHaveBeenCalledTimes(4);
+      // The retry re-issues the same cursor, so no page is skipped.
+      expect(fetchMessageData.mock.calls[1][1]).toBe('100');
+      expect(fetchMessageData.mock.calls[3][1]).toBe('100');
+      expect(result.payload.errors).toBeUndefined();
+
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const retries = entries.filter((e) => e.level === 'warning' && /Export: connection failed while loading #flaky, retrying in/.test(e.message));
+      expect(retries).toHaveLength(2);
+      expect(entries.some((e) => e.level === 'success' && e.message.includes('Loaded 110 messages from #flaky'))).toBe(true);
+      expect(testStore.getState().app.discrubPaused).toBe(false);
+    });
+
+    it('pauses the export after retries are exhausted and keeps the progress made', async () => {
+      const { waitWhilePaused } = await import('@/utils/operationLoopUtils');
+      // The file-wide stub makes waitWhilePaused a no-op; make it honor
+      // the paused flag for this test only so the post-pause loop blocks.
+      vi.mocked(waitWhilePaused).mockImplementation(async (getState: any) => {
+        while (getState().app.discrubPaused) {
+          await new Promise((r) => setTimeout(r, 10));
+          if (getState().app.discrubCancelled) return;
+        }
+      });
+      const fetchMessageData = vi.fn()
+        .mockResolvedValueOnce(page(0, 100))
+        .mockResolvedValue({ success: false, status: undefined });
+      const { testStore, pending } = await runFlakyExport(fetchMessageData);
+
+      for (let i = 0; i < 200 && !testStore.getState().app.discrubPaused; i++) {
+        await new Promise((r) => setTimeout(r, 20));
+      }
+      expect(testStore.getState().app.discrubPaused).toBe(true);
+      // 1 good page + 1 initial attempt + 5 retries.
+      expect(fetchMessageData).toHaveBeenCalledTimes(7);
+
+      const { setDiscrubCancelled } = await import('@features/app/appSlice');
+      testStore.dispatch(setDiscrubCancelled(true));
+      await pending;
+
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      const paused = entries.find((e) => e.level === 'warning' && /Export: paused after 5 failed retries loading #flaky/.test(e.message));
+      expect(paused?.message).toContain('100 messages fetched');
+
+      vi.mocked(waitWhilePaused).mockResolvedValue(undefined);
+    }, 10000);
+
+    it('fails the channel immediately on a permanent 4xx, with the status in the error', async () => {
+      const fetchMessageData = vi.fn().mockResolvedValue({ success: false, status: 403 });
+      const { testStore, pending } = await runFlakyExport(fetchMessageData);
+      const result: any = await pending;
+
+      expect(fetchMessageData).toHaveBeenCalledTimes(1);
+      expect(testStore.getState().app.discrubPaused).toBe(false);
+      const entries = testStore.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.some((e) => /retrying in/.test(e.message))).toBe(false);
+      expect(JSON.stringify(result.payload ?? '') + entries.map((e) => e.message).join('\n')).toContain('(403)');
     });
   });
 

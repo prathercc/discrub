@@ -17,6 +17,7 @@ import {
   checkCancelled,
   createShouldContinue,
   waitWhilePaused,
+  withTransientRetry,
 } from '@/utils/operationLoopUtils';
 import {
   applyExportThemeSetFromState,
@@ -1130,9 +1131,9 @@ async function runSearchPreflight(args: {
  *  8. On cancel: save partial results, fulfill with `cancelled: true`.
  *  9. On success: persist full result to IDB, fulfill with counts.
  *
- * Rate limits are handled globally via `DiscordService.onRateLimit`
- * (wired in `discordService.ts`), so this thunk doesn't need its own
- * retry logic — `fetchMessageData` already waits internally.
+ * Rate limits (429) are handled inside discrub-core's `withRetry`;
+ * network drops and 5xx are NOT, so each AROUND call runs under
+ * `withTransientRetry` (#245) before a failure is treated as a miss.
  */
 export const enrichPackageChannel = createAsyncThunk<
   EnrichmentResult,
@@ -1451,11 +1452,14 @@ export const enrichPackageChannel = createAsyncThunk<
         } else {
           madeApiCall = true;
           try {
-            const response = await discordService.fetchMessageData(
-              token,
-              targetId,
-              channelId,
-              QueryStringParam.AROUND,
+            const response = await withTransientRetry(
+              () => discordService.fetchMessageData(
+                token,
+                targetId,
+                channelId,
+                QueryStringParam.AROUND,
+              ),
+              { getState },
             );
             if (response.success && response.data) {
               // Cache the whole window so subsequent iterations can

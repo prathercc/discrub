@@ -4489,8 +4489,10 @@ describe('messageSlice', () => {
 
     describe('Thread thunk cancellation and edge cases', () => {
       it('should handle fetchAllThreadMessages failure gracefully', async () => {
+        // A permanent 4xx: rejects without retry (transient failures are
+        // covered by the #245 cases below).
         const mockDiscordService = {
-          fetchMessageData: vi.fn().mockResolvedValue({ success: false }),
+          fetchMessageData: vi.fn().mockResolvedValue({ success: false, status: 403 }),
         };
         vi.mocked(discordService.getDiscordService).mockReturnValue(mockDiscordService as any);
 
@@ -4523,6 +4525,94 @@ describe('messageSlice', () => {
         expect(tab.pagination.isLoadingAll).toBe(false);
         expect(tab.pagination.loadAllProgress).toBeNull();
       });
+
+      const threadTabState = () => ({
+        ...initialMessageState,
+        activeTab: 'thread-100',
+        threadTabs: {
+          'thread-100': {
+            threadId: 'thread-100',
+            threadName: 'Thread',
+            messages: [],
+            filteredMessages: [],
+            selectedMessages: [],
+            searchCriteria: null, refineCriteria: null,
+            order: initialMessageState.order,
+            isLoading: false,
+            error: null,
+            pagination: { ...initialMessageState.pagination },
+          },
+        },
+      });
+
+      it('#245: retries transient failures then completes the thread Load All', async () => {
+        const batch = createMockMessages(10);
+        const fetchSpy = vi.fn()
+          .mockResolvedValueOnce({ success: false, status: undefined })
+          .mockResolvedValueOnce({ success: false, status: 503 })
+          .mockResolvedValueOnce({ success: true, data: batch });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchMessageData: fetchSpy } as any);
+        vi.mocked(addStatusEntry).mockClear();
+
+        const testStore = await createStoreWithApp(threadTabState());
+        const result = await testStore.dispatch(
+          fetchAllThreadMessages({ threadId: 'thread-100', token: 'token' })
+        );
+
+        expect(result.type).toBe('message/fetchAllThreadMessages/fulfilled');
+        expect(fetchSpy).toHaveBeenCalledTimes(3);
+        expect(testStore.getState().message.threadTabs['thread-100'].messages).toHaveLength(10);
+        const retryEntries = vi.mocked(addStatusEntry).mock.calls.filter(
+          ([p]) => p.level === 'warning' && /retrying in/.test(p.message),
+        );
+        expect(retryEntries).toHaveLength(2);
+        expect(testStore.getState().app.discrubPaused).toBe(false);
+      });
+
+      it('#245: pauses the thread Load All after retries are exhausted, preserves partial progress', async () => {
+        const { waitWhilePaused, checkCancelled } = await import('@/utils/operationLoopUtils');
+        vi.mocked(checkCancelled).mockImplementation(
+          (getState: any) => getState().app.discrubCancelled,
+        );
+        vi.mocked(waitWhilePaused).mockImplementation(async (getState: any) => {
+          while (getState().app.discrubPaused) {
+            await new Promise((r) => setTimeout(r, 10));
+            if (getState().app.discrubCancelled) return;
+          }
+        });
+        const { setDiscrubCancelled } = await import('@features/app/appSlice');
+
+        const batch = createMockMessages(100);
+        const fetchSpy = vi.fn()
+          .mockResolvedValueOnce({ success: true, data: batch })
+          .mockResolvedValue({ success: false, status: undefined });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchMessageData: fetchSpy } as any);
+        vi.mocked(addStatusEntry).mockClear();
+
+        const testStore = await createStoreWithApp(threadTabState());
+        const pending = testStore.dispatch(
+          fetchAllThreadMessages({ threadId: 'thread-100', token: 'token' })
+        );
+        for (let i = 0; i < 200 && !testStore.getState().app.discrubPaused; i++) {
+          await new Promise((r) => setTimeout(r, 20));
+        }
+        expect(testStore.getState().app.discrubPaused).toBe(true);
+        expect(fetchSpy).toHaveBeenCalledTimes(7);
+
+        testStore.dispatch(setDiscrubCancelled(true));
+        const result = await pending;
+        expect(result.type).toBe('message/fetchAllThreadMessages/fulfilled');
+        expect(testStore.getState().message.threadTabs['thread-100'].messages).toHaveLength(100);
+
+        const pauseEntries = vi.mocked(addStatusEntry).mock.calls.filter(
+          ([p]) => p.level === 'warning' && /paused after 5 failed retries/.test(p.message),
+        );
+        expect(pauseEntries.length).toBeGreaterThanOrEqual(1);
+        expect(pauseEntries[0][0].message).toContain('100 messages fetched');
+
+        vi.mocked(checkCancelled).mockReturnValue(false);
+        vi.mocked(waitWhilePaused).mockResolvedValue(undefined);
+      }, 10000);
 
       it('should handle searchThreadMessages failure gracefully', async () => {
         const mockDiscordService = {

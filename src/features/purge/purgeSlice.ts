@@ -16,6 +16,7 @@ import {
   checkCancelled,
   cancellableDelay,
   CancelledError,
+  withTransientRetry,
 } from '@utils/operationLoopUtils';
 import { calculateRandomDelay } from '@utils/delayUtils';
 import { iterateSearchMessagesRedux } from '@utils/searchPagination';
@@ -227,8 +228,11 @@ async function* iterateReactionPurgeMessages(
         // the full reaction payload that search stripped.
         let aroundResp;
         try {
-          aroundResp = await discordService.fetchMessageData(
-            token, hit.id, aroundChannelId, QueryStringParam.AROUND,
+          aroundResp = await withTransientRetry(
+            () => discordService.fetchMessageData(
+              token, hit.id, aroundChannelId, QueryStringParam.AROUND,
+            ),
+            { getState },
           );
         } catch (err) {
           // Network / CORS / preflight failure — surface once per channel
@@ -283,8 +287,29 @@ async function* iterateReactionPurgeMessages(
     await waitWhilePaused(getState);
     if (checkCancelled(getState)) return;
 
-    const response = await discordService.fetchMessageData(token, lastId ?? '', channelId);
-    if (!response.success || !response.data) return;
+    // Retry transient failures (#245). Exhaustion is loud: a silent
+    // return here would let the purge end as if the walk completed.
+    const response = await withTransientRetry(
+      () => discordService.fetchMessageData(token, lastId ?? '', channelId),
+      {
+        getState,
+        onRetry: (attempt, delayMs) => {
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `Purge: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+          }));
+        },
+      },
+    );
+    if (!response.success || !response.data) {
+      if (!checkCancelled(getState) && lastId !== null) {
+        dispatch(addStatusEntry({
+          level: 'warning',
+          message: `Purge: history walk stopped early after a failed request (${response.status ?? 'network error'}); results may be incomplete. Re-run the purge to cover the rest.`,
+        }));
+      }
+      return;
+    }
 
     const messages = response.data;
     hasMore = messages.length >= 100;
@@ -360,7 +385,19 @@ async function* iterateDeletedUserScan(
       await waitWhilePaused(getState);
       if (checkCancelled(getState)) return;
 
-      const response = await discordService.fetchMessageData(token, lastId, scanChannelId);
+      // Retry transient failures (#245) before treating the page as failed.
+      const response = await withTransientRetry(
+        () => discordService.fetchMessageData(token, lastId, scanChannelId),
+        {
+          getState,
+          onRetry: (attempt, delayMs) => {
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `History scan of ${channelLabel}: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+            }));
+          },
+        },
+      );
       if (!response.success || !response.data) {
         // A FIRST-page failure is the expected shape for unwalkable
         // channels (forum parents 400 on the list endpoint, unreadable

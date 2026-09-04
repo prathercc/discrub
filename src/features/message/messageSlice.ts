@@ -2292,9 +2292,32 @@ export const fetchAllThreadMessages = createAsyncThunk(
         await waitWhilePaused(getState as () => RootState);
         if (checkCancelled(getState as () => RootState)) break;
 
-        const response = await discordService.fetchMessageData(token, lastMsgId, threadId);
+        // Retry transient failures (#245, same contract as the channel
+        // Load All above). On exhaustion, pause so the user can fix their
+        // network and Resume from the same lastMsgId.
+        const response = await withTransientRetry(
+          () => discordService.fetchMessageData(token, lastMsgId, threadId),
+          {
+            getState: getState as () => RootState,
+            signal,
+            onRetry: (attempt, delayMs) => {
+              dispatch(addStatusEntry({
+                level: 'warning',
+                message: `Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+              }));
+            },
+          },
+        );
 
         if (!response.success || !response.data) {
+          if (isTransientApiFailure(response) && !signal.aborted && !checkCancelled(getState as () => RootState)) {
+            dispatch(setDiscrubPaused(true));
+            dispatch(addStatusEntry({
+              level: 'warning',
+              message: `Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${allMessages.length} messages fetched.`,
+            }));
+            continue;
+          }
           dispatch(messageSlice.actions.updateThreadPagination({
             threadId,
             pagination: { isLoadingAll: false, loadAllProgress: null },

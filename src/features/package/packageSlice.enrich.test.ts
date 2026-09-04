@@ -32,6 +32,22 @@ vi.mock('@services/discordService', () => ({
 
 const mockCheckCancelled = vi.fn().mockReturnValue(false);
 vi.mock('@utils/operationLoopUtils', () => ({
+  // Instant fake of withTransientRetry (#245) — same retry+predicate
+  // contract as the real helper minus the backoff sleep.
+  withTransientRetry: vi.fn(async (fn: () => Promise<any>, opts: any) => {
+    const maxRetries = opts.maxRetries ?? 5;
+    const isTransient = (r: any) =>
+      !r.success && (r.status === undefined || r.status >= 500 || r.status === 408 || r.status === 425);
+    const shouldRetry = opts.shouldRetry ?? isTransient;
+    let lastResponse: any = { success: false };
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      lastResponse = await fn();
+      if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+      if (attempt === maxRetries) return lastResponse;
+      opts.onRetry?.(attempt + 1, 1000, lastResponse);
+    }
+    return lastResponse;
+  }),
   waitWhilePaused: vi.fn().mockResolvedValue(undefined),
   checkCancelled: (...args: unknown[]) => mockCheckCancelled(...args),
   cancellableDelay: vi.fn().mockResolvedValue(false),
@@ -181,6 +197,28 @@ describe('packageSlice — enrichPackageChannel', () => {
     const cached = await enrichmentCache.get(USER_ID, '200');
     expect(cached).not.toBeNull();
     expect(Object.keys(cached?.messages ?? {})).toEqual(['1', '2', '3']);
+  });
+
+  it('#245: retries a transient AROUND failure instead of dropping the message', async () => {
+    let flaky = 0;
+    mockFetchMessageData.mockImplementation(
+      (_token: string, targetId: string) => {
+        if (targetId === '2' && flaky++ < 2) {
+          return Promise.resolve({ success: false, status: flaky === 1 ? 503 : undefined });
+        }
+        return Promise.resolve({ success: true, status: 200, data: [liveMessage(targetId)] });
+      },
+    );
+    const store = await primedStore();
+
+    const action = await store.dispatch(enrichPackageChannel({ channelId: '200' }));
+    expect(action.type).toBe('package/enrichChannel/fulfilled');
+
+    const state = store.getState().package;
+    expect(Object.keys(state.enrichedMessages['200'])).toEqual(['1', '2', '3']);
+    expect(state.enrichmentMisses['200']).toEqual({ deleted: [], forbidden: [] });
+    // 3 targets + 2 retries on target '2'.
+    expect(mockFetchMessageData).toHaveBeenCalledTimes(5);
   });
 
   it('treats HTTP 404 as a deleted miss, continues the loop', async () => {

@@ -34,6 +34,22 @@ vi.mock('@services/discordService', () => ({
 }));
 
 vi.mock('@utils/operationLoopUtils', () => ({
+  // Instant fake of withTransientRetry (#245) — same retry+predicate
+  // contract as the real helper minus the backoff sleep.
+  withTransientRetry: vi.fn(async (fn: () => Promise<any>, opts: any) => {
+    const maxRetries = opts.maxRetries ?? 5;
+    const isTransient = (r: any) =>
+      !r.success && (r.status === undefined || r.status >= 500 || r.status === 408 || r.status === 425);
+    const shouldRetry = opts.shouldRetry ?? isTransient;
+    let lastResponse: any = { success: false };
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      lastResponse = await fn();
+      if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+      if (attempt === maxRetries) return lastResponse;
+      opts.onRetry?.(attempt + 1, 1000, lastResponse);
+    }
+    return lastResponse;
+  }),
   waitWhilePaused: vi.fn().mockResolvedValue(undefined),
   checkCancelled: vi.fn().mockReturnValue(false),
   cancellableDelay: vi.fn().mockResolvedValue(false),

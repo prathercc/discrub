@@ -139,6 +139,22 @@ vi.mock('@services/discordService', () => ({
 }));
 
 vi.mock('@utils/operationLoopUtils', () => ({
+  // Instant fake of withTransientRetry (#245) — same retry+predicate
+  // contract as the real helper minus the backoff sleep.
+  withTransientRetry: vi.fn(async (fn: () => Promise<any>, opts: any) => {
+    const maxRetries = opts.maxRetries ?? 5;
+    const isTransient = (r: any) =>
+      !r.success && (r.status === undefined || r.status >= 500 || r.status === 408 || r.status === 425);
+    const shouldRetry = opts.shouldRetry ?? isTransient;
+    let lastResponse: any = { success: false };
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      lastResponse = await fn();
+      if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+      if (attempt === maxRetries) return lastResponse;
+      opts.onRetry?.(attempt + 1, 1000, lastResponse);
+    }
+    return lastResponse;
+  }),
   waitWhilePaused: vi.fn().mockResolvedValue(undefined),
   checkCancelled: vi.fn().mockReturnValue(false),
   cancellableDelay: vi.fn().mockResolvedValue(false),
@@ -1880,6 +1896,69 @@ describe('purgeSlice thunks', () => {
       expect(midWalk?.level).toBe('warning');
       expect(entries.some((e) => e.message.includes('results may be incomplete'))).toBe(true);
       expect(entries.some((e) => e.message.includes('Scan of') && e.message.includes('complete:'))).toBe(false);
+    });
+
+    it('#245: retries a transient page failure mid-walk and finishes the scan cleanly', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const fullPage = Array.from({ length: 100 }, (_, i) => ({
+        ...mockMessage(`scan-${i}`, 0, [], DELETED_USER),
+      })) as Message[];
+      const tail = [{ ...mockMessage('scan-tail', 0, [], DELETED_USER) } as Message];
+      let calls = 0;
+      mockFetchMessageData.mockImplementation(() => {
+        calls++;
+        if (calls === 1) return Promise.resolve({ success: true, data: fullPage });
+        if (calls === 2) return Promise.resolve({ success: false, status: 503 });
+        if (calls === 3) return Promise.resolve({ success: false, status: undefined });
+        return Promise.resolve({ success: true, data: tail });
+      });
+
+      const result = await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(bulkPurgeChannels.fulfilled.match(result)).toBe(true);
+      expect(mockFetchMessageData).toHaveBeenCalledTimes(4);
+      // Both retries re-issue the same before-cursor.
+      expect(mockFetchMessageData.mock.calls[1][1]).toBe('scan-99');
+      expect(mockFetchMessageData.mock.calls[3][1]).toBe('scan-99');
+      expect(mockDeleteMessage).toHaveBeenCalledTimes(101);
+
+      const entries = cacheStore.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.filter((e) => e.level === 'warning' && /retrying in/.test(e.message))).toHaveLength(2);
+      expect(entries.some((e) => e.message.includes('stopped early'))).toBe(false);
+      expect(entries.some((e) => e.message.includes('results may be incomplete'))).toBe(false);
+    });
+
+    it('#245: a permanent 4xx mid-walk is not retried and still reports the scan as incomplete', async () => {
+      const cacheStore = storeWithCache({ [DELETED_ID]: deletedEntry });
+      const fullPage = Array.from({ length: 100 }, (_, i) => ({
+        ...mockMessage(`scan-${i}`, 0, [], DELETED_USER),
+      })) as Message[];
+      let calls = 0;
+      mockFetchMessageData.mockImplementation(() => {
+        calls++;
+        return Promise.resolve(
+          calls === 1 ? { success: true, data: fullPage } : { success: false, status: 403 },
+        );
+      });
+
+      await cacheStore.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: messagesConfig([DELETED_ID]),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockFetchMessageData).toHaveBeenCalledTimes(2);
+      const entries = cacheStore.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.some((e) => /retrying in/.test(e.message))).toBe(false);
+      expect(entries.some((e) => e.message.includes('stopped early after a failed request'))).toBe(true);
     });
 
     it('skips quietly when a channel cannot be walked at all (first-page failure)', async () => {
@@ -4270,6 +4349,52 @@ describe('purgeSlice thunks', () => {
       );
 
       expect(mockFetchSearchMessageData.mock.calls[0][3]).toBeNull();
+    });
+
+    it('#245: retries a transient failure on the reactions-mode history walk', async () => {
+      const msg1 = mockMessage('m1');
+      let fetchCall = 0;
+      mockFetchMessageData.mockImplementation(() => {
+        fetchCall++;
+        if (fetchCall === 1) return Promise.resolve({ success: false, status: 502 });
+        if (fetchCall === 2) return Promise.resolve({ success: true, data: [msg1] });
+        return Promise.resolve({ success: false, data: [] });
+      });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['user1']),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockFetchMessageData).toHaveBeenCalledTimes(2);
+      const entries = store.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.some((e) => e.level === 'warning' && /Purge: connection failed, retrying in/.test(e.message))).toBe(true);
+      expect(entries.some((e) => e.message.includes('stopped early'))).toBe(false);
+    });
+
+    it('#245: a mid-walk failure on the reactions-mode history walk is loud, not a silent end', async () => {
+      const fullPage = Array.from({ length: 100 }, (_, i) => mockMessage(`r-${i}`));
+      let fetchCall = 0;
+      mockFetchMessageData.mockImplementation(() => {
+        fetchCall++;
+        if (fetchCall === 1) return Promise.resolve({ success: true, data: fullPage });
+        return Promise.resolve({ success: false, status: 403 });
+      });
+
+      await store.dispatch(
+        bulkPurgeChannels({
+          channels: [mockChannel('ch1', 'general')],
+          config: reactionsConfig(['user1']),
+          guildId: 'guild1',
+        }),
+      );
+
+      expect(mockFetchMessageData).toHaveBeenCalledTimes(2);
+      const entries = store.getState().status.entries as Array<{ level: string; message: string }>;
+      expect(entries.some((e) => e.level === 'warning' && e.message.includes('Purge: history walk stopped early after a failed request (403)'))).toBe(true);
     });
 
     it('uses cursor-based pagination for reactions mode', async () => {

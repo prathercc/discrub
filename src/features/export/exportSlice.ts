@@ -16,7 +16,7 @@ import type { ThunkDispatch, UnknownAction } from '@reduxjs/toolkit';
 export type ExportDispatch = ThunkDispatch<RootState, unknown, UnknownAction>;
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
-import { selectSearchDelay, selectDelayModifier, selectSettings } from '@features/app/appSlice';
+import { selectSearchDelay, selectDelayModifier, selectSettings, setDiscrubPaused } from '@features/app/appSlice';
 import { selectHasThemes, selectSupporterFooter } from '@features/supporter/supporterSlice';
 import { resolveExportThemeSet } from '@services/exportThemes';
 import {
@@ -28,7 +28,7 @@ import { addRecentExport } from '@features/history/historySlice';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { IsPinnedType, ChannelType } from 'discrub-core/discord-enum';
 import { calculateRandomDelay } from '@/utils/delayUtils';
-import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError, withTransientRetry } from '@/utils/operationLoopUtils';
+import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError, withTransientRetry, isTransientApiFailure } from '@/utils/operationLoopUtils';
 import { iterateSearchMessagesRedux, nextMilestone } from '@/utils/searchPagination';
 import { addStatusEntry, showOperationTip } from '@features/status/statusSlice';
 
@@ -786,10 +786,36 @@ async function fetchAllChannelMessages(
     await waitWhilePaused(getState);
     if (checkCancelled(getState)) break;
 
-    const response = await discordService.fetchMessageData(token, lastMessageId, channelId);
+    // Retry transient failures (#245, same contract as Load All #185).
+    // On exhaustion, pause the export so the user can fix their network
+    // and click Resume; the loop re-enters with the same lastMessageId.
+    const response = await withTransientRetry(
+      () => discordService.fetchMessageData(token, lastMessageId, channelId),
+      {
+        getState,
+        onRetry: (attempt, delayMs) => {
+          dispatch(addStatusEntry({
+            level: 'warning',
+            message: `Export: connection failed while loading ${label}, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+          }));
+        },
+      },
+    );
+
+    // A cancel during the retry backoff resolves as a failed response —
+    // don't misreport it as an API error.
+    if (checkCancelled(getState)) break;
 
     if (!response.success || !response.data) {
-      throw new Error(`Failed to fetch messages for channel ${channelId}`);
+      if (isTransientApiFailure(response)) {
+        dispatch(setDiscrubPaused(true));
+        dispatch(addStatusEntry({
+          level: 'warning',
+          message: `Export: paused after 5 failed retries loading ${label}. Check your connection, then click Resume to continue from ${allMessages.length.toLocaleString()} messages fetched.`,
+        }));
+        continue;
+      }
+      throw new Error(`Failed to fetch messages for channel ${channelId} (${response.status ?? 'network error'})`);
     }
 
     const messages = response.data as Message[];
