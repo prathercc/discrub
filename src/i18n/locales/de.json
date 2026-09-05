@@ -1730,5 +1730,31 @@
     "failedPrefix": "Anreicherung fehlgeschlagen: ",
     "rehydrateHint": "Reichere an, um Reaktionen, Erwähnungen und frische CDN-Links zu sehen.",
     "richDataButton": "Vollständige Daten {{verb}} · {{eta}}"
+  },
+  "pkgAnalytics": {
+    "topChannels": "Top-Kanäle nach Nachrichtenzahl",
+    "leftServer": "verlassener Server",
+    "byServer": "Nachrichten nach Server",
+    "channelTypes": "Kanaltypen",
+    "guildText": "Server-Text",
+    "dms": "DMs",
+    "groupDms": "Gruppen-DMs",
+    "threads": "Threads",
+    "orphans": "Verwaiste",
+    "timeline": "Aktivitätsverlauf",
+    "timelineIntro": "Erstellt Aufschlüsselungen nach Monat und Tagesstunde. Liest die CSV jedes Kanals einmal; bei großen Paketen kann das einen Moment dauern.",
+    "loadTimeline": "Verlauf laden",
+    "readingChannel": "Kanal {{current}} von {{total}} wird gelesen",
+    "readingChannels": "Kanäle werden gelesen…",
+    "timelineFailed": "Verlauf konnte nicht berechnet werden",
+    "noData": "Keine Daten.",
+    "messagesAnalyzed": "Nachrichten ausgewertet",
+    "peakMonth": "stärkster Monat ({{count, number}} Nachr.)",
+    "mostActiveHour": "aktivste Stunde",
+    "rangeTo": "{{from}} bis {{to}}",
+    "activityRange": "Aktivitätszeitraum",
+    "monthlyActivity": "Monatliche Aktivität",
+    "byHour": "Aktivität nach Stunde (UTC)",
+    "inYear": "in {{year}}"
   }
 }

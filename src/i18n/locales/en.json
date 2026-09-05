@@ -1730,5 +1730,31 @@
     "failedPrefix": "Rehydration failed: ",
     "rehydrateHint": "Rehydrate to see reactions, mentions, and fresh CDN URLs.",
     "richDataButton": "{{verb}} rich data · {{eta}}"
+  },
+  "pkgAnalytics": {
+    "topChannels": "Top channels by message count",
+    "leftServer": "left server",
+    "byServer": "Messages by server",
+    "channelTypes": "Channel types",
+    "guildText": "Guild text",
+    "dms": "DMs",
+    "groupDms": "Group DMs",
+    "threads": "Threads",
+    "orphans": "Orphans",
+    "timeline": "Activity timeline",
+    "timelineIntro": "Build month-by-month and hour-of-day breakdowns. Reads every channel's CSV once; this may take a moment for large packages.",
+    "loadTimeline": "Load timeline",
+    "readingChannel": "Reading channel {{current}} of {{total}}",
+    "readingChannels": "Reading channels…",
+    "timelineFailed": "Failed to compute timeline",
+    "noData": "No data.",
+    "messagesAnalyzed": "messages analyzed",
+    "peakMonth": "peak month ({{count, number}} msgs)",
+    "mostActiveHour": "most active hour",
+    "rangeTo": "{{from}} to {{to}}",
+    "activityRange": "activity range",
+    "monthlyActivity": "Monthly activity",
+    "byHour": "Activity by hour (UTC)",
+    "inYear": "in {{year}}"
   }
 }
