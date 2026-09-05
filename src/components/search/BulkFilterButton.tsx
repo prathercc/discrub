@@ -1,5 +1,6 @@
 import { Box, Button, Typography } from '@mui/material';
 import { FilterList as FilterIcon } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 interface BulkFilterButtonProps {
   /**
@@ -30,9 +31,12 @@ const BulkFilterButton = ({
   filterCount,
   onOpen,
   helperText,
-  addLabel = 'Add filters',
-  editLabel = 'Edit filters',
+  addLabel,
+  editLabel,
 }: BulkFilterButtonProps) => {
+  const { t } = useTranslation();
+  const add = addLabel ?? t('bulkFilter.add');
+  const edit = editLabel ?? t('bulkFilter.edit');
   const isActive = filterCount > 0;
   return (
     <Box>
@@ -42,9 +46,9 @@ const BulkFilterButton = ({
         size="small"
         startIcon={<FilterIcon />}
         onClick={onOpen}
-        aria-label={isActive ? editLabel : addLabel}
+        aria-label={isActive ? edit : add}
       >
-        {isActive ? `${editLabel} (${filterCount})` : addLabel}
+        {isActive ? t('bulkFilter.editCount', { label: edit, count: filterCount }) : add}
       </Button>
       {!isActive && helperText && (
         <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>

@@ -40,6 +40,8 @@ import ExportSummaryChip from './ExportSummaryChip';
 import PresetSelector from './PresetSelector';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
+import { Trans } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Where the messages being exported come from.
@@ -68,6 +70,7 @@ interface ExportDialogProps {
 const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: ExportDialogProps) => {
   const dispatch = useAppDispatch();
   const isPackageContext = exportContext.source === 'package';
+  const { t } = useTranslation();
   const packageChannelId = isPackageContext ? exportContext.channelId : null;
 
   const liveMessages = useAppSelector(selectActiveFilteredMessages);
@@ -97,7 +100,7 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
       const channel = parsedPackage.channels.find((c) => c.id === packageChannelId);
       const name =
         channel?.name ??
-        (channel?.type === 1 ? 'Direct Message' : packageChannelId);
+        (channel?.type === 1 ? t('common.directMessage') : packageChannelId);
       const pms = packagePmList ?? [];
       // Prefer enriched live messages when available; fall back to the
       // CSV adapter. Matches exportPackageChannel's thunk behavior.
@@ -108,7 +111,7 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
       return { messages: msgs, channelName: name, guildId: channel?.guildId ?? null };
     }
     const currentContext = selectedChannel || selectedDm;
-    const dmName = selectedDm?.recipients?.map((r) => r.username).join(', ') || 'Direct Message';
+    const dmName = selectedDm?.recipients?.map((r) => r.username).join(', ') || t('common.directMessage');
     const liveChannelName = activeTab && threadTabs[activeTab]
       ? threadTabs[activeTab].threadName
       : (currentContext?.name || dmName);
@@ -129,6 +132,7 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
     selectedGuild,
     activeTab,
     threadTabs,
+    t,
   ]);
 
   const mediaSummary = useMemo(() => categorizeMessageAttachments(messages), [messages]);
@@ -219,15 +223,14 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
-        Export Messages
+        {t('export.title')}
         <DialogCloseIcon onClose={handleClose} />
       </DialogTitle>
       <DialogContent sx={{ maxHeight: fullScreen ? undefined : '70vh', overflowY: 'auto' }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1 }}>
           <Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Exporting {messages.length} message{messages.length !== 1 ? 's' : ''} from{' '}
-              <strong>{channelName}</strong>
+              <Trans i18nKey="export.exportingFrom" values={{ count: messages.length, name: channelName }} components={{ strong: <strong /> }} />
             </Typography>
           </Box>
 
@@ -261,13 +264,11 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
                     onChange={(e) => setRehydrateFirst(e.target.checked)}
                   />
                 }
-                label="Rehydrate before export (fetches reactions, edits, and replies from Discord)"
+                label={t('export.rehydrateBeforeExport')}
               />
               {parsedPackage?.isLegacyFormat && exportState.includeMedia && (
                 <Alert severity="warning" icon={false} sx={{ py: 0.5, fontSize: '0.8rem' }}>
-                  This is a pre-2025 Discord package. Some attachment links
-                  may have expired and fail during media download. Rehydrate
-                  to refresh URLs, or uncheck "Download files" to skip media.
+                  {t('export.oldPackageWarning')}
                 </Alert>
               )}
             </Box>
@@ -275,7 +276,7 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
 
           {exportState.exportError && (
             <Typography color="error" variant="body2">
-              Error: {exportState.exportError}
+              {t('export.error', { error: exportState.exportError })}
             </Typography>
           )}
         </Box>
@@ -284,7 +285,7 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
         <ExportSummaryChip />
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
           <Button onClick={handleClose} variant="outlined">
-            Cancel
+            {t('export.cancel')}
           </Button>
           <Button
             onClick={handleExport}
@@ -292,7 +293,7 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
             startIcon={<DownloadIcon />}
             disabled={messages.length === 0 || isOperationRunning}
           >
-            Export
+            {t('export.export')}
           </Button>
         </Box>
       </DialogActions>

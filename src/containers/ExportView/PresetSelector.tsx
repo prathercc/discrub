@@ -27,6 +27,8 @@ import {
 } from '@features/presets/presetsSlice';
 import { BUILT_IN_PRESETS, PRESET_CATEGORIES, resolveMaxZipPartBytes } from '@features/export/exportTypes';
 import type { ExportPreset, ExportSettingsSnapshot } from '@features/export/exportTypes';
+import { t as translate } from '@/i18n';
+import { useTranslation } from 'react-i18next';
 
 function snapshotMatches(a: ExportSettingsSnapshot, b: ExportSettingsSnapshot): boolean {
   return (
@@ -65,30 +67,30 @@ const FORMAT_LABELS: Record<string, string> = {
   html: 'HTML',
   csv: 'CSV',
   json: 'JSON',
-  media: 'Media Only',
+  media: 'export.formatShort.media',
 };
 
 function buildPresetSummary(preset: ExportSettingsSnapshot): string {
   const parts: string[] = [];
 
-  parts.push(FORMAT_LABELS[preset.format] || preset.format.toUpperCase());
+  parts.push(translate(FORMAT_LABELS[preset.format] || preset.format.toUpperCase(), { defaultValue: FORMAT_LABELS[preset.format] || preset.format.toUpperCase() }));
 
   if (preset.includeMedia) {
     const { images, videos, audio, other } = preset.mediaConfig;
     if (images && videos && audio && other) {
-      parts.push('All media');
+      parts.push(translate('export.summary.allMedia'));
     } else if (images && !videos && !audio && !other) {
-      parts.push('Images only');
+      parts.push(translate('export.summary.imagesOnly'));
     } else {
       const types = [images && 'img', videos && 'vid', audio && 'audio', other && 'files'].filter(Boolean);
       parts.push(types.join('+'));
     }
   } else if (preset.format !== 'media') {
-    parts.push('No media');
+    parts.push(translate('export.summary.noMedia'));
   }
 
-  if (preset.separateThreads) parts.push('Threads');
-  if (preset.artistMode) parts.push('Artist mode');
+  if (preset.separateThreads) parts.push(translate('export.summary.threads'));
+  if (preset.artistMode) parts.push(translate('export.summary.artistMode'));
 
   return parts.join(' · ');
 }
@@ -107,6 +109,7 @@ function buildPresetSummary(preset: ExportSettingsSnapshot): string {
  *   to persist, they must explicitly save them as a preset.
  */
 const PresetSelector = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const exportState = useAppSelector(selectExport);
 
@@ -274,7 +277,7 @@ const PresetSelector = () => {
     // Save as Preset option
     items.push(
       <MenuItem key="__save__" value="__save__" sx={menuItemSx}>
-        <Typography variant="body2" color="primary">Save as Preset...</Typography>
+        <Typography variant="body2" color="primary">{t('export.saveAsPresetItem')}</Typography>
       </MenuItem>
     );
 
@@ -296,7 +299,7 @@ const PresetSelector = () => {
             fontSize: '0.8rem',
           }}
         >
-          Preset
+          {t('export.preset')}
           <TourFootnote stepKey="export-presets" />
         </Typography>
         <Select
@@ -306,9 +309,9 @@ const PresetSelector = () => {
           size="small"
           fullWidth
           renderValue={(value) => {
-            if (!value) return <Typography color="text.secondary">Choose...</Typography>;
+            if (!value) return <Typography color="text.secondary">{t('export.choose')}</Typography>;
             const preset = allPresets.find((p) => p.id === value);
-            if (!preset) return <Typography color="text.secondary">Choose...</Typography>;
+            if (!preset) return <Typography color="text.secondary">{t('export.choose')}</Typography>;
             return preset.name;
           }}
         >
@@ -319,14 +322,14 @@ const PresetSelector = () => {
       {/* Save Preset Name Dialog */}
       <Dialog open={nameDialogOpen} onClose={() => setNameDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ pr: 5 }}>
-          Save as Preset
+          {t('export.saveAsPreset')}
           <DialogCloseIcon onClose={() => setNameDialogOpen(false)} />
         </DialogTitle>
         <DialogContent>
           <TextField
             autoFocus
             fullWidth
-            label="Preset name"
+            label={t('export.presetName')}
             value={presetName}
             onChange={(e) => setPresetName(e.target.value)}
             onKeyDown={(e) => {
@@ -347,16 +350,16 @@ const PresetSelector = () => {
               }
               label={
                 <Typography variant="body2" color="text.secondary">
-                  Also save the current date range
+                  {t('export.alsoSaveDateRange')}
                 </Typography>
               }
             />
           )}
         </DialogContent>
         <DialogActions>
-          <Button variant="outlined" onClick={() => setNameDialogOpen(false)}>Cancel</Button>
+          <Button variant="outlined" onClick={() => setNameDialogOpen(false)}>{t('export.cancel')}</Button>
           <Button onClick={handleSavePreset} variant="contained" disabled={!presetName.trim()}>
-            Save
+            {t('export.save')}
           </Button>
         </DialogActions>
       </Dialog>

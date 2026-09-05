@@ -42,6 +42,7 @@ import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
+import { useTranslation } from 'react-i18next';
 
 interface BulkExportDialogProps {
   open: boolean;
@@ -57,6 +58,7 @@ interface BulkExportDialogProps {
 const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExportDialogProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const exportState = useAppSelector(selectExport);
   const token = useAppSelector(selectAuthToken);
@@ -158,9 +160,9 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
-        Bulk Export {mode === 'channels' ? 'Channels' : 'DMs'}
+        {mode === 'channels' ? t('export.bulkTitleChannels') : t('export.bulkTitleDms')}
         <Chip
-          label={`${channels.length} selected`}
+          label={t('export.selectedCount', { count: channels.length })}
           size="small"
           sx={{
             ml: 1,
@@ -180,12 +182,12 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
 
           <Box>
             <Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-              Narrow messages (optional)
+              {t('export.narrowMessages')}
             </Typography>
             <BulkFilterButton
               filterCount={filterCount}
               onOpen={openFilterModal}
-              helperText="Limit the export to messages matching filters (date range, content, author, attachments, mentions). Leave empty to export everything."
+              helperText={t('export.narrowHelp')}
             />
           </Box>
 
@@ -193,7 +195,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
 
           {exportState.exportError && (
             <Typography color="error" variant="body2">
-              Error: {exportState.exportError}
+              {t('export.error', { error: exportState.exportError })}
             </Typography>
           )}
         </Box>
@@ -202,7 +204,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
         <ExportSummaryChip />
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1 }}>
           <Button variant="outlined" onClick={handleClose}>
-            Cancel
+            {t('export.cancel')}
           </Button>
           <Button
             onClick={handleExport}
@@ -210,7 +212,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
             startIcon={<DownloadIcon />}
             disabled={channels.length === 0 || isOperationRunning}
           >
-            Export {channels.length} {mode === 'channels' ? 'Channel' : 'DM'}{channels.length !== 1 ? 's' : ''}
+            {mode === 'channels' ? t('export.exportChannels', { count: channels.length }) : t('export.exportDms', { count: channels.length })}
           </Button>
         </Box>
       </DialogActions>
@@ -233,7 +235,7 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
         cachedUserMap={cachedUserMap}
         currentUserId={currentUser?.id || ''}
         hideRefineSection
-        applyButtonLabel="Apply filters"
+        applyButtonLabel={t('export.applyFilters')}
       />
     </Dialog>
   );

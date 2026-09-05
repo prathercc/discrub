@@ -9,6 +9,7 @@ import {
 } from '@mui/material';
 import type { Theme } from '@mui/material/styles';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useTranslation } from 'react-i18next';
 
 interface DeleteConfirmModalProps {
   open: boolean;
@@ -26,6 +27,7 @@ const DeleteConfirmModal = ({
   onConfirm,
   messageCount,
 }: DeleteConfirmModalProps) => {
+  const { t } = useTranslation();
   return (
     <Dialog
       open={open}
@@ -41,27 +43,27 @@ const DeleteConfirmModal = ({
       }}
     >
       <DialogTitle sx={{ pr: 5 }}>
-        Delete Messages
+        {t('deleteModal.title')}
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
         <Typography variant="body1" gutterBottom>
-          Are you sure you want to delete {messageCount} message{messageCount !== 1 ? 's' : ''}?
+          {t('deleteModal.confirm', { count: messageCount })}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          This action cannot be undone.
+          {t('deleteModal.cannotUndo')}
         </Typography>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>
-          Cancel
+          {t('deleteModal.cancel')}
         </Button>
         <Button
           onClick={onConfirm}
           variant="contained"
           color="error"
         >
-          Delete
+          {t('deleteModal.delete')}
         </Button>
       </DialogActions>
     </Dialog>

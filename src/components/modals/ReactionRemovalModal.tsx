@@ -24,6 +24,7 @@ import type { Message, User } from 'discrub-core/types/discord-types';
 import { getEmojiKey } from '@/utils/emojiUtils';
 import DiscordEmoji from '@components/ui/DiscordEmoji';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useTranslation } from 'react-i18next';
 
 const ALL_EMOJIS_KEY = '__all__';
 const ALL_USERS_KEY = '__all__';
@@ -66,6 +67,7 @@ const ReactionRemovalModal = ({
   onConfirm,
   onFetchReactingUsers,
 }: ReactionRemovalModalProps) => {
+  const { t } = useTranslation();
   const [selectedEmojis, setSelectedEmojis] = useState<string[]>([ALL_EMOJIS_KEY]);
   const [selectedUser, setSelectedUser] = useState(canManageMessages ? ALL_USERS_KEY : currentUserId || '');
   const [reactorUsers, setReactorUsers] = useState<Map<string, User>>(new Map());
@@ -164,14 +166,14 @@ const ReactionRemovalModal = ({
   const userOptions = useMemo(() => {
     const options: { id: string; label: string; special?: boolean; avatar?: string | null }[] = [];
     if (canManageMessages) {
-      options.push({ id: ALL_USERS_KEY, label: 'All users', special: true });
+      options.push({ id: ALL_USERS_KEY, label: t('reactionRemoval.allUsers'), special: true });
     }
     if (currentUserId) {
       const currentReactor = reactorUsers.get(currentUserId);
       const avatarHash = currentReactor?.avatar;
       options.push({
         id: currentUserId,
-        label: currentUsername ? `${currentUsername} (you)` : 'You',
+        label: currentUsername ? t('reactionRemoval.nameYou', { name: currentUsername }) : t('reactionRemoval.you'),
         special: true,
         avatar: avatarHash ? `https://cdn.discordapp.com/avatars/${currentUserId}/${avatarHash}.webp?size=32` : null,
       });
@@ -189,7 +191,7 @@ const ReactionRemovalModal = ({
       }
     }
     return options;
-  }, [canManageMessages, currentUserId, currentUsername, reactorUsers]);
+  }, [canManageMessages, currentUserId, currentUsername, reactorUsers, t]);
 
   const isAllEmojis = selectedEmojis.includes(ALL_EMOJIS_KEY);
   const isAllUsers = selectedUser === ALL_USERS_KEY;
@@ -243,7 +245,7 @@ const ReactionRemovalModal = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ pr: 5 }}>
-        Remove Reactions
+        {t('reactionRemoval.title')}
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
@@ -251,7 +253,7 @@ const ReactionRemovalModal = ({
           {/* Emoji picker */}
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-              Emojis
+              {t('reactionRemoval.emojis')}
             </Typography>
             <Box
               sx={{
@@ -280,7 +282,7 @@ const ReactionRemovalModal = ({
                 }}
               >
                 <AllIcon fontSize="small" color={isAllEmojis ? 'primary' : 'inherit'} />
-                <Typography variant="body2" fontWeight={isAllEmojis ? 600 : 400}>All emojis</Typography>
+                <Typography variant="body2" fontWeight={isAllEmojis ? 600 : 400}>{t('reactionRemoval.allEmojis')}</Typography>
               </Box>
 
               {/* Emoji grid */}
@@ -319,10 +321,10 @@ const ReactionRemovalModal = ({
 
           {/* User selection */}
           <FormControl size="small" fullWidth>
-            <InputLabel>User</InputLabel>
+            <InputLabel>{t('reactionRemoval.user')}</InputLabel>
             <Select
               value={selectedUser}
-              label="User"
+              label={t('reactionRemoval.user')}
               onChange={(e) => setSelectedUser(e.target.value)}
               endAdornment={loadingReactors ? (
                 <CircularProgress size={18} sx={{ mr: 3 }} />
@@ -352,15 +354,15 @@ const ReactionRemovalModal = ({
           {/* Summary */}
           <Typography variant="body2" color="text.secondary">
             {messagesWithReactions.length === 0
-              ? 'No selected messages have reactions.'
+              ? t('reactionRemoval.noneWithReactions')
               : !hasRemovableReactions
-                ? 'No eligible reactions found on the selected messages.'
-                : `${messagesWithReactions.length} message${messagesWithReactions.length !== 1 ? 's' : ''} with reactions will be processed.`}
+                ? t('reactionRemoval.noneEligible')
+                : t('reactionRemoval.willProcess', { count: messagesWithReactions.length })}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button variant="outlined" onClick={onClose}>Cancel</Button>
+        <Button variant="outlined" onClick={onClose}>{t('reactionRemoval.cancel')}</Button>
         <Button
           variant="contained"
           color="error"
@@ -368,7 +370,7 @@ const ReactionRemovalModal = ({
           disabled={!isValid}
           onClick={handleConfirm}
         >
-          Remove
+          {t('reactionRemoval.remove')}
         </Button>
       </DialogActions>
     </Dialog>

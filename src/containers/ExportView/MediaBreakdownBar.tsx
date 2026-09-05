@@ -1,6 +1,7 @@
 import { Box, Tooltip, Typography } from '@mui/material';
 import type { MediaCategorySummary } from '@/utils/mediaUtils';
 import { formatBytes, getTotalMediaSize } from '@/utils/mediaUtils';
+import { useTranslation } from 'react-i18next';
 
 const CATEGORY_COLORS: Record<string, string> = {
   images: '#5865F2',
@@ -14,13 +15,14 @@ interface MediaBreakdownBarProps {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  images: 'Images',
-  videos: 'Videos',
-  audio: 'Audio',
-  other: 'Other',
+  images: 'export.mediaImages',
+  videos: 'export.mediaVideos',
+  audio: 'export.mediaAudio',
+  other: 'export.mediaOther',
 };
 
 const MediaBreakdownBar = ({ summaries }: MediaBreakdownBarProps) => {
+  const { t } = useTranslation();
   const total = getTotalMediaSize(summaries);
   if (total === 0) return null;
 
@@ -36,7 +38,7 @@ const MediaBreakdownBar = ({ summaries }: MediaBreakdownBarProps) => {
               key={s.category}
               title={
                 <Typography variant="caption">
-                  {CATEGORY_LABELS[s.category] || s.category}: {formatBytes(s.totalBytes)} ({percent.toFixed(0)}%)
+                  {CATEGORY_LABELS[s.category] ? t(CATEGORY_LABELS[s.category]) : s.category}: {formatBytes(s.totalBytes)} ({percent.toFixed(0)}%)
                 </Typography>
               }
             >

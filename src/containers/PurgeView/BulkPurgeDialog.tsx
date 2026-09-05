@@ -45,6 +45,7 @@ import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
 import { canManageMessages as channelCanManageMessages } from '@/utils/permissionUtils';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
+import { useTranslation } from 'react-i18next';
 
 // UI-level mode — promotes "Attachments Only" to a first-class choice.
 // Maps to the underlying PurgeMode + deleteAttachmentsOnly flag on dispatch.
@@ -79,6 +80,7 @@ const deriveUiMode = (
 };
 
 const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, canManageMessages = false }: BulkPurgeDialogProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
@@ -134,8 +136,6 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
 
   const isDmMode = mode === 'dms';
   const isServerMode = mode === 'servers';
-  const contextLabel = isServerMode ? 'server' : isDmMode ? 'conversation' : 'channel';
-  const contextLabelPlural = isServerMode ? 'servers' : isDmMode ? 'conversations' : 'channels';
   // Server mode counts servers; the other modes count channels.
   const targetCount = isServerMode ? guilds.length : channels.length;
 
@@ -251,75 +251,76 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
     onClose();
   };
 
+  const scopeContext = isDmMode ? 'dm' : 'channel';
   const getSummaryText = () => {
     const count = targetCount;
-    const userCount = effectiveTargetUserIds.length;
+    const users = t('purge.users', { count: effectiveTargetUserIds.length });
+    const targets = t('purge.targets', { count, context: scopeContext });
     if (isServerMode) {
-      const scope = `every channel you can read in ${count} ${count === 1 ? 'server' : 'servers'}`;
+      const scope = t('purge.scopeServers', { count });
       if (uiMode === 'attachmentsOnly') {
-        return `Attachments will be stripped from your messages in ${scope}. Message text is preserved.`;
+        return t('purge.summaryServerAttachments', { scope });
       }
-      return `Your messages in ${scope} will be permanently deleted.`;
+      return t('purge.summaryServerMessages', { scope });
     }
     if (uiMode === 'messages') {
-      const base = `${count} ${count === 1 ? contextLabel : contextLabelPlural} will be purged. Messages from ${userCount} user${userCount !== 1 ? 's' : ''} will be permanently deleted.`;
+      const base = t('purge.summaryMessages', { targets, users });
       const sysCount = selectedSystemGroups.length;
       if (sysCount > 0) {
-        return `${base} The ${sysCount} selected system-message type${sysCount !== 1 ? 's' : ''} will also be deleted; all other system notices stay in place.`;
+        return base + t('purge.summarySystem', { count: sysCount });
       }
       return base;
     }
     if (uiMode === 'attachmentsOnly') {
-      return `Attachments will be stripped from messages by ${userCount} user${userCount !== 1 ? 's' : ''} across ${count} ${count === 1 ? contextLabel : contextLabelPlural}. Message text is preserved.`;
+      return t('purge.summaryAttachments', { users, targets });
     }
     if (uiMode === 'clearReactions') {
-      return `All reactions will be removed from every message in ${count} ${count === 1 ? contextLabel : contextLabelPlural}.`;
+      return t('purge.summaryClearReactions', { targets });
     }
-    return `Reactions from ${userCount} user${userCount !== 1 ? 's' : ''} will be removed across ${count} ${count === 1 ? contextLabel : contextLabelPlural}.`;
+    return t('purge.summaryReactions', { users, targets });
   };
 
   const getConfirmLabel = () => {
-    const count = targetCount;
-    const noun = isServerMode ? 'Server' : isDmMode ? 'DM' : 'Ch.';
-    if (uiMode === 'messages') return `Purge ${count} ${noun}${count !== 1 ? 's' : ''}`;
-    if (uiMode === 'attachmentsOnly') return `Strip Attachments (${count} ${noun}${count !== 1 ? 's' : ''})`;
-    if (uiMode === 'clearReactions') return `Clear Reactions (${count} ${noun}${count !== 1 ? 's' : ''})`;
-    return `Remove Reactions (${count} ${noun}${count !== 1 ? 's' : ''})`;
+    const noun = t('purge.noun', { count: targetCount, context: isServerMode ? 'server' : isDmMode ? 'dm' : 'channel' });
+    if (uiMode === 'messages') return t('purge.confirmMessages', { noun });
+    if (uiMode === 'attachmentsOnly') return t('purge.confirmAttachments', { noun });
+    if (uiMode === 'clearReactions') return t('purge.confirmClearReactions', { noun });
+    return t('purge.confirmReactions', { noun });
   };
 
   const hasNoTargetUsers = !showTargetSection
     ? false
     : effectiveTargetUserIds.length === 0;
 
-  const targetLabel = isReactionsFamily ? 'Remove reactions from' : 'Author';
+  const targetLabel = isReactionsFamily ? t('purge.targetReactions') : t('purge.targetAuthor');
 
   const getLockReasonText = () => {
     if (isServerMode) {
-      return 'Server purges target your own messages. Every channel you can read in each selected server is included.';
+      return t('purge.lockServer');
     }
     if (isDmMode && isMessagesFamily) {
-      return 'You can only target your own messages in DMs.';
+      return t('purge.lockDm');
     }
     if (isMessagesFamily && !isDmMode && someBlocked) {
       if (allBlocked) {
-        return 'You can only target your own messages without Manage Messages permission in the selected channels.';
+        return t('purge.lockAllBlocked');
       }
       const named = blockedChannels.slice(0, 2).map((c) => `#${c.name}`).join(', ');
       const tail = blockedChannels.length > 2
-        ? `Manage Messages missing in ${blockedChannels.length} of the selected channels.`
-        : `Manage Messages missing in ${named}. Deselect to unlock.`;
-      return `You can only target your own messages. ${tail}`;
+        ? t('purge.lockSomeBlockedCount', { count: blockedChannels.length })
+        : t('purge.lockSomeBlockedNamed', { names: named });
+      return t('purge.lockOwnOnly', { tail });
     }
-    return 'You can only remove your own reactions without Manage Messages permission.';
+    return t('purge.lockReactions');
   };
 
   const fullScreen = useFullScreenDialog();
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
-        Purge {isServerMode ? 'Servers' : isDmMode ? 'DMs' : 'Channels'}
+        {isServerMode ? t('purge.titleServers') : isDmMode ? t('purge.titleDms') : t('purge.titleChannels')}
         <Chip
-          label={`${targetCount} selected`}
+          label={t('purge.selectedCount', { count: targetCount })}
           size="small"
           sx={{
             ml: 1,
@@ -339,7 +340,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, mb: 0.75 }}>
               <Typography variant="subtitle2">
-                What to purge
+                {t('purge.whatToPurge')}
                 <TourFootnote stepKey="purge-mode-toggle" />
               </Typography>
             </Box>
@@ -351,25 +352,25 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
               fullWidth
               sx={{ flexWrap: 'wrap' }}
             >
-              <ToggleButton value="messages">Messages</ToggleButton>
-              <ToggleButton value="attachmentsOnly">Attachments Only</ToggleButton>
+              <ToggleButton value="messages">{t('purge.modeMessages')}</ToggleButton>
+              <ToggleButton value="attachmentsOnly">{t('purge.modeAttachmentsOnly')}</ToggleButton>
               {/* Reaction modes stay single-server: they need per-channel
                   Manage Messages checks that server mode cannot make up front. */}
               {!isServerMode && (
-                <ToggleButton value="reactions">Reactions</ToggleButton>
+                <ToggleButton value="reactions">{t('purge.modeReactions')}</ToggleButton>
               )}
               {!isServerMode && canManageMessages && (
-                <ToggleButton value="clearReactions">Clear All Reactions</ToggleButton>
+                <ToggleButton value="clearReactions">{t('purge.modeClearReactions')}</ToggleButton>
               )}
             </ToggleButtonGroup>
             {uiMode === 'attachmentsOnly' && (
               <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
-                Strips media but preserves the message text. Discord only allows you to edit messages you authored; other users' messages can't be stripped via the API and will fail.
+                {t('purge.attachmentsOnlyHelp')}
               </Typography>
             )}
             {uiMode === 'clearReactions' && (
               <Typography variant="caption" color="text.secondary" sx={{ mt: 0.75, display: 'block' }}>
-                Removes all reactions from every message in the selected {contextLabelPlural}. Requires Manage Messages permission.
+                {t('purge.clearReactionsHelp', { context: scopeContext })}
               </Typography>
             )}
           </Box>
@@ -379,7 +380,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
             <>
               <Divider textAlign="left" sx={{ '& .MuiDivider-wrapper': { pl: 0 } }}>
                 <Typography variant="overline" color="text.secondary" sx={{ letterSpacing: 1 }}>
-                  Target messages
+                  {t('purge.targetMessages')}
                 </Typography>
               </Divider>
 
@@ -403,8 +404,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                           filterCount={filterCount}
                           onOpen={openFilterModal}
                           helperText={isMessagesFamily
-                            ? "Optional: narrow by date range, content, attachments, etc."
-                            : "Optional: narrow which messages to scan by author, date, content, etc."}
+                            ? t('purge.narrowMessagesHelp')
+                            : t('purge.narrowScanHelp')}
                         />
                       </Box>
                     )}
@@ -417,7 +418,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                   <BulkFilterButton
                     filterCount={filterCount}
                     onOpen={openFilterModal}
-                    helperText="Open filters to pick the target author (required) and optionally narrow by date, content, or attachments."
+                    helperText={t('purge.pickAuthorHelp')}
                   />
                 ) : (
                   <>
@@ -433,7 +434,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                         <BulkFilterButton
                           filterCount={filterCount}
                           onOpen={openFilterModal}
-                          helperText="Optional: narrow which messages to scan by author, date, content, etc. (reactor picker above is independent)."
+                          helperText={t('purge.narrowScanIndependentHelp')}
                         />
                       </Box>
                     )}
@@ -449,7 +450,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
               <BulkFilterButton
                 filterCount={filterCount}
                 onOpen={openFilterModal}
-                helperText="Optional: narrow which messages to clear reactions from by author, date, content, etc."
+                helperText={t('purge.narrowClearHelp')}
               />
             </Box>
           )}
@@ -463,15 +464,15 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                   size="small"
                   checked={retainAttachedMedia}
                   onChange={(e) => setRetainAttachedMedia(e.target.checked)}
-                  inputProps={{ 'aria-label': 'Clear text, keep attachments' }}
+                  inputProps={{ 'aria-label': t('purge.clearTextKeepAttachments') }}
                   sx={{ mt: '-4px' }}
                 />
               }
               label={
                 <Box>
-                  <Typography variant="body2">Clear text, keep attachments</Typography>
+                  <Typography variant="body2">{t('purge.clearTextKeepAttachments')}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    For messages with attachments, strip the text content and preserve the media. Only works on messages you authored.
+                    {t('purge.clearTextKeepAttachmentsHelp')}
                   </Typography>
                 </Box>
               }
@@ -490,15 +491,15 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                   size="small"
                   checked={preserveMediaAndLinks}
                   onChange={(e) => setPreserveMediaAndLinks(e.target.checked)}
-                  inputProps={{ 'aria-label': 'Keep messages with files or links' }}
+                  inputProps={{ 'aria-label': t('purge.keepWithFiles') }}
                   sx={{ mt: '-4px' }}
                 />
               }
               label={
                 <Box>
-                  <Typography variant="body2">Keep messages with files or links</Typography>
+                  <Typography variant="body2">{t('purge.keepWithFiles')}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Messages containing an attachment or a link are skipped entirely: not deleted and not edited. The summary reports how many were preserved.
+                    {t('purge.keepWithFilesHelp')}
                   </Typography>
                 </Box>
               }
@@ -518,15 +519,15 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                   size="small"
                   checked={skipArchivedThreads}
                   onChange={(e) => setSkipArchivedThreads(e.target.checked)}
-                  inputProps={{ 'aria-label': "Don't wake archived threads" }}
+                  inputProps={{ 'aria-label': t('purge.dontWakeThreads') }}
                   sx={{ mt: '-4px' }}
                 />
               }
               label={
                 <Box>
-                  <Typography variant="body2">Don&apos;t wake archived threads</Typography>
+                  <Typography variant="body2">{t('purge.dontWakeThreads')}</Typography>
                   <Typography variant="caption" color="text.secondary">
-                    Acting inside an archived thread briefly un-archives it, making it reappear for everyone until the purge re-archives it. Skip those messages instead; the summary reports how many were left untouched.
+                    {t('purge.dontWakeThreadsHelp')}
                   </Typography>
                 </Box>
               }
@@ -549,7 +550,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
               }}
             >
               <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-                <Typography variant="body2">Also delete system messages</Typography>
+                <Typography variant="body2">{t('purge.alsoDeleteSystem')}</Typography>
                 {selectedSystemGroups.length > 0 && (
                   <Chip
                     label={selectedSystemGroups.length}
@@ -563,7 +564,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
                 <SystemMessageTypePicker
                   selectedGroups={selectedSystemGroups}
                   onChange={setSelectedSystemGroups}
-                  description={`By default the purge leaves Discord's automatic notices in place: the "pinned a message" trail, join and boost notices, and so on. Check any you also want removed.`}
+                  description={t('purge.systemDescription')}
                 />
               </AccordionDetails>
             </Accordion>
@@ -572,7 +573,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
           {/* Summary */}
           <Alert severity="warning" variant="outlined">
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              This action is irreversible.
+              {t('purge.irreversible')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
               {getSummaryText()}
@@ -584,16 +585,14 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
               tab-sleep) is gone entirely — that's the one remaining caveat. */}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
             {isServerMode
-              ? 'A server purge can run for hours. Servers are processed one at a time with the same pacing as a single-server purge, and the run stops on its own if Discord starts rate limiting. '
-              : 'Large purges can run for a while. '}
-            Discrub keeps your screen awake and keeps
-            deleting at full pace even when this tab is in the background. Leave the tab
-            open; a browser&rsquo;s tab-sleep or memory saver can still end a run early.
+              ? t('purge.longRunServer')
+              : t('purge.longRun')}
+            {t('purge.wakeLockNote')}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button variant="outlined" onClick={onClose}>Cancel</Button>
+        <Button variant="outlined" onClick={onClose}>{t('purge.cancel')}</Button>
         <Button
           onClick={handleConfirm}
           variant="contained"
@@ -625,7 +624,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
         cachedUserMap={effectiveUserMap}
         currentUserId={currentUserId}
         hideRefineSection
-        applyButtonLabel="Apply filters"
+        applyButtonLabel={t('purge.applyFilters')}
         // Hide From + Author Type only when the message-author concept
         // itself is locked to self by the parent dialog (#137). For
         // Reactions / Clear All Reactions, the reactor is locked but

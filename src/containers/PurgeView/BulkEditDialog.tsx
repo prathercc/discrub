@@ -28,6 +28,7 @@ import { countActiveFilters } from 'discrub-core/filtering';
 import FilterModal from '@components/search/FilterModal';
 import BulkFilterButton from '@components/search/BulkFilterButton';
 import SelectedChannelsPill from '@components/dialogs/SelectedChannelsPill';
+import { useTranslation } from 'react-i18next';
 
 interface BulkEditDialogProps {
   open: boolean;
@@ -48,6 +49,7 @@ interface BulkEditDialogProps {
  * date / content, never author. Mirrors BulkPurgeDialog's shell.
  */
 const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDialogProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
@@ -64,8 +66,7 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
   const [filterModalKey, setFilterModalKey] = useState(0);
 
   const isDmMode = mode === 'dms';
-  const contextLabel = isDmMode ? 'conversation' : 'channel';
-  const contextLabelPlural = isDmMode ? 'conversations' : 'channels';
+  const scopeContext = isDmMode ? 'dm' : 'channel';
   const count = channels.length;
   const filterCount = filterCriteria ? countActiveFilters(filterCriteria) : 0;
 
@@ -84,14 +85,14 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
     onClose();
   };
 
-  const confirmLabel = `Edit ${count} ${isDmMode ? 'DM' : 'Ch.'}${count !== 1 ? 's' : ''}`;
+  const confirmLabel = t('bulkEdit.confirm', { count, context: scopeContext });
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pr: 5 }}>
-        Edit {isDmMode ? 'DMs' : 'Channels'}
+        {isDmMode ? t('bulkEdit.titleDms') : t('bulkEdit.titleChannels')}
         <Chip
-          label={`${count} selected`}
+          label={t('bulkEdit.selectedCount', { count })}
           size="small"
           sx={{
             ml: 1,
@@ -108,50 +109,45 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
           <SelectedChannelsPill channels={channels} mode={isDmMode ? 'dms' : 'channels'} />
 
           <Alert severity="info" variant="outlined" sx={{ py: 0.5 }}>
-            Only messages you authored can be edited; Discord rejects edits to other
-            people&rsquo;s messages, so those are skipped automatically.
+            {t('bulkEdit.ownOnly')}
           </Alert>
 
           <TextField
-            label="New content"
-            placeholder="The text every matched message will be rewritten to"
+            label={t('bulkEdit.newContent')}
+            placeholder={t('bulkEdit.newContentPlaceholder')}
             value={content}
             onChange={(e) => setContent(e.target.value)}
             multiline
             minRows={3}
             fullWidth
-            inputProps={{ 'aria-label': 'New message content' }}
+            inputProps={{ 'aria-label': t('bulkEdit.newContentAria') }}
           />
 
           <Box>
             <BulkFilterButton
               filterCount={filterCount}
               onOpen={openFilterModal}
-              helperText="Optional: narrow which of your messages to edit by date range or content."
+              helperText={t('bulkEdit.narrowHelp')}
             />
           </Box>
 
           <Alert severity="warning" variant="outlined">
             <Typography variant="body2" sx={{ fontWeight: 500 }}>
-              This action is irreversible.
+              {t('bulkEdit.irreversible')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Every message you authored across {count} {count === 1 ? contextLabel : contextLabelPlural}
-              {filterCount > 0 ? ' matching the filter' : ''} will be overwritten with the new content.
-              The original text cannot be recovered.
+              {t('bulkEdit.summary', { count, context: scopeContext, filter: filterCount > 0 ? t('bulkEdit.matchingFilter') : '' })}
             </Typography>
           </Alert>
 
           {/* #206 wake lock + #247 worker pacing: same caveat wording as the purge dialog. */}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            Large edits can run for a while. Discrub keeps your screen awake and keeps
-            editing at full pace even when this tab is in the background. Leave the tab
-            open; a browser&rsquo;s tab-sleep or memory saver can still end a run early.
+            {t('bulkEdit.longRun')}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button variant="outlined" onClick={onClose}>Cancel</Button>
+        <Button variant="outlined" onClick={onClose}>{t('bulkEdit.cancel')}</Button>
         <Button
           onClick={handleConfirm}
           variant="contained"
@@ -181,7 +177,7 @@ const BulkEditDialog = ({ open, onClose, channels, mode, guildId }: BulkEditDial
         cachedUserMap={cachedUserMap}
         currentUserId={currentUserId}
         hideRefineSection
-        applyButtonLabel="Apply filters"
+        applyButtonLabel={t('bulkEdit.applyFilters')}
         // Author is locked to the current user (edit only works on own
         // messages), so hide the author picker entirely.
         hideAuthorFilters

@@ -15,6 +15,7 @@ import DiscordEmoji from '@components/ui/DiscordEmoji';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import ReactionEmojiPicker from '@components/ui/ReactionEmojiPicker';
 import type { SelectableEmoji } from '@/utils/emojiDataset';
+import { useTranslation } from 'react-i18next';
 
 interface AddReactionsModalProps {
   open: boolean;
@@ -36,6 +37,7 @@ const AddReactionsModal = ({
   guildEmojis = [],
   onConfirm,
 }: AddReactionsModalProps) => {
+  const { t } = useTranslation();
   const [selectedEmojis, setSelectedEmojis] = useState<SelectableEmoji[]>([]);
 
   // Reset the selection each time the modal opens.
@@ -65,7 +67,7 @@ const AddReactionsModal = ({
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pr: 5 }}>
-        Add Reactions
+        {t('addReactions.title')}
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
@@ -80,7 +82,7 @@ const AddReactionsModal = ({
           {emojiCount > 0 && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexWrap: 'wrap' }}>
               <Typography variant="caption" color="text.secondary">
-                Selected:
+                {t('addReactions.selected')}
               </Typography>
               {selectedEmojis.map((emoji) => (
                 <DiscordEmoji key={getEmojiKey(emoji)} emoji={emoji} size={20} />
@@ -91,14 +93,18 @@ const AddReactionsModal = ({
           {/* Live cost */}
           <Typography variant="body2" color={totalReactions > 0 ? 'text.primary' : 'text.secondary'}>
             {totalReactions > 0
-              ? `${messageCount} message${messageCount !== 1 ? 's' : ''} × ${emojiCount} emoji${emojiCount !== 1 ? 's' : ''} = ${totalReactions} reaction${totalReactions !== 1 ? 's' : ''}`
-              : 'Pick at least one emoji to add.'}
+              ? t('addReactions.cost', {
+                  messages: t('addReactions.messages', { count: messageCount }),
+                  emojis: t('addReactions.emojis', { count: emojiCount }),
+                  reactions: t('addReactions.reactions', { count: totalReactions }),
+                })
+              : t('addReactions.pickOne')}
           </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
         <Button variant="outlined" onClick={onClose}>
-          Cancel
+          {t('addReactions.cancel')}
         </Button>
         <Button
           variant="contained"
@@ -106,7 +112,7 @@ const AddReactionsModal = ({
           onClick={handleConfirm}
           disabled={!emojiCount || !messageCount}
         >
-          Add{totalReactions > 0 ? ` ${totalReactions}` : ''}
+          {totalReactions > 0 ? t('addReactions.addCount', { count: totalReactions }) : t('addReactions.add')}
         </Button>
       </DialogActions>
     </Dialog>

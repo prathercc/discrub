@@ -12,6 +12,7 @@ import {
 } from '@mui/material';
 import type { Message } from 'discrub-core/types/discord-types';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useTranslation } from 'react-i18next';
 
 interface EditMessageModalProps {
   open: boolean;
@@ -39,6 +40,7 @@ const EditMessageModal = ({
   messages = [],
   messageCount,
 }: EditMessageModalProps) => {
+  const { t } = useTranslation();
   const [content, setContent] = useState(message?.content || '');
   const isBulkMode = messageCount > 1;
   const isEmpty = !content.trim();
@@ -78,13 +80,13 @@ const EditMessageModal = ({
       }}
     >
       <DialogTitle sx={{ pr: 5 }}>
-        {isBulkMode ? 'Bulk Edit' : 'Edit Message'}
+        {isBulkMode ? t('editModal.bulkTitle') : t('editModal.title')}
         <DialogCloseIcon onClose={handleClose} />
       </DialogTitle>
       <DialogContent>
         {isBulkMode && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Editing {messageCount} message{messageCount !== 1 ? 's' : ''}
+            {t('editModal.editing', { count: messageCount })}
           </Typography>
         )}
         <TextField
@@ -94,33 +96,33 @@ const EditMessageModal = ({
           {...(isBulkMode ? { minRows: 3 } : { rows: 6 })}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          label={isBulkMode ? 'New content' : 'Message Content'}
+          label={isBulkMode ? t('editModal.newContent') : t('editModal.messageContent')}
           variant="outlined"
           sx={isBulkMode ? undefined : { mt: 2 }}
         />
         <Collapse in={wouldFailEmpty}>
           <Alert severity="error" sx={{ mt: 2 }}>
             {isBulkMode
-              ? 'Some selected messages have no attachments or embeds. Discord requires non-empty content for these messages.'
-              : 'This message has no attachments or embeds. Discord requires non-empty content.'}
+              ? t('editModal.emptyBulkError')
+              : t('editModal.emptyError')}
           </Alert>
         </Collapse>
         <Collapse in={isEmpty && !wouldFailEmpty}>
           <Alert severity="warning" sx={{ mt: 2 }}>
-            Saving with empty content will clear message text. Attachments and embeds will be preserved.
+            {t('editModal.emptyWarning')}
           </Alert>
         </Collapse>
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>
-          Cancel
+          {t('editModal.cancel')}
         </Button>
         <Button
           onClick={handleSave}
           variant="contained"
           disabled={wouldFailEmpty}
         >
-          Save
+          {t('editModal.save')}
         </Button>
       </DialogActions>
     </Dialog>

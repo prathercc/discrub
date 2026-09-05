@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { Box, Collapse, Typography, useTheme } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
 import type { Channel, Guild } from 'discrub-core/types/discord-types';
+import { useTranslation } from 'react-i18next';
 
 interface SelectedChannelsPillProps {
   channels?: Channel[];
@@ -23,16 +24,16 @@ interface SelectedChannelsPillProps {
  */
 const SelectedChannelsPill = ({ channels = [], guilds = [], mode }: SelectedChannelsPillProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const isDmMode = mode === 'dms';
   const isServerMode = mode === 'servers';
-  const contextLabel = isServerMode ? 'server' : isDmMode ? 'conversation' : 'channel';
-  const contextLabelPlural = isServerMode ? 'servers' : isDmMode ? 'conversations' : 'channels';
+  const pillContext = isServerMode ? 'server' : isDmMode ? 'dm' : 'channel';
 
   const getChannelName = (channel: Channel) => {
     if (isDmMode) {
-      return channel.recipients?.map((r) => r.username).join(', ') || 'Direct Message';
+      return channel.recipients?.map((r) => r.username).join(', ') || t('common.directMessage');
     }
     return channel.name || `channel-${channel.id}`;
   };
@@ -52,9 +53,9 @@ const SelectedChannelsPill = ({ channels = [], guilds = [], mode }: SelectedChan
     const visible = names.slice(0, 3);
     const remaining = names.length - visible.length;
     const joined = visible.join(', ');
-    return remaining > 0 ? `${joined}, +${remaining} more` : joined;
+    return remaining > 0 ? t('pill.more', { names: joined, count: remaining }) : joined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels, guilds, isDmMode, isServerMode]);
+  }, [channels, guilds, isDmMode, isServerMode, t]);
 
   return (
     <Box>
@@ -69,7 +70,7 @@ const SelectedChannelsPill = ({ channels = [], guilds = [], mode }: SelectedChan
           }
         }}
         aria-expanded={expanded}
-        aria-label={isServerMode ? 'Selected servers' : isDmMode ? 'Selected conversations' : 'Selected channels'}
+        aria-label={isServerMode ? t('pill.selectedServers') : isDmMode ? t('pill.selectedConversations') : t('pill.selectedChannels')}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -85,7 +86,7 @@ const SelectedChannelsPill = ({ channels = [], guilds = [], mode }: SelectedChan
         }}
       >
         <Typography variant="body2" sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
-          {count} {count === 1 ? contextLabel : contextLabelPlural}
+          {t('pill.count', { count, context: pillContext })}
         </Typography>
         <Typography
           variant="body2"

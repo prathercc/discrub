@@ -47,6 +47,11 @@ import MediaPreviewPanel from './MediaPreviewPanel';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { isExtensionMode } from '@/extension/messaging';
 import { selectSettings, updateSetting } from '@features/app/appSlice';
+const ZIP_LABEL_KEYS: Record<string, string> = {
+  'Single zip (no limit)': 'export.zipSingle',
+  '4 GB (recommended)': 'export.zipRecommended',
+};
+import { useTranslation } from 'react-i18next';
 
 interface ExportSettingsAccordionProps {
   isBulk: boolean;
@@ -62,6 +67,7 @@ interface ExportSettingsAccordionProps {
 
 const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, packageMode = false }: ExportSettingsAccordionProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const exportState = useAppSelector(selectExport);
   const settings = useAppSelector(selectSettings);
 
@@ -128,26 +134,22 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
     }
   };
 
-  const getMediaLabel = (category: string) => {
-    if (!mediaSummary || isBulk) return category;
+  const getMediaLabel = (category: string, label: string) => {
+    if (!mediaSummary || isBulk) return label;
 
-    const summary = mediaSummary.find((s) => s.category === category.toLowerCase());
-    if (!summary) return `${category} (0 files)`;
+    const summary = mediaSummary.find((s) => s.category === category);
+    if (!summary) return t('export.mediaLabelEmpty', { label });
 
     const parts: string[] = [];
     if (summary.count > 0) {
-      parts.push(`${summary.count} file${summary.count !== 1 ? 's' : ''}, ${formatBytes(summary.totalBytes)}`);
+      parts.push(t('export.mediaLabelFiles', { count: summary.count, size: formatBytes(summary.totalBytes) }));
     }
     if (summary.embedCount > 0) {
-      if (summary.count > 0) {
-        parts.push(`+ ${summary.embedCount} embed${summary.embedCount !== 1 ? 's' : ''}`);
-      } else {
-        parts.push(`${summary.embedCount} embed${summary.embedCount !== 1 ? 's' : ''}`);
-      }
+      parts.push(t(summary.count > 0 ? 'export.mediaLabelEmbedsPlus' : 'export.mediaLabelEmbeds', { count: summary.embedCount }));
     }
 
-    if (parts.length > 0) return `${category} (${parts.join(' ')})`;
-    return `${category} (0 files)`;
+    if (parts.length > 0) return t('export.mediaLabelWith', { label, details: parts.join(' ') });
+    return t('export.mediaLabelEmpty', { label });
   };
 
   return (
@@ -162,19 +164,15 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
         sx={{ '&:before': { display: 'none' }, backgroundColor: 'transparent' }}
       >
         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle2">Format & Output</Typography>
+          <Typography variant="subtitle2">{t('export.formatAndOutput')}</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <FormControl component="fieldset">
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {[
-                  { value: 'html', label: isBulk ? 'HTML' : 'HTML - Styled webpage with avatars and formatting' },
-                  { value: 'csv', label: isBulk ? 'CSV' : 'CSV - Spreadsheet compatible format' },
-                  { value: 'json', label: isBulk ? 'JSON' : 'JSON - Raw data format for analysis' },
-                  { value: 'text', label: isBulk ? 'Plain Text' : 'Plain Text - Human-readable .txt file' },
-                  { value: 'media', label: isBulk ? 'Media Only' : 'Media Only - Download attachments without message content' },
-                ].map(({ value, label }) => (
+                  'html', 'csv', 'json', 'text', 'media',
+                ].map((value) => ({ value, label: t(isBulk ? `export.formatShort.${value}` : `export.format.${value}`) })).map(({ value, label }) => (
                   <FormControlLabel
                     key={value}
                     value={value}
@@ -195,33 +193,33 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
             </FormControl>
 
             <TextField
-              label="Messages per page"
+              label={t('export.messagesPerPage')}
               type="number"
               value={exportState.messagesPerPage}
               onChange={handleMessagesPerPageChange}
               disabled={isMediaOnly}
               size="small"
               inputProps={{ min: 1, max: 1000 }}
-              helperText="Split large exports into multiple pages"
+              helperText={t('export.messagesPerPageHelp')}
             />
 
             <FormControl size="small">
-              <InputLabel>Sort Order</InputLabel>
+              <InputLabel>{t('export.sortOrder')}</InputLabel>
               <Select
                 value={exportState.sortOrder}
-                label="Sort Order"
+                label={t('export.sortOrder')}
                 onChange={(e) => dispatch(setSortOrder(e.target.value as 'ascending' | 'descending'))}
               >
-                <MenuItem value="ascending">Oldest First</MenuItem>
-                <MenuItem value="descending">Newest First</MenuItem>
+                <MenuItem value="ascending">{t('export.oldestFirst')}</MenuItem>
+                <MenuItem value="descending">{t('export.newestFirst')}</MenuItem>
               </Select>
             </FormControl>
 
             <FormControl size="small">
-              <InputLabel>Max zip size</InputLabel>
+              <InputLabel>{t('export.maxZipSize')}</InputLabel>
               <Select
                 value={exportState.maxZipPartBytes === null ? 'none' : String(exportState.maxZipPartBytes)}
-                label="Max zip size"
+                label={t('export.maxZipSize')}
                 onChange={(e) => {
                   const v = e.target.value;
                   dispatch(setMaxZipPartBytes(v === 'none' ? null : Number(v)));
@@ -229,33 +227,33 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
               >
                 {ZIP_SIZE_OPTIONS.map((opt) => (
                   <MenuItem key={opt.label} value={opt.value === null ? 'none' : String(opt.value)}>
-                    {opt.label}
+                    {ZIP_LABEL_KEYS[opt.label] ? t(ZIP_LABEL_KEYS[opt.label]) : opt.label}
                   </MenuItem>
                 ))}
               </Select>
               <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                Splits very large exports into multiple zip files (export.zip, export-part2.zip…) to avoid the corruption huge archives can hit. Most exports stay in a single file.
+                {t('export.maxZipHelp')}
               </Typography>
             </FormControl>
 
             {exportState.exportFormat === 'html' && (
               <FormControl size="small">
-                <InputLabel>Template</InputLabel>
+                <InputLabel>{t('export.template')}</InputLabel>
                 <Select
                   value={exportState.exportTemplate}
-                  label="Template"
+                  label={t('export.template')}
                   onChange={(e) => {
                     const newTemplate = e.target.value as ExportTemplate;
                     dispatch(setExportTemplate(newTemplate));
                     dispatch(updateSetting({ key: DiscrubSetting.EXPORT_TEMPLATE, value: newTemplate }));
                   }}
                 >
-                  <MenuItem value="standard">Standard</MenuItem>
-                  <MenuItem value="discord">Discord Layout</MenuItem>
+                  <MenuItem value="standard">{t('export.templateStandard')}</MenuItem>
+                  <MenuItem value="discord">{t('export.templateDiscord')}</MenuItem>
                 </Select>
                 {exportState.exportTemplate === 'discord' && (
                   <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5 }}>
-                    Wraps your export in a Discord-like interface with server sidebar and channel navigation
+                    {t('export.templateDiscordHelp')}
                   </Typography>
                 )}
               </FormControl>
@@ -267,56 +265,56 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                 sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, pt: 1, borderTop: '1px solid', borderColor: 'divider' }}
               >
                 <Typography variant="caption" color="text.secondary">
-                  Plain text options
+                  {t('export.plainTextOptions')}
                 </Typography>
                 <FormControl size="small">
-                  <InputLabel id="text-attachment-style-label">Attachments</InputLabel>
+                  <InputLabel id="text-attachment-style-label">{t('export.attachments')}</InputLabel>
                   <Select
                     labelId="text-attachment-style-label"
                     value={exportState.textOptions.attachmentStyle}
-                    label="Attachments"
+                    label={t('export.attachments')}
                     onChange={(e) => dispatch(setTextOptions({ attachmentStyle: e.target.value as TextAttachmentStyle }))}
                   >
-                    <MenuItem value="inline">Inline URL</MenuItem>
-                    <MenuItem value="sidecar">Sidecar folder</MenuItem>
-                    <MenuItem value="skip">Skip</MenuItem>
+                    <MenuItem value="inline">{t('export.inlineUrl')}</MenuItem>
+                    <MenuItem value="sidecar">{t('export.sidecarFolder')}</MenuItem>
+                    <MenuItem value="skip">{t('export.skip')}</MenuItem>
                   </Select>
                 </FormControl>
                 <FormControl size="small">
-                  <InputLabel id="text-reactions-label">Reactions</InputLabel>
+                  <InputLabel id="text-reactions-label">{t('export.reactions')}</InputLabel>
                   <Select
                     labelId="text-reactions-label"
                     value={exportState.textOptions.reactions}
-                    label="Reactions"
+                    label={t('export.reactions')}
                     onChange={(e) => dispatch(setTextOptions({ reactions: e.target.value as TextReactionsStyle }))}
                   >
-                    <MenuItem value="include">Include</MenuItem>
-                    <MenuItem value="skip">Skip</MenuItem>
+                    <MenuItem value="include">{t('export.include')}</MenuItem>
+                    <MenuItem value="skip">{t('export.skip')}</MenuItem>
                   </Select>
                 </FormControl>
                 <FormControl size="small">
-                  <InputLabel id="text-replies-label">Replies</InputLabel>
+                  <InputLabel id="text-replies-label">{t('export.replies')}</InputLabel>
                   <Select
                     labelId="text-replies-label"
                     value={exportState.textOptions.replies}
-                    label="Replies"
+                    label={t('export.replies')}
                     onChange={(e) => dispatch(setTextOptions({ replies: e.target.value as TextRepliesStyle }))}
                   >
-                    <MenuItem value="quote">Quote line</MenuItem>
-                    <MenuItem value="link">Author only</MenuItem>
-                    <MenuItem value="skip">Skip</MenuItem>
+                    <MenuItem value="quote">{t('export.quoteLine')}</MenuItem>
+                    <MenuItem value="link">{t('export.authorOnly')}</MenuItem>
+                    <MenuItem value="skip">{t('export.skip')}</MenuItem>
                   </Select>
                 </FormControl>
                 <FormControl size="small">
-                  <InputLabel id="text-bot-indicator-label">Bot tag</InputLabel>
+                  <InputLabel id="text-bot-indicator-label">{t('export.botTag')}</InputLabel>
                   <Select
                     labelId="text-bot-indicator-label"
                     value={exportState.textOptions.botIndicator}
-                    label="Bot tag"
+                    label={t('export.botTag')}
                     onChange={(e) => dispatch(setTextOptions({ botIndicator: e.target.value as TextBotIndicatorStyle }))}
                   >
-                    <MenuItem value="include">Include</MenuItem>
-                    <MenuItem value="skip">Skip</MenuItem>
+                    <MenuItem value="include">{t('export.include')}</MenuItem>
+                    <MenuItem value="skip">{t('export.skip')}</MenuItem>
                   </Select>
                 </FormControl>
               </Box>
@@ -337,7 +335,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
           sx={{ '&:before': { display: 'none' }, backgroundColor: 'transparent' }}
         >
           <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="subtitle2">Content</Typography>
+            <Typography variant="subtitle2">{t('export.content')}</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <FormControlLabel
@@ -350,7 +348,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                   disabled={isMediaOnly}
                 />
               }
-              label="Download threads (fetch and export thread messages into individual files)"
+              label={t('export.downloadThreads')}
             />
           </AccordionDetails>
         </Accordion>
@@ -366,7 +364,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
         sx={{ '&:before': { display: 'none' }, backgroundColor: 'transparent' }}
       >
         <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ borderBottom: '1px solid', borderColor: 'divider' }}>
-          <Typography variant="subtitle2">Files & Media</Typography>
+          <Typography variant="subtitle2">{t('export.filesAndMedia')}</Typography>
         </AccordionSummary>
         <AccordionDetails>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -380,13 +378,13 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                   disabled={isMediaOnly}
                 />
               }
-              label="Download files for offline viewing (avatars, attachments, emojis)"
+              label={t('export.downloadFiles')}
             />
 
             <Collapse in={mediaEnabled} timeout="auto">
               <Box sx={{ pl: 4, display: 'flex', flexDirection: 'column' }}>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
-                  Media types to include:
+                  {t('export.mediaTypesToInclude')}
                 </Typography>
                 <FormControlLabel
                   control={
@@ -396,7 +394,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                       onChange={(e) => dispatch(setMediaConfig({ images: e.target.checked }))}
                     />
                   }
-                  label={<Typography variant="body2">{getMediaLabel('Images')}</Typography>}
+                  label={<Typography variant="body2">{getMediaLabel('images', t('export.mediaImages'))}</Typography>}
                 />
                 <FormControlLabel
                   control={
@@ -406,7 +404,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                       onChange={(e) => dispatch(setMediaConfig({ videos: e.target.checked }))}
                     />
                   }
-                  label={<Typography variant="body2">{getMediaLabel('Videos')}</Typography>}
+                  label={<Typography variant="body2">{getMediaLabel('videos', t('export.mediaVideos'))}</Typography>}
                 />
                 <FormControlLabel
                   control={
@@ -416,7 +414,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                       onChange={(e) => dispatch(setMediaConfig({ audio: e.target.checked }))}
                     />
                   }
-                  label={<Typography variant="body2">{getMediaLabel('Audio')}</Typography>}
+                  label={<Typography variant="body2">{getMediaLabel('audio', t('export.mediaAudio'))}</Typography>}
                 />
                 {isExtensionMode() && (
                   <FormControlLabel
@@ -427,14 +425,14 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                         onChange={(e) => dispatch(setMediaConfig({ other: e.target.checked }))}
                       />
                     }
-                    label={<Typography variant="body2">{getMediaLabel('Other files')}</Typography>}
+                    label={<Typography variant="body2">{getMediaLabel('other', t('export.mediaOtherFiles'))}</Typography>}
                   />
                 )}
               </Box>
 
               <Box sx={{ pl: 4, mt: 1.5, pt: 1.5, borderTop: '1px solid', borderColor: 'divider', display: 'flex', flexDirection: 'column', gap: 1 }}>
                 <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5 }}>
-                  Display options:
+                  {t('export.displayOptions')}
                 </Typography>
                 <FormControlLabel
                   control={
@@ -444,7 +442,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                       onChange={(e) => dispatch(setArtistMode(e.target.checked))}
                     />
                   }
-                  label={<Typography variant="body2">Artist mode (organize media by author)</Typography>}
+                  label={<Typography variant="body2">{t('export.artistMode')}</Typography>}
                 />
                 <FormControlLabel
                   control={
@@ -454,7 +452,7 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
                       onChange={(e) => dispatch(setPreviewMedia(e.target.checked))}
                     />
                   }
-                  label={<Typography variant="body2">Preview media in export</Typography>}
+                  label={<Typography variant="body2">{t('export.previewMedia')}</Typography>}
                 />
               </Box>
 
@@ -469,8 +467,8 @@ const ExportSettingsAccordion = ({ isBulk, mediaSummary, onFormatChange, package
               <Collapse in={showSizeWarning}>
                 <Box sx={{ pl: 4, mt: 1 }}>
                   <Alert severity="warning" sx={{ py: 0.5 }}>
-                    Estimated media size is {formatBytes(enabledSize)}.
-                    {largestCategory && ` ${largestCategory.category} accounts for ${Math.round((largestCategory.totalBytes / enabledSize) * 100)}%; consider unchecking it to reduce download size.`}
+                    {t('export.estimatedSize', { size: formatBytes(enabledSize) })}
+                    {largestCategory && t('export.largestCategory', { category: t(`export.media${largestCategory.category.charAt(0).toUpperCase()}${largestCategory.category.slice(1)}`, { defaultValue: largestCategory.category }), percent: Math.round((largestCategory.totalBytes / enabledSize) * 100) })}
                   </Alert>
                 </Box>
               </Collapse>

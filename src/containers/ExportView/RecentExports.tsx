@@ -12,11 +12,13 @@ import {
 } from '@features/history/historySlice';
 import type { RecentExport } from '@features/export/exportTypes';
 import { timeAgo } from '@/utils/timeAgo';
+import { useTranslation } from 'react-i18next';
 
 const MAX_RECENT = 5;
 
 const RecentExports = () => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const allRecent = useAppSelector(selectRecentExports);
   const [expanded, setExpanded] = useState(false);
 
@@ -54,7 +56,7 @@ const RecentExports = () => {
         }}
       >
         <Typography variant="caption" color="text.secondary" fontWeight={500}>
-          Recent exports ({recentExports.length})
+          {t('export.recentExports', { count: recentExports.length })}
         </Typography>
         {expanded ? (
           <ExpandLessIcon fontSize="small" sx={{ color: 'text.secondary' }} />
@@ -85,7 +87,7 @@ const RecentExports = () => {
                 {entry.channelName}
                 {entry.isBulk && entry.channelCount && (
                   <Typography component="span" variant="caption" color="text.secondary">
-                    {' '}({entry.channelCount} channels)
+                    {t('export.channelsCount', { count: entry.channelCount })}
                   </Typography>
                 )}
               </Typography>
@@ -109,7 +111,7 @@ const RecentExports = () => {
             }}
             sx={{ textTransform: 'none', alignSelf: 'flex-start', mt: 0.5 }}
           >
-            Clear all
+            {t('export.clearAll')}
           </Button>
         </Box>
       </Collapse>

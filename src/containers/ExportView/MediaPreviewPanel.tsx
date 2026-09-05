@@ -10,15 +10,16 @@ import {
 } from '@mui/icons-material';
 import type { MediaCategorySummary } from '@/utils/mediaUtils';
 import type { Attachment } from 'discrub-core/types/discord-types';
+import { useTranslation } from 'react-i18next';
 
 const MAX_PER_CATEGORY = 8;
 const MAX_TOTAL = 20;
 
 const CATEGORY_LABELS: Record<string, string> = {
-  images: 'Images',
-  videos: 'Videos',
-  audio: 'Audio',
-  other: 'Other',
+  images: 'export.mediaImages',
+  videos: 'export.mediaVideos',
+  audio: 'export.mediaAudio',
+  other: 'export.mediaOther',
 };
 
 interface MediaPreviewPanelProps {
@@ -59,6 +60,7 @@ const ImageThumbnail = ({ attachment }: { attachment: Attachment }) => {
 };
 
 const MediaPreviewPanel = ({ summaries }: MediaPreviewPanelProps) => {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
 
   const hasContent = summaries.some((s) => s.attachments.length > 0);
@@ -94,7 +96,7 @@ const MediaPreviewPanel = ({ summaries }: MediaPreviewPanelProps) => {
         }}
       >
         <Typography variant="caption" color="text.secondary" fontWeight={500}>
-          Preview attachments
+          {t('export.previewAttachments')}
         </Typography>
         {expanded ? (
           <ExpandLessIcon fontSize="small" sx={{ color: 'text.secondary' }} />
@@ -114,7 +116,7 @@ const MediaPreviewPanel = ({ summaries }: MediaPreviewPanelProps) => {
             return (
               <Box key={summary.category}>
                 <Typography variant="caption" color="text.secondary" fontWeight={600} sx={{ mb: 0.5, display: 'block', textTransform: 'capitalize' }}>
-                  {CATEGORY_LABELS[summary.category] || summary.category}
+                  {CATEGORY_LABELS[summary.category] ? t(CATEGORY_LABELS[summary.category]) : summary.category}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, alignItems: 'center' }}>
                   {shown.map((att, i) => {
@@ -132,7 +134,7 @@ const MediaPreviewPanel = ({ summaries }: MediaPreviewPanelProps) => {
                       <Chip
                         key={i}
                         icon={<Icon fontSize="small" />}
-                        label={att.filename || 'file'}
+                        label={att.filename || t('export.file')}
                         size="small"
                         variant="outlined"
                         sx={{ maxWidth: 160, '& .MuiChip-label': { overflow: 'hidden', textOverflow: 'ellipsis' } }}
@@ -141,7 +143,7 @@ const MediaPreviewPanel = ({ summaries }: MediaPreviewPanelProps) => {
                   })}
                   {remaining > 0 && (
                     <Chip
-                      label={`+${remaining} more`}
+                      label={t('export.moreCount', { count: remaining })}
                       size="small"
                       variant="outlined"
                       color="default"

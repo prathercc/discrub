@@ -5,6 +5,7 @@ import {
   ALL_SYSTEM_GROUP_KEYS,
   toggleGroupKey,
 } from '@/utils/systemMessageGroups';
+import { useTranslation } from 'react-i18next';
 
 interface SystemMessageTypePickerProps {
   /** Selected group keys (e.g. ['pins', 'boosts']). */
@@ -27,6 +28,7 @@ const SystemMessageTypePicker = ({
   onChange,
   description,
 }: SystemMessageTypePickerProps) => {
+  const { t } = useTranslation();
   const allSelected = selectedGroups.length === ALL_SYSTEM_GROUP_KEYS.length;
 
   return (
@@ -52,7 +54,7 @@ const SystemMessageTypePicker = ({
           onClick={() => onChange(allSelected ? [] : ALL_SYSTEM_GROUP_KEYS)}
           sx={{ textTransform: 'none', flexShrink: 0, alignSelf: 'center' }}
         >
-          {allSelected ? 'Clear all' : 'Select all'}
+          {allSelected ? t('systemGroups.clearAll') : t('systemGroups.selectAll')}
         </Button>
       </Box>
       <Box
@@ -74,7 +76,7 @@ const SystemMessageTypePicker = ({
                 inputProps={{ 'aria-label': group.label }}
               />
             }
-            label={<Typography variant="body2">{group.label}</Typography>}
+            label={<Typography variant="body2">{t(`systemGroups.${group.key}`, { defaultValue: group.label })}</Typography>}
           />
         ))}
       </Box>

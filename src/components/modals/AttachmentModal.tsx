@@ -28,6 +28,7 @@ import {
 } from '@mui/icons-material';
 import type { Message, Attachment } from 'discrub-core/types/discord-types';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useTranslation } from 'react-i18next';
 
 interface AttachmentModalProps {
   open: boolean;
@@ -113,6 +114,7 @@ const AttachmentModal = ({
   currentUserId,
   canManageMessages,
 }: AttachmentModalProps) => {
+  const { t } = useTranslation();
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [failedThumbnails, setFailedThumbnails] = useState<Set<string>>(new Set());
 
@@ -173,13 +175,13 @@ const AttachmentModal = ({
       }}
     >
       <DialogTitle sx={{ pr: 5 }}>
-        Attachments ({message.attachments.length})
+        {t('attachmentModal.title', { count: message.attachments.length })}
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
         {wouldDeleteMessage && (
           <Alert severity="warning" sx={{ mb: 2 }}>
-            Removing the last attachment will delete the entire message since it has no text content.
+            {t('attachmentModal.lastAttachmentWarning')}
           </Alert>
         )}
         <Box sx={{ display: 'flex', flexDirection: 'column' }}>
@@ -263,7 +265,7 @@ const AttachmentModal = ({
                       <CircularProgress size={18} />
                     ) : (
                       <IconButton
-                        aria-label="delete attachment"
+                        aria-label={t('attachmentModal.deleteAttachment')}
                         size="small"
                         color="error"
                         disabled={deletingAttachmentId !== null}
@@ -288,10 +290,10 @@ const AttachmentModal = ({
             startIcon={<DeleteAllIcon />}
             onClick={handleDeleteAll}
           >
-            Remove All
+            {t('attachmentModal.removeAll')}
           </Button>
         )}
-        <Button variant="outlined" onClick={onClose}>Cancel</Button>
+        <Button variant="outlined" onClick={onClose}>{t('attachmentModal.cancel')}</Button>
       </DialogActions>
     </Dialog>
   );
