@@ -26,6 +26,7 @@ import { useAppDispatch } from '@/app/hooks';
 import { showToast } from '@/features/status/statusSlice';
 import TourButton from '@/components/welcome/TourButton';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useTranslation } from 'react-i18next';
 
 interface UserProfileModalProps {
   open: boolean;
@@ -61,6 +62,7 @@ const UserProfileModal = ({
   onFilterByAuthor,
   onFilterByMentions,
 }: UserProfileModalProps) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const theme = useTheme();
 
@@ -171,7 +173,7 @@ const UserProfileModal = ({
   // Helper: Copy to clipboard
   const handleCopy = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
-    dispatch(showToast({ level: 'success', message: `Copied ${label}!` }));
+    dispatch(showToast({ level: 'success', message: t('profile.copied', { label }) }));
   };
 
   const flagLabels = getFlagLabels(user.public_flags || user.flags);
@@ -214,7 +216,7 @@ const UserProfileModal = ({
             borderRadius: '8px 8px 0 0',
           }}
         />
-        <DialogCloseIcon onClose={onClose} label="Close profile" />
+        <DialogCloseIcon onClose={onClose} label={t('profile.close')} />
 
         {/* Avatar Section */}
         <Box
@@ -300,7 +302,7 @@ const UserProfileModal = ({
                 onClick={() => onFilterByAuthor(user)}
                 sx={{ textTransform: 'none' }}
               >
-                Filter messages by {serverNickname || displayName || username}
+                {t('profile.filterBy', { name: serverNickname || displayName || username })}
               </Button>
             )}
             {onFilterByMentions && (
@@ -312,7 +314,7 @@ const UserProfileModal = ({
                 onClick={() => onFilterByMentions(user)}
                 sx={{ textTransform: 'none' }}
               >
-                Filter messages mentioning {serverNickname || displayName || username}
+                {t('profile.filterMentioning', { name: serverNickname || displayName || username })}
               </TourButton>
             )}
           </Box>
@@ -326,14 +328,14 @@ const UserProfileModal = ({
             variant="subtitle2"
             sx={{ color: 'text.secondary', mb: 1.5, fontWeight: 600, fontSize: '12px' }}
           >
-            NAMES
+            {t('profile.names')}
           </Typography>
 
           {/* Server Nickname */}
           {guildId && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-                Server Nickname
+                {t('profile.serverNickname')}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <Typography
@@ -344,7 +346,7 @@ const UserProfileModal = ({
                     fontWeight: serverNickname ? 500 : 400,
                   }}
                 >
-                  {serverNickname || 'Not set'}
+                  {serverNickname || t('profile.notSet')}
                 </Typography>
                 {serverNickname && (
                   <Chip
@@ -368,7 +370,7 @@ const UserProfileModal = ({
           {/* Display Name (Global) */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-              Display Name
+              {t('profile.displayName')}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography
@@ -379,7 +381,7 @@ const UserProfileModal = ({
                   fontWeight: displayName ? 500 : 400,
                 }}
               >
-                {displayName || 'Not set'}
+                {displayName || t('profile.notSet')}
               </Typography>
               {displayName && !serverNickname && (
                 <Chip
@@ -417,7 +419,7 @@ const UserProfileModal = ({
           {/* Username */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-              Username
+              {t('profile.username')}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography
@@ -426,7 +428,7 @@ const UserProfileModal = ({
               >
                 {username}#{user.discriminator}
               </Typography>
-              <Tooltip title="Copy username">
+              <Tooltip title={t('profile.copyUsername')}>
                 <IconButton
                   size="small"
                   onClick={() => handleCopy(`${username}#${user.discriminator}`, 'username')}
@@ -477,13 +479,13 @@ const UserProfileModal = ({
             variant="subtitle2"
             sx={{ color: 'text.secondary', mb: 1.5, fontWeight: 600, fontSize: '12px' }}
           >
-            ACCOUNT DETAILS
+            {t('profile.accountDetails')}
           </Typography>
 
           {/* User ID */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-              User ID
+              {t('profile.userId')}
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <Typography
@@ -494,7 +496,7 @@ const UserProfileModal = ({
               </Typography>
               <IconButton
                 size="small"
-                onClick={() => handleCopy(user.id, 'User ID')}
+                onClick={() => handleCopy(user.id, t('profile.userId'))}
                 sx={{ color: 'text.secondary' }}
               >
                 <CopyIcon sx={{ fontSize: 16 }} />
@@ -506,14 +508,14 @@ const UserProfileModal = ({
           {user.email && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-                Email
+                {t('profile.email')}
               </Typography>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                 <Typography variant="body2" sx={{ color: 'text.secondary' }}>
                   {user.email}
                 </Typography>
                 {user.verified && (
-                  <Tooltip title="Verified">
+                  <Tooltip title={t('profile.verified')}>
                     <VerifiedIcon sx={{ fontSize: 16, color: '#43b581' }} />
                   </Tooltip>
                 )}
@@ -531,7 +533,7 @@ const UserProfileModal = ({
                 variant="body2"
                 sx={{ color: user.mfa_enabled ? '#43b581' : '#f04747', fontWeight: 500 }}
               >
-                {user.mfa_enabled ? 'Yes' : 'No'}
+                {user.mfa_enabled ? t('profile.yes') : t('profile.no')}
               </Typography>
             </Box>
           )}
@@ -540,7 +542,7 @@ const UserProfileModal = ({
           {user.premium_type !== undefined && (
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-                Nitro Status
+                {t('profile.nitroStatus')}
               </Typography>
               <Chip
                 label={getPremiumTypeLabel(user.premium_type)}
@@ -566,7 +568,7 @@ const UserProfileModal = ({
                 variant="subtitle2"
                 sx={{ color: 'text.secondary', mb: 1.5, fontWeight: 600, fontSize: '12px' }}
               >
-                BADGES
+                {t('profile.badges')}
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {flagLabels.map((flag, index) => (
@@ -597,7 +599,7 @@ const UserProfileModal = ({
                 variant="subtitle2"
                 sx={{ color: 'text.secondary', mb: 1.5, fontWeight: 600, fontSize: '12px' }}
               >
-                ROLES
+                {t('profile.roles')}
               </Typography>
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                 {userRoles.map((role) => {
@@ -657,13 +659,13 @@ const UserProfileModal = ({
             variant="subtitle2"
             sx={{ color: 'text.secondary', mb: 1.5, fontWeight: 600, fontSize: '12px' }}
           >
-            PROFILE CUSTOMIZATION
+            {t('profile.customization')}
           </Typography>
 
           {/* Accent Color */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-              Accent Color
+              {t('profile.accentColor')}
             </Typography>
             {user.accent_color ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -686,7 +688,7 @@ const UserProfileModal = ({
               </Box>
             ) : (
               <Typography variant="body2" sx={{ color: 'text.disabled', fontStyle: 'italic' }}>
-                Not set
+                {t('profile.notSet')}
               </Typography>
             )}
           </Box>
@@ -694,26 +696,26 @@ const UserProfileModal = ({
           {/* Banner Status */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
             <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-              Banner
+              {t('profile.banner')}
             </Typography>
             <Typography
               variant="body2"
               sx={{ color: user.banner ? '#43b581' : 'text.disabled', fontWeight: 500 }}
             >
-              {user.banner ? 'Custom banner set' : 'Not set'}
+              {user.banner ? t('profile.customBannerSet') : t('profile.notSet')}
             </Typography>
           </Box>
 
           {/* Avatar Decoration */}
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography variant="body2" sx={{ color: 'text.disabled' }}>
-              Avatar Decoration
+              {t('profile.avatarDecoration')}
             </Typography>
             <Typography
               variant="body2"
               sx={{ color: user.avatar_decoration ? '#43b581' : 'text.disabled', fontWeight: 500 }}
             >
-              {user.avatar_decoration ? 'Active' : 'None'}
+              {user.avatar_decoration ? t('profile.active') : t('profile.none')}
             </Typography>
           </Box>
         </Box>
@@ -733,7 +735,7 @@ const UserProfileModal = ({
           variant="outlined"
           onClick={onClose}
         >
-          Cancel
+          {t('profile.cancel')}
         </Button>
       </DialogActions>
     </Dialog>

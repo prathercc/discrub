@@ -24,6 +24,7 @@ import type { AnnouncementArchiveEntry } from 'discrub-core/types/discrub-types'
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useTranslation } from 'react-i18next';
 
 interface AnnouncementModalProps {
   open: boolean;
@@ -132,6 +133,7 @@ const AnnouncementModal = ({
   selectedVersion = null,
   onSelectVersion,
 }: AnnouncementModalProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const narrow = useMediaQuery(theme.breakpoints.down('sm'));
   const archiveEntries = archive ?? [];
@@ -144,7 +146,7 @@ const AnnouncementModal = ({
   const rail: RailEntry[] = [
     {
       key: LIVE_ENTRY_KEY,
-      title: liveMatch?.title ?? 'Latest',
+      title: liveMatch?.title ?? t('announcement.latest'),
       date: liveMatch?.date ?? null,
       markdown,
     },
@@ -159,7 +161,7 @@ const AnnouncementModal = ({
 
   const pick = (key: string) => onSelectVersion?.(key === LIVE_ENTRY_KEY ? null : key);
 
-  const title = showingLive && !liveMatch ? 'Announcement' : selected.title;
+  const title = showingLive && !liveMatch ? t('announcement.title') : selected.title;
   const byline = selected.date ? formatArchiveDate(selected.date) : null;
 
   const railNode = hasArchive && (
@@ -168,7 +170,7 @@ const AnnouncementModal = ({
         size="small"
         value={selected.key}
         onChange={(event) => pick(String(event.target.value))}
-        inputProps={{ 'aria-label': 'Announcement version' }}
+        inputProps={{ 'aria-label': t('announcement.version') }}
         data-testid="announcement-archive-select"
         sx={{ mb: 1.5, alignSelf: 'flex-start', minWidth: 200 }}
       >
@@ -183,7 +185,7 @@ const AnnouncementModal = ({
       <List
         dense
         disablePadding
-        aria-label="Announcements"
+        aria-label={t('announcement.list')}
         data-testid="announcement-archive-rail"
         sx={{
           width: 190,
@@ -256,11 +258,11 @@ const AnnouncementModal = ({
           </Box>
           {byline && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              Posted {byline}
+              {t('announcement.posted', { date: byline })}
             </Typography>
           )}
         </Box>
-        <DialogCloseIcon onClose={onDismiss} label="Close announcement" />
+        <DialogCloseIcon onClose={onDismiss} label={t('announcement.close')} />
       </DialogTitle>
       <DialogContent>
         <Box

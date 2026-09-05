@@ -16,6 +16,7 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { updateCachedUser, addFailedUserId, selectFailedUserIds } from '@features/cache/cacheSlice';
 import { getDiscordService } from '@services/discordService';
+import { useTranslation } from 'react-i18next';
 
 interface UserPickerProps {
   selectedUserIds: string[];
@@ -47,7 +48,6 @@ type PickerOption = UserOption | LookupOption;
 const isLookupOption = (option: PickerOption): option is LookupOption =>
   'isLookup' in option && option.isLookup === true;
 
-const ID_HELPER_TEXT = 'Tip: right-click a user in Discord → Copy User ID (enable Developer Mode in Discord settings).';
 
 const buildUserOptions = (
   cachedUserMap: ExportUserMap,
@@ -81,8 +81,10 @@ const UserPicker = ({
   cachedUserMap,
   currentUserId,
   disabled = false,
-  label = 'Select users',
+  label,
 }: UserPickerProps) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('userPicker.selectUsers');
   const theme = useTheme();
   const dispatch = useAppDispatch();
   const token = useAppSelector(selectAuthToken);
@@ -123,7 +125,7 @@ const UserPicker = ({
     }
 
     if (failedUserIds.includes(query)) {
-      setLookupError('User not found (previously looked up)');
+      setLookupError(t('userPicker.notFoundCached'));
       return;
     }
 
@@ -141,14 +143,14 @@ const UserPicker = ({
         setInputValue('');
       } else if (response.status === 404) {
         dispatch(addFailedUserId(query));
-        setLookupError('User not found');
+        setLookupError(t('userPicker.notFound'));
       } else if (response.status === 403) {
-        setLookupError('Access denied for this user');
+        setLookupError(t('userPicker.accessDenied'));
       } else {
-        setLookupError('Lookup failed. Try again.');
+        setLookupError(t('userPicker.lookupFailed'));
       }
     } catch {
-      setLookupError('Lookup failed. Try again.');
+      setLookupError(t('userPicker.lookupFailed'));
     } finally {
       setLookupLoading(false);
     }
@@ -174,7 +176,7 @@ const UserPicker = ({
     if (query && /^\d+$/.test(query)) {
       filtered.push({
         id: '__lookup__',
-        displayName: `Look up ID "${query}"`,
+        displayName: t('userPicker.lookUpId', { query }),
         isLookup: true,
         query,
       });
@@ -197,14 +199,14 @@ const UserPicker = ({
 
   const getPlaceholder = () => {
     if (selectedUserIds.length > 0) return '';
-    return 'Type to search or paste a User ID';
+    return t('userPicker.placeholder');
   };
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-      {label && (
+      {resolvedLabel && (
         <Typography variant="subtitle2" color="text.secondary">
-          {label}
+          {resolvedLabel}
         </Typography>
       )}
 
@@ -290,7 +292,7 @@ const UserPicker = ({
               placeholder={getPlaceholder()}
               size="small"
               error={Boolean(lookupError)}
-              helperText={lookupError || ID_HELPER_TEXT}
+              helperText={lookupError || t('userPicker.idHelp')}
             />
           )}
           disableCloseOnSelect
@@ -314,7 +316,7 @@ const UserPicker = ({
                     {(displayName as string)[0]?.toUpperCase()}
                   </Avatar>
                 }
-                label={isCurrentUser ? `${displayName} (You)` : displayName}
+                label={isCurrentUser ? t('userPicker.you', { name: displayName }) : displayName}
                 onDelete={disabled ? undefined : () => handleRemoveUser(userId)}
                 variant="outlined"
               />

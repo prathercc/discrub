@@ -24,6 +24,7 @@ import { getPackageChannelLabel } from '@features/package/packageDisplayUtils';
 import ImportDialog from './ImportDialog';
 import PackageAnalytics from './PackageAnalytics';
 import PackageMessageTable from './PackageMessageTable';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Main-pane view shown when the "Package" sidebar tab is active.
@@ -32,12 +33,8 @@ import PackageMessageTable from './PackageMessageTable';
  * - Package loaded, no channel selected → summary + analytics.
  * - Package loaded, channel selected → channel header + PackageMessageTable.
  */
-function pluralize(count: number, singular: string): string {
-  const word = count === 1 ? singular : `${singular}s`;
-  return `${count.toLocaleString()} ${word}`;
-}
-
 const PackageView = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const parsed = useAppSelector(selectParsedPackage);
   const validation = useAppSelector(selectPackageValidation);
@@ -88,11 +85,9 @@ const PackageView = () => {
           }}
         >
           <ArchiveIcon sx={{ fontSize: 64, color: 'text.secondary' }} />
-          <Typography variant="h5">Import a Discord Data Package</Typography>
+          <Typography variant="h5">{t('package.importTitle')}</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 480, textAlign: 'center' }}>
-            Analyze your message history, delete old messages using IDs from
-            the package, or convert it into a Discrub HTML export. Processing
-            happens entirely in your browser.
+            {t('package.importIntro')}
           </Typography>
           <Button
             variant="contained"
@@ -100,7 +95,7 @@ const PackageView = () => {
             onClick={() => setDialogOpen(true)}
             sx={{ mt: 1 }}
           >
-            Choose ZIP file
+            {t('package.chooseZip')}
           </Button>
         </Box>
         <ImportDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
@@ -114,10 +109,10 @@ const PackageView = () => {
       0,
     );
     const caption = selectedChannel.isOrphan
-      ? 'Messages from a server you are no longer in'
+      ? t('package.orphanCaption')
       : selectedChannel.guildName
-        ? `${selectedChannel.guildName} · ${remainingCount.toLocaleString()} messages`
-        : `${remainingCount.toLocaleString()} messages`;
+        ? t('package.guildCaption', { guild: selectedChannel.guildName, count: remainingCount.toLocaleString() })
+        : t('package.messagesCaption', { count: remainingCount.toLocaleString() });
     const captionNode = (
       <Typography variant="caption" color="text.secondary" noWrap>
         {caption}
@@ -127,7 +122,7 @@ const PackageView = () => {
       <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
         <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 2 }}>
           <IconButton
-            aria-label="Back to analytics"
+            aria-label={t('package.backToAnalytics')}
             size="small"
             onClick={() => dispatch(selectPackageChannel(null))}
           >
@@ -139,7 +134,7 @@ const PackageView = () => {
             </Typography>
             {selectedChannelDeleted > 0 && !selectedChannel.isOrphan ? (
               <Tooltip
-                title={`${selectedChannel.messageCount.toLocaleString()} in package, ${selectedChannelDeleted.toLocaleString()} deleted via Discrub`}
+                title={t('package.inPackageDeleted', { total: selectedChannel.messageCount.toLocaleString(), deleted: selectedChannelDeleted.toLocaleString() })}
               >
                 {captionNode}
               </Tooltip>
@@ -163,8 +158,8 @@ const PackageView = () => {
   const nonEmptyChannels = channels.filter((c) => c.messageCount > 0).length;
   const channelsChipLabel =
     channels.length === nonEmptyChannels
-      ? pluralize(channels.length, 'channel')
-      : `${nonEmptyChannels.toLocaleString()} of ${channels.length.toLocaleString()} channels`;
+      ? t('package.channels', { count: channels.length })
+      : t('package.channelsOf', { shown: nonEmptyChannels.toLocaleString(), total: channels.length.toLocaleString() });
 
   return (
     <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
@@ -179,11 +174,11 @@ const PackageView = () => {
         <Box sx={{ flexGrow: 1 }}>
           <Typography variant="h5">{user.globalName ?? user.username}</Typography>
           <Typography variant="body2" color="text.secondary">
-            @{user.username} · ID {user.id}
+            {t('package.userLine', { username: user.username, id: user.id })}
           </Typography>
         </Box>
         <Button variant="outlined" size="small" onClick={() => dispatch(resetPackage())}>
-          Close package
+          {t('package.closePackage')}
         </Button>
       </Stack>
 
@@ -195,52 +190,49 @@ const PackageView = () => {
 
       {leftGuilds.length > 0 && (
         <Alert severity="info" sx={{ mb: 1 }}>
-          You are no longer in {leftGuilds.length} server
-          {leftGuilds.length === 1 ? '' : 's'} from this package ({leftGuilds
-            .map((g) => g.name)
-            .slice(0, 3)
-            .join(', ')}
-          {leftGuilds.length > 3 ? `, +${leftGuilds.length - 3} more` : ''}).
-          Messages from those channels are read-only.
+          {t('package.leftServers', {
+            count: leftGuilds.length,
+            names: leftGuilds.length > 3
+              ? t('package.moreNames', { names: leftGuilds.slice(0, 3).map((g) => g.name).join(', '), count: leftGuilds.length - 3 })
+              : leftGuilds.map((g) => g.name).join(', '),
+          })}
         </Alert>
       )}
 
       {parsed.isLegacyFormat && (
         <Alert severity="info" sx={{ mb: 1 }}>
-          This package predates Discord's 2025 export format change. Some
-          attachment links may have already expired. Rehydrate before
-          export to refresh URLs and bundle media locally.
+          {t('package.legacyNotice')}
         </Alert>
       )}
 
       <Stack direction="row" spacing={1} sx={{ mt: 2, flexWrap: 'wrap', gap: 1 }}>
         {packageDeleted > 0 ? (
           <Tooltip
-            title={`${totalMessages.toLocaleString()} in package, ${packageDeleted.toLocaleString()} deleted via Discrub`}
+            title={t('package.inPackageDeleted', { total: totalMessages.toLocaleString(), deleted: packageDeleted.toLocaleString() })}
           >
             <Chip
-              label={pluralize(Math.max(totalMessages - packageDeleted, 0), 'message')}
+              label={t('package.messages', { count: Math.max(totalMessages - packageDeleted, 0) })}
             />
           </Tooltip>
         ) : (
-          <Chip label={pluralize(totalMessages, 'message')} />
+          <Chip label={t('package.messages', { count: totalMessages })} />
         )}
         <Chip label={channelsChipLabel} />
-        <Chip label={pluralize(guilds.length, 'server')} />
-        <Chip label={`${dmCount} ${dmCount === 1 ? 'DM' : 'DMs'}`} />
+        <Chip label={t('package.servers', { count: guilds.length })} />
+        <Chip label={t('package.dms', { count: dmCount })} />
         {orphanCount > 0 && (
           <Chip
-            label={`${orphanCount} from ${orphanCount === 1 ? 'a left server' : 'left servers'}`}
+            label={t('package.fromLeftServers', { count: orphanCount })}
             color="warning"
             variant="outlined"
           />
         )}
         {totalDeleted > 0 && (
           <Chip
-            label={`${totalDeleted.toLocaleString()} previously deleted`}
+            label={t('package.previouslyDeleted', { count: totalDeleted.toLocaleString() })}
             variant="outlined"
             onDelete={() => dispatch(clearPackageDeletedCache())}
-            title="Clear the deleted-message history for this user"
+            title={t('package.clearDeletedHistory')}
           />
         )}
       </Stack>
@@ -248,7 +240,7 @@ const PackageView = () => {
       <PackageAnalytics />
 
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 3 }}>
-        Select a channel from the sidebar to browse its messages.
+        {t('package.selectChannelHint')}
       </Typography>
     </Box>
   );

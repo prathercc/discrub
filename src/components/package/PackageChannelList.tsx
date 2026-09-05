@@ -38,6 +38,7 @@ import {
   getPackageChannelSubtitle,
   type PackageChannelCategory,
 } from '@features/package/packageDisplayUtils';
+import { useTranslation } from 'react-i18next';
 
 interface PackageChannelListProps {
   filterText?: string;
@@ -57,6 +58,7 @@ interface PackageChannelListProps {
  * channel stubs that add noise without signal.
  */
 const PackageChannelList = ({ filterText = '' }: PackageChannelListProps) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const parsed = useAppSelector(selectParsedPackage);
   const selectedId = useAppSelector(selectSelectedPackageChannelId);
@@ -111,7 +113,7 @@ const PackageChannelList = ({ filterText = '' }: PackageChannelListProps) => {
     return (
       <Box sx={{ p: 3, textAlign: 'center' }}>
         <Typography variant="caption" color="text.disabled">
-          Import a package to browse its channels.
+          {t('package.importToBrowse')}
         </Typography>
       </Box>
     );
@@ -122,11 +124,11 @@ const PackageChannelList = ({ filterText = '' }: PackageChannelListProps) => {
     label: string;
     items: PackageChannel[];
   }> = [
-    { key: 'guildText', label: 'Servers', items: grouped.guildText },
-    { key: 'thread', label: 'Threads', items: grouped.thread },
-    { key: 'dm', label: 'Direct Messages', items: grouped.dm },
-    { key: 'groupDm', label: 'Group DMs', items: grouped.groupDm },
-    { key: 'orphan', label: 'Left Servers', items: grouped.orphan },
+    { key: 'guildText', label: t('package.sectionServers'), items: grouped.guildText },
+    { key: 'thread', label: t('package.sectionThreads'), items: grouped.thread },
+    { key: 'dm', label: t('package.sectionDms'), items: grouped.dm },
+    { key: 'groupDm', label: t('package.sectionGroupDms'), items: grouped.groupDm },
+    { key: 'orphan', label: t('package.sectionLeftServers'), items: grouped.orphan },
   ];
 
   const totalShown = sections.reduce((n, s) => n + s.items.length, 0);
@@ -144,15 +146,15 @@ const PackageChannelList = ({ filterText = '' }: PackageChannelListProps) => {
             sx={{ textTransform: 'none', justifyContent: 'flex-start' }}
           >
             {showEmpty
-              ? `Hide ${emptyCount} empty channel${emptyCount === 1 ? '' : 's'}`
-              : `Show ${emptyCount} empty channel${emptyCount === 1 ? '' : 's'}`}
+              ? t('package.hideEmpty', { count: emptyCount })
+              : t('package.showEmpty', { count: emptyCount })}
           </Button>
         </Box>
       )}
 
       {totalShown === 0 ? (
         <Typography variant="body2" color="text.secondary" sx={{ p: 2, textAlign: 'center' }}>
-          No channels match your filter.
+          {t('package.noChannelsMatch')}
         </Typography>
       ) : (
         <List dense disablePadding>
@@ -241,6 +243,7 @@ interface ChannelRowProps {
 }
 
 const ChannelRow = ({ channel, selected, onSelect }: ChannelRowProps) => {
+  const { t } = useTranslation();
   const primary = getPackageChannelLabel(channel);
   const subtitle = getPackageChannelSubtitle(channel);
   const category = getPackageChannelCategory(channel);
@@ -253,7 +256,7 @@ const ChannelRow = ({ channel, selected, onSelect }: ChannelRowProps) => {
   const remainingCount = Math.max(channel.messageCount - deletedCount, 0);
   const countLabel =
     channel.messageCount === 0
-      ? 'empty'
+      ? t('package.empty')
       : remainingCount.toLocaleString();
 
   return (
@@ -289,7 +292,7 @@ const ChannelRow = ({ channel, selected, onSelect }: ChannelRowProps) => {
           </Typography>
           {deletedCount > 0 ? (
             <Tooltip
-              title={`${channel.messageCount.toLocaleString()} in package, ${deletedCount.toLocaleString()} deleted via Discrub`}
+              title={t('package.inPackageDeleted', { total: channel.messageCount.toLocaleString(), deleted: deletedCount.toLocaleString() })}
             >
               <Typography
                 variant="caption"

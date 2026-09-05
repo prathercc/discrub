@@ -30,22 +30,23 @@ import {
   detectCompatSetup,
 } from '@services/compatibility';
 import type { CompatCell, CompatSetup } from '@services/compatibility';
+import { useTranslation } from 'react-i18next';
 
 /** Column groups: product on top, browser/device below. */
 const MATRIX_GROUPS: { label: string; columns: { key: CompatSetup; label: string }[] }[] = [
   {
-    label: 'Extension',
+    label: 'compat.extension',
     columns: [
       { key: 'chrome-ext', label: 'Chrome' },
       { key: 'firefox-ext', label: 'Firefox' },
     ],
   },
   {
-    label: 'Bleeding Edge',
+    label: 'compat.bleedingEdge',
     columns: [
       { key: 'be-chrome', label: 'Chrome' },
       { key: 'be-firefox', label: 'Firefox' },
-      { key: 'be-phone', label: 'Mobile' },
+      { key: 'be-phone', label: 'compat.mobile' },
     ],
   },
 ];
@@ -70,6 +71,7 @@ export const CompatibilityContent = ({
   setup: CompatSetup;
   compact?: boolean;
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const detectedSx = { backgroundColor: alpha(theme.palette.primary.main, 0.1) };
   const cellPx = compact ? 0.25 : 1;
@@ -89,13 +91,13 @@ export const CompatibilityContent = ({
               <TableCell sx={{ borderBottom: 'none' }} />
               {MATRIX_GROUPS.map((g) => (
                 <TableCell
-                  key={g.label}
+                  key={t(g.label, { defaultValue: g.label })}
                   align="center"
                   colSpan={g.columns.length}
                   sx={{
                     borderBottom: 'none',
                     pb: 0,
-                    ...(g.label === 'Bleeding Edge' && groupEdgeSx),
+                    ...(g.label === 'compat.bleedingEdge' && groupEdgeSx),
                     color: 'text.secondary',
                     fontSize: compact ? '0.6rem' : '0.7rem',
                     textTransform: 'uppercase',
@@ -103,7 +105,7 @@ export const CompatibilityContent = ({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {g.label}
+                  {t(g.label, { defaultValue: g.label })}
                 </TableCell>
               ))}
             </TableRow>
@@ -124,10 +126,10 @@ export const CompatibilityContent = ({
                     data-testid={`compat-col-${c.key}`}
                   >
                     <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
-                      <span>{c.label}</span>
+                      <span>{t(c.label, { defaultValue: c.label })}</span>
                       {c.key === setup && (
                         <Chip
-                          label="You"
+                          label={t('compat.you')}
                           size="small"
                           color="primary"
                           sx={{ height: 20, fontSize: '0.65rem', '& .MuiChip-label': { px: 1 } }}
@@ -226,6 +228,7 @@ interface CompatibilityPopoverProps {
  * themes button and Settings.
  */
 const CompatibilityPopover = ({ placement }: CompatibilityPopoverProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isCompact = useMediaQuery(theme.breakpoints.down('sm'));
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
@@ -239,12 +242,12 @@ const CompatibilityPopover = ({ placement }: CompatibilityPopoverProps) => {
 
   return (
     <>
-      <Tooltip title="Compatibility" enterDelay={0} arrow>
+      <Tooltip title={t('compat.title')} enterDelay={0} arrow>
         <IconButton
           color="inherit"
           size={placement === 'gate' ? 'small' : 'medium'}
           onClick={handleOpen}
-          aria-label="Compatibility"
+          aria-label={t('compat.title')}
           data-testid={`compat-button-${placement}`}
           sx={placement === 'gate' ? { color: 'text.secondary' } : undefined}
         >

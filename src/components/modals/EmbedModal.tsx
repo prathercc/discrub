@@ -15,6 +15,7 @@ import type { Message } from 'discrub-core/types/discord-types';
 import type { HtmlFormattingContext } from 'discrub-core/types/html-formatting-types';
 import { formatEmbedContent } from '@/utils/messageLightFormatting';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { useTranslation } from 'react-i18next';
 
 interface EmbedModalProps {
   open: boolean;
@@ -27,6 +28,7 @@ interface EmbedModalProps {
  * EmbedModal - displays message embeds with Discord markdown and mention formatting
  */
 const EmbedModal = ({ open, onClose, message, formattingContext }: EmbedModalProps) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
@@ -99,7 +101,7 @@ const EmbedModal = ({ open, onClose, message, formattingContext }: EmbedModalPro
       }}
     >
       <DialogTitle sx={{ pr: 5 }}>
-        Embeds ({message.embeds.length})
+        {t('embedModal.title', { count: message.embeds.length })}
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent>
@@ -231,7 +233,7 @@ const EmbedModal = ({ open, onClose, message, formattingContext }: EmbedModalPro
                         rel="noopener noreferrer"
                         sx={{ display: 'block', mt: 0.5 }}
                       >
-                        View video
+                        {t('embedModal.viewVideo')}
                       </Link>
                     )}
                   </Box>

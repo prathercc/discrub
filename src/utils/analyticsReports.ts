@@ -1,5 +1,6 @@
 import type { Message, Reaction } from 'discrub-core/types/discord-types';
 import { generateMentionCounts } from './analyticsUtils';
+import { t } from '@/i18n';
 
 /**
  * Analytics reports over the messages already loaded in the feed (A4, 2026-08-27).
@@ -309,7 +310,7 @@ const threads: AnalyticsReport = {
     const rows = sortDesc(
       [...counts.entries()].map(([key, count]) => {
         const n = people.get(key)?.size ?? 0;
-        return { key, label: threadNames[key] ?? `Thread ${key}`, count, detail: plural(n, 'person', 'people'), channelId: key };
+        return { key, label: threadNames[key] ?? t('analytics.threadFallback', { id: key }), count, detail: t('analytics.people', { count: n }), channelId: key };
       }),
     );
     return {

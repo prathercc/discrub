@@ -72,41 +72,36 @@ import {
   HOSTED_URL,
 } from '@services/kofiLinks';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
+import { Trans } from 'react-i18next';
+import i18next from 'i18next';
+import { t as translate } from '@/i18n';
+import { useTranslation } from 'react-i18next';
 
 export { KOFI_MONTHLY_URL, KOFI_SUPPORTER_YEARLY_URL, KOFI_BLEEDING_EDGE_YEARLY_URL, HOSTED_URL };
 
-const FEATURE_LABEL: Record<SupporterFeature, string> = {
-  themes: 'Themes',
-  hosted: 'Bleeding Edge',
-};
-
-const FEATURE_BLURB: Record<SupporterFeature, string> = {
-  themes: 'Full theme pack in the app and in exports, animated accents, custom export footer',
-  hosted: 'Hosted early-access build with new features before they clear store review',
-};
 
 type Period = 'monthly' | 'yearly';
 const PLAN: Record<SupporterFeature, Record<Period, { price: string; unit: string; url: string }>> = {
   themes: {
-    monthly: { price: '$3', unit: '/ month', url: KOFI_MONTHLY_URL },
-    yearly: { price: '$25', unit: '/ year, never renews', url: KOFI_SUPPORTER_YEARLY_URL },
+    monthly: { price: '$3', unit: 'supporter.perMonth', url: KOFI_MONTHLY_URL },
+    yearly: { price: '$25', unit: 'supporter.perYear', url: KOFI_SUPPORTER_YEARLY_URL },
   },
   hosted: {
-    monthly: { price: '$5', unit: '/ month', url: KOFI_MONTHLY_URL },
-    yearly: { price: '$40', unit: '/ year, never renews', url: KOFI_BLEEDING_EDGE_YEARLY_URL },
+    monthly: { price: '$5', unit: 'supporter.perMonth', url: KOFI_MONTHLY_URL },
+    yearly: { price: '$40', unit: 'supporter.perYear', url: KOFI_BLEEDING_EDGE_YEARLY_URL },
   },
 };
 
-const formatDate = (unix: number) => new Date(unix * 1000).toLocaleDateString();
+const formatDate = (unix: number) => new Date(unix * 1000).toLocaleDateString(i18next.language);
 
 const relativeTime = (ms: number | null): string => {
-  if (ms === null) return 'Not checked yet';
+  if (ms === null) return translate('supporter.notCheckedYet');
   const minutes = Math.max(0, Math.round((Date.now() - ms) / 60000));
-  if (minutes < 2) return 'Checked just now';
-  if (minutes < 60) return `Checked ${minutes} minutes ago`;
+  if (minutes < 2) return translate('supporter.checkedJustNow');
+  if (minutes < 60) return translate('supporter.checkedMinutes', { count: minutes });
   const hours = Math.round(minutes / 60);
-  if (hours < 48) return `Checked ${hours} hour${hours === 1 ? '' : 's'} ago`;
-  return `Checked ${Math.round(hours / 24)} days ago`;
+  if (hours < 48) return translate('supporter.checkedHours', { count: hours });
+  return translate('supporter.checkedDays', { count: Math.round(hours / 24) });
 };
 
 const kofiButtonSx = {
@@ -135,6 +130,7 @@ const kofiButtonSx = {
  * pinned; the dialog scrolls naturally.
  */
 const SupporterDialog = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const fullScreen = useFullScreenDialog();
   const open = useAppSelector(selectSupporterDialogOpen);
@@ -191,17 +187,17 @@ const SupporterDialog = () => {
       const dataUri = await processFooterIconFile(file);
       dispatch(setFooterIcon(dataUri));
     } catch (error) {
-      setIconError(error instanceof Error ? error.message : 'That image could not be used.');
+      setIconError(error instanceof Error ? error.message : t('supporter.imageNotUsable'));
     }
     if (iconInputRef.current) iconInputRef.current.value = '';
   };
 
   const featureLine = (feature: SupporterFeature): string => {
-    if (!payload || !(feature in payload.ent)) return 'Not included';
+    if (!payload || !(feature in payload.ent)) return t('supporter.notIncluded');
     const exp = payload.ent[feature];
-    if (exp === null) return 'Never expires';
+    if (exp === null) return t('supporter.neverExpires');
     const live = keyStatus === 'valid' && isSupporterFeatureLive(payload, feature);
-    return live ? `Through ${formatDate(exp as number)}` : `Ended ${formatDate(exp as number)}`;
+    return live ? t('supporter.through', { date: formatDate(exp as number) }) : t('supporter.ended', { date: formatDate(exp as number) });
   };
 
   const renewsAutomatically =
@@ -220,7 +216,7 @@ const SupporterDialog = () => {
       PaperProps={{ sx: { bgcolor: 'background.paper' }, 'data-testid': 'supporter-dialog' } as object}
     >
       <Box sx={{ px: 3, pt: 3, pb: 1, textAlign: 'center', position: 'relative', flexShrink: 0 }}>
-        <DialogCloseIcon onClose={handleClose} label="Close Supporter dialog" />
+        <DialogCloseIcon onClose={handleClose} label={t('supporter.close')} />
 
         {isSupporter ? (
           <BadgeIcon sx={{ fontSize: 32, color: 'cta.main' }} />
@@ -228,7 +224,7 @@ const SupporterDialog = () => {
           <PaletteIcon sx={{ fontSize: 32, color: 'cta.main' }} />
         )}
         <Typography variant="h6" sx={{ fontWeight: 700 }}>
-          {isSupporter ? 'Thank you for supporting Discrub' : 'Themes'}
+          {isSupporter ? t('supporter.thankYou') : t('supporter.themes')}
         </Typography>
         {!isSupporter && (
           <Typography
@@ -242,7 +238,7 @@ const SupporterDialog = () => {
               gap: 0.5,
             }}
           >
-            Your support unlocks a growing pack of cosmetic themes
+            {t('supporter.unlocks')}
             <HeartIcon sx={{ fontSize: 14, color: '#ff5e5b' }} />
           </Typography>
         )}
@@ -264,29 +260,29 @@ const SupporterDialog = () => {
             >
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" sx={{ fontWeight: 600, flex: 1, minWidth: 0 }} noWrap>
-                  Supporter key issued to {payload.name}
+                  {t('supporter.keyIssuedTo', { name: payload.name })}
                 </Typography>
-                <Tooltip title="Refresh now. Your key checks in on its own about once a day.">
+                <Tooltip title={t('supporter.refreshTooltip')}>
                   <span>
                     <IconButton
                       size="small"
                       onClick={handleRefresh}
                       disabled={claimInProgress}
-                      aria-label="Refresh key"
+                      aria-label={t('supporter.refreshKey')}
                       data-testid="supporter-refresh-key"
                     >
                       {claimInProgress ? <CircularProgress size={16} /> : <RefreshIcon fontSize="small" />}
                     </IconButton>
                   </span>
                 </Tooltip>
-                <Tooltip title="Remove this key from this device. That also stops the daily check-in.">
+                <Tooltip title={t('supporter.removeTooltip')}>
                   <span>
                     <IconButton
                       size="small"
                       color="error"
                       onClick={() => dispatch(removeSupporterKey())}
                       disabled={claimInProgress}
-                      aria-label="Remove key"
+                      aria-label={t('supporter.removeKey')}
                       data-testid="supporter-remove-key"
                     >
                       <RemoveIcon fontSize="small" />
@@ -317,7 +313,7 @@ const SupporterDialog = () => {
                         <NotIncludedIcon sx={{ fontSize: 18, color: 'text.disabled' }} />
                       )}
                       <Typography variant="body2" sx={{ fontWeight: 600, width: 110, flexShrink: 0 }}>
-                        {FEATURE_LABEL[feature]}
+                        {t(`supporter.feature.${feature}`)}
                       </Typography>
                       <Typography
                         variant="body2"
@@ -336,7 +332,7 @@ const SupporterDialog = () => {
                               data-testid={`supporter-get-${feature}`}
                             >
                               <KofiIcon size={12} sx={{ verticalAlign: '-2px', mr: 0.5 }} />
-                              Get it on Ko-fi
+                              {t('supporter.getOnKofi')}
                             </Link>
                           </>
                         )}
@@ -353,7 +349,7 @@ const SupporterDialog = () => {
               >
                 {relativeTime(lastRefreshAt)}.
                 {renewsAutomatically
-                  ? ' Renews automatically while your membership is active.'
+                  ? t('supporter.renewsAutomatically')
                   : ''}
               </Typography>
             </Box>
@@ -364,13 +360,12 @@ const SupporterDialog = () => {
                 sx={{ color: 'warning.main' }}
                 data-testid="supporter-lapsed-note"
               >
-                Your supporter access has ended, so supporter perks have relocked. Hit
-                Refresh after renewing, or paste a fresh key below.
+                {t('supporter.lapsedNote')}
               </Typography>
             )}
             {keyStatus === 'revoked' && (
               <Typography variant="caption" sx={{ color: 'warning.main' }} data-testid="supporter-revoked-note">
-                This key is no longer active. Paste a fresh key below.
+                {t('supporter.revokedNote')}
               </Typography>
             )}
             {claimError && (
@@ -388,17 +383,17 @@ const SupporterDialog = () => {
               exclusive
               size="small"
               onChange={(_, next: 'monthly' | 'yearly' | null) => next && setPeriod(next)}
-              aria-label="Billing period"
+              aria-label={t('supporter.billingPeriod')}
               data-testid="supporter-period"
               sx={{ alignSelf: 'center' }}
             >
               <ToggleButton value="monthly" data-testid="supporter-period-monthly" sx={{ textTransform: 'none', px: 2 }}>
-                Monthly
+                {t('supporter.monthly')}
               </ToggleButton>
               <ToggleButton value="yearly" data-testid="supporter-period-yearly" sx={{ textTransform: 'none', px: 2 }}>
-                Yearly
+                {t('supporter.yearly')}
                 <Typography component="span" variant="caption" sx={{ ml: 0.75, color: 'success.main', fontWeight: 700 }}>
-                  save ~30%
+                  {t('supporter.saveAbout')}
                 </Typography>
               </ToggleButton>
             </ToggleButtonGroup>
@@ -428,12 +423,12 @@ const SupporterDialog = () => {
                   >
                     <Box>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                        {feature === 'themes' ? 'Supporter' : 'Bleeding Edge'}
+                        {feature === 'themes' ? t('supporter.planSupporter') : t('supporter.planBleedingEdge')}
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                         {feature === 'themes'
-                          ? FEATURE_BLURB.themes
-                          : `Everything in Supporter, plus the ${FEATURE_BLURB.hosted.charAt(0).toLowerCase()}${FEATURE_BLURB.hosted.slice(1)}`}
+                          ? t('supporter.blurb.themes')
+                          : t('supporter.hostedPlanBlurb')}
                       </Typography>
                     </Box>
                     <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
@@ -441,7 +436,7 @@ const SupporterDialog = () => {
                         {plan.price}
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                        {plan.unit}
+                        {t(plan.unit)}
                       </Typography>
                     </Box>
                     <Button
@@ -454,21 +449,20 @@ const SupporterDialog = () => {
                       sx={kofiButtonSx}
                       data-testid={`supporter-kofi-${feature}-${period}`}
                     >
-                      Support on Ko-fi
+                      {t('supporter.supportOnKofi')}
                     </Button>
                   </Box>
                 );
               })}
             </Box>
             <Typography variant="caption" sx={{ color: 'text.secondary', textAlign: 'center' }}>
-              One key covers Discrub and every future Prather Bytecraft app, in the app and at{' '}
-              {HOSTED_URL.replace('https://', '')}.
+              {t('supporter.oneKey', { host: HOSTED_URL.replace('https://', '') })}
             </Typography>
 
             <Box sx={{ display: 'flex', gap: 1 }}>
               <TextField
                 size="small"
-                label="Supporter key"
+                label={t('supporter.keyLabel')}
                 placeholder="PBYTE-..."
                 value={pastedKey}
                 onChange={(e) => setPastedKey(e.target.value)}
@@ -483,7 +477,7 @@ const SupporterDialog = () => {
                 startIcon={claimInProgress ? <CircularProgress size={16} /> : undefined}
                 data-testid="supporter-paste-apply"
               >
-                Apply
+                {t('supporter.apply')}
               </Button>
             </Box>
             {!payload && claimError && (
@@ -492,16 +486,10 @@ const SupporterDialog = () => {
               </Typography>
             )}
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Your key arrives from{' '}
-              <Link
-                href="mailto:keys@pratherbytecraft.com"
-                sx={{ color: 'cta.main' }}
-                data-testid="supporter-key-email-link"
-              >
-                keys@pratherbytecraft.com
-              </Link>{' '}
-              right after you join. Once a key is in, Discrub checks in with our server
-              about once a day to keep it current; removing the key stops that.
+              <Trans
+                i18nKey="supporter.keyArrives"
+                components={{ mail: <Link href="mailto:keys@pratherbytecraft.com" sx={{ color: 'cta.main' }} data-testid="supporter-key-email-link" /> }}
+              />
             </Typography>
           </Box>
         )}
@@ -522,11 +510,10 @@ const SupporterDialog = () => {
             sx={{ display: 'block', color: 'text.secondary', textAlign: 'center', mt: 1.5 }}
             data-testid="supporter-commission-note"
           >
-            Want a theme of your own?{' '}
-            <Link href={KOFI_COMMISSIONS_URL} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ fontWeight: 600 }}>
-              Commission one on Ko-fi
-            </Link>
-            .
+            <Trans
+              i18nKey="supporter.wantTheme"
+              components={{ kofi: <Link href={KOFI_COMMISSIONS_URL} target="_blank" rel="noopener noreferrer" underline="hover" sx={{ fontWeight: 600 }} /> }}
+            />
           </Typography>
         </Box>
 
@@ -550,9 +537,9 @@ const SupporterDialog = () => {
           }
           label={
             <Box>
-              <Typography variant="body2">Theme animations</Typography>
+              <Typography variant="body2">{t('supporter.themeAnimations')}</Typography>
               <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                Allow subtle animated accents on themes that include them.
+                {t('supporter.themeAnimationsHelp')}
               </Typography>
             </Box>
           }
@@ -583,7 +570,7 @@ const SupporterDialog = () => {
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
             <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-              Export footer
+              {t('supporter.exportFooter')}
             </Typography>
             {footerControlsDisabled && (
               <LockIcon sx={{ fontSize: 14, color: 'error.main' }} data-testid="supporter-footer-lock" />
@@ -592,13 +579,11 @@ const SupporterDialog = () => {
           <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
             {footerControlsDisabled ? (
               <>
-                HTML exports carry a small footer line. Supporters can reword it, give it
-                their own icon, or turn it off.
+                {t('supporter.footerHelpLocked')}
               </>
             ) : (
               <>
-                HTML exports carry a small footer line. As a supporter you can reword it,
-                give it your own icon, or turn it off.
+                {t('supporter.footerHelp')}
               </>
             )}
           </Typography>
@@ -614,13 +599,13 @@ const SupporterDialog = () => {
                 inputProps={{ 'data-testid': 'supporter-footer-enabled' } as object}
               />
             }
-            label={<Typography variant="body2">Include the footer in exports</Typography>}
+            label={<Typography variant="body2">{t('supporter.includeFooter')}</Typography>}
           />
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
             <TextField
               size="small"
-              label="Footer text"
+              label={t('supporter.footerText')}
               placeholder={DEFAULT_FOOTER_TEXT}
               value={
                 footerControlsDisabled
@@ -637,7 +622,7 @@ const SupporterDialog = () => {
                   maxLength: FOOTER_TEXT_MAX_LENGTH,
                 } as object
               }
-              helperText={footerControlsDisabled ? 'This is the line free exports carry' : 'Leave blank for the default line'}
+              helperText={footerControlsDisabled ? t('supporter.footerFreeLine') : t('supporter.footerBlankDefault')}
               fullWidth
             />
 
@@ -646,7 +631,7 @@ const SupporterDialog = () => {
                 <Box
                   component="img"
                   src={footer.iconDataUri}
-                  alt="Custom footer icon"
+                  alt={t('supporter.customFooterIcon')}
                   data-testid="supporter-footer-icon-preview"
                   sx={{ width: 32, height: 32, borderRadius: 1, flexShrink: 0 }}
                 />
@@ -654,7 +639,7 @@ const SupporterDialog = () => {
                 <Box
                   component="img"
                   src="/icons/icon-48.png"
-                  alt="Default Discrub footer icon"
+                  alt={t('supporter.defaultFooterIcon')}
                   sx={{ width: 32, height: 32, borderRadius: 1, flexShrink: 0, opacity: 0.7 }}
                 />
               )}
@@ -665,7 +650,7 @@ const SupporterDialog = () => {
                 disabled={footerControlsDisabled || footerRemoved}
                 data-testid="supporter-footer-upload"
               >
-                Custom icon
+                {t('supporter.customIcon')}
               </Button>
               {!footerControlsDisabled && footer.iconDataUri && (
                 <Button
@@ -674,7 +659,7 @@ const SupporterDialog = () => {
                   onClick={() => dispatch(setFooterIcon(null))}
                   data-testid="supporter-footer-icon-remove"
                 >
-                  Use default
+                  {t('supporter.useDefault')}
                 </Button>
               )}
               <input

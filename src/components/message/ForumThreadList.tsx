@@ -18,6 +18,7 @@ import {
 import type { Channel, Message } from 'discrub-core/types/discord-types';
 import EmptyState from '@components/ui/EmptyState';
 import { timeAgo } from '@/utils/timeAgo';
+import { useTranslation } from 'react-i18next';
 
 const glowPulse = keyframes`
   0%, 100% { opacity: 0.4; }
@@ -86,6 +87,7 @@ const ForumThreadList = ({
   threads, firstMessages, totalResults, isLoading, hasMore,
   forumChannel, onThreadClick, onLoadMore, onSearch, onClearSearch,
 }: ForumThreadListProps) => {
+  const { t } = useTranslation();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [searchText, setSearchText] = useState('');
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
@@ -185,7 +187,7 @@ const ForumThreadList = ({
           ))}
           {selectedTags.size > 0 && (
             <Chip
-              label="Clear"
+              label={t('forum.clear')}
               size="small"
               variant="outlined"
               onClick={() => setSelectedTags(new Set())}
@@ -205,7 +207,7 @@ const ForumThreadList = ({
         </Typography>
         <TextField
           size="small"
-          placeholder="Search posts..."
+          placeholder={t('forum.searchPosts')}
           value={searchText}
           onChange={(e) => handleSearchChange(e.target.value)}
           InputProps={{
@@ -221,13 +223,13 @@ const ForumThreadList = ({
 
       {/* Empty states */}
       {!isLoading && filteredThreads.length === 0 && isSearchActive && (
-        <EmptyState message={`No posts matching "${searchText}"`} icon={<ForumIcon />} />
+        <EmptyState message={t('forum.noPostsMatching', { search: searchText })} icon={<ForumIcon />} />
       )}
       {!isLoading && filteredThreads.length === 0 && !isSearchActive && selectedTags.size > 0 && (
-        <EmptyState message="No posts matching selected tags" icon={<ForumIcon />} />
+        <EmptyState message={t('forum.noPostsMatchingTags')} icon={<ForumIcon />} />
       )}
       {!isLoading && threads.length === 0 && !isSearchActive && selectedTags.size === 0 && (
-        <EmptyState message="No posts found in this forum" icon={<ForumIcon />} />
+        <EmptyState message={t('forum.noPosts')} icon={<ForumIcon />} />
       )}
 
       {/* Full skeleton cards — initial load or search with no results yet */}
@@ -309,7 +311,7 @@ const ForumThreadList = ({
                     whiteSpace: 'nowrap',
                   }}
                 >
-                  {thread.name || 'Untitled Post'}
+                  {thread.name || t('forum.untitledPost')}
                 </Typography>
                 {activityTimestamp && (
                   <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>

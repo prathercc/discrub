@@ -1,4 +1,5 @@
 import type { DeleteResult } from './packageSlice';
+import { t } from '@/i18n';
 
 /**
  * User-facing copy for package status surfaces. Centralized so the
@@ -16,9 +17,7 @@ import type { DeleteResult } from './packageSlice';
  *     they happened.
  */
 
-function pluralize(n: number, singular: string): string {
-  return `${n.toLocaleString()} ${singular}${n === 1 ? '' : 's'}`;
-}
+const messages = (n: number): string => t('package.messages', { count: n });
 
 /**
  * Format a `DeleteResult` as a single user-facing sentence (or two)
@@ -38,7 +37,7 @@ export function formatDeleteSummary(result: DeleteResult): string {
   const parts: string[] = [];
 
   if (result.deleted > 0) {
-    parts.push(`Deleted ${pluralize(result.deleted, 'message')}.`);
+    parts.push(t('packageCopy.deleted', { messages: messages(result.deleted) }));
   } else if (
     result.alreadyGone === 0 &&
     result.forbidden === 0 &&
@@ -46,29 +45,29 @@ export function formatDeleteSummary(result: DeleteResult): string {
   ) {
     // Defensive fallback. The thunk rejects before reaching this state
     // so it shouldn't render in practice, but keeps the formatter total.
-    parts.push('No messages were deleted.');
+    parts.push(t('packageCopy.noneDeleted'));
   } else {
-    parts.push("Couldn't delete any messages.");
+    parts.push(t('packageCopy.couldNotDelete'));
   }
 
   if (result.alreadyGone > 0) {
     parts.push(
-      `${pluralize(result.alreadyGone, 'message')} ${result.alreadyGone === 1 ? 'was' : 'were'} already gone on Discord.`,
+      t('packageCopy.alreadyGone', { count: result.alreadyGone, messages: messages(result.alreadyGone) }),
     );
   }
   if (result.forbidden > 0) {
     parts.push(
-      `${pluralize(result.forbidden, 'message')} couldn't be deleted (no permission).`,
+      t('packageCopy.forbidden', { messages: messages(result.forbidden) }),
     );
   }
   if (result.failed > 0) {
     parts.push(
-      `${pluralize(result.failed, 'message')} had ${result.failed === 1 ? 'an error' : 'errors'}.`,
+      t('packageCopy.failed', { count: result.failed, messages: messages(result.failed) }),
     );
   }
 
   let sentence = parts.join(' ');
-  if (result.cancelled) sentence += ' (cancelled)';
+  if (result.cancelled) sentence += t('packageCopy.cancelledSuffix');
   return sentence;
 }
 
@@ -94,9 +93,9 @@ export function formatRehydrateInlineSummary(opts: {
   unavailable: number;
   noAccess: number;
 }): string {
-  const parts: string[] = [pluralize(opts.enriched, 'message')];
-  if (opts.unavailable > 0) parts.push(`${opts.unavailable.toLocaleString()} unavailable`);
-  if (opts.noAccess > 0) parts.push(`${opts.noAccess.toLocaleString()} no access`);
+  const parts: string[] = [messages(opts.enriched)];
+  if (opts.unavailable > 0) parts.push(t('packageCopy.unavailable', { count: opts.unavailable.toLocaleString() }));
+  if (opts.noAccess > 0) parts.push(t('packageCopy.noAccess', { count: opts.noAccess.toLocaleString() }));
   return parts.join(', ');
 }
 
@@ -124,8 +123,8 @@ export function formatRehydrateLogSummary(opts: {
     unavailable: opts.unavailable,
     noAccess: opts.noAccess,
   });
-  let sentence = `Rich data loaded for "${opts.channelLabel}": ${summary}.`;
-  if (opts.cancelled) sentence += ' (cancelled)';
+  let sentence = t('packageCopy.richDataLoaded', { channel: opts.channelLabel, summary });
+  if (opts.cancelled) sentence += t('packageCopy.cancelledSuffix');
   return sentence;
 }
 
@@ -171,17 +170,12 @@ export function formatRehydrateEtaBreakdown(
   totalMessages: number,
   searchDelayMs: number,
 ): string {
-  if (totalMessages <= 0) return 'No messages to rehydrate.';
+  if (totalMessages <= 0) return t('packageCopy.noMessagesToRehydrate');
   const messagesPerSec = searchDelayMs > 0 ? 1000 / searchDelayMs : 0;
   const rate =
     messagesPerSec >= 1
-      ? `~${messagesPerSec.toFixed(messagesPerSec >= 10 ? 0 : 1)} per second`
-      : `~${(searchDelayMs / 1000).toFixed(1)}s per message`;
+      ? t('packageCopy.ratePerSecond', { rate: messagesPerSec.toFixed(messagesPerSec >= 10 ? 0 : 1) })
+      : t('packageCopy.ratePerMessage', { seconds: (searchDelayMs / 1000).toFixed(1) });
   const eta = formatRehydrateEta(totalMessages, searchDelayMs);
-  return (
-    `${totalMessages.toLocaleString()} ${totalMessages === 1 ? 'message' : 'messages'} · ` +
-    `${rate} · expected ${eta}. ` +
-    `Discord caps fetch rate; the search preflight may finish sooner ` +
-    `if it covers most messages in one pass.`
-  );
+  return t('packageCopy.etaBreakdown', { messages: messages(totalMessages), rate, eta });
 }

@@ -5,6 +5,7 @@ import {
   ArrowDownward as DownIcon,
 } from '@mui/icons-material';
 import { SortDirection } from 'discrub-core/common-enum';
+import { useTranslation } from 'react-i18next';
 
 interface MessageFeedToolbarProps {
   totalCount: number;
@@ -21,6 +22,7 @@ const MessageFeedToolbar = memo(function MessageFeedToolbar({
   onToggleSelectAll,
   onToggleSort,
 }: MessageFeedToolbarProps) {
+  const { t } = useTranslation();
   const allSelected = totalCount > 0 && selectedCount === totalCount;
   const someSelected = selectedCount > 0 && !allSelected;
   const isNewestFirst = order === SortDirection.DESCENDING;
@@ -46,12 +48,12 @@ const MessageFeedToolbar = memo(function MessageFeedToolbar({
             checked={allSelected}
             indeterminate={someSelected}
             onChange={onToggleSelectAll}
-            inputProps={{ 'aria-label': 'Select all messages' }}
+            inputProps={{ 'aria-label': t('feed.selectAllMessages') }}
           />
         }
         label={
           <Typography variant="caption" color="text.secondary">
-            Select all
+            {t('feed.selectAll')}
           </Typography>
         }
         sx={{ m: 0, '.MuiFormControlLabel-label': { ml: 0.25 } }}
@@ -62,10 +64,10 @@ const MessageFeedToolbar = memo(function MessageFeedToolbar({
         variant="text"
         onClick={onToggleSort}
         startIcon={isNewestFirst ? <DownIcon fontSize="small" /> : <UpIcon fontSize="small" />}
-        aria-label={`Sort ${isNewestFirst ? 'oldest first' : 'newest first'}`}
+        aria-label={isNewestFirst ? t('feed.sortOldestFirst') : t('feed.sortNewestFirst')}
         sx={{ textTransform: 'none' }}
       >
-        {isNewestFirst ? 'Newest first' : 'Oldest first'}
+        {isNewestFirst ? t('feed.newestFirst') : t('feed.oldestFirst')}
       </Button>
     </Box>
   );

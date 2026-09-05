@@ -41,6 +41,7 @@ import { chunkMessages } from '@/utils/messageChunking';
 import { createChunkSizeEstimator } from '@/utils/chunkSizeEstimator';
 import MessageChunk from './MessageChunk';
 import MessageFeedToolbar from './MessageFeedToolbar';
+import { useTranslation } from 'react-i18next';
 
 interface MessageFeedProps {
   formattingContext: HtmlFormattingContext;
@@ -70,6 +71,7 @@ const MessageFeed = ({
   onBulkDeleteReactionsForEmoji,
 }: MessageFeedProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const messages = useAppSelector(selectActiveFilteredMessages);
   const selectedMessages = useAppSelector(selectActiveSelectedMessages);
   const order = useAppSelector(selectActiveOrder);
@@ -511,7 +513,7 @@ const MessageFeed = ({
                 onClick={handleLoadMore}
                 data-testid="message-feed-load-more"
               >
-                Load more messages
+                {t('feed.loadMore')}
               </Button>
             </Box>
           )}

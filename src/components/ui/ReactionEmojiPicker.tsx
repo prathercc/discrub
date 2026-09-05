@@ -19,6 +19,7 @@ import {
   type UnicodeEmoji,
 } from '@/utils/emojiDataset';
 import type { Emoji } from 'discrub-core/types/discord-types';
+import { useTranslation } from 'react-i18next';
 
 const EMOJI_SIZE = 22;
 const EMPTY_SHORTCODES = new Map<string, UnicodeEmoji>();
@@ -72,6 +73,7 @@ const EmojiCell = ({ emoji, tooltip, selected, onClick }: EmojiCellProps) => (
  * hatch. Selection is controlled by the parent; this component never calls Discord.
  */
 const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionEmojiPickerProps) => {
+  const { t } = useTranslation();
   const [dataset, setDataset] = useState<EmojiDataset | null>(null);
   const [query, setQuery] = useState('');
   const [pasteValue, setPasteValue] = useState('');
@@ -132,7 +134,7 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
       <TextField
         size="small"
         fullWidth
-        placeholder="Search emojis by name…"
+        placeholder={t('emojiPicker.search')}
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         InputProps={{
@@ -142,7 +144,7 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
             </InputAdornment>
           ),
         }}
-        inputProps={{ 'aria-label': 'Search emojis by name' }}
+        inputProps={{ 'aria-label': t('emojiPicker.searchAria') }}
       />
 
       <Box
@@ -159,7 +161,7 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
         {usableGuildEmojis.length > 0 && (
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-              Your server&apos;s emojis
+              {t('emojiPicker.serverEmojis')}
             </Typography>
             {filteredGuildEmojis.length > 0 ? (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, mt: 0.5 }}>
@@ -183,7 +185,7 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
               </Box>
             ) : (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                No matching server emojis
+                {t('emojiPicker.noServerMatch')}
               </Typography>
             )}
           </Box>
@@ -194,13 +196,13 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2, justifyContent: 'center' }}>
             <CircularProgress size={18} />
             <Typography variant="caption" color="text.secondary">
-              Loading emojis…
+              {t('emojiPicker.loading')}
             </Typography>
           </Box>
         ) : filteredUnicode ? (
           <Box>
             <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600 }}>
-              All emojis
+              {t('emojiPicker.allEmojis')}
             </Typography>
             {filteredUnicode.length > 0 ? (
               <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.25, mt: 0.5 }}>
@@ -219,7 +221,7 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
               </Box>
             ) : (
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                No emojis match &quot;{query}&quot;
+                {t('emojiPicker.noMatch', { query })}
               </Typography>
             )}
           </Box>
@@ -253,11 +255,11 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
         <TextField
           size="small"
           fullWidth
-          label="Other"
-          placeholder="Paste an emoji or :name:"
+          label={t('emojiPicker.other')}
+          placeholder={t('emojiPicker.pastePlaceholder')}
           value={pasteValue}
           error={pasteError}
-          helperText={pasteError ? 'Not a recognized emoji' : ' '}
+          helperText={pasteError ? t('emojiPicker.notRecognized') : ' '}
           onChange={(e) => {
             setPasteValue(e.target.value);
             if (pasteError) setPasteError(false);
@@ -268,7 +270,7 @@ const ReactionEmojiPicker = ({ selected, onToggle, guildEmojis = [] }: ReactionE
               handlePaste();
             }
           }}
-          inputProps={{ 'aria-label': 'Paste an emoji or shortcode' }}
+          inputProps={{ 'aria-label': t('emojiPicker.pasteAria') }}
         />
         <Button onClick={handlePaste} disabled={!pasteValue.trim()} sx={{ mt: 0.5 }}>
           Add

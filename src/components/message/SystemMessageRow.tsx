@@ -11,6 +11,8 @@ import { getUserRoleColor } from '@/utils/roleColorUtils';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { navigateToMessage, openThreadTab } from '@features/message/messageSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
+import { getDateLocale } from '@/i18n/dateLocale';
+import { useTranslation } from 'react-i18next';
 
 interface SystemMessageRowProps {
   message: Message;
@@ -73,6 +75,7 @@ const SystemMessageRow = memo(function SystemMessageRow({
   selected = false,
   onToggleSelect,
 }: SystemMessageRowProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useAppDispatch();
   const token = useAppSelector(selectAuthToken);
@@ -95,12 +98,12 @@ const SystemMessageRow = memo(function SystemMessageRow({
       if (thread?.id && token) {
         dispatch(openThreadTab({
           threadId: thread.id,
-          threadName: thread.name || 'Thread',
+          threadName: thread.name || t('common.thread'),
           token,
         }));
       }
     }
-  }, [descriptor, message, token, dispatch]);
+  }, [descriptor, message, token, dispatch, t]);
 
   // Row click toggles selection (mirrors MessageFeedRow), EXCEPT when the
   // click lands on the "See all …" link — that navigates. Other
@@ -151,7 +154,7 @@ const SystemMessageRow = memo(function SystemMessageRow({
   // the app's regular timestamp format.
   let shortTimestamp = '';
   try {
-    shortTimestamp = format(new Date(message.timestamp), 'M/d/yy, h:mm a');
+    shortTimestamp = format(new Date(message.timestamp), 'M/d/yy, h:mm a', { locale: getDateLocale() });
   } catch {
     /* ignore bad timestamps */
   }
@@ -338,7 +341,7 @@ const SystemMessageRow = memo(function SystemMessageRow({
             checked={selected}
             onChange={() => onToggleSelect(message)}
             onClick={(e) => e.stopPropagation()}
-            inputProps={{ 'aria-label': `Select system message ${message.id}` }}
+            inputProps={{ 'aria-label': t('feed.selectSystemMessage', { id: message.id }) }}
             sx={{ p: 0.25 }}
           />
         </Box>

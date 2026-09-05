@@ -28,6 +28,8 @@ import {
   InlineSticker,
   InlinePoll,
 } from './inlineRenderers';
+import { getDateLocale } from '@/i18n/dateLocale';
+import { useTranslation } from 'react-i18next';
 
 /** Collapse content bodies past this pixel height behind a "Show more" toggle. */
 const COLLAPSED_MAX_HEIGHT = 220;
@@ -91,6 +93,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
   onOpenAttachments,
   onOpenReactions,
 }: MessageFeedRowProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useAppDispatch();
   const isDark = theme.palette.mode === 'dark';
@@ -270,6 +273,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
     shortTimestamp = format(
       new Date(message.timestamp),
       settings?.timeFormat || 'h:mm aa',
+      { locale: getDateLocale() },
     );
   } catch {
     /* ignore bad timestamps */
@@ -344,7 +348,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
                 if (targetId) dispatch(navigateToMessage({ messageId: targetId }));
               }
             }}
-            aria-label="Jump to replied-to message"
+            aria-label={t('feed.jumpToReplied')}
             sx={{
               display: 'flex',
               alignItems: 'center',
@@ -378,7 +382,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
             >
               {message.referenced_message.author?.global_name ||
                 message.referenced_message.author?.username ||
-                'Unknown'}
+                t('feed.unknownUser')}
             </Typography>
             <Typography
               variant="caption"
@@ -416,7 +420,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
             >
               <ReplyIcon sx={{ fontSize: 12, transform: 'scaleX(-1)' }} />
               <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                Original message was deleted
+                {t('feed.originalDeleted')}
               </Typography>
             </Box>
           )}
@@ -463,7 +467,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
                   fontWeight: 500,
                 }}
               >
-                {expanded ? 'Show less' : 'Show more'}
+                {expanded ? t('feed.showLess') : t('feed.showMore')}
               </Link>
             )}
           </Box>
@@ -474,7 +478,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
             fontStyle="italic"
             sx={{ fontSize: '0.85rem' }}
           >
-            (no content)
+            {t('feed.noContent')}
           </Typography>
         ) : null}
 
@@ -656,12 +660,12 @@ const MessageFeedRow = memo(function MessageFeedRow({
             onSelectDragStart?.(message);
           }}
           inputProps={{
-            'aria-label': `Select message ${message.id}`,
+            'aria-label': t('feed.selectMessage', { id: message.id }),
           }}
           sx={{ p: 0.25 }}
         />
         <Tooltip
-          title={copied ? 'Copied' : 'Copy text'}
+          title={copied ? t('feed.copied') : t('feed.copyText')}
           placement="top"
           arrow
         >
@@ -670,7 +674,7 @@ const MessageFeedRow = memo(function MessageFeedRow({
               size="small"
               disabled={!rawContent}
               onClick={handleCopy}
-              aria-label="Copy message text"
+              aria-label={t('feed.copyMessageText')}
               sx={{ p: 0.5 }}
             >
               <CopyIcon sx={{ fontSize: 16 }} />

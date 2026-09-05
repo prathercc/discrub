@@ -11,6 +11,8 @@ import { getUserRoleColor, getUserRoleIcon } from '@/utils/roleColorUtils';
 import MessageFeedRow from './MessageFeedRow';
 import SystemMessageRow from './SystemMessageRow';
 import type { MessageChunk as MessageChunkType } from '@/utils/messageChunking';
+import { getDateLocale } from '@/i18n/dateLocale';
+import { useTranslation } from 'react-i18next';
 
 interface MessageChunkProps {
   chunk: MessageChunkType;
@@ -55,6 +57,7 @@ const MessageChunk = memo(function MessageChunk({
   onOpenReactions,
   onOpenThread,
 }: MessageChunkProps) {
+  const { t } = useTranslation();
   const theme = useTheme();
 
   const first = chunk.messages[0];
@@ -89,8 +92,8 @@ const MessageChunk = memo(function MessageChunk({
   const displayName = author
     ? settings
       ? getDisplayName(author, cachedUserMap, guildId, settings)
-      : author.global_name || author.username || 'Unknown'
-    : 'Unknown';
+      : author.global_name || author.username || t('feed.unknownUser')
+    : t('feed.unknownUser');
 
   const avatarSrc = author?.avatar
     ? `https://cdn.discordapp.com/avatars/${author.id}/${author.avatar}.png`
@@ -102,6 +105,7 @@ const MessageChunk = memo(function MessageChunk({
     headerTimestamp = format(
       new Date(chunk.firstTimestamp),
       `MMM d, yyyy ${timeFmt}`,
+      { locale: getDateLocale() },
     );
   } catch {
     headerTimestamp = chunk.firstTimestamp;
@@ -191,8 +195,8 @@ const MessageChunk = memo(function MessageChunk({
             // labels so users can tell them apart.
             const label =
               threadMessages.length > 1 && threadName
-                ? `Open: ${threadName}`
-                : 'Open thread';
+                ? t('feed.openNamedThread', { name: threadName })
+                : t('feed.openThread');
             return (
               <Typography
                 key={tm.id}

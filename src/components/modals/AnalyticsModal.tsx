@@ -38,9 +38,11 @@ import {
   type ReportId,
   type ReportRow,
   type UserMap,
+  BESTOF_MIN_REACTIONS,
 } from '@/utils/analyticsReports';
 import { useAppDispatch } from '@/app/hooks';
 import { addStatusEntry } from '@features/status/statusSlice';
+import { useTranslation } from 'react-i18next';
 
 const REPLY_MESSAGE_TYPE = 19;
 
@@ -68,6 +70,7 @@ type SortDir = 'asc' | 'desc';
  * a Refine or a Load All changes the numbers live.
  */
 const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadNames, initialReport = 'mentions' }: AnalyticsModalProps) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const [reportId, setReportId] = useState<ReportId>(initialReport);
   const [sortField, setSortField] = useState<SortField>('count');
@@ -122,14 +125,19 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
     a.download = `${reportId === 'mentions' ? 'mention-counts' : `analytics-${reportId}`}.csv`;
     a.click();
     URL.revokeObjectURL(url);
-    dispatch(addStatusEntry({ level: 'info', message: `Exported ${report.title} CSV (${sorted.length} rows)` }));
+    dispatch(addStatusEntry({ level: 'info', message: t('analytics.exportedCsv', { title: t(`analytics.report.${report.id}.title`, { defaultValue: report.title }), count: sorted.length }) }));
   };
 
   const subtitle = isMentions
-    ? `${total} mention${total !== 1 ? 's' : ''} across ${scopedMessages.length} message${scopedMessages.length !== 1 ? 's' : ''}${
-        skipReplies && scopedMessages.length < messages.length ? ` (${messages.length - scopedMessages.length} replies excluded)` : ''
-      }`
-    : `${messages.length.toLocaleString()} loaded message${messages.length !== 1 ? 's' : ''} · ${report.description}`;
+    ? t('analytics.mentionsSubtitle', {
+        mentions: t('analytics.mentions', { count: total }),
+        messages: t('analytics.messages', { count: scopedMessages.length }),
+        excluded: skipReplies && scopedMessages.length < messages.length ? t('analytics.repliesExcluded', { count: messages.length - scopedMessages.length }) : '',
+      })
+    : t('analytics.subtitle', {
+        messages: t('analytics.loadedMessages', { count: messages.length }),
+        description: t(`analytics.report.${report.id}.description`, { defaultValue: report.description, min: BESTOF_MIN_REACTIONS }),
+      });
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
@@ -146,7 +154,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
         {isMentions && (
           <Chip
             icon={<ReplyIcon sx={{ fontSize: 14 }} />}
-            label="Skip replies"
+            label={t('analytics.skipReplies')}
             size="small"
             variant={skipReplies ? 'filled' : 'outlined'}
             color={skipReplies ? 'primary' : 'default'}
@@ -154,7 +162,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
             sx={{ cursor: 'pointer' }}
           />
         )}
-        <DialogCloseIcon onClose={onClose} label="Close analytics" />
+        <DialogCloseIcon onClose={onClose} label={t('analytics.close')} />
       </Box>
       <Tabs
         value={reportId}
@@ -162,12 +170,12 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
         variant="scrollable"
         scrollButtons="auto"
         allowScrollButtonsMobile
-        aria-label="Analytics reports"
+        aria-label={t('analytics.reportsAria')}
         data-testid="analytics-tabs"
         sx={{ px: 1, borderBottom: 1, borderColor: 'divider', minHeight: 40, '& .MuiTab-root': { minHeight: 40, py: 0.5, px: 1.5, fontSize: '0.8rem', textTransform: 'none' } }}
       >
         {REPORT_LIST.map((r) => (
-          <Tab key={r.id} value={r.id} label={r.label} />
+          <Tab key={r.id} value={r.id} label={t(`analytics.report.${r.id}.label`, { defaultValue: r.label })} />
         ))}
       </Tabs>
       <DialogContent sx={{ px: 3, py: 2 }}>
@@ -176,9 +184,9 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
             size="small"
             fullWidth
             autoFocus
-            label="Terms"
-            placeholder="crash, login, refund"
-            helperText="Comma-separated, up to 10. Matched anywhere in the text, case-insensitive."
+            label={t('analytics.terms')}
+            placeholder={t('analytics.termsPlaceholder')}
+            helperText={t('analytics.termsHelp')}
             value={termsText}
             onChange={(e) => setTermsText(e.target.value)}
             inputProps={{ 'data-testid': 'analytics-terms' }}
@@ -201,7 +209,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
                       direction={sortField === 'label' ? sortDir : 'asc'}
                       onClick={() => handleSort('label')}
                     >
-                      {report.subjectLabel}
+                      {t(`analytics.report.${report.id}.subject`, { defaultValue: report.subjectLabel })}
                     </TableSortLabel>
                   </TableCell>
                   <TableCell align="right">
@@ -210,7 +218,7 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
                       direction={sortField === 'count' ? sortDir : 'desc'}
                       onClick={() => handleSort('count')}
                     >
-                      {report.valueLabel}
+                      {t(`analytics.report.${report.id}.value`, { defaultValue: report.valueLabel })}
                     </TableSortLabel>
                   </TableCell>
                 </TableRow>
@@ -280,10 +288,10 @@ const AnalyticsModal = ({ open, onClose, messages, userMap, containerId, threadN
         {hasResults && <BotNudge />}
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 1.5 }}>
-        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={onClose}>{t('analytics.cancel')}</Button>
         {hasRows && (
           <Button onClick={handleExportCSV} variant="outlined" startIcon={<DownloadIcon />} size="small">
-            Export CSV
+            {t('analytics.exportCsv')}
           </Button>
         )}
       </DialogActions>
@@ -308,21 +316,23 @@ const Stat = ({ label, value, sub }: { label: string; value: ReactNode; sub?: st
 );
 
 /** Wrapped-style headline numbers for the Overview report. */
-const OverviewCard = ({ stats }: { stats: OverviewStats }) => (
+const OverviewCard = ({ stats }: { stats: OverviewStats }) => {
+  const { t } = useTranslation();
+  return (
   <Box data-testid="analytics-overview" sx={{ mb: 2 }}>
     <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 1 }}>
-      <Stat label="Messages" value={stats.messages.toLocaleString()} />
-      <Stat label="People" value={stats.people.toLocaleString()} />
-      <Stat label="Reactions" value={stats.reactions.toLocaleString()} />
-      <Stat label="Attachments" value={stats.attachments.toLocaleString()} />
-      <Stat label="Replies" value={stats.replies.toLocaleString()} />
-      <Stat label="Threads" value={stats.threads.toLocaleString()} />
-      {stats.busiestDay && <Stat label="Busiest day" value={stats.busiestDay.label} sub={`${stats.busiestDay.count.toLocaleString()} messages`} />}
-      {stats.peakHour && <Stat label="Peak hour" value={formatHour(stats.peakHour.hour)} sub={`${stats.peakHour.count.toLocaleString()} messages`} />}
+      <Stat label={t('analytics.stat.messages')} value={stats.messages.toLocaleString()} />
+      <Stat label={t('analytics.stat.people')} value={stats.people.toLocaleString()} />
+      <Stat label={t('analytics.stat.reactions')} value={stats.reactions.toLocaleString()} />
+      <Stat label={t('analytics.stat.attachments')} value={stats.attachments.toLocaleString()} />
+      <Stat label={t('analytics.stat.replies')} value={stats.replies.toLocaleString()} />
+      <Stat label={t('analytics.stat.threads')} value={stats.threads.toLocaleString()} />
+      {stats.busiestDay && <Stat label={t('analytics.stat.busiestDay')} value={stats.busiestDay.label} sub={t('analytics.stat.messagesCount', { count: stats.busiestDay.count })} />}
+      {stats.peakHour && <Stat label={t('analytics.stat.peakHour')} value={formatHour(stats.peakHour.hour)} sub={t('analytics.stat.messagesCount', { count: stats.peakHour.count })} />}
     </Box>
     {stats.topEmoji.length > 0 && (
       <Typography variant="caption" sx={{ display: 'block', mt: 1 }} data-testid="analytics-top-emoji">
-        <Box component="span" sx={{ fontWeight: 600 }}>Top emoji</Box>{' '}
+        <Box component="span" sx={{ fontWeight: 600 }}>{t('analytics.topEmoji')}</Box>{' '}
         {stats.topEmoji.map((e) => `${e.label} ${e.count.toLocaleString()}`).join(' · ')}
       </Typography>
     )}
@@ -333,6 +343,7 @@ const OverviewCard = ({ stats }: { stats: OverviewStats }) => (
       </Typography>
     )}
   </Box>
-);
+  );
+};
 
 export default AnalyticsModal;
