@@ -4,6 +4,7 @@ import { addStatusEntry, showToast } from '@features/status/statusSlice';
 import { setDiscrubCancelled, setDiscrubPaused, setRateLimitStopped } from '@features/app/appSlice';
 
 import { RATE_LIMIT_STOP_TOAST, RATE_LIMIT_STOP_MESSAGE } from '@/constants/rateLimitMessages';
+import { t } from '@/i18n';
 export { RATE_LIMIT_STOP_TOAST, RATE_LIMIT_STOP_MESSAGE };
 
 /**
@@ -66,7 +67,7 @@ export const getDiscordService = (settings?: AppSettings): DiscordService => {
     discordServiceInstance.onRateLimitExceeded = (info) => {
       dispatchNow(addStatusEntry({
         level: 'error',
-        message: `${RATE_LIMIT_STOP_MESSAGE} (Discord asked for ${Math.round(info.retryAfter)}s, ${info.consecutive} rate limit${info.consecutive === 1 ? '' : 's'} in a row)`,
+        message: t('rateLimit.message') + t('rateLimit.detail', { seconds: Math.round(info.retryAfter), count: info.consecutive }),
       }));
       dispatchNow(setDiscrubPaused(false));
       dispatchNow(setDiscrubCancelled(true));
@@ -74,7 +75,7 @@ export const getDiscordService = (settings?: AppSettings): DiscordService => {
       // operation has unwound, so the reason survives the generic
       // "complete / cancelled" toast that would otherwise replace it.
       dispatchNow(setRateLimitStopped(true));
-      dispatchNow(showToast({ level: 'error', message: RATE_LIMIT_STOP_TOAST }));
+      dispatchNow(showToast({ level: 'error', message: t('rateLimit.toast') }));
     };
     // Warm the store cache so the storm hook can dispatch synchronously.
     void getStore();

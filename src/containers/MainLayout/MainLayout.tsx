@@ -28,7 +28,6 @@ import {
 import { selectIsExporting, selectExportError, resetExport } from '@features/export/exportSlice';
 import { selectIsPurging, selectPurgeError, selectPurgeChannelErrorCount } from '@features/purge/purgeSlice';
 import { showToast } from '@features/status/statusSlice';
-import { RATE_LIMIT_STOP_TOAST } from '@/constants/rateLimitMessages';
 import {
   setDiscrubCancelled,
   setDiscrubPaused,
@@ -148,11 +147,11 @@ const MainLayout = () => {
       dispatch(setDiscrubPaused(false));
       if (rateLimitStopped) {
         dispatch(setRateLimitStopped(false));
-        dispatch(showToast({ level: 'error', message: RATE_LIMIT_STOP_TOAST, duration: 15000 }));
+        dispatch(showToast({ level: 'error', message: t('rateLimit.toast'), duration: 15000 }));
       }
     }
     prevIsOperationRunning.current = isOperationRunning;
-  }, [isOperationRunning, rateLimitStopped, dispatch]);
+  }, [isOperationRunning, rateLimitStopped, dispatch, t]);
 
   // #124: existing install whose browser prefers a supported language.
   // One toast, in that language, offering the switch; the setting was

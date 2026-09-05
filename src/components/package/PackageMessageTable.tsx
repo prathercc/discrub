@@ -96,12 +96,15 @@ import EditMessageModal from '@components/modals/EditMessageModal';
 import ReactionModal from '@components/modals/ReactionModal';
 import ExportDialog from '@containers/ExportView/ExportDialog';
 import { fetchReactingUsers } from '@features/message/messageSlice';
+import { t as translate } from '@/i18n';
+import { useTranslation } from 'react-i18next';
 
 interface PackageMessageTableProps {
   channel: PackageChannel;
 }
 
 const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -371,15 +374,15 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
   // Distinct reason string so the banner's tooltip can explain
   // exactly why the button is disabled.
   const enrichDisabledReason = !token
-    ? 'Sign in to rehydrate'
+    ? t('pkgTable.signInRehydrate')
     : channel.isOrphan
-      ? "You're no longer in this server, so rehydration is unavailable"
+      ? t('pkgTable.orphanRehydrate')
       : readOnly
-        ? 'Package is read-only (different user), so rehydration is disabled'
+        ? t('pkgTable.readOnlyRehydrate')
         : activeEnrichmentChannelId
-          ? `Another channel (${activeEnrichmentChannelId}) is rehydrating; wait for it to finish`
+          ? t('pkgTable.otherChannelRehydrating', { id: activeEnrichmentChannelId })
           : anotherOpBlocking
-            ? 'Another operation is running; wait for it to finish'
+            ? t('pkgTable.otherOperation')
             : null;
 
   const handleEnrich = useCallback(
@@ -396,11 +399,11 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
 
   const canDelete = !readOnly && !channel.isOrphan && !!token;
   const deleteDisabledReason = !token
-    ? 'Sign in to delete messages'
+    ? t('pkgTable.signInDelete')
     : readOnly
-      ? 'Package is read-only (mismatched user)'
+      ? t('pkgTable.readOnlyDelete')
       : channel.isOrphan
-        ? "You are no longer in this server, so deleting is unavailable"
+        ? t('pkgTable.orphanDelete')
         : null;
 
   // Rows known to be gone on Discord can't be selected — exclude them
@@ -468,7 +471,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
         <Stack direction="row" spacing={2} alignItems="center">
           <CircularProgress size={20} />
           <Typography variant="body2" color="text.secondary">
-            {isLoading ? 'Loading messages…' : 'Preparing…'}
+            {isLoading ? t('pkgTable.loading') : t('pkgTable.preparing')}
           </Typography>
         </Stack>
       </Box>
@@ -479,7 +482,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
     return (
       <Box sx={{ p: 4, textAlign: 'center' }}>
         <Typography variant="body2" color="text.secondary">
-          This channel has no messages in the package.
+          {t('pkgTable.noMessages')}
         </Typography>
       </Box>
     );
@@ -513,14 +516,14 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           }
           onChange={handleSelectAll}
           disabled={isDeleting || selectableCount === 0}
-          inputProps={{ 'aria-label': 'Select all messages' }}
+          inputProps={{ 'aria-label': t('pkgTable.selectAll') }}
         />
         <Typography variant="body2" sx={{ flexGrow: 1 }}>
           {selectedIds.length > 0
-            ? `${selectedIds.length.toLocaleString()} selected`
+            ? t('pkgTable.selected', { count: selectedIds.length })
             : filterActive
-              ? `${filteredSorted.length.toLocaleString()} of ${sorted.length.toLocaleString()} messages match`
-              : `${sorted.length.toLocaleString()} messages`}
+              ? t('pkgTable.matchOf', { shown: filteredSorted.length.toLocaleString(), total: sorted.length.toLocaleString() })
+              : t('pkgTable.messages', { count: sorted.length })}
           {deletedIds.length > 0 && (
             <Typography
               component="span"
@@ -528,7 +531,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
               color="warning.main"
               sx={{ ml: 1 }}
             >
-              ({deletedIds.length.toLocaleString()} previously deleted)
+              {t('pkgTable.previouslyDeleted', { count: deletedIds.length })}
             </Typography>
           )}
         </Typography>
@@ -541,7 +544,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           onClick={() => setFilterOpen(true)}
           data-testid="package-refine-button"
         >
-          {filterActive ? 'Refining' : 'Refine'}
+          {filterActive ? t('pkgTable.refining') : t('pkgTable.refine')}
         </Button>
 
         <Tooltip title={deleteDisabledReason ?? ''} disableHoverListener={canDelete}>
@@ -553,7 +556,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
               disabled={!canDelete || selectedIds.length === 0 || isDeleting}
               onClick={() => setEditOpen(true)}
             >
-              Edit selected
+              {t('pkgTable.editSelected')}
             </Button>
           </span>
         </Tooltip>
@@ -565,7 +568,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           disabled={isDeleting || exportStatus === 'running' || filteredSorted.length === 0}
           onClick={() => setExportOpen(true)}
         >
-          {exportStatus === 'running' ? 'Exporting…' : 'Export'}
+          {exportStatus === 'running' ? t('pkgTable.exporting') : t('pkgTable.export')}
         </Button>
 
         <Tooltip title={deleteDisabledReason ?? ''} disableHoverListener={canDelete}>
@@ -578,7 +581,7 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
               disabled={!canDelete || selectedIds.length === 0 || isDeleting}
               onClick={() => setConfirmOpen(true)}
             >
-              Delete selected
+              {t('pkgTable.deleteSelected')}
             </Button>
           </span>
         </Tooltip>
@@ -624,8 +627,8 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           />
           <Typography variant="caption" color="text.secondary">
             {deleteProgress
-              ? `Deleting ${deleteProgress.current} of ${deleteProgress.total}`
-              : 'Starting delete…'}
+              ? t('pkgTable.deletingOf', { current: deleteProgress.current, total: deleteProgress.total })
+              : t('pkgTable.startingDelete')}
           </Typography>
         </Box>
       )}
@@ -768,29 +771,27 @@ const PackageMessageTable = ({ channel }: PackageMessageTableProps) => {
           <WarningIcon sx={{ color: 'error.main', fontSize: 28 }} />
           <Box>
             <Typography variant="h6" component="div" sx={{ lineHeight: 1.2 }}>
-              Delete {selectedIds.length.toLocaleString()}{' '}
-              {selectedIds.length === 1 ? 'message' : 'messages'}?
+              {t('pkgTable.confirmTitle', { count: selectedIds.length })}
             </Typography>
             <Typography variant="caption" color="text.secondary">
-              This cannot be undone.
+              {t('pkgTable.cannotUndo')}
             </Typography>
           </Box>
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
           <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-            Each message will be removed from Discord one at a time, honoring
-            your configured delay between deletes.
+            {t('pkgTable.confirmBody')}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button onClick={() => setConfirmOpen(false)}>{t('pkgTable.cancel')}</Button>
           <Button
             color="error"
             variant="contained"
             onClick={handleConfirmDelete}
             startIcon={<DeleteIcon />}
           >
-            Delete {selectedIds.length.toLocaleString()}
+            {t('pkgTable.deleteCount', { count: selectedIds.length })}
           </Button>
         </DialogActions>
       </Dialog>
@@ -955,7 +956,7 @@ const MessageRow = memo(function MessageRow({
             >
               <ReplyIcon sx={{ fontSize: 12, transform: 'scaleX(-1)' }} />
               <Typography variant="caption" color="text.disabled" fontStyle="italic">
-                Original message was deleted
+                {translate('pkgTable.originalDeleted')}
               </Typography>
             </Box>
           )}
@@ -1131,7 +1132,7 @@ const MessageKindChip = memo(function MessageKindChip({
 }) {
   if (gone === 'deleted') {
     return (
-      <Tooltip title="This message was deleted on Discord; only the package snapshot remains." arrow>
+      <Tooltip title={translate('pkgTable.goneDeletedTip')} arrow>
         <Typography
           variant="caption"
           sx={{
@@ -1142,14 +1143,14 @@ const MessageKindChip = memo(function MessageKindChip({
             gap: 0.25,
           }}
         >
-          <WarningIcon sx={{ fontSize: 12 }} /> unavailable
+          <WarningIcon sx={{ fontSize: 12 }} /> {translate('pkgTable.unavailable')}
         </Typography>
       </Tooltip>
     );
   }
   if (gone === 'forbidden') {
     return (
-      <Tooltip title="You no longer have access to this channel, so rich data couldn't be loaded for this message." arrow>
+      <Tooltip title={translate('pkgTable.goneForbiddenTip')} arrow>
         <Typography
           variant="caption"
           sx={{
@@ -1160,14 +1161,14 @@ const MessageKindChip = memo(function MessageKindChip({
             gap: 0.25,
           }}
         >
-          <WarningIcon sx={{ fontSize: 12 }} /> no access
+          <WarningIcon sx={{ fontSize: 12 }} /> {translate('pkgTable.noAccess')}
         </Typography>
       </Tooltip>
     );
   }
   if (enriched) {
     return (
-      <Tooltip title="Rehydrated: live reactions, mentions, and embeds from Discord." arrow>
+      <Tooltip title={translate('pkgTable.enrichedTip')} arrow>
         <Typography
           variant="caption"
           sx={{
@@ -1206,7 +1207,7 @@ const ReplyQuote = memo(function ReplyQuote({
   const refAuthor =
     referenced.author?.global_name ||
     referenced.author?.username ||
-    'Unknown';
+    translate('pkgTable.unknownUser');
   const refContent = referenced.content ?? '';
   return (
     <Box
@@ -1370,9 +1371,9 @@ interface EnrichmentBannerProps {
 function formatDaysAgo(ts: number): string {
   const diffMs = Date.now() - ts;
   const day = 24 * 60 * 60 * 1000;
-  if (diffMs < day) return 'today';
+  if (diffMs < day) return translate('pkgTable.today');
   const days = Math.round(diffMs / day);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
+  return translate('pkgTable.daysAgo', { count: days });
 }
 
 const EnrichmentBanner = memo(function EnrichmentBanner({
@@ -1392,6 +1393,7 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
   onRefresh,
   onCancel,
 }: EnrichmentBannerProps) {
+  const { t } = useTranslation();
   if (isEnriching && thisChannelIsActive) {
     const pct = progress
       ? (progress.current / Math.max(1, progress.total)) * 100
@@ -1442,7 +1444,7 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
       >
         <EnrichedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
         <Typography variant="caption" sx={{ flexGrow: 1 }}>
-          Rich data loaded {formatDaysAgo(lastFetched)}.{' '}
+          {t('pkgTable.richDataLoaded', { when: formatDaysAgo(lastFetched) })}{' '}
           {formatRehydrateInlineSummary({
             enriched: enrichedCount,
             unavailable: missDeletedCount,
@@ -1465,7 +1467,7 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
               onClick={onRefresh}
               disabled={!canEnrich}
             >
-              Refresh
+              {t('pkgTable.refresh')}
             </Button>
           </span>
         </Tooltip>
@@ -1477,7 +1479,7 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
   // A Retry after cancel/failure must force a re-run (bypass any
   // partial cache) — otherwise the short-circuit would immediately
   // resurrect whatever partial data the previous run saved.
-  const verb = status === 'cancelled' || status === 'failed' ? 'Retry' : 'Load';
+  const verb = status === 'cancelled' || status === 'failed' ? t('pkgTable.retry') : t('pkgTable.load');
   const retryOrStart = status === 'cancelled' || status === 'failed' ? onRefresh : onStart;
   return (
     <Stack
@@ -1495,11 +1497,11 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
       <EnrichedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
       <Typography variant="caption" sx={{ flexGrow: 1 }}>
         {status === 'cancelled'
-          ? 'Rehydration cancelled: '
+          ? t('pkgTable.cancelledPrefix')
           : status === 'failed'
-            ? 'Rehydration failed: '
+            ? t('pkgTable.failedPrefix')
             : ''}
-        Rehydrate to see reactions, mentions, and fresh CDN URLs.
+        {t('pkgTable.rehydrateHint')}
       </Typography>
       <Tooltip
         title={
@@ -1516,7 +1518,7 @@ const EnrichmentBanner = memo(function EnrichmentBanner({
             disabled={!canEnrich}
             onClick={retryOrStart}
           >
-            {verb} rich data · {formatRehydrateEta(messageCount, searchDelayMs)}
+            {t('pkgTable.richDataButton', { verb, eta: formatRehydrateEta(messageCount, searchDelayMs) })}
           </Button>
         </span>
       </Tooltip>

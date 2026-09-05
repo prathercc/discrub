@@ -9,6 +9,7 @@ import DonationFeed from './DonationFeed';
 import DonationLeaderboard from './DonationLeaderboard';
 import SupporterSky from './SupporterSky';
 import DonationDrawerFooter from './DonationDrawerFooter';
+import { useTranslation } from 'react-i18next';
 
 export const DRAWER_WIDTH = 320;
 const PAGE_SIZE = 25;
@@ -27,6 +28,7 @@ const skyShimmer = keyframes`
 `;
 
 const DonationDrawer = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const theme = useTheme();
   // Below `md` the feed overlays the app as a temporary drawer (tap
@@ -102,13 +104,13 @@ const DonationDrawer = () => {
             '& .MuiTabs-indicator': { backgroundColor: 'primary.main' },
           }}
         >
-          <Tab label="Feed" value={DonationView.FEED} />
-          <Tab label="Top" value={DonationView.LEADERBOARD} />
+          <Tab label={t('donations.feed')} value={DonationView.FEED} />
+          <Tab label={t('donations.top')} value={DonationView.LEADERBOARD} />
           {/* The Sky keeps its intrigue for good (owner call 2026-08-31):
               the new-star spark and mint shimmer are its permanent dress,
               not a one-time attention bid. */}
           <Tab
-            label="Sky ✦"
+            label={t('donations.sky')}
             value={DonationView.SKY}
             data-testid="donation-tab-sky"
             sx={{

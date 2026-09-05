@@ -119,6 +119,8 @@ describe('Localization (#124)', () => {
       cy.login();
       cy.get('[aria-label="Settings"]').click();
       cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
+      // Wait for the save to land before removing the key, or the write re-pins English after the delete.
+      cy.contains('button', 'Save Settings').should('not.exist');
       forgetStoredLanguage();
 
       cy.interceptDiscordApi();
@@ -141,6 +143,8 @@ describe('Localization (#124)', () => {
       cy.login();
       cy.get('[aria-label="Settings"]').click();
       cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
+      // Wait for the save to land before removing the key, or the write re-pins English after the delete.
+      cy.contains('button', 'Save Settings').should('not.exist');
       forgetStoredLanguage();
       cy.interceptDiscordApi();
       cy.visit('/', { onBeforeLoad: (win) => setBrowserLanguage(win, ['en-GB']) });
