@@ -31,6 +31,7 @@ import { calculateRandomDelay } from '@/utils/delayUtils';
 import { waitWhilePaused, checkCancelled, cancellableDelay, createShouldContinue, CancelledError, withTransientRetry, isTransientApiFailure } from '@/utils/operationLoopUtils';
 import { iterateSearchMessagesRedux, nextMilestone } from '@/utils/searchPagination';
 import { addStatusEntry, showOperationTip } from '@features/status/statusSlice';
+import { t } from '@/i18n';
 
 // #207 Arm B: a blank criteria so applyPreset can merge a restored date range
 // into the export window even when none was set yet.
@@ -97,7 +98,7 @@ export function createReactionProgressLogger(dispatch: ExportDispatch) {
       lastLogged = progress.current;
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Reactions: ${progress.current}/${progress.total} messages processed`,
+        message: t('status.export.reactionsProgress', { current: progress.current, total: progress.total }),
       }));
     }
   };
@@ -128,7 +129,7 @@ async function fetchReactionData(
 
   dispatch(addStatusEntry({
     level: 'info',
-    message: `Export: Fetching reaction details: ${messagesWithReactions.length} messages, ${totalEmojis} reactions, ~${totalReactors} total reactors. This may take a while.`,
+    message: t('status.export.fetchingReactions', { messages: messagesWithReactions.length, reactions: totalEmojis, reactors: totalReactors }),
   }));
 
   try {
@@ -156,13 +157,13 @@ async function fetchReactionData(
 
     const reactionCount = Object.keys(result.reactionMap).length;
     if (reactionCount > 0) {
-      dispatch(addStatusEntry({ level: 'success', message: `Export: Collected reaction data for ${reactionCount} messages` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.export.collectedReactions', { count: reactionCount }) }));
     }
 
     return result.reactionMap;
   } catch (error) {
-    const msg = error instanceof Error ? error.message : 'Unknown error';
-    dispatch(addStatusEntry({ level: 'warning', message: `Export: Could not fetch reaction data: ${msg}` }));
+    const msg = error instanceof Error ? error.message : t('status.export.unknownError');
+    dispatch(addStatusEntry({ level: 'warning', message: t('status.export.reactionsFailed', { error: msg }) }));
     return undefined;
   }
 }
@@ -191,7 +192,7 @@ export function logMediaProgress(
     if (current === 1 || current === total || current % 10 === 0) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Export: Downloaded ${current}/${total} attachments${scope}`,
+        message: t('status.export.downloadedAttachments', { current, total, scope }),
       }));
     }
   } else if (stage === 'avatars') {
@@ -199,11 +200,11 @@ export function logMediaProgress(
     // previously silent for 45s+ since only the completion entry fired.
     if (current === 1 || current === total || current % 10 === 0) {
       const label = current === total
-        ? `Downloaded ${total} avatar${total === 1 ? '' : 's'}`
-        : `Downloaded ${current}/${total} avatars`;
+        ? t('status.export.downloadedAvatarsAll', { count: total })
+        : t('status.export.downloadedAvatars', { current, total });
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Export: ${label}${scope}`,
+        message: t('status.export.stageLine', { label, scope }),
       }));
     }
   } else if (stage === 'emojis') {
@@ -211,11 +212,11 @@ export function logMediaProgress(
     // log. Milestones convert that into ~6 entries across the window.
     if (current === 1 || current === total || current % 10 === 0) {
       const label = current === total
-        ? `Downloaded ${total} emoji${total === 1 ? '' : 's'}`
-        : `Downloaded ${current}/${total} emojis`;
+        ? t('status.export.downloadedEmojisAll', { count: total })
+        : t('status.export.downloadedEmojis', { current, total });
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Export: ${label}${scope}`,
+        message: t('status.export.stageLine', { label, scope }),
       }));
     }
   } else if (stage === 'html') {
@@ -224,13 +225,13 @@ export function logMediaProgress(
     if (current === 1 || current === total || current % 5 === 0) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Export: Built page ${current}/${total}${scope}`,
+        message: t('status.export.builtPage', { current, total, scope }),
       }));
     }
   } else if (stage === 'finalizing' && current === 1) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Export: Finalizing archive${scope}…`,
+      message: t('status.export.finalizing', { scope }),
     }));
   }
 }
@@ -270,7 +271,7 @@ function buildZipOptions(
       if (partIndex >= 2) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Export reached the size limit; continuing in a new file (${fileName})`,
+          message: t('status.export.sizeLimitNewFile', { file: fileName }),
         }));
       }
     },
@@ -278,13 +279,13 @@ function buildZipOptions(
       const gb = (size / 1_000_000_000).toFixed(1);
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `${fileName} is ${gb} GB on its own, too large for one zip file and may not open correctly.`,
+        message: t('status.export.oversizeFile', { file: fileName, gb }),
       }));
     },
     onPathCollision: ({ requestedPath, finalPath }) => {
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `Two files wanted the name ${requestedPath}; saved the second as ${finalPath} and kept going.`,
+        message: t('status.export.pathCollision', { requested: requestedPath, final: finalPath }),
       }));
     },
   };
@@ -308,15 +309,14 @@ export function createRowErrorReporter(dispatch: ExportDispatch, context?: strin
       const reason = error instanceof Error ? error.message : String(error);
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `Export: Could not render message ${messageId}${where}, replaced with a placeholder (${reason})`,
+        message: t('status.export.renderFailed', { id: messageId, where, reason }),
       }));
     },
     flush: () => {
       if (failures === 0) return;
-      const plural = failures !== 1;
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `Export: ${failures} message${plural ? 's' : ''}${where} could not be rendered and ${plural ? 'were' : 'was'} replaced with placeholder${plural ? 's' : ''}${failures > RENDER_FAILURE_WARN_CAP ? ` (first ${RENDER_FAILURE_WARN_CAP} logged above)` : ''}. Reporting the message ID on GitHub helps us fix the root cause.`,
+        message: t('status.export.renderFailedSummary', { count: failures, where, capped: failures > RENDER_FAILURE_WARN_CAP ? t('status.export.firstLoggedAbove', { count: RENDER_FAILURE_WARN_CAP }) : '' }),
       }));
     },
   };
@@ -428,10 +428,10 @@ export const exportMessages = createAsyncThunk<
   async (params, { rejectWithValue, dispatch, getState }) => {
     const { messages, channelName, format, messagesPerPage, separateThreads, includeMedia, guildId, mediaConfig, exportConfig } = params;
 
-    dispatch(showOperationTip('Export Operation Queued'));
+    dispatch(showOperationTip(t('status.export.queued')));
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Export: Starting ${format.toUpperCase()} export of ${messages.length} messages from ${channelName}`,
+      message: t('status.export.starting', { format: format.toUpperCase(), count: messages.length, name: channelName }),
     }));
 
     const shouldContinue = createShouldContinue(getState);
@@ -539,7 +539,7 @@ export const exportMessages = createAsyncThunk<
 
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Export: Completed ${channelName} (${messages.length} messages)`,
+        message: t('status.export.completed', { name: channelName, count: messages.length }),
       }));
 
       // Record recent export history
@@ -554,14 +554,14 @@ export const exportMessages = createAsyncThunk<
       if (error instanceof CancelledError) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Export: Cancelled · ${channelName}`,
+          message: t('status.export.cancelled', { name: channelName }),
         }));
         return rejectWithValue('Export cancelled');
       }
-      const errorMsg = error instanceof Error ? error.message : 'Failed to export messages';
+      const errorMsg = error instanceof Error ? error.message : t('status.export.failedDefault');
       dispatch(addStatusEntry({
         level: 'error',
-        message: `Export: Failed on ${channelName}: ${errorMsg}`,
+        message: t('status.export.failedOn', { name: channelName, error: errorMsg }),
       }));
       return rejectWithValue(errorMsg);
     }
@@ -621,7 +621,7 @@ async function fetchAllChannelMessages(
     if (!silent) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Searching ${label} for matching messages…`,
+        message: t('status.export.searching', { label }),
       }));
     }
 
@@ -647,7 +647,7 @@ async function fetchAllChannelMessages(
           if (page.totalResults > 0) {
             dispatch(addStatusEntry({
               level: 'info',
-              message: `Discord reports ${page.totalResults.toLocaleString()} matching message${page.totalResults === 1 ? '' : 's'} in ${label}`,
+              message: t('status.export.discordReports', { count: page.totalResults, label }),
             }));
           }
           // #216: search-filtered exports share the purge's blind spot —
@@ -657,7 +657,7 @@ async function fetchAllChannelMessages(
           if ((page as { stillIndexing?: boolean }).stillIndexing) {
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Discord is still indexing ${label}; this export may be missing messages. Re-run it after indexing finishes for a complete set.`,
+              message: t('status.export.indexing', { label }),
             }));
           }
         }
@@ -666,11 +666,11 @@ async function fetchAllChannelMessages(
 
         if (!silent && page.aggregatedCount >= milestoneThreshold) {
           const totalLabel = page.totalResults > 0
-            ? `${page.aggregatedCount.toLocaleString()} of ${page.totalResults.toLocaleString()}`
+            ? t('status.export.ofTotal', { fetched: page.aggregatedCount.toLocaleString(), total: page.totalResults.toLocaleString() })
             : `${page.aggregatedCount.toLocaleString()}`;
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Fetched ${totalLabel} matching messages in ${label}`,
+            message: t('status.export.fetchedMatching', { count: totalLabel, label }),
           }));
           milestoneThreshold = nextMilestone(page.aggregatedCount);
         }
@@ -679,7 +679,7 @@ async function fetchAllChannelMessages(
       if (!silent) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Search fetch failed in ${label}: ${err instanceof Error ? err.message : String(err)}`,
+          message: t('status.export.searchFetchFailed', { label, error: err instanceof Error ? err.message : String(err) }),
         }));
       }
       throw err;
@@ -694,14 +694,14 @@ async function fetchAllChannelMessages(
       const missing = Math.max(0, lastPage.totalResults - lastPage.aggregatedCount);
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `Discord stopped returning results at ${lastPage.aggregatedCount.toLocaleString()} of ${lastPage.totalResults.toLocaleString()} matches in ${label}. Export may be missing ${missing.toLocaleString()} message${missing === 1 ? '' : 's'} (known Discord search-index limitation).`,
+        message: t('status.export.stoppedReturning', { fetched: lastPage.aggregatedCount.toLocaleString(), total: lastPage.totalResults.toLocaleString(), label, count: missing }),
       }));
     }
 
     if (!silent) {
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Loaded ${allMessages.length.toLocaleString()} matching message${allMessages.length === 1 ? '' : 's'} from ${label}`,
+        message: t('status.export.loadedMatching', { count: allMessages.length, label }),
       }));
     }
 
@@ -730,14 +730,14 @@ async function fetchAllChannelMessages(
         },
         onWillEnrich: (count) => dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: fetching reaction data for ${count} message${count === 1 ? '' : 's'} in ${logContext?.channelLabel ?? channelId}…`,
+          message: t('status.export.bulkFetchingReactions', { count, label: logContext?.channelLabel ?? channelId }),
         })),
         onStatus: () => {
           batchesScanned++;
           if (batchesScanned === 1 || batchesScanned % 10 === 0) {
             dispatch(addStatusEntry({
               level: 'info',
-              message: `Reaction discovery: ${batchesScanned} batch${batchesScanned === 1 ? '' : 'es'} scanned in ${logContext?.channelLabel ?? channelId}`,
+              message: t('status.export.reactionDiscovery', { count: batchesScanned, label: logContext?.channelLabel ?? channelId }),
             }));
           }
         },
@@ -758,7 +758,7 @@ async function fetchAllChannelMessages(
         },
         onWillEnrich: (count) => dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: resolving reply parents for ${count} message${count === 1 ? '' : 's'} in ${logContext?.channelLabel ?? channelId}…`,
+          message: t('status.export.bulkResolvingReplies', { count, label: logContext?.channelLabel ?? channelId }),
         })),
       },
     );
@@ -778,7 +778,7 @@ async function fetchAllChannelMessages(
   if (!silent) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Loading messages from ${label}…`,
+      message: t('status.export.loadingFrom', { label }),
     }));
   }
 
@@ -796,7 +796,7 @@ async function fetchAllChannelMessages(
         onRetry: (attempt, delayMs) => {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Export: connection failed while loading ${label}, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+            message: t('status.export.loadRetry', { label, seconds: Math.round(delayMs / 1000), attempt }),
           }));
         },
       },
@@ -811,7 +811,7 @@ async function fetchAllChannelMessages(
         dispatch(setDiscrubPaused(true));
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Export: paused after 5 failed retries loading ${label}. Check your connection, then click Resume to continue from ${allMessages.length.toLocaleString()} messages fetched.`,
+          message: t('status.export.loadPaused', { label, count: allMessages.length.toLocaleString() }),
         }));
         continue;
       }
@@ -824,7 +824,7 @@ async function fetchAllChannelMessages(
     if (!silent && allMessages.length >= nextLogBoundary) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Loaded ${allMessages.length.toLocaleString()} messages from ${label}`,
+        message: t('status.export.loadedFrom', { count: allMessages.length.toLocaleString(), label }),
       }));
       nextLogBoundary = allMessages.length + 500 - (allMessages.length % 500);
     }
@@ -842,7 +842,7 @@ async function fetchAllChannelMessages(
   if (!silent) {
     dispatch(addStatusEntry({
       level: 'success',
-      message: `Loaded ${allMessages.length.toLocaleString()} message${allMessages.length === 1 ? '' : 's'} from ${label}`,
+      message: t('status.export.loadedFromCount', { count: allMessages.length, label }),
     }));
   }
 
@@ -884,7 +884,7 @@ async function fetchThreadMessages(
     const threadName = thread.name || `thread-${thread.id}`;
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Fetching thread messages: ${threadName}`,
+      message: t('status.export.fetchingThread', { name: threadName }),
     }));
 
     const msgs = await fetchAllChannelMessages(
@@ -955,7 +955,7 @@ async function fetchAllForumThreads(
         onRetry: (attempt, delayMs) => {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Bulk export: post listing for ${forum.name || forum.id} failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+            message: t('status.export.postListingRetry', { name: forum.name || forum.id, seconds: Math.round(delayMs / 1000), attempt }),
           }));
         },
       },
@@ -1064,23 +1064,23 @@ export const bulkExportChannels = createAsyncThunk<
         if (posts.length === 0) {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Bulk export: No posts in ${forumName}, skipping`,
+            message: t('status.export.noPosts', { name: forumName }),
           }));
           continue;
         }
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: Expanded forum ${forumName} into ${posts.length} post${posts.length === 1 ? '' : 's'}`,
+          message: t('status.export.expandedForum', { name: forumName, count: posts.length }),
         }));
         expandedChannels.push(...posts);
       } catch (error) {
         if (error instanceof CancelledError) break;
-        const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+        const errorMsg = error instanceof Error ? error.message : t('status.export.unknownError');
         errors.push(`${forumName}: ${errorMsg}`);
         dispatch(addStatusEntry({
           level: 'error',
-          message: `Bulk export: Failed to expand forum ${forumName}: ${errorMsg}`,
+          message: t('status.export.expandForumFailed', { name: forumName, error: errorMsg }),
         }));
         // Continue with the remaining selection
       }
@@ -1125,7 +1125,7 @@ export const bulkExportChannels = createAsyncThunk<
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: Starting channel ${i + 1}/${expandedChannels.length}: ${channelName}`,
+          message: t('status.export.bulkStartingChannel', { index: i + 1, total: expandedChannels.length, name: channelName }),
         }));
 
         try {
@@ -1203,15 +1203,15 @@ export const bulkExportChannels = createAsyncThunk<
 
           dispatch(addStatusEntry({
             level: 'success',
-            message: `Bulk export: Completed ${channelName} (${allMessages.length} messages)`,
+            message: t('status.export.bulkCompleted', { name: channelName, count: allMessages.length }),
           }));
         } catch (error) {
           if (error instanceof CancelledError) break;
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          const errorMsg = error instanceof Error ? error.message : t('status.export.unknownError');
           errors.push(`${channelName}: ${errorMsg}`);
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Bulk export: Failed on ${channelName}: ${errorMsg}`,
+            message: t('status.export.bulkFailedOn', { name: channelName, error: errorMsg }),
           }));
           // Continue with next channel
         }
@@ -1229,7 +1229,7 @@ export const bulkExportChannels = createAsyncThunk<
       if (exportedChannels.length === 0 && !checkCancelled(getState)) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: 'Bulk export: 0 channels exported, the zip contains only the README. Review the entries above for skipped or failed channels.',
+          message: t('status.export.zeroChannels'),
         }));
       }
 
@@ -1390,7 +1390,7 @@ export const bulkExportDMs = createAsyncThunk<
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk export: Starting DM ${i + 1}/${channels.length}: ${dmName}`,
+          message: t('status.export.bulkStartingDm', { index: i + 1, total: channels.length, name: dmName }),
         }));
 
         try {
@@ -1459,7 +1459,7 @@ export const bulkExportDMs = createAsyncThunk<
 
           dispatch(addStatusEntry({
             level: 'success',
-            message: `Bulk export: Completed ${dmName} (${allMessages.length} messages)`,
+            message: t('status.export.bulkCompleted', { name: dmName, count: allMessages.length }),
           }));
 
           const sanitized = folderName;
@@ -1474,7 +1474,7 @@ export const bulkExportDMs = createAsyncThunk<
           errors.push(`${dmName}: ${errorMsg}`);
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Bulk export: Failed on ${dmName}: ${errorMsg}`,
+            message: t('status.export.bulkFailedOn', { name: dmName, error: errorMsg }),
           }));
         }
 

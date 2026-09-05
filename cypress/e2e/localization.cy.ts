@@ -123,9 +123,9 @@ describe('Localization (#124)', () => {
 
       cy.interceptDiscordApi();
       cy.visit('/', { onBeforeLoad: (win) => setBrowserLanguage(win, ['de-DE']) });
-      cy.contains('Discrub Tester', { timeout: 15000 }).should('be.visible');
+      // The toast auto-dismisses after 15s, so assert it before anything slower.
+      cy.contains('Discrub ist auch auf Deutsch verfügbar.', { timeout: 20000 }).should('be.visible');
       cy.contains('[role="tab"]', 'Package').should('be.visible');
-      cy.get('[role="alert"]').should('contain', 'Discrub ist auch auf Deutsch verfügbar.');
       cy.get('[role="alert"]').contains('button', 'Auf Deutsch wechseln').click();
       cy.contains('[role="tab"]', 'Paket').should('be.visible');
 

@@ -59,6 +59,7 @@ import type {
   PackageValidationResult,
   ParsedPackage,
 } from './packageTypes';
+import { t } from '@/i18n';
 
 /**
  * Maximum number of channels whose parsed messages are kept in memory
@@ -585,7 +586,7 @@ export const deletePackageMessages = createAsyncThunk<
 
   dispatch(addStatusEntry({
     level: 'info',
-    message: `Deleting ${ids.length} message${ids.length === 1 ? '' : 's'} from this channel.`,
+    message: t('status.package.deleting', { count: ids.length }),
   }));
 
   try {
@@ -615,7 +616,7 @@ export const deletePackageMessages = createAsyncThunk<
           result.failed += 1;
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Couldn't delete message ${messageId} (HTTP ${apiResult.status ?? 'unknown'}).`,
+            message: t('status.package.deleteFailedHttp', { id: messageId, status: apiResult.status ?? t('status.package.unknown') }),
           }));
         }
       } catch (err) {
@@ -630,7 +631,7 @@ export const deletePackageMessages = createAsyncThunk<
           result.failed += 1;
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Couldn't delete message ${messageId}: ${err instanceof Error ? err.message : 'unknown error'}.`,
+            message: t('status.package.deleteFailed', { id: messageId, error: err instanceof Error ? err.message : t('status.package.unknownError') }),
           }));
         }
       }
@@ -648,7 +649,7 @@ export const deletePackageMessages = createAsyncThunk<
     } else {
       dispatch(addStatusEntry({
         level: 'error',
-        message: `Delete stopped: ${err instanceof Error ? err.message : 'unknown error'}`,
+        message: t('status.package.deleteStopped', { error: err instanceof Error ? err.message : t('status.package.unknownError') }),
       }));
     }
   }
@@ -795,7 +796,7 @@ export const exportPackageChannel = createAsyncThunk<
         : '';
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Package export: starting ${format.toUpperCase()} export for "${channelName}"${filterScopeLabel}`,
+      message: t('status.package.exportStarting', { format: format.toUpperCase(), name: channelName, scope: filterScopeLabel }),
     }));
 
     const exportService = getExportService();
@@ -821,7 +822,7 @@ export const exportPackageChannel = createAsyncThunk<
       onPathCollision: ({ requestedPath, finalPath }: { requestedPath: string; finalPath: string }) => {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Two files wanted the name ${requestedPath}; saved the second as ${finalPath} and kept going.`,
+          message: t('status.export.pathCollision', { requested: requestedPath, final: finalPath }),
         }));
       },
     };
@@ -867,19 +868,19 @@ export const exportPackageChannel = createAsyncThunk<
 
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Package export: completed "${channelName}"`,
+        message: t('status.package.exportCompleted', { name: channelName }),
       }));
       return { channelId };
     } catch (err) {
       if (err instanceof CancelledError) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Package export: cancelled${scope}`,
+          message: t('status.package.exportCancelled', { scope }),
         }));
         return rejectWithValue('Cancelled');
       }
       const msg = err instanceof Error ? err.message : 'Unknown export failure';
-      dispatch(addStatusEntry({ level: 'error', message: `Package export failed: ${msg}` }));
+      dispatch(addStatusEntry({ level: 'error', message: t('status.package.exportFailed', { error: msg }) }));
       return rejectWithValue(msg);
     }
   },
@@ -1234,7 +1235,7 @@ export const enrichPackageChannel = createAsyncThunk<
     dispatch(
       addStatusEntry({
         level: 'info',
-        message: `Loading rich data for "${channelLabel}" (${messages.length.toLocaleString()} ${messages.length === 1 ? 'message' : 'messages'}).`,
+        message: t('status.package.loadingRichData', { name: channelLabel, count: messages.length }),
       }),
     );
 
@@ -1539,7 +1540,7 @@ export const enrichPackageChannel = createAsyncThunk<
         dispatch(
           addStatusEntry({
             level: 'error',
-            message: `Package rehydration error: ${err instanceof Error ? err.message : 'unknown'}`,
+            message: t('status.package.rehydrationError', { error: err instanceof Error ? err.message : t('status.package.unknown') }),
           }),
         );
       }

@@ -26,6 +26,7 @@ import { isDeletedUserEntry } from '@utils/userDisplayUtils';
 import { dropInvalidDate } from '@utils/dateValidation';
 import { isMessageChannel } from '@utils/channelTypeUtils';
 import { canAccessChannel } from '@/utils/permissionUtils';
+import { t } from '@/i18n';
 
 /** Progress throttle — dispatch progress every N messages in messages mode */
 const PROGRESS_THROTTLE_MESSAGES = 10;
@@ -83,15 +84,15 @@ const formatPurgeDetail = (
   noun?: string,
 ): string => {
   const parts: string[] = [];
-  parts.push(noun ? `${deleted} ${noun} deleted` : `${deleted} deleted`);
+  parts.push(noun ? t('status.purge.detailDeletedNoun', { count: deleted, noun: t('status.purge.nounMessages') }) : t('status.purge.detailDeleted', { count: deleted }));
   if (editedAttachmentsOnly > 0) {
-    parts.push(`${editedAttachmentsOnly} stripped of attachments`);
+    parts.push(t('status.purge.detailStripped', { count: editedAttachmentsOnly }));
   }
   if (skipped > 0) {
-    parts.push(`${skipped} skipped`);
+    parts.push(t('status.purge.detailSkipped', { count: skipped }));
   }
   if (failed > 0) {
-    parts.push(`${failed} failed`);
+    parts.push(t('status.purge.detailFailed', { count: failed }));
   }
   return parts.join(', ');
 };
@@ -243,7 +244,7 @@ async function* iterateReactionPurgeMessages(
             aroundFailuresReported.add(aroundChannelId);
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't fetch context for some matched messages (${err instanceof Error ? err.message : 'network error'}); their reactions will be skipped`,
+              message: t('status.purge.contextFailed', { reason: err instanceof Error ? err.message : t('status.purge.networkError') }),
             }));
           }
           continue;
@@ -256,7 +257,7 @@ async function* iterateReactionPurgeMessages(
             aroundFailuresReported.add(aroundChannelId);
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't fetch context for some matched messages (HTTP ${aroundResp?.status ?? '?'}); their reactions will be skipped`,
+              message: t('status.purge.contextFailed', { reason: t('status.purge.httpStatus', { status: aroundResp?.status ?? '?' }) }),
             }));
           }
           continue;
@@ -298,7 +299,7 @@ async function* iterateReactionPurgeMessages(
         onRetry: (attempt, delayMs) => {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Purge: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+            message: t('status.purge.retry', { seconds: Math.round(delayMs / 1000), attempt }),
           }));
         },
       },
@@ -307,7 +308,7 @@ async function* iterateReactionPurgeMessages(
       if (!checkCancelled(getState) && lastId !== null) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Purge: history walk stopped early after a failed request (${response.status ?? 'network error'}); results may be incomplete. Re-run the purge to cover the rest.`,
+          message: t('status.purge.historyStopped', { reason: response.status ?? t('status.purge.networkError') }),
         }));
       }
       return;
@@ -395,7 +396,7 @@ async function* iterateDeletedUserScan(
           onRetry: (attempt, delayMs) => {
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `History scan of ${channelLabel}: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+              message: t('status.purge.scanRetry', { label: channelLabel, seconds: Math.round(delayMs / 1000), attempt }),
             }));
           },
         },
@@ -409,7 +410,7 @@ async function* iterateDeletedUserScan(
           scanIncomplete = true;
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `History scan of ${channelLabel} stopped early after a failed request (${scannedThisChannel.toLocaleString()} messages in); results may be incomplete. Re-run the purge to cover the rest.`,
+            message: t('status.purge.scanStopped', { label: channelLabel, count: scannedThisChannel.toLocaleString() }),
           }));
         }
         break;
@@ -446,7 +447,7 @@ async function* iterateDeletedUserScan(
         nextScanMilestone += 500;
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Scanned ${scannedTotal.toLocaleString()} messages in ${channelLabel}, ${aggregatedCount.toLocaleString()} from this user so far`,
+          message: t('status.purge.scanned', { scanned: scannedTotal.toLocaleString(), label: channelLabel, matched: aggregatedCount.toLocaleString() }),
         }));
       }
 
@@ -483,7 +484,7 @@ async function discoverThreadsForChannels(
   delayModifier: number,
 ): Promise<Map<string, Channel[]>> {
   const discordService = getDiscordService();
-  dispatch(addStatusEntry({ level: 'info', message: `Discovering threads across ${channels.length} channel${channels.length !== 1 ? 's' : ''}...` }));
+  dispatch(addStatusEntry({ level: 'info', message: t('status.purge.discoveringThreads', { count: channels.length }) }));
   const channelIds = new Set(channels.map((c) => c.id));
   const threadMap = new Map<string, Channel[]>();
   const seenThreadIds = new Set<string>();
@@ -520,7 +521,7 @@ async function discoverThreadsForChannels(
     if (channels.length > 1) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Scanning threads in #${channel.name || channel.id} (${ci + 1}/${channels.length})`,
+        message: t('status.purge.scanningThreads', { name: channel.name || channel.id, index: ci + 1, total: channels.length }),
       }));
     }
 
@@ -551,7 +552,7 @@ async function discoverThreadsForChannels(
         if (wasCancelled) return threadMap;
       }
     } catch {
-      dispatch(addStatusEntry({ level: 'warning', message: `Could not fetch archived threads for #${channel.name || channel.id}` }));
+      dispatch(addStatusEntry({ level: 'warning', message: t('status.purge.archivedThreadsFailed', { name: channel.name || channel.id }) }));
     }
 
     // Private archived threads: try MANAGE_THREADS endpoint first, fall back to joined-only
@@ -581,14 +582,14 @@ async function discoverThreadsForChannels(
       const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
       if (wasCancelled) return threadMap;
     } catch {
-      dispatch(addStatusEntry({ level: 'warning', message: `Could not fetch private threads for #${channel.name || channel.id}` }));
+      dispatch(addStatusEntry({ level: 'warning', message: t('status.purge.privateThreadsFailed', { name: channel.name || channel.id }) }));
     }
   }
 
   if (seenThreadIds.size > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Found ${seenThreadIds.size} thread${seenThreadIds.size !== 1 ? 's' : ''} to include in purge`,
+      message: t('status.purge.foundThreads', { count: seenThreadIds.size }),
     }));
   }
 
@@ -741,12 +742,12 @@ async function purgeChannelMessages(
     if (targetIsDeleted) {
       dispatch(addStatusEntry({
         level: 'warning',
-        message: `This user's account is deleted, so Discord's search can't find their messages. Scanning the full history of ${label} instead (this takes longer)…`,
+        message: t('status.purge.deletedAccountScan', { label }),
       }));
     } else {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Searching ${label} for matching messages…`,
+        message: t('status.purge.searching', { label }),
       }));
     }
 
@@ -767,7 +768,7 @@ async function purgeChannelMessages(
       if (newlyExcluded.length > 0) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Leaving ${newlyExcluded.length} archived thread${newlyExcluded.length !== 1 ? 's' : ''} in ${label} unscanned, "Don't wake archived threads" is on`,
+          message: t('status.purge.leavingArchivedUnscanned', { count: newlyExcluded.length, label }),
         }));
       }
     }
@@ -803,7 +804,7 @@ async function purgeChannelMessages(
         if (totalForThisUser > 0) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Discord reports ${totalForThisUser.toLocaleString()} matching message${totalForThisUser === 1 ? '' : 's'} in ${label}`,
+            message: t('status.purge.discordReports', { count: totalForThisUser, label }),
           }));
           if ((page as { stillIndexing?: boolean }).stillIndexing) {
             // #216: a non-zero total while indexing is in progress can
@@ -811,7 +812,7 @@ async function purgeChannelMessages(
             // and reporting success would silently miss the rest.
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Discord is still indexing ${label}; this count may be incomplete. Re-run the purge after indexing finishes to catch anything missed.`,
+              message: t('status.purge.indexingCount', { label }),
             }));
           }
         } else if ((page as { stillIndexing?: boolean }).stillIndexing) {
@@ -820,7 +821,7 @@ async function purgeChannelMessages(
           // cause of "purge found nothing in my group DM" reports.
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Discord is still indexing ${label}; search may return nothing until indexing finishes. Try this purge again in a little while.`,
+            message: t('status.purge.indexingNothing', { label }),
           }));
         }
       }
@@ -837,11 +838,11 @@ async function purgeChannelMessages(
       // signal honest: how much of the originally-reported set we've
       // touched, not a live ratio against a moving target.
       const batchDenom = totalForThisUser > 0
-        ? ` (${page.aggregatedCount.toLocaleString()} of ${totalForThisUser.toLocaleString()} matches fetched)`
+        ? t('status.purge.batchDenom', { fetched: page.aggregatedCount.toLocaleString(), total: totalForThisUser.toLocaleString() })
         : '';
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Search batch ${searchPageCount}: found ${messages.length} message${messages.length !== 1 ? 's' : ''} to process${batchDenom}`,
+        message: t('status.purge.searchBatch', { batch: searchPageCount, count: messages.length, denom: batchDenom }),
       }));
 
       // Process each message in the batch
@@ -944,7 +945,7 @@ async function purgeChannelMessages(
               optOutLoggedThreads.add(threadId);
               dispatch(addStatusEntry({
                 level: 'info',
-                message: `Leaving archived thread ${threadId} untouched, "Don't wake archived threads" is on`,
+                message: t('status.purge.leavingArchivedThread', { id: threadId }),
               }));
             }
             totalSkipped++;
@@ -970,7 +971,7 @@ async function purgeChannelMessages(
               unarchivedThisRun.add(threadId);
               dispatch(addStatusEntry({
                 level: 'info',
-                message: `Un-archived thread ${threadId} to process its messages (will re-archive after)`,
+                message: t('status.purge.unarchivedMessages', { id: threadId }),
               }));
             } else {
               threadUnarchiveAllowed.set(threadId, false);
@@ -1025,7 +1026,7 @@ async function purgeChannelMessages(
               totalFailed++;
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Couldn't delete attachment-only message (HTTP ${response.status ?? '?'}) · message ${message.id}`,
+                message: t('status.purge.deleteAttachmentOnlyFailed', { reason: t('status.purge.httpStatus', { status: response.status ?? '?' }), id: message.id }),
               }));
             }
           } else {
@@ -1042,7 +1043,7 @@ async function purgeChannelMessages(
               totalFailed++;
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Couldn't strip attachments (HTTP ${response.status ?? '?'}) · message ${message.id}`,
+                message: t('status.purge.stripFailed', { reason: t('status.purge.httpStatus', { status: response.status ?? '?' }), id: message.id }),
               }));
             }
           }
@@ -1064,7 +1065,7 @@ async function purgeChannelMessages(
               totalFailed++;
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Couldn't clear message text (HTTP ${response.status ?? '?'}) · message ${message.id}`,
+                message: t('status.purge.clearTextFailed', { reason: t('status.purge.httpStatus', { status: response.status ?? '?' }), id: message.id }),
               }));
             }
           }
@@ -1087,7 +1088,7 @@ async function purgeChannelMessages(
             totalFailed++;
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't delete (HTTP ${response.status ?? '?'}) · message ${message.id}`,
+              message: t('status.purge.deleteFailed', { reason: t('status.purge.httpStatus', { status: response.status ?? '?' }), id: message.id }),
             }));
           }
         }
@@ -1109,7 +1110,7 @@ async function purgeChannelMessages(
       if (totalDeleted > 0 || totalSkipped > 0 || totalEditedAttachmentsOnly > 0 || totalFailed > 0) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Progress: ${formatPurgeDetail(totalDeleted, totalSkipped, totalEditedAttachmentsOnly, totalFailed)} so far`,
+          message: t('status.purge.progress', { detail: formatPurgeDetail(totalDeleted, totalSkipped, totalEditedAttachmentsOnly, totalFailed) }),
         }));
       }
 
@@ -1135,7 +1136,7 @@ async function purgeChannelMessages(
   if (totalSkippedNotAuthor > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Skipped ${totalSkippedNotAuthor} message${totalSkippedNotAuthor !== 1 ? 's' : ''} authored by other users. Discord only lets you edit your own messages.`,
+      message: t('status.purge.skippedOtherAuthors', { count: totalSkippedNotAuthor }),
     }));
   }
 
@@ -1146,7 +1147,7 @@ async function purgeChannelMessages(
   if (totalSkippedUnexpectedAuthor > 0) {
     dispatch(addStatusEntry({
       level: 'warning',
-      message: `Skipped ${totalSkippedUnexpectedAuthor} message${totalSkippedUnexpectedAuthor !== 1 ? 's' : ''} returned by search whose author didn't match the target, likely an API anomaly.`,
+      message: t('status.purge.skippedUnexpectedAuthor', { count: totalSkippedUnexpectedAuthor }),
     }));
   }
 
@@ -1157,7 +1158,7 @@ async function purgeChannelMessages(
   if (totalSkippedPinned > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Preserved ${totalSkippedPinned} pinned message${totalSkippedPinned !== 1 ? 's' : ''}. Your filter excludes pinned messages.`,
+      message: t('status.purge.preservedPinned', { count: totalSkippedPinned }),
     }));
   }
 
@@ -1166,7 +1167,7 @@ async function purgeChannelMessages(
   if (totalSkippedPreserved > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Preserved ${totalSkippedPreserved} message${totalSkippedPreserved !== 1 ? 's' : ''} with files or links, "Keep messages with files or links" is on.`,
+      message: t('status.purge.preservedFiles', { count: totalSkippedPreserved }),
     }));
   }
 
@@ -1175,7 +1176,7 @@ async function purgeChannelMessages(
   if (totalSkippedArchivedOptOut > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Left ${totalSkippedArchivedOptOut} message${totalSkippedArchivedOptOut !== 1 ? 's' : ''} in archived threads untouched, "Don't wake archived threads" is on.`,
+      message: t('status.purge.leftArchivedMessages', { count: totalSkippedArchivedOptOut }),
     }));
   }
 
@@ -1185,7 +1186,7 @@ async function purgeChannelMessages(
   if (scanExcludedArchivedThreads.size > 0) {
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Left ${scanExcludedArchivedThreads.size} archived thread${scanExcludedArchivedThreads.size !== 1 ? 's' : ''} unscanned, "Don't wake archived threads" is on. Any messages inside them were not touched.`,
+      message: t('status.purge.leftArchivedUnscanned', { count: scanExcludedArchivedThreads.size }),
     }));
   }
 
@@ -1208,18 +1209,18 @@ async function purgeChannelMessages(
         if (resp.success) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Re-archived thread ${threadId}`,
+            message: t('status.purge.rearchived', { id: threadId }),
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Could not re-archive thread ${threadId} (HTTP ${resp.status ?? '?'}). You may need to re-archive it manually.`,
+            message: t('status.purge.rearchiveFailedHttp', { id: threadId, reason: t('status.purge.httpStatus', { status: resp.status ?? '?' }) }),
           }));
         }
       } catch {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Could not re-archive thread ${threadId} (network error). You may need to re-archive it manually.`,
+          message: t('status.purge.rearchiveFailedHttp', { id: threadId, reason: t('status.purge.networkError') }),
         }));
       }
     }
@@ -1290,7 +1291,7 @@ function createThreadMutationGuard(
           logged = true;
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Leaving archived thread ${channelId} untouched, "Don't wake archived threads" is on; its reactions will be skipped`,
+            message: t('status.purge.leavingArchivedReactions', { id: channelId }),
           }));
         }
         return false;
@@ -1315,7 +1316,7 @@ function createThreadMutationGuard(
         state = 'unarchived';
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Un-archived thread ${channelId} to process its reactions (will re-archive after)`,
+          message: t('status.purge.unarchivedReactions', { id: channelId }),
         }));
         return true;
       }
@@ -1337,18 +1338,18 @@ function createThreadMutationGuard(
         if (reResp.success) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Re-archived thread ${channelId}`,
+            message: t('status.purge.rearchived', { id: channelId }),
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `Could not re-archive thread ${channelId} (HTTP ${reResp.status ?? '?'}). You may need to re-archive it manually.`,
+            message: t('status.purge.rearchiveFailedHttp', { id: channelId, reason: t('status.purge.httpStatus', { status: reResp.status ?? '?' }) }),
           }));
         }
       } catch {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: `Could not re-archive thread ${channelId} (network error). You may need to re-archive it manually.`,
+          message: t('status.purge.rearchiveFailedHttp', { id: channelId, reason: t('status.purge.networkError') }),
         }));
       }
     },
@@ -1458,17 +1459,17 @@ async function purgeChannelClearAllReactions(
       fetchPageCount++;
       const withReactions = filtered.filter((m) => m.reactions && m.reactions.length > 0).length;
       const filterSuffix = hasAnyFilter(filterOverrides)
-        ? ` (${filtered.length} match filter)`
+        ? t('status.purge.filterSuffix', { count: filtered.length })
         : '';
       if (withReactions > 0) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Scanning batch ${fetchPageCount}: ${scanned} messages, ${withReactions} with reactions${filterSuffix}`,
+          message: t('status.purge.scanBatch', { batch: fetchPageCount, scanned, withReactions, suffix: filterSuffix }),
         }));
       } else if (fetchPageCount === 1 || fetchPageCount % 5 === 0) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Scanning batch ${fetchPageCount}: ${totalScanned + scanned} messages scanned, no reactions found yet${filterSuffix}`,
+          message: t('status.purge.scanBatchNone', { batch: fetchPageCount, scanned: totalScanned + scanned, suffix: filterSuffix }),
         }));
       }
 
@@ -1504,7 +1505,7 @@ async function purgeChannelClearAllReactions(
           const emojiCount = msg.reactions.length;
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Clearing ${emojiCount} reaction${emojiCount !== 1 ? 's' : ''} from message`,
+            message: t('status.purge.clearingReactions', { count: emojiCount }),
           }));
           const delResp = await discordService.deleteAllReactionsFromMessage(token, targetChannelId, msg.id);
           if (delResp.success) {
@@ -1513,7 +1514,7 @@ async function purgeChannelClearAllReactions(
             totalFailed++;
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't clear reactions (HTTP ${delResp.status ?? '?'}) · message ${msg.id}`,
+              message: t('status.purge.clearFailed', { reason: t('status.purge.httpStatus', { status: delResp.status ?? '?' }), id: msg.id }),
             }));
           }
 
@@ -1612,17 +1613,17 @@ async function purgeChannelReactions(
     fetchPageCount++;
     const withReactions = filtered.filter((m) => m.reactions && m.reactions.length > 0).length;
     const filterSuffix = hasAnyFilter(filterOverrides)
-      ? ` (${filtered.length} match filter)`
+      ? t('status.purge.filterSuffix', { count: filtered.length })
       : '';
     if (withReactions > 0) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Scanning batch ${fetchPageCount}: ${scanned} messages, ${withReactions} with reactions${filterSuffix}`,
+        message: t('status.purge.scanBatch', { batch: fetchPageCount, scanned, withReactions, suffix: filterSuffix }),
       }));
     } else if (fetchPageCount === 1 || fetchPageCount % 5 === 0) {
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Scanning batch ${fetchPageCount}: ${totalScanned + scanned} messages scanned, no reactions found yet${filterSuffix}`,
+        message: t('status.purge.scanBatchNone', { batch: fetchPageCount, scanned: totalScanned + scanned, suffix: filterSuffix }),
       }));
     }
 
@@ -1706,7 +1707,7 @@ async function purgeChannelReactions(
                   totalReactionsRemoved++;
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `Removed reaction ${totalReactionsRemoved} (${reaction.emoji.name || '?'})`,
+                    message: t('status.purge.removedReaction', { count: totalReactionsRemoved, emoji: reaction.emoji.name || '?' }),
                   }));
                 } else {
                   // Real regression guard: previous versions incremented
@@ -1716,7 +1717,7 @@ async function purgeChannelReactions(
                   totalFailed++;
                   dispatch(addStatusEntry({
                     level: 'warning',
-                    message: `Couldn't remove reaction ${reaction.emoji.name || '?'} (HTTP ${delResp.status ?? '?'}) · message ${message.id}`,
+                    message: t('status.purge.removeReactionFailed', { emoji: reaction.emoji.name || '?', reason: t('status.purge.httpStatus', { status: delResp.status ?? '?' }), id: message.id }),
                   }));
                 }
 
@@ -1786,7 +1787,7 @@ interface BulkPurgeRunResult {
 }
 
 const purgeModeLabel = (mode: PurgeMode) =>
-  mode === 'clearReactions' ? 'Clear all reactions' : mode === 'reactions' ? 'Reaction purge' : 'Purge';
+  mode === 'clearReactions' ? t('status.purge.mode.clearReactions') : mode === 'reactions' ? t('status.purge.mode.reactions') : t('status.purge.mode.purge');
 
 /**
  * The channel walk shared by `bulkPurgeChannels`, `bulkPurgeDMs` and the
@@ -1880,10 +1881,10 @@ const executeBulkPurge = async (
         };
 
         const channelThreads = threadMap?.get(channel.id);
-        const threadInfo = channelThreads?.length ? ` · ${channelThreads.length} thread${channelThreads.length !== 1 ? 's' : ''} discovered` : '';
+        const threadInfo = channelThreads?.length ? t('status.purge.threadsDiscovered', { count: channelThreads.length }) : '';
         dispatch(addStatusEntry({
           level: 'info',
-          message: `${modeLabel}: Starting ${isDm ? '' : '#'}${channelName} (${i + 1} of ${channels.length})${threadInfo}`,
+          message: t('status.purge.startingChannel', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, index: i + 1, total: channels.length, threads: threadInfo }),
         }));
 
         // Initialize progress for this channel
@@ -1933,7 +1934,7 @@ const executeBulkPurge = async (
           const skippedCount = allChannelThreads.length - threads.length;
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Leaving ${skippedCount} archived thread${skippedCount !== 1 ? 's' : ''} in ${isDm ? '' : '#'}${channelName} untouched, "Don't wake archived threads" is on`,
+            message: t('status.purge.leavingArchivedInChannel', { count: skippedCount, name: `${isDm ? '' : '#'}${channelName}` }),
           }));
         }
         const guardRegistry = createThreadMutationGuardRegistry(
@@ -1965,7 +1966,7 @@ const executeBulkPurge = async (
                   milestoneBoundary = nextMilestone(scanned);
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} · ${scanned} messages scanned, ${reactionsCleared} cleared`,
+                    message: t('status.purge.channelClearedProgress', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, scanned, cleared: reactionsCleared }),
                   }));
                 }
               },
@@ -1981,7 +1982,7 @@ const executeBulkPurge = async (
             if (threads.length > 0) {
               dispatch(addStatusEntry({
                 level: 'info',
-                message: `Processing ${threads.length} thread${threads.length !== 1 ? 's' : ''} in ${isDm ? '' : '#'}${channelName}`,
+                message: t('status.purge.processingThreads', { count: threads.length, name: `${isDm ? '' : '#'}${channelName}` }),
               }));
             }
             let threadFailedClears = 0;
@@ -2019,11 +2020,11 @@ const executeBulkPurge = async (
             completedStats.reactionsRemoved += totalCleared;
 
             const failedSuffix = totalFailedClears > 0
-              ? `, ${totalFailedClears} failed`
+              ? t('status.purge.failedSuffix', { count: totalFailedClears })
               : '';
             dispatch(addStatusEntry({
               level: totalFailedClears > 0 ? 'warning' : 'success',
-              message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} · ${totalCleared} message${totalCleared !== 1 ? 's' : ''} cleared of reactions${failedSuffix}`,
+              message: t('status.purge.completedCleared', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, count: totalCleared, failed: failedSuffix }),
             }));
           } else if (isReactionsMode) {
             let milestoneBoundary = nextMilestone(0);
@@ -2052,7 +2053,7 @@ const executeBulkPurge = async (
                   milestoneBoundary = nextMilestone(scanned);
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} · ${scanned} messages scanned, ${reactionsRemoved} reactions removed`,
+                    message: t('status.purge.channelReactionsProgress', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, scanned, removed: reactionsRemoved }),
                   }));
                 }
               },
@@ -2068,7 +2069,7 @@ const executeBulkPurge = async (
             if (threads.length > 0) {
               dispatch(addStatusEntry({
                 level: 'info',
-                message: `Processing ${threads.length} thread${threads.length !== 1 ? 's' : ''} in ${isDm ? '' : '#'}${channelName}`,
+                message: t('status.purge.processingThreads', { count: threads.length, name: `${isDm ? '' : '#'}${channelName}` }),
               }));
             }
             let threadFailedRemoves = 0;
@@ -2108,11 +2109,11 @@ const executeBulkPurge = async (
             completedStats.reactionsRemoved += totalChannelReactions;
 
             const removeFailedSuffix = totalFailedRemoves > 0
-              ? `, ${totalFailedRemoves} failed`
+              ? t('status.purge.failedSuffix', { count: totalFailedRemoves })
               : '';
             dispatch(addStatusEntry({
               level: totalFailedRemoves > 0 ? 'warning' : 'success',
-              message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} · ${totalChannelReactions} reactions removed${removeFailedSuffix}`,
+              message: t('status.purge.completedReactions', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, count: totalChannelReactions, failed: removeFailedSuffix }),
             }));
           } else {
             let milestoneBoundary = nextMilestone(0);
@@ -2164,7 +2165,7 @@ const executeBulkPurge = async (
                   );
                   dispatch(addStatusEntry({
                     level: 'info',
-                    message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} · ${processed} messages processed (${detail})`,
+                    message: t('status.purge.channelProcessed', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, processed, detail }),
                   }));
                 }
               },
@@ -2184,7 +2185,7 @@ const executeBulkPurge = async (
             ) {
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `${modeLabel}: ${isDm ? '' : '#'}${channelName} has no messages from target users, skipping`,
+                message: t('status.purge.noTargetMessages', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}` }),
               }));
             } else {
               completedStats.deleted += result.deleted;
@@ -2200,7 +2201,7 @@ const executeBulkPurge = async (
               );
               dispatch(addStatusEntry({
                 level: result.failed > 0 ? 'warning' : 'success',
-                message: `${modeLabel}: Completed ${isDm ? '' : '#'}${channelName} · ${detail}`,
+                message: t('status.purge.completedDetail', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, detail }),
               }));
             }
           }
@@ -2233,11 +2234,11 @@ const executeBulkPurge = async (
             }
             break;
           }
-          const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+          const errorMsg = error instanceof Error ? error.message : t('status.purge.unknownError');
           errors.push(`${channelName}: ${errorMsg}`);
           dispatch(addStatusEntry({
             level: 'error',
-            message: `${modeLabel}: Error processing ${isDm ? '' : '#'}${channelName} · ${errorMsg}`,
+            message: t('status.purge.errorProcessing', { mode: modeLabel, name: `${isDm ? '' : '#'}${channelName}`, error: errorMsg }),
           }));
         } finally {
           // Re-archive every thread the registry un-archived — runs on
@@ -2269,12 +2270,12 @@ const executeBulkPurge = async (
         if (isReactionsMode) {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `${modeLabel}: Cancelled · ${completedStats.reactionsRemoved} reactions removed`,
+            message: t('status.purge.cancelledReactions', { mode: modeLabel, count: completedStats.reactionsRemoved }),
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'warning',
-            message: `${modeLabel}: Cancelled · ${totalDetail}`,
+            message: t('status.purge.cancelledDetail', { mode: modeLabel, detail: totalDetail }),
           }));
         }
       } else {
@@ -2282,16 +2283,16 @@ const executeBulkPurge = async (
         //   "Reaction purge: Starting operation across 8 channels"   (start)
         //   "Reaction purge: Completed #general — 3 reactions removed" (per-ch)
         //   "Reaction purge: Complete — 8 channels, 7 reactions removed" (final)
-        const completeLabel = serverContext ? `${serverContext.name} complete` : 'Complete';
+        const completeLabel = serverContext ? t('status.purge.serverComplete', { name: serverContext.name }) : t('status.purge.complete');
         if (isReactionsMode) {
           dispatch(addStatusEntry({
             level: 'success',
-            message: `${modeLabel}: ${completeLabel} · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${completedStats.reactionsRemoved} reactions removed`,
+            message: t('status.purge.completeReactions', { mode: modeLabel, label: completeLabel, scope: t('status.purge.scope', { count: channels.length, context: isDm ? 'dm' : 'channel' }), count: completedStats.reactionsRemoved }),
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'success',
-            message: `${modeLabel}: ${completeLabel} · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${totalDetail}`,
+            message: t('status.purge.completeDetail', { mode: modeLabel, label: completeLabel, scope: t('status.purge.scope', { count: channels.length, context: isDm ? 'dm' : 'channel' }), detail: totalDetail }),
           }));
         }
 
@@ -2304,7 +2305,7 @@ const executeBulkPurge = async (
         if (selectedChannel && channels.some((c) => c.id === selectedChannel.id)) {
           dispatch(showToast({
             level: 'success',
-            message: `${modeLabel} complete (feed may be out of date)`,
+            message: t('status.purge.completeToast', { mode: modeLabel }),
             duration: 10000,
             action: { type: 'reloadChannel', channelId: selectedChannel.id, label: 'Reload feed' },
           }));
@@ -2315,7 +2316,7 @@ const executeBulkPurge = async (
     } catch (error) {
       dispatch(addStatusEntry({
         level: 'error',
-        message: `${modeLabel} failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: t('status.purge.failedToast', { mode: modeLabel, error: error instanceof Error ? error.message : t('status.purge.unknownError') }),
       }));
       throw error;
     }
@@ -2378,7 +2379,7 @@ export const purgeGuilds = createAsyncThunk<
     dispatch(showOperationTip('Purge Operation Queued'));
     dispatch(addStatusEntry({
       level: 'info',
-      message: `${modeLabel}: Starting operation across ${guilds.length} server${guilds.length !== 1 ? 's' : ''}`,
+      message: t('status.purge.startingServers', { mode: modeLabel, count: guilds.length }),
     }));
 
     const searchDelay = selectSearchDelay(initialState);
@@ -2398,7 +2399,7 @@ export const purgeGuilds = createAsyncThunk<
         const serverContext: ServerPurgeContext = { name: guild.name, index: i, total: guilds.length };
         dispatch(addStatusEntry({
           level: 'info',
-          message: `${modeLabel}: Server ${i + 1} of ${guilds.length} · ${guild.name}`,
+          message: t('status.purge.serverHeader', { mode: modeLabel, index: i + 1, total: guilds.length, name: guild.name }),
         }));
 
         // Channel discovery. Transient failures retry with backoff; a hard
@@ -2412,15 +2413,15 @@ export const purgeGuilds = createAsyncThunk<
             onRetry: (attempt, delayMs) => {
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `${modeLabel}: ${guild.name} · loading channels failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+                message: t('status.purge.channelsRetry', { mode: modeLabel, name: guild.name, seconds: Math.round(delayMs / 1000), attempt }),
               }));
             },
           },
         );
         if (!channelsResponse.success || !channelsResponse.data) {
-          const detail = `could not load channels (HTTP ${channelsResponse.status ?? 'unknown'})`;
+          const detail = t('status.purge.couldNotLoadChannels', { status: channelsResponse.status ?? 'unknown' });
           errors.push(`${guild.name}: ${detail}`);
-          dispatch(addStatusEntry({ level: 'error', message: `${modeLabel}: ${guild.name} · ${detail}, skipped` }));
+          dispatch(addStatusEntry({ level: 'error', message: t('status.purge.serverSkipped', { mode: modeLabel, name: guild.name, detail }) }));
           continue;
         }
 
@@ -2444,7 +2445,7 @@ export const purgeGuilds = createAsyncThunk<
             && canAccessChannel(guild.permissions, memberRoles, channel, guild.id, currentUserId),
         );
         if (channels.length === 0) {
-          dispatch(addStatusEntry({ level: 'info', message: `${modeLabel}: ${guild.name} · no readable channels, skipped` }));
+          dispatch(addStatusEntry({ level: 'info', message: t('status.purge.noReadableChannels', { mode: modeLabel, name: guild.name }) }));
           serversProcessed += 1;
           continue;
         }
@@ -2460,9 +2461,9 @@ export const purgeGuilds = createAsyncThunk<
             serverContext,
           );
         } catch (error) {
-          const detail = error instanceof Error ? error.message : 'Unknown error';
+          const detail = error instanceof Error ? error.message : t('status.purge.unknownError');
           errors.push(`${guild.name}: ${detail}`);
-          dispatch(addStatusEntry({ level: 'error', message: `${modeLabel}: ${guild.name} · stopped early, ${detail}` }));
+          dispatch(addStatusEntry({ level: 'error', message: t('status.purge.serverStoppedEarly', { mode: modeLabel, name: guild.name, detail }) }));
           continue;
         }
         serversProcessed += 1;
@@ -2484,12 +2485,12 @@ export const purgeGuilds = createAsyncThunk<
 
       const detail = config.mode === 'messages'
         ? formatPurgeDetail(totals.deleted, totals.skipped, totals.editedAttachmentsOnly, totals.failed, 'messages')
-        : `${totals.reactionsRemoved} reactions removed`;
-      const serverCount = `${serversProcessed} of ${guilds.length} server${guilds.length !== 1 ? 's' : ''}`;
+        : t('status.purge.reactionsRemovedDetail', { count: totals.reactionsRemoved });
+      const serverCount = t('status.purge.serverCount', { processed: serversProcessed, count: guilds.length });
       if (cancelled || checkCancelled(getState)) {
-        dispatch(addStatusEntry({ level: 'warning', message: `${modeLabel}: Cancelled · ${serverCount}, ${detail}` }));
+        dispatch(addStatusEntry({ level: 'warning', message: t('status.purge.serversCancelled', { mode: modeLabel, servers: serverCount, detail }) }));
       } else {
-        dispatch(addStatusEntry({ level: 'success', message: `${modeLabel}: Complete · ${serverCount}, ${detail}` }));
+        dispatch(addStatusEntry({ level: 'success', message: t('status.purge.serversComplete', { mode: modeLabel, servers: serverCount, detail }) }));
       }
       return errors.length > 0 ? { success: true, errors } : { success: true };
     } catch (error) {

@@ -6,6 +6,7 @@ import { getDiscordService } from '@services/discordService';
 import type { RootState } from '@/app/store';
 import { addStatusEntry } from '@features/status/statusSlice';
 import { setSelectedGuild } from '@features/guild/guildSlice';
+import { t } from '@/i18n';
 
 /**
  * Channel slice - manages channel state
@@ -210,7 +211,7 @@ export const fetchForumThreads = createAsyncThunk(
     { rejectWithValue, dispatch }
   ) => {
     try {
-      dispatch(addStatusEntry({ level: 'info', message: 'Loading forum posts...' }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.channel.loadingForumPosts') }));
       const discordService = getDiscordService();
 
       const response = await discordService.fetchForumThreadSearch(token, channelId, {
@@ -228,7 +229,7 @@ export const fetchForumThreads = createAsyncThunk(
 
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Loaded ${threads.length} of ${total_results} forum posts`,
+        message: t('status.channel.loadedForumPosts', { count: threads.length, total: total_results }),
       }));
 
       return {
@@ -239,7 +240,7 @@ export const fetchForumThreads = createAsyncThunk(
         firstMessages: first_messages || [],
       };
     } catch (error) {
-      dispatch(addStatusEntry({ level: 'error', message: `Failed to load forum posts: ${error instanceof Error ? error.message : 'Unknown error'}` }));
+      dispatch(addStatusEntry({ level: 'error', message: t('status.channel.forumLoadFailed', { error: error instanceof Error ? error.message : t('status.channel.unknownError') }) }));
       return rejectWithValue(
         error instanceof Error ? error.message : 'Failed to fetch forum threads'
       );
@@ -273,7 +274,7 @@ export const loadMoreForumThreads = createAsyncThunk(
 
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Loaded ${response.data.threads.length} more forum posts`,
+        message: t('status.channel.loadedMoreForumPosts', { count: response.data.threads.length }),
       }));
 
       return {
@@ -313,7 +314,7 @@ export const searchForumThreads = createAsyncThunk(
 
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Search: Found ${response.data.total_results} post${response.data.total_results !== 1 ? 's' : ''} matching "${name}"`,
+        message: t('status.channel.forumSearchFound', { count: response.data.total_results, name }),
       }));
 
       return {
@@ -322,7 +323,7 @@ export const searchForumThreads = createAsyncThunk(
         firstMessages: response.data.first_messages || [],
       };
     } catch (error) {
-      dispatch(addStatusEntry({ level: 'error', message: `Forum search failed: ${error instanceof Error ? error.message : 'Unknown error'}` }));
+      dispatch(addStatusEntry({ level: 'error', message: t('status.channel.forumSearchFailed', { error: error instanceof Error ? error.message : t('status.channel.unknownError') }) }));
       return rejectWithValue(
         error instanceof Error ? error.message : 'Failed to search forum threads'
       );

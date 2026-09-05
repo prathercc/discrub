@@ -10,6 +10,7 @@ import type { ExportReactionMap } from 'discrub-core/types/discrub-types';
 import type { MediaDownloadProgress, MediaMaps, MediaConfig } from '@features/export/exportTypes';
 import type { StreamingZipService } from './streamingZipService';
 import { IMAGE_EXTS, VIDEO_EXTS, AUDIO_EXTS } from '@/constants/mediaExtensions';
+import { t } from '@/i18n';
 
 export type ShouldContinueFn = () => Promise<void>;
 
@@ -430,7 +431,7 @@ export class MediaDownloadService {
         stage: 'avatars',
         current: downloaded,
         total: avatars.length,
-        message: `Downloading avatar ${downloaded}/${avatars.length}`,
+        message: t('status.media.downloadingAvatar', { current: downloaded, total: avatars.length }),
       });
     }
   }
@@ -563,7 +564,7 @@ export class MediaDownloadService {
         stage: 'attachments',
         current: 0,
         total: 0,
-        message: 'No attachments to download',
+        message: t('status.media.noAttachments'),
       });
       return;
     }
@@ -642,7 +643,7 @@ export class MediaDownloadService {
         stage: 'attachments',
         current: downloaded,
         total: attachmentUrls.length,
-        message: `Downloading attachment ${downloaded}/${attachmentUrls.length}`,
+        message: t('status.media.downloadingAttachment', { current: downloaded, total: attachmentUrls.length }),
       });
     }
   }
@@ -685,7 +686,7 @@ export class MediaDownloadService {
         stage: 'emojis',
         current: 0,
         total: 0,
-        message: 'No emojis to download',
+        message: t('status.media.noEmojis'),
       });
       return;
     }
@@ -717,7 +718,7 @@ export class MediaDownloadService {
         stage: 'emojis',
         current: downloaded,
         total: emojis.length,
-        message: `Downloading emoji ${downloaded}/${emojis.length}`,
+        message: t('status.media.downloadingEmoji', { current: downloaded, total: emojis.length }),
       });
     }
   }
@@ -744,7 +745,7 @@ export class MediaDownloadService {
 
     const items = Array.from(stickers.values());
     if (items.length === 0) {
-      onProgress({ stage: 'stickers', current: 0, total: 0, message: 'No stickers to download' });
+      onProgress({ stage: 'stickers', current: 0, total: 0, message: t('status.media.noStickers') });
       return;
     }
 
@@ -768,7 +769,7 @@ export class MediaDownloadService {
         stage: 'stickers',
         current: downloaded,
         total: items.length,
-        message: `Downloading sticker ${downloaded}/${items.length}`,
+        message: t('status.media.downloadingSticker', { current: downloaded, total: items.length }),
       });
     }
   }
@@ -791,7 +792,7 @@ export class MediaDownloadService {
         stage: 'roles',
         current: 0,
         total: 0,
-        message: 'No role icons to download',
+        message: t('status.media.noRoleIcons'),
       });
       return;
     }
@@ -828,7 +829,7 @@ export class MediaDownloadService {
         stage: 'roles',
         current: downloaded,
         total: roles.length,
-        message: `Downloading role icon ${downloaded}/${roles.length}`,
+        message: t('status.media.downloadingRoleIcon', { current: downloaded, total: roles.length }),
       });
     }
   }

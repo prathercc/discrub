@@ -20,6 +20,7 @@ import { nextMilestone, iterateSearchMessagesRedux } from '@utils/searchPaginati
 import { selectCurrentUser } from '@features/user/userSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { countActiveFilters } from 'discrub-core/filtering';
+import { t } from '@/i18n';
 
 /**
  * Append the HTTP status discrub-core already returns (`DiscordApiResponse
@@ -48,7 +49,7 @@ const maybeEmitPhantomLoadStatus = (
     dispatch(
       addStatusEntry({
         level: 'info',
-        message: `Loaded ${newPage.length} more, 0 matched the active refine`,
+        message: t('status.msg.loadedMoreNoneMatched', { count: newPage.length }),
       }),
     );
   }
@@ -188,7 +189,7 @@ export const deleteMessages = createAsyncThunk(
             console.error(`Failed to delete message ${message.id}:`, error);
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Couldn't delete message ${message.id}: ${reason}`,
+              message: t('status.msg.couldNotDelete', { id: message.id, reason }),
             }));
           }
         }
@@ -197,7 +198,7 @@ export const deleteMessages = createAsyncThunk(
       }
 
       if (deletedIds.length > 0) {
-        dispatch(addStatusEntry({ level: 'success', message: `Deleted ${deletedIds.length} message${deletedIds.length !== 1 ? 's' : ''}` }));
+        dispatch(addStatusEntry({ level: 'success', message: t('status.msg.deleted', { count: deletedIds.length }) }));
       }
       return deletedIds;
     } catch (error) {
@@ -336,7 +337,7 @@ export const editMessages = createAsyncThunk(
       }
 
       if (editedMessages.length > 0) {
-        dispatch(addStatusEntry({ level: 'success', message: `Edited ${editedMessages.length} message${editedMessages.length !== 1 ? 's' : ''}` }));
+        dispatch(addStatusEntry({ level: 'success', message: t('status.msg.edited', { count: editedMessages.length }) }));
       }
       return editedMessages;
     } catch (error) {
@@ -393,7 +394,7 @@ export const bulkEditChannels = createAsyncThunk<
 
     dispatch(addStatusEntry({
       level: 'info',
-      message: `Bulk edit: Starting across ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}`,
+      message: t('status.msg.bulkEditStart', { count: channels.length, context: isDm ? 'dm' : 'channel' }),
     }));
 
     try {
@@ -406,7 +407,7 @@ export const bulkEditChannels = createAsyncThunk<
 
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Bulk edit: Starting ${isDm ? '' : '#'}${channelName} (${i + 1} of ${channels.length})`,
+          message: t('status.msg.bulkEditStartChannel', { name: `${isDm ? '' : '#'}${channelName}`, index: i + 1, total: channels.length }),
         }));
 
         // Only the current user's own messages can be edited (Discord 403s
@@ -482,13 +483,13 @@ export const bulkEditChannels = createAsyncThunk<
         } catch (error) {
           dispatch(addStatusEntry({
             level: 'error',
-            message: `Bulk edit: ${isDm ? '' : '#'}${channelName}: ${error instanceof Error ? error.message : 'failed'}`,
+            message: t('status.msg.bulkEditFailedChannel', { name: `${isDm ? '' : '#'}${channelName}`, error: error instanceof Error ? error.message : t('status.msg.failed') }),
           }));
         }
 
         dispatch(addStatusEntry({
           level: 'success',
-          message: `Bulk edit: Completed ${isDm ? '' : '#'}${channelName} · ${channelEdited} edited`,
+          message: t('status.msg.bulkEditCompletedChannel', { name: `${isDm ? '' : '#'}${channelName}`, count: channelEdited }),
         }));
 
         if (cancelled) break;
@@ -496,7 +497,7 @@ export const bulkEditChannels = createAsyncThunk<
 
       dispatch(addStatusEntry({
         level: 'success',
-        message: `Bulk edit complete · ${stats.edited} edited${stats.skipped > 0 ? `, ${stats.skipped} skipped` : ''}${stats.failed > 0 ? `, ${stats.failed} failed` : ''}`,
+        message: t('status.msg.bulkEditComplete', { edited: stats.edited, skipped: stats.skipped > 0 ? t('status.msg.skippedSuffix', { count: stats.skipped }) : '', failed: stats.failed > 0 ? t('status.msg.failedSuffix', { count: stats.failed }) : '' }),
       }));
       return stats;
     } catch (error) {
@@ -607,7 +608,7 @@ export const deleteReaction = createAsyncThunk(
         return rejectWithValue(withHttpStatus('Failed to delete reaction', response.status));
       }
 
-      dispatch(addStatusEntry({ level: 'info', message: `Removed reaction ${emoji} from message ${messageId}` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.removedReaction', { emoji, id: messageId }) }));
       return { messageId, emoji, userId };
     } catch (error) {
       return rejectWithValue(
@@ -644,7 +645,7 @@ export const deleteAllReactions = createAsyncThunk(
       const delayModifier = selectDelayModifier(state);
       const deletedUserIds: string[] = [];
 
-      dispatch(addStatusEntry({ level: 'info', message: `Deleting ${userIds.length} reaction(s) for ${emoji}...` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.deletingReactions', { count: userIds.length, emoji }) }));
 
       for (const userId of userIds) {
         await waitWhilePaused(getState as () => RootState);
@@ -664,7 +665,7 @@ export const deleteAllReactions = createAsyncThunk(
         }
       }
 
-      dispatch(addStatusEntry({ level: 'success', message: `Deleted ${deletedUserIds.length} of ${userIds.length} reaction(s) for ${emoji}` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.msg.deletedReactions', { deleted: deletedUserIds.length, total: userIds.length, emoji }) }));
       return { messageId, emoji, deletedUserIds };
     } catch (error) {
       return rejectWithValue(
@@ -704,7 +705,7 @@ export const bulkDeleteAllReactions = createAsyncThunk(
         return rejectWithValue(withHttpStatus('Failed to delete all reactions', response.status));
       }
 
-      dispatch(addStatusEntry({ level: 'success', message: `Removed all reactions from message` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.msg.removedAllReactions') }));
       return { messageId };
     } catch (error) {
       return rejectWithValue(
@@ -747,7 +748,7 @@ export const bulkDeleteReactionsForEmoji = createAsyncThunk(
         return rejectWithValue(withHttpStatus('Failed to delete reactions for emoji', response.status));
       }
 
-      dispatch(addStatusEntry({ level: 'success', message: `Removed all ${emoji} reactions from message` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.msg.removedAllEmojiReactions', { emoji }) }));
       return { messageId, emoji };
     } catch (error) {
       return rejectWithValue(
@@ -794,11 +795,11 @@ export const batchRemoveReactions = createAsyncThunk(
       const total = messagesWithReactions.length;
 
       if (total === 0) {
-        dispatch(addStatusEntry({ level: 'info', message: 'No reactions to remove from selected messages' }));
+        dispatch(addStatusEntry({ level: 'info', message: t('status.msg.noReactionsToRemove') }));
         return { processedMessageIds: [], mode, emojis };
       }
 
-      dispatch(addStatusEntry({ level: 'info', message: `Processing reactions on ${total} message${total !== 1 ? 's' : ''}...` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.processingReactions', { count: total }) }));
 
       for (const msg of messagesWithReactions) {
         await waitWhilePaused(getState as () => RootState);
@@ -854,7 +855,7 @@ export const batchRemoveReactions = createAsyncThunk(
         if (didRemove) removed++;
 
         if (processed % 10 === 0 || processed === total) {
-          dispatch(addStatusEntry({ level: 'info', message: `Processed ${processed} of ${total} messages` }));
+          dispatch(addStatusEntry({ level: 'info', message: t('status.msg.processedOf', { processed, total }) }));
         }
 
         if (processed < total) {
@@ -865,9 +866,9 @@ export const batchRemoveReactions = createAsyncThunk(
       }
 
       if (removed > 0) {
-        dispatch(addStatusEntry({ level: 'success', message: `Removed reactions from ${removed} message${removed !== 1 ? 's' : ''}` }));
+        dispatch(addStatusEntry({ level: 'success', message: t('status.msg.removedReactionsFrom', { count: removed }) }));
       } else {
-        dispatch(addStatusEntry({ level: 'info', message: 'No matching reactions found to remove' }));
+        dispatch(addStatusEntry({ level: 'info', message: t('status.msg.noMatchingReactions') }));
       }
       return { processedMessageIds: messages.slice(0, processed).map((m) => m.id), mode, emojis };
     } catch (error) {
@@ -920,7 +921,7 @@ export const batchAddReactions = createAsyncThunk(
       const emojiCount = emojis.length;
 
       if (totalMessages === 0 || emojiCount === 0) {
-        dispatch(addStatusEntry({ level: 'info', message: 'No messages or emojis selected to react to' }));
+        dispatch(addStatusEntry({ level: 'info', message: t('status.msg.noMessagesOrEmojis') }));
         return { successfulAdds: [] as { messageId: string; emojis: SelectableEmojiInput[] }[], added: 0 };
       }
 
@@ -938,7 +939,7 @@ export const batchAddReactions = createAsyncThunk(
 
       dispatch(addStatusEntry({
         level: 'info',
-        message: `Adding ${emojiCount} reaction${emojiCount !== 1 ? 's' : ''} to ${totalMessages} message${totalMessages !== 1 ? 's' : ''}...`,
+        message: t('status.msg.addingReactions', { reactions: t('status.msg.reactions', { count: emojiCount }), messages: t('status.msg.messages', { count: totalMessages }) }),
       }));
 
       for (const msg of messages) {
@@ -985,27 +986,27 @@ export const batchAddReactions = createAsyncThunk(
         processedMessages++;
 
         if (processedMessages % 10 === 0 || processedMessages === totalMessages) {
-          dispatch(addStatusEntry({ level: 'info', message: `Added reactions to ${processedMessages} of ${totalMessages} messages` }));
+          dispatch(addStatusEntry({ level: 'info', message: t('status.msg.addedReactionsTo', { processed: processedMessages, total: totalMessages }) }));
         }
       }
 
       // Plain-language summary — suppress zero buckets (#161 tone).
       const skips: string[] = [];
-      if (notAllowed > 0) skips.push(`${notAllowed} skipped (no permission to react)`);
-      if (invalidEmoji > 0) skips.push(`${invalidEmoji} skipped (emoji not accepted by Discord)`);
-      if (messageGone > 0) skips.push(`${messageGone} skipped (message no longer exists)`);
-      if (failed > 0) skips.push(`${failed} failed`);
+      if (notAllowed > 0) skips.push(t('status.msg.skippedNoPermission', { count: notAllowed }));
+      if (invalidEmoji > 0) skips.push(t('status.msg.skippedInvalidEmoji', { count: invalidEmoji }));
+      if (messageGone > 0) skips.push(t('status.msg.skippedMessageGone', { count: messageGone }));
+      if (failed > 0) skips.push(t('status.msg.failedCount', { count: failed }));
 
       if (added > 0) {
         const tail = skips.length ? ` · ${skips.join(', ')}` : '';
         dispatch(addStatusEntry({
           level: skips.length ? 'warning' : 'success',
-          message: `Added ${added} reaction${added !== 1 ? 's' : ''}${tail}`,
+          message: t('status.msg.addedReactions', { reactions: t('status.msg.reactions', { count: added }), tail }),
         }));
       } else if (skips.length) {
-        dispatch(addStatusEntry({ level: 'warning', message: `No reactions added: ${skips.join(', ')}` }));
+        dispatch(addStatusEntry({ level: 'warning', message: t('status.msg.noReactionsAddedReasons', { reasons: skips.join(', ') }) }));
       } else {
-        dispatch(addStatusEntry({ level: 'info', message: 'No reactions added' }));
+        dispatch(addStatusEntry({ level: 'info', message: t('status.msg.noReactionsAdded') }));
       }
 
       return { successfulAdds, added };
@@ -1053,7 +1054,7 @@ export const deleteAttachment = createAsyncThunk(
         if (!deleteResponse.success) {
           return rejectWithValue(withHttpStatus('Failed to delete message', deleteResponse.status));
         }
-        dispatch(addStatusEntry({ level: 'info', message: `Deleted message ${message.id} (last attachment removed)` }));
+        dispatch(addStatusEntry({ level: 'info', message: t('status.msg.deletedLastAttachment', { id: message.id }) }));
         return { messageId: message.id, deleted: true };
       }
 
@@ -1069,7 +1070,7 @@ export const deleteAttachment = createAsyncThunk(
         return rejectWithValue(withHttpStatus('Failed to remove attachment', editResponse.status));
       }
 
-      dispatch(addStatusEntry({ level: 'info', message: `Removed attachment ${attachment.filename} from message ${message.id}` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.removedAttachment', { name: attachment.filename, id: message.id }) }));
       return { messageId: message.id, deleted: false, updatedMessage: editResponse.data as Message };
     } catch (error) {
       return rejectWithValue(
@@ -1105,7 +1106,7 @@ export const deleteAllAttachments = createAsyncThunk(
         if (!deleteResponse.success) {
           return rejectWithValue(withHttpStatus('Failed to delete message', deleteResponse.status));
         }
-        dispatch(addStatusEntry({ level: 'info', message: `Deleted message ${message.id} (all attachments removed)` }));
+        dispatch(addStatusEntry({ level: 'info', message: t('status.msg.deletedAllAttachments', { id: message.id }) }));
         return { messageId: message.id, deleted: true };
       }
 
@@ -1121,7 +1122,7 @@ export const deleteAllAttachments = createAsyncThunk(
         return rejectWithValue(withHttpStatus('Failed to remove attachments', editResponse.status));
       }
 
-      dispatch(addStatusEntry({ level: 'info', message: `Removed all attachments from message ${message.id}` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.removedAllAttachments', { id: message.id }) }));
       return { messageId: message.id, deleted: false, updatedMessage: editResponse.data as Message };
     } catch (error) {
       return rejectWithValue(
@@ -1164,7 +1165,7 @@ export const fetchMessages = createAsyncThunk(
 
       const messages = response.data as Message[];
 
-      dispatch(addStatusEntry({ level: 'info', message: `Loaded ${messages.length} messages` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loaded', { count: messages.length }) }));
 
       return {
         messages,
@@ -1213,7 +1214,7 @@ export const fetchMoreMessages = createAsyncThunk(
 
       const messages = response.data as Message[];
 
-      dispatch(addStatusEntry({ level: 'info', message: `Loaded ${messages.length} more messages` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loadedMore', { count: messages.length }) }));
       maybeEmitPhantomLoadStatus(
         dispatch,
         (getState() as RootState).message.refineCriteria,
@@ -1264,7 +1265,7 @@ export const searchMessages = createAsyncThunk(
   ) => {
     try {
       dispatch(showOperationTip('Search Operation Queued'));
-      dispatch(addStatusEntry({ level: 'info', message: 'Search: Starting...' }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.searchStarting') }));
       const discordService = getDiscordService();
 
       const response = await discordService.fetchSearchMessageData(
@@ -1292,7 +1293,7 @@ export const searchMessages = createAsyncThunk(
       if (response.data.doing_deep_historical_index && rawMessages.length === 0) {
         dispatch(addStatusEntry({
           level: 'warning',
-          message: 'Discord is still indexing this conversation; search may return nothing until indexing finishes. Try again in a little while.',
+          message: t('status.msg.stillIndexing'),
         }));
       }
 
@@ -1312,7 +1313,7 @@ export const searchMessages = createAsyncThunk(
           },
           onWillEnrich: (count) => dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchFetchingReactions', { count }),
           })),
         },
       );
@@ -1332,7 +1333,7 @@ export const searchMessages = createAsyncThunk(
           },
           onWillEnrich: (count) => dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchResolvingReplies', { count }),
           })),
         },
       );
@@ -1340,7 +1341,7 @@ export const searchMessages = createAsyncThunk(
       dispatch(
         addStatusEntry({
           level: 'success',
-          message: `Search: found ${messages.length} of ${totalResults} results`,
+          message: t('status.msg.searchFound', { count: messages.length, total: totalResults }),
         })
       );
 
@@ -1428,7 +1429,7 @@ export const fetchNextSearchPage = createAsyncThunk(
           },
           onWillEnrich: (count) => dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchFetchingReactions', { count }),
           })),
         },
       );
@@ -1444,7 +1445,7 @@ export const fetchNextSearchPage = createAsyncThunk(
           },
           onWillEnrich: (count) => dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchResolvingReplies', { count }),
           })),
         },
       );
@@ -1556,7 +1557,7 @@ export const loadAllSearchResults = createAsyncThunk(
         dispatch(
           addStatusEntry({
             level: 'info',
-            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchFetchingReactions', { count }),
           })
         );
         reactionAnnounced = true;
@@ -1567,7 +1568,7 @@ export const loadAllSearchResults = createAsyncThunk(
         dispatch(
           addStatusEntry({
             level: 'info',
-            message: `Search: enriched reactions for ${reactionTotal} messages so far`,
+            message: t('status.msg.searchEnrichedSoFar', { count: reactionTotal }),
           })
         );
         reactionMilestone = nextMilestone(reactionTotal);
@@ -1584,7 +1585,7 @@ export const loadAllSearchResults = createAsyncThunk(
         dispatch(
           addStatusEntry({
             level: 'info',
-            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchResolvingReplies', { count }),
           })
         );
         replyAnnounced = true;
@@ -1595,7 +1596,7 @@ export const loadAllSearchResults = createAsyncThunk(
         dispatch(
           addStatusEntry({
             level: 'info',
-            message: `Search: resolved reply parents for ${replyTotal} messages so far`,
+            message: t('status.msg.searchResolvedSoFar', { count: replyTotal }),
           })
         );
         replyMilestone = nextMilestone(replyTotal);
@@ -1658,7 +1659,7 @@ export const loadAllSearchResults = createAsyncThunk(
                 );
                 dispatch(addStatusEntry({
                   level: 'warning',
-                  message: `Search Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${transientRetries}/5)`,
+                  message: t('status.msg.searchLoadAllRetry', { seconds: Math.round(delayMs / 1000), attempt: transientRetries }),
                 }));
                 const cancelled = await cancellableDelay(
                   delayMs,
@@ -1673,7 +1674,7 @@ export const loadAllSearchResults = createAsyncThunk(
               dispatch(setDiscrubPaused(true));
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Search Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${aggregated.length} messages loaded.`,
+                message: t('status.msg.searchLoadAllPaused', { count: aggregated.length }),
               }));
               await waitWhilePaused(getState as () => RootState);
               if (checkCancelled(getState as () => RootState)) {
@@ -1706,7 +1707,7 @@ export const loadAllSearchResults = createAsyncThunk(
           if (pageResult.incomplete) {
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Search Load All stopped at ${aggregated.length} of ${pageResult.totalResults} matches; Discord stopped serving new results before the reported total, so some matches may be missing.`,
+              message: t('status.msg.searchLoadAllStopped', { count: aggregated.length, total: pageResult.totalResults }),
             }));
             continue;
           }
@@ -1780,7 +1781,7 @@ export const loadAllSearchResults = createAsyncThunk(
             updateLoadAllProgress({
               current: aggregated.length,
               total: grandTotal,
-              message: `Search: fetched ${aggregated.length} of ${grandTotal} results`,
+              message: t('status.msg.searchFetched', { count: aggregated.length, total: grandTotal }),
             })
           );
 
@@ -1788,7 +1789,7 @@ export const loadAllSearchResults = createAsyncThunk(
             dispatch(
               addStatusEntry({
                 level: 'info',
-                message: `Search: fetched ${aggregated.length} of ${grandTotal} results`,
+                message: t('status.msg.searchFetched', { count: aggregated.length, total: grandTotal }),
               })
             );
             milestoneBoundary = nextMilestone(aggregated.length);
@@ -1804,7 +1805,7 @@ export const loadAllSearchResults = createAsyncThunk(
         dispatch(
           addStatusEntry({
             level: 'info',
-            message: `Search: enriched reactions for ${reactionTotal} message${reactionTotal === 1 ? '' : 's'} total`,
+            message: t('status.msg.searchEnrichedTotal', { count: reactionTotal }),
           })
         );
       }
@@ -1849,7 +1850,7 @@ export const fetchAllMessages = createAsyncThunk(
   ) => {
     try {
       dispatch(showOperationTip('Load All Operation Queued'));
-      dispatch(addStatusEntry({ level: 'info', message: 'Load All: Starting...' }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loadAllStarting') }));
       const discordService = getDiscordService();
 
       // Get delay settings once at start
@@ -1882,7 +1883,7 @@ export const fetchAllMessages = createAsyncThunk(
             onRetry: (attempt, delayMs) => {
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+                message: t('status.msg.loadAllRetry', { seconds: Math.round(delayMs / 1000), attempt }),
               }));
             },
           },
@@ -1893,7 +1894,7 @@ export const fetchAllMessages = createAsyncThunk(
             dispatch(setDiscrubPaused(true));
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${allMessages.length} messages fetched.`,
+              message: t('status.msg.loadAllPaused', { count: allMessages.length }),
             }));
             continue;
           }
@@ -1911,12 +1912,12 @@ export const fetchAllMessages = createAsyncThunk(
           updateLoadAllProgress({
             current: allMessages.length,
             total: 0, // Unknown until we reach the end
-            message: `Loaded ${allMessages.length} messages...`,
+            message: t('status.msg.loadedProgress', { count: allMessages.length }),
           })
         );
 
         if (allMessages.length >= nextLogBoundary) {
-          dispatch(addStatusEntry({ level: 'info', message: `Load All: ${allMessages.length} messages fetched` }));
+          dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loadAllFetched', { count: allMessages.length }) }));
           nextLogBoundary = allMessages.length + 500 - (allMessages.length % 500);
         }
 
@@ -1939,7 +1940,7 @@ export const fetchAllMessages = createAsyncThunk(
         return rejectWithValue('Load cancelled');
       }
 
-      dispatch(addStatusEntry({ level: 'success', message: `Load All complete: ${allMessages.length} messages` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.msg.loadAllComplete', { count: allMessages.length }) }));
       return {
         messages: allMessages,
         hasMore: false,
@@ -2069,7 +2070,7 @@ export const openThreadTab = createAsyncThunk(
       }));
       dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
 
-      dispatch(addStatusEntry({ level: 'info', message: `Thread loaded: ${messages.length} messages` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.threadLoaded', { count: messages.length }) }));
 
       return { threadId, alreadyOpen: false };
     } catch (error) {
@@ -2107,7 +2108,7 @@ export const navigateToMessage = createAsyncThunk(
     if (!found) {
       dispatch(showToast({
         level: 'info',
-        message: "That message isn't in the current view",
+        message: t('status.msg.notInView'),
         duration: 4000,
       }));
       return { found: false };
@@ -2180,10 +2181,9 @@ export const applyUserFilter = createAsyncThunk(
       }));
     }
 
-    const verb = mode === 'author' ? 'from' : 'mentioning';
     dispatch(showToast({
       level: 'info',
-      message: `Showing messages ${verb} ${displayName}`,
+      message: t('status.msg.showingMessages', { name: displayName, context: mode === 'author' ? 'author' : 'mentions' }),
       duration: 3000,
     }));
 
@@ -2243,7 +2243,7 @@ export const fetchMoreThreadMessages = createAsyncThunk(
         },
       }));
 
-      dispatch(addStatusEntry({ level: 'info', message: `Loaded ${newMessages.length} more messages` }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loadedMore', { count: newMessages.length }) }));
 
       return { threadId, count: newMessages.length };
     } catch (error) {
@@ -2275,13 +2275,13 @@ export const fetchAllThreadMessages = createAsyncThunk(
   ) => {
     try {
       dispatch(showOperationTip('Load All Operation Queued'));
-      dispatch(addStatusEntry({ level: 'info', message: 'Load All: Starting...' }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loadAllStarting') }));
       dispatch(messageSlice.actions.updateThreadPagination({
         threadId,
         pagination: {
           isLoadingAll: true,
           mode: 'all',
-          loadAllProgress: { current: 0, total: 0, message: 'Starting to load all messages...' },
+          loadAllProgress: { current: 0, total: 0, message: t('status.msg.startingLoadAll') },
         },
       }));
 
@@ -2313,7 +2313,7 @@ export const fetchAllThreadMessages = createAsyncThunk(
             onRetry: (attempt, delayMs) => {
               dispatch(addStatusEntry({
                 level: 'warning',
-                message: `Load All: connection failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+                message: t('status.msg.loadAllRetry', { seconds: Math.round(delayMs / 1000), attempt }),
               }));
             },
           },
@@ -2324,7 +2324,7 @@ export const fetchAllThreadMessages = createAsyncThunk(
             dispatch(setDiscrubPaused(true));
             dispatch(addStatusEntry({
               level: 'warning',
-              message: `Load All: paused after 5 failed retries. Check your connection, then click Resume to continue from ${allMessages.length} messages fetched.`,
+              message: t('status.msg.loadAllPaused', { count: allMessages.length }),
             }));
             continue;
           }
@@ -2344,13 +2344,13 @@ export const fetchAllThreadMessages = createAsyncThunk(
             loadAllProgress: {
               current: allMessages.length,
               total: 0,
-              message: `Loaded ${allMessages.length} messages...`,
+              message: t('status.msg.loadedProgress', { count: allMessages.length }),
             },
           },
         }));
 
         if (allMessages.length >= nextLogBoundary) {
-          dispatch(addStatusEntry({ level: 'info', message: `Load All: ${allMessages.length} messages fetched` }));
+          dispatch(addStatusEntry({ level: 'info', message: t('status.msg.loadAllFetched', { count: allMessages.length }) }));
           nextLogBoundary = allMessages.length + 500 - (allMessages.length % 500);
         }
 
@@ -2388,7 +2388,7 @@ export const fetchAllThreadMessages = createAsyncThunk(
         },
       }));
 
-      dispatch(addStatusEntry({ level: 'success', message: `Load All complete: ${allMessages.length} messages` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.msg.loadAllComplete', { count: allMessages.length }) }));
       return { threadId, count: allMessages.length };
     } catch (error) {
       dispatch(messageSlice.actions.updateThreadPagination({
@@ -2421,13 +2421,13 @@ export const searchThreadMessages = createAsyncThunk(
   ) => {
     try {
       dispatch(showOperationTip('Search Operation Queued'));
-      dispatch(addStatusEntry({ level: 'info', message: 'Search: Starting...' }));
+      dispatch(addStatusEntry({ level: 'info', message: t('status.msg.searchStarting') }));
       dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: true }));
       dispatch(messageSlice.actions.updateThreadPagination({
         threadId,
         pagination: {
           mode: 'search',
-          loadAllProgress: { current: 0, total: 0, message: 'Searching messages...' },
+          loadAllProgress: { current: 0, total: 0, message: t('status.msg.searchingMessages') },
         },
       }));
 
@@ -2450,7 +2450,7 @@ export const searchThreadMessages = createAsyncThunk(
         if (!reactionAnnounced) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: fetching reaction data for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchFetchingReactions', { count }),
           }));
           reactionAnnounced = true;
           reactionMilestone = nextMilestone(reactionTotal);
@@ -2459,7 +2459,7 @@ export const searchThreadMessages = createAsyncThunk(
         if (reactionTotal >= reactionMilestone) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: enriched reactions for ${reactionTotal} messages so far`,
+            message: t('status.msg.searchEnrichedSoFar', { count: reactionTotal }),
           }));
           reactionMilestone = nextMilestone(reactionTotal);
         }
@@ -2474,7 +2474,7 @@ export const searchThreadMessages = createAsyncThunk(
         if (!replyAnnounced) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: resolving reply parents for ${count} message${count === 1 ? '' : 's'}…`,
+            message: t('status.msg.searchResolvingReplies', { count }),
           }));
           replyAnnounced = true;
           replyMilestone = nextMilestone(replyTotal);
@@ -2483,7 +2483,7 @@ export const searchThreadMessages = createAsyncThunk(
         if (replyTotal >= replyMilestone) {
           dispatch(addStatusEntry({
             level: 'info',
-            message: `Search: resolved reply parents for ${replyTotal} messages so far`,
+            message: t('status.msg.searchResolvedSoFar', { count: replyTotal }),
           }));
           replyMilestone = nextMilestone(replyTotal);
         }
@@ -2567,13 +2567,13 @@ export const searchThreadMessages = createAsyncThunk(
               loadAllProgress: {
                 current: fetched,
                 total,
-                message: `Search: fetched ${fetched} of ${total} results`,
+                message: t('status.msg.searchFetched', { count: fetched, total }),
               },
             },
           }));
 
           if (fetched >= milestoneBoundary) {
-            dispatch(addStatusEntry({ level: 'info', message: `Search: fetched ${fetched} of ${total} results` }));
+            dispatch(addStatusEntry({ level: 'info', message: t('status.msg.searchFetched', { count: fetched, total }) }));
             milestoneBoundary = nextMilestone(fetched);
           }
 
@@ -2636,10 +2636,10 @@ export const searchThreadMessages = createAsyncThunk(
       if (reactionAnnounced) {
         dispatch(addStatusEntry({
           level: 'info',
-          message: `Search: enriched reactions for ${reactionTotal} message${reactionTotal === 1 ? '' : 's'} total`,
+          message: t('status.msg.searchEnrichedTotal', { count: reactionTotal }),
         }));
       }
-      dispatch(addStatusEntry({ level: 'success', message: `Search complete: ${allMessages.length} results found` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('status.msg.searchComplete', { count: allMessages.length }) }));
       return { threadId, count: allMessages.length };
     } catch (error) {
       dispatch(messageSlice.actions.setThreadLoading({ threadId, isLoading: false }));
@@ -3101,7 +3101,7 @@ const messageSlice = createSlice({
         state.pagination.loadAllProgress = {
           current: 0,
           total: 0,
-          message: 'Starting to load all messages...',
+          message: t('status.msg.startingLoadAll'),
         };
         state.pagination.mode = 'all';
         state.error = null;
@@ -3221,7 +3221,7 @@ const messageSlice = createSlice({
         state.pagination.loadAllProgress = {
           current: state.messages.length,
           total: state.pagination.totalCount ?? 0,
-          message: 'Loading all search results...',
+          message: t('status.msg.loadingAllSearchResults'),
         };
       })
       .addCase(loadAllSearchResults.fulfilled, (state, action) => {
