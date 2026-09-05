@@ -1,9 +1,21 @@
 export type PurgeMode = 'messages' | 'reactions' | 'clearReactions';
 
+/**
+ * #255 — set when a purge is running across several servers. Carried on
+ * the bulk progress so the operation label and status bar can show
+ * "Server 2/5 · Channel 3/12".
+ */
+export interface ServerPurgeContext {
+  name: string;
+  index: number;
+  total: number;
+}
+
 export interface BulkPurgeContext {
   currentIndex: number;
   totalChannels: number;
   currentChannelName: string;
+  server?: ServerPurgeContext;
   completedStats: {
     deleted: number;
     skipped: number;

@@ -232,7 +232,7 @@ describe('ServerList', () => {
       expect(screen.getByTestId('multi-select-copy')).toBeInTheDocument();
     });
 
-    it('does not render Export or Purge buttons in server multi-select (v1 scope)', () => {
+    it('renders Purge but not Export in server multi-select (#255)', () => {
       renderWithProviders(<ServerList />, {
         preloadedState: createBaseState({
           auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
@@ -241,7 +241,23 @@ describe('ServerList', () => {
       });
       fireEvent.click(screen.getByLabelText('Toggle multi-select'));
       expect(screen.queryByTestId('multi-select-export')).toBeNull();
-      expect(screen.queryByTestId('multi-select-purge')).toBeNull();
+      // #255: Purge is available for servers; Export is still single-server.
+      expect(screen.getByTestId('multi-select-purge')).toBeInTheDocument();
+      expect(screen.getByLabelText('Purge selected servers')).toBeInTheDocument();
+    });
+
+    it('opens the server purge dialog from the multi-select Purge button (#255)', () => {
+      renderWithProviders(<ServerList />, {
+        preloadedState: createBaseState({
+          auth: { token: 'test-token', isAuthenticated: true, isLoading: false, error: null, manuallyLoggedOut: false, isRestoring: false, tokenRemembered: false },
+          guild: { ...baseGuildState, selectedGuilds: [guilds[0], guilds[2]] },
+        }),
+      });
+      fireEvent.click(screen.getByLabelText('Toggle multi-select'));
+      fireEvent.click(screen.getByTestId('multi-select-purge'));
+      expect(screen.getByText('Purge Servers')).toBeInTheDocument();
+      expect(screen.getByText('2 selected')).toBeInTheDocument();
+      expect(screen.getByText(/Alpha Server, Gamma Server/)).toBeInTheDocument();
     });
 
     it('copies only currently-selected names and dispatches a toast', () => {

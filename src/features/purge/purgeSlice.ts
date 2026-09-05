@@ -1,9 +1,9 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
-import type { Message, Channel, Emoji } from 'discrub-core/types/discord-types';
+import { createSlice, createAsyncThunk, PayloadAction, type ThunkDispatch, type UnknownAction } from '@reduxjs/toolkit';
+import type { Message, Channel, Emoji, Guild } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { ChannelType, IsPinnedType, ReactionType, QueryStringParam } from 'discrub-core/discord-enum';
 import { initialPurgeState } from './purgeTypes';
-import type { PurgeProgress, PurgeConfig, BulkPurgeContext } from './purgeTypes';
+import type { PurgeProgress, PurgeConfig, PurgeMode, BulkPurgeContext, ServerPurgeContext } from './purgeTypes';
 import type { RootState } from '@/app/store';
 import { selectCurrentUser } from '@features/user/userSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
@@ -24,6 +24,8 @@ import { applyRefineCriteria, criteriaIsActive, messageHasFileOrLink } from '@fe
 import { nextMilestone } from '@utils/searchPagination';
 import { isDeletedUserEntry } from '@utils/userDisplayUtils';
 import { dropInvalidDate } from '@utils/dateValidation';
+import { isMessageChannel } from '@utils/channelTypeUtils';
+import { canAccessChannel } from '@/utils/permissionUtils';
 
 /** Progress throttle — dispatch progress every N messages in messages mode */
 const PROGRESS_THROTTLE_MESSAGES = 10;
@@ -1766,31 +1768,56 @@ interface BulkPurgeParams {
   searchCriteria?: SearchCriteria | null;
 }
 
+interface BulkPurgeApi {
+  dispatch: ThunkDispatch<RootState, unknown, UnknownAction>;
+  getState: () => RootState;
+}
+
+interface BulkPurgeRunResult {
+  errors: string[];
+  cancelled: boolean;
+  completedStats: {
+    deleted: number;
+    skipped: number;
+    editedAttachmentsOnly: number;
+    failed: number;
+    reactionsRemoved: number;
+  };
+}
+
+const purgeModeLabel = (mode: PurgeMode) =>
+  mode === 'clearReactions' ? 'Clear all reactions' : mode === 'reactions' ? 'Reaction purge' : 'Purge';
+
 /**
- * Bulk purge channels (server context).
- * Processes channels sequentially with pause/cancel support.
+ * The channel walk shared by `bulkPurgeChannels`, `bulkPurgeDMs` and the
+ * multi-server `purgeGuilds` (#255). Runs every channel sequentially with
+ * pause/cancel support and returns the aggregate; the thunks own the
+ * lifecycle (pending/fulfilled/rejected) so one operation stays one
+ * operation however many servers it spans. Throws before any request when
+ * the run cannot start (no token, no target users); the thunks turn that
+ * into a rejection.
  */
-export const bulkPurgeChannels = createAsyncThunk<
-  { success: true; errors?: string[] },
-  BulkPurgeParams,
-  { state: RootState; rejectValue: string }
->(
-  'purge/bulkPurgeChannels',
-  async (params, { rejectWithValue, dispatch, getState }) => {
+const executeBulkPurge = async (
+  params: BulkPurgeParams,
+  { dispatch, getState }: BulkPurgeApi,
+  serverContext?: ServerPurgeContext,
+): Promise<BulkPurgeRunResult> => {
     const { channels, config, guildId, searchCriteria: filterCriteria } = params;
     const { mode, targetUserIds, retainAttachedMedia, deleteAttachmentsOnly, systemMessageTypesToDelete, skipArchivedThreads, preserveMediaAndLinks } = config;
     const errors: string[] = [];
     const isDm = !guildId;
     const isReactionsMode = mode === 'reactions';
     const isClearReactionsMode = mode === 'clearReactions';
-    const modeLabel = isClearReactionsMode ? 'Clear all reactions' : isReactionsMode ? 'Reaction purge' : 'Purge';
+    const modeLabel = purgeModeLabel(mode);
 
-    dispatch(showOperationTip('Purge Operation Queued'));
+    if (!serverContext) {
+      dispatch(showOperationTip('Purge Operation Queued'));
+    }
 
     // Snapshot delay settings at start
     const initialState = getState();
     const token = selectAuthToken(initialState);
-    if (!token) return rejectWithValue('Not authenticated');
+    if (!token) throw new Error('Not authenticated');
 
     const searchDelay = selectSearchDelay(initialState);
     const deleteDelay = selectDeleteDelay(initialState);
@@ -1803,7 +1830,7 @@ export const bulkPurgeChannels = createAsyncThunk<
       : targetUserIds;
 
     if (effectiveUserIds.length === 0 && !isClearReactionsMode) {
-      return rejectWithValue('No target users specified');
+      throw new Error('No target users specified');
     }
 
     // Accumulated stats across all channels
@@ -1817,7 +1844,9 @@ export const bulkPurgeChannels = createAsyncThunk<
 
     dispatch(addStatusEntry({
       level: 'info',
-      message: `${modeLabel}: Starting operation across ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}`,
+      message: serverContext
+        ? `${modeLabel}: ${serverContext.name} · ${channels.length} channel${channels.length !== 1 ? 's' : ''} to process`
+        : `${modeLabel}: Starting operation across ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}`,
     }));
 
     try {
@@ -1847,6 +1876,7 @@ export const bulkPurgeChannels = createAsyncThunk<
           totalChannels: channels.length,
           currentChannelName: channelName,
           completedStats: { ...completedStats },
+          ...(serverContext ? { server: serverContext } : {}),
         };
 
         const channelThreads = threadMap?.get(channel.id);
@@ -2252,15 +2282,16 @@ export const bulkPurgeChannels = createAsyncThunk<
         //   "Reaction purge: Starting operation across 8 channels"   (start)
         //   "Reaction purge: Completed #general — 3 reactions removed" (per-ch)
         //   "Reaction purge: Complete — 8 channels, 7 reactions removed" (final)
+        const completeLabel = serverContext ? `${serverContext.name} complete` : 'Complete';
         if (isReactionsMode) {
           dispatch(addStatusEntry({
             level: 'success',
-            message: `${modeLabel}: Complete · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${completedStats.reactionsRemoved} reactions removed`,
+            message: `${modeLabel}: ${completeLabel} · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${completedStats.reactionsRemoved} reactions removed`,
           }));
         } else {
           dispatch(addStatusEntry({
             level: 'success',
-            message: `${modeLabel}: Complete · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${totalDetail}`,
+            message: `${modeLabel}: ${completeLabel} · ${channels.length} ${isDm ? 'conversation' : 'channel'}${channels.length !== 1 ? 's' : ''}, ${totalDetail}`,
           }));
         }
 
@@ -2280,17 +2311,190 @@ export const bulkPurgeChannels = createAsyncThunk<
         }
       }
 
-      if (errors.length > 0) {
-        return { success: true, errors };
-      }
-      return { success: true };
+      return { errors, cancelled: wasCancelled, completedStats };
     } catch (error) {
       dispatch(addStatusEntry({
         level: 'error',
         message: `${modeLabel} failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
       }));
+      throw error;
+    }
+};
+
+/**
+ * Bulk purge channels (server context).
+ * Processes channels sequentially with pause/cancel support.
+ */
+export const bulkPurgeChannels = createAsyncThunk<
+  { success: true; errors?: string[] },
+  BulkPurgeParams,
+  { state: RootState; rejectValue: string }
+>(
+  'purge/bulkPurgeChannels',
+  async (params, { rejectWithValue, dispatch, getState }) => {
+    try {
+      const { errors } = await executeBulkPurge(params, { dispatch, getState });
+      return errors.length > 0 ? { success: true, errors } : { success: true };
+    } catch (error) {
       return rejectWithValue(
         error instanceof Error ? error.message : 'Failed to bulk purge',
+      );
+    }
+  },
+);
+
+export interface PurgeGuildsParams {
+  guilds: Guild[];
+  config: PurgeConfig;
+  searchCriteria?: SearchCriteria | null;
+}
+
+/**
+ * Multi-server purge (#255). For each selected server, in order: load its
+ * channel list, keep the message-bearing channels the user can read, then
+ * run the same per-channel walk single-server purges use. One operation
+ * (one pending/fulfilled), one pause/cancel, the same pacing per request.
+ * A server whose channels cannot be loaded is reported and skipped; the
+ * run continues with the next one. Cancel finishes the current channel
+ * and stops.
+ */
+export const purgeGuilds = createAsyncThunk<
+  { success: true; errors?: string[] },
+  PurgeGuildsParams,
+  { state: RootState; rejectValue: string }
+>(
+  'purge/purgeGuilds',
+  async ({ guilds, config, searchCriteria }, { rejectWithValue, dispatch, getState, signal }) => {
+    const modeLabel = purgeModeLabel(config.mode);
+    const initialState = getState();
+    const token = selectAuthToken(initialState);
+    if (!token) return rejectWithValue('Not authenticated');
+    const currentUserId = selectCurrentUser(initialState)?.id;
+    if (guilds.length === 0) return rejectWithValue('No servers selected');
+    if (config.targetUserIds.length === 0 && config.mode !== 'clearReactions') {
+      return rejectWithValue('No target users specified');
+    }
+
+    dispatch(showOperationTip('Purge Operation Queued'));
+    dispatch(addStatusEntry({
+      level: 'info',
+      message: `${modeLabel}: Starting operation across ${guilds.length} server${guilds.length !== 1 ? 's' : ''}`,
+    }));
+
+    const searchDelay = selectSearchDelay(initialState);
+    const delayModifier = selectDelayModifier(initialState);
+    const discordService = getDiscordService();
+    const errors: string[] = [];
+    const totals = { deleted: 0, skipped: 0, editedAttachmentsOnly: 0, failed: 0, reactionsRemoved: 0 };
+    let serversProcessed = 0;
+    let cancelled = false;
+
+    try {
+      for (let i = 0; i < guilds.length; i++) {
+        await waitWhilePaused(getState);
+        if (checkCancelled(getState)) { cancelled = true; break; }
+
+        const guild = guilds[i];
+        const serverContext: ServerPurgeContext = { name: guild.name, index: i, total: guilds.length };
+        dispatch(addStatusEntry({
+          level: 'info',
+          message: `${modeLabel}: Server ${i + 1} of ${guilds.length} · ${guild.name}`,
+        }));
+
+        // Channel discovery. Transient failures retry with backoff; a hard
+        // failure (403 on a server the token cannot see any more, etc.)
+        // is recorded and the run moves on.
+        const channelsResponse = await withTransientRetry(
+          () => discordService.fetchChannels(token, guild.id),
+          {
+            getState,
+            signal,
+            onRetry: (attempt, delayMs) => {
+              dispatch(addStatusEntry({
+                level: 'warning',
+                message: `${modeLabel}: ${guild.name} · loading channels failed, retrying in ${Math.round(delayMs / 1000)}s (attempt ${attempt}/5)`,
+              }));
+            },
+          },
+        );
+        if (!channelsResponse.success || !channelsResponse.data) {
+          const detail = `could not load channels (HTTP ${channelsResponse.status ?? 'unknown'})`;
+          errors.push(`${guild.name}: ${detail}`);
+          dispatch(addStatusEntry({ level: 'error', message: `${modeLabel}: ${guild.name} · ${detail}, skipped` }));
+          continue;
+        }
+
+        // Member roles feed the per-channel permission check (overwrites).
+        // A miss is not fatal: canAccessChannel falls back to the guild
+        // level permissions the guild list already carries.
+        let memberRoles: string[] = [];
+        if (currentUserId) {
+          const memberResponse = await withTransientRetry(
+            () => discordService.fetchGuildUser(guild.id, currentUserId, token),
+            { getState, signal, maxRetries: 2 },
+          );
+          if (memberResponse.success && memberResponse.data) {
+            memberRoles = memberResponse.data.roles ?? [];
+          }
+        }
+
+        const channels = (channelsResponse.data as Channel[]).filter(
+          (channel) =>
+            isMessageChannel(channel)
+            && canAccessChannel(guild.permissions, memberRoles, channel, guild.id, currentUserId),
+        );
+        if (channels.length === 0) {
+          dispatch(addStatusEntry({ level: 'info', message: `${modeLabel}: ${guild.name} · no readable channels, skipped` }));
+          serversProcessed += 1;
+          continue;
+        }
+
+        // A failure that escapes the channel walk (its own per-channel
+        // handling covers the usual cases) must not end the whole run:
+        // record it against the server and continue with the next one.
+        let result: BulkPurgeRunResult;
+        try {
+          result = await executeBulkPurge(
+            { channels, config, guildId: guild.id, searchCriteria },
+            { dispatch, getState },
+            serverContext,
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : 'Unknown error';
+          errors.push(`${guild.name}: ${detail}`);
+          dispatch(addStatusEntry({ level: 'error', message: `${modeLabel}: ${guild.name} · stopped early, ${detail}` }));
+          continue;
+        }
+        serversProcessed += 1;
+        errors.push(...result.errors.map((e) => `${guild.name} › ${e}`));
+        totals.deleted += result.completedStats.deleted;
+        totals.skipped += result.completedStats.skipped;
+        totals.editedAttachmentsOnly += result.completedStats.editedAttachmentsOnly;
+        totals.failed += result.completedStats.failed;
+        totals.reactionsRemoved += result.completedStats.reactionsRemoved;
+        if (result.cancelled) { cancelled = true; break; }
+
+        // Delay between servers — same cadence as between channels.
+        if (i < guilds.length - 1) {
+          const delayCalc = calculateRandomDelay(searchDelay, delayModifier);
+          const wasCancelled = await cancellableDelay(delayCalc.delayMs, getState);
+          if (wasCancelled) { cancelled = true; break; }
+        }
+      }
+
+      const detail = config.mode === 'messages'
+        ? formatPurgeDetail(totals.deleted, totals.skipped, totals.editedAttachmentsOnly, totals.failed, 'messages')
+        : `${totals.reactionsRemoved} reactions removed`;
+      const serverCount = `${serversProcessed} of ${guilds.length} server${guilds.length !== 1 ? 's' : ''}`;
+      if (cancelled || checkCancelled(getState)) {
+        dispatch(addStatusEntry({ level: 'warning', message: `${modeLabel}: Cancelled · ${serverCount}, ${detail}` }));
+      } else {
+        dispatch(addStatusEntry({ level: 'success', message: `${modeLabel}: Complete · ${serverCount}, ${detail}` }));
+      }
+      return errors.length > 0 ? { success: true, errors } : { success: true };
+    } catch (error) {
+      return rejectWithValue(
+        error instanceof Error ? error.message : 'Failed to purge servers',
       );
     }
   },
@@ -2363,6 +2567,21 @@ const purgeSlice = createSlice({
         state.channelErrorCount = action.payload.errors?.length ?? 0;
       })
       .addCase(bulkPurgeDMs.rejected, (state, action) => {
+        state.isPurging = false;
+        state.purgeError = action.payload as string;
+      })
+      // Multi-server purge (#255) — one lifecycle for the whole run
+      .addCase(purgeGuilds.pending, (state) => {
+        state.isPurging = true;
+        state.purgeError = null;
+        state.purgeProgress = null;
+        state.channelErrorCount = 0;
+      })
+      .addCase(purgeGuilds.fulfilled, (state, action) => {
+        state.isPurging = false;
+        state.channelErrorCount = action.payload.errors?.length ?? 0;
+      })
+      .addCase(purgeGuilds.rejected, (state, action) => {
         state.isPurging = false;
         state.purgeError = action.payload as string;
       });

@@ -107,6 +107,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Progress Visibility | Static counter | Status log progress label pulses on each update with adaptive milestones (5 / 25 / 100) so progress is always obvious |
 | Deleted Accounts | Search finds nothing, so nothing is purged | Detects the empty search, warns you, and falls back to a full message-history scan so a deleted user's messages are still removed |
 | Dropped Connection Mid-Scan | Scan ended quietly | Page fetch retried with backoff; a scan that still can't continue is reported as incomplete instead of finishing silently |
+| Multi-Server Purge | No | Select servers in the server list and purge your own messages from every readable channel in each, one operation with per-server progress, pause, and cancel |
+| Rate-Limit Storms | Waited forever | Five 429s in a row, or a retry_after past 60 seconds, stop the operation with a clear status-log line instead of pausing for Resume |
 
 ### Search Improvements
 

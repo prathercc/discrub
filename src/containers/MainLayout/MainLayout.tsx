@@ -28,7 +28,8 @@ import {
 import { selectIsExporting, selectExportError, resetExport } from '@features/export/exportSlice';
 import { selectIsPurging, selectPurgeError, selectPurgeChannelErrorCount } from '@features/purge/purgeSlice';
 import { showToast } from '@features/status/statusSlice';
-import { setDiscrubCancelled, setDiscrubPaused } from '@features/app/appSlice';
+import { RATE_LIMIT_STOP_TOAST } from '@/constants/rateLimitMessages';
+import { setDiscrubCancelled, setDiscrubPaused, setRateLimitStopped, selectRateLimitStopped } from '@features/app/appSlice';
 import { selectIsOperationRunning } from '@features/app/operationSelectors';
 import { selectSelectedChannel } from '@features/channel/channelSlice';
 import { selectSelectedDm } from '@features/dm/dmSlice';
@@ -89,6 +90,7 @@ const MainLayout = () => {
   const purgeError = useAppSelector(selectPurgeError);
   const purgeChannelErrorCount = useAppSelector(selectPurgeChannelErrorCount);
   const isOperationRunning = useAppSelector(selectIsOperationRunning);
+  const rateLimitStopped = useAppSelector(selectRateLimitStopped);
   const prevIsExporting = useRef(false);
   const prevIsPurging = useRef(false);
   const prevIsOperationRunning = useRef(false);
@@ -127,14 +129,20 @@ const MainLayout = () => {
     prevIsPurging.current = isPurging;
   }, [isPurging, purgeError, purgeChannelErrorCount, dispatch]);
 
-  // Reset pause/cancel flags when any operation completes
+  // Reset pause/cancel flags when any operation completes. Runs after the
+  // per-operation completion effects above, so when the run was stopped
+  // by a rate-limit storm (#254) this toast is the one the user keeps.
   useEffect(() => {
     if (prevIsOperationRunning.current && !isOperationRunning) {
       dispatch(setDiscrubCancelled(false));
       dispatch(setDiscrubPaused(false));
+      if (rateLimitStopped) {
+        dispatch(setRateLimitStopped(false));
+        dispatch(showToast({ level: 'error', message: RATE_LIMIT_STOP_TOAST, duration: 15000 }));
+      }
     }
     prevIsOperationRunning.current = isOperationRunning;
-  }, [isOperationRunning, dispatch]);
+  }, [isOperationRunning, rateLimitStopped, dispatch]);
 
   // Shell tour is user-initiated (via WelcomePanel "Take a Tour"),
   // so we DON'T mark it completed on a missing target — let the user

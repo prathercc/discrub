@@ -543,6 +543,30 @@ describe('operationSelectors', () => {
       });
     });
 
+    it('prefixes the server position and spreads progress across servers for a multi-server purge (#255)', () => {
+      const progress: PurgeProgress = {
+        processed: 25,
+        deleted: 10,
+        skipped: 15,
+        editedAttachmentsOnly: 0,
+        reactionsRemoved: 0,
+        bulk: {
+          currentIndex: 1,
+          totalChannels: 4,
+          currentChannelName: 'general',
+          completedStats: { deleted: 40, skipped: 20, editedAttachmentsOnly: 0, reactionsRemoved: 0 },
+          server: { name: 'Beta', index: 2, total: 5 },
+        },
+      };
+      const state = createBaseState({
+        purge: { ...createBaseState().purge, isPurging: true, purgeProgress: progress },
+      });
+      const summary = selectOperationSummary(state);
+      expect(summary.label).toBe('Purging... Server 3/5 Beta · Channel 2/4: general · 25 processed (50 deleted)');
+      // (2 servers done + 1/4 of the third) / 5 = 45%
+      expect(summary.progress).toBe(45);
+    });
+
     it('should return bulk purge reactions label with scanned and removed counts', () => {
       const progress: PurgeProgress = {
         processed: 100,

@@ -40,6 +40,7 @@ import ListSkeleton from '@components/ui/ListSkeleton';
 import EmptyState from '@components/ui/EmptyState';
 import TourButton from '@components/welcome/TourButton';
 import MultiSelectControls from './MultiSelectControls';
+import BulkPurgeDialog from '@containers/PurgeView/BulkPurgeDialog';
 
 const PAGE_SIZE = 50;
 
@@ -59,6 +60,8 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
   const token = useAppSelector(selectAuthToken);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
+  // #255 — multi-server purge dialog
+  const [serverPurgeOpen, setServerPurgeOpen] = useState(false);
 
   // Filter guilds by name
   const filteredGuilds = useMemo(() => {
@@ -204,8 +207,17 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
               : selectAllGuilds(filteredGuilds),
           )
         }
+        onPurge={() => setServerPurgeOpen(true)}
         onCopyNames={handleCopySelectedNames}
         noun="servers"
+      />
+
+      <BulkPurgeDialog
+        open={serverPurgeOpen}
+        onClose={() => setServerPurgeOpen(false)}
+        channels={[]}
+        guilds={selectedGuilds}
+        mode="servers"
       />
 
       <List>

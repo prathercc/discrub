@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import purgeReducer, {
+  purgeGuilds,
   setPurgeProgress,
   resetPurge,
   selectPurge,
@@ -257,6 +258,28 @@ describe('purgeSlice', () => {
       expect(selectIsPurging(store.getState())).toBe(false);
       expect(selectPurgeProgress(store.getState())).toBeNull();
       expect(selectPurgeError(store.getState())).toBeNull();
+    });
+  });
+
+  describe('purgeGuilds lifecycle (#255)', () => {
+    it('marks purging on pending and clears progress, error, and error count', () => {
+      store.dispatch(setPurgeProgress({ processed: 1, deleted: 1, skipped: 0, editedAttachmentsOnly: 0, reactionsRemoved: 0 }));
+      store.dispatch({ type: purgeGuilds.pending.type });
+      expect(store.getState().purge).toMatchObject({ isPurging: true, purgeError: null, purgeProgress: null, channelErrorCount: 0 });
+    });
+
+    it('records the error count on fulfilled and stops purging', () => {
+      store.dispatch({ type: purgeGuilds.pending.type });
+      store.dispatch({ type: purgeGuilds.fulfilled.type, payload: { success: true, errors: ['Alpha: could not load channels (HTTP 403)'] } });
+      expect(store.getState().purge.isPurging).toBe(false);
+      expect(store.getState().purge.channelErrorCount).toBe(1);
+    });
+
+    it('stores the rejection reason', () => {
+      store.dispatch({ type: purgeGuilds.pending.type });
+      store.dispatch({ type: purgeGuilds.rejected.type, payload: 'No servers selected' });
+      expect(store.getState().purge.isPurging).toBe(false);
+      expect(store.getState().purge.purgeError).toBe('No servers selected');
     });
   });
 });

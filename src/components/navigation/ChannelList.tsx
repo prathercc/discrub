@@ -23,6 +23,7 @@ import {
 import MultiSelectControls from './MultiSelectControls';
 import type { Channel } from 'discrub-core/types/discord-types';
 import { ChannelType } from 'discrub-core/discord-enum';
+import { isMessageChannel } from '@utils/channelTypeUtils';
 import TourButton from '@components/welcome/TourButton';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import {
@@ -89,20 +90,9 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   const handleChannelClick = async (channel: Channel, event?: React.MouseEvent) => {
     if (!token || !selectedGuild) return;
 
-    // Only allow channels that contain fetchable messages. Voice (2) and
-    // Stage (13) carry persistent text chat under the same channel ID
-    // since Discord's 2021 Voice Channel Messages rollout — same
-    // `GET /channels/{id}/messages` endpoint, same permission gate as
-    // text. See backlog #160.
-    const messageChannelTypes = [
-      ChannelType.GUILD_TEXT,
-      ChannelType.GUILD_ANNOUNCEMENT,
-      ChannelType.GUILD_FORUM,
-      ChannelType.GUILD_MEDIA,
-      ChannelType.GUILD_VOICE,
-      ChannelType.GUILD_STAGE_VOICE,
-    ];
-    if (!messageChannelTypes.includes(channel.type)) {
+    // Only allow channels that contain fetchable messages (see
+    // MESSAGE_CHANNEL_TYPES in channelTypeUtils, backlog #160).
+    if (!isMessageChannel(channel)) {
       return;
     }
 

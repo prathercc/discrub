@@ -126,6 +126,29 @@ describe('MainLayout', () => {
       expect(toast.message).toBe('Purge finished, but 1 channel had errors (see the status log)');
     });
 
+    it('keeps the rate-limit stop reason as the final toast when a storm ended the run (#254)', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: createBaseState(),
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/purgeGuilds/pending' });
+      });
+      act(() => {
+        // What the storm hook does mid-run.
+        store.dispatch({ type: 'app/setDiscrubCancelled', payload: true });
+        store.dispatch({ type: 'app/setRateLimitStopped', payload: true });
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/purgeGuilds/fulfilled', payload: { success: true, errors: ['Beta › lobby: Search request failed (HTTP 429)'] } });
+      });
+      const toast = store.getState().status.toast;
+      expect(toast.isVisible).toBe(true);
+      expect(toast.level).toBe('error');
+      expect(toast.message).toBe('Stopped: Discord is rate limiting this account. Wait 10 minutes before trying again.');
+      expect(store.getState().app.rateLimitStopped).toBe(false);
+      expect(store.getState().app.discrubCancelled).toBe(false);
+    });
+
     it('still celebrates a clean run', () => {
       const { store } = renderWithProviders(<MainLayout />, {
         preloadedState: createBaseState(),

@@ -76,20 +76,24 @@ describe('discordService singleton', () => {
     });
 
     it('stops the operation when core gives up on a storm: error log, cancel flag, toast', async () => {
-      const { getDiscordService, RATE_LIMIT_STOP_MESSAGE } = await import('./discordService');
+      const { getDiscordService, storeReady, RATE_LIMIT_STOP_MESSAGE } = await import('./discordService');
       const { store } = await import('@/app/store');
       const { selectStatusEntries, selectToast } = await import('@features/status/statusSlice');
-      const { selectDiscrubCancelled, selectDiscrubPaused, setDiscrubPaused } = await import('@features/app/appSlice');
+      const { selectDiscrubCancelled, selectDiscrubPaused, selectRateLimitStopped, setDiscrubPaused } = await import('@features/app/appSlice');
       const service = getDiscordService() as unknown as {
-        onRateLimitExceeded: (info: RateLimitInfo) => Promise<void>;
+        onRateLimitExceeded: (info: RateLimitInfo) => void;
       };
       store.dispatch(setDiscrubPaused(true));
+      await storeReady();
 
-      await service.onRateLimitExceeded(info({ retryAfter: 600, consecutive: 1, capped: true }));
+      service.onRateLimitExceeded(info({ retryAfter: 600, consecutive: 1, capped: true }));
 
+      // Synchronous: the cancel flag is set before any await, so a loop
+      // that reads it right after the failing request already sees it.
       const state = store.getState();
       expect(selectDiscrubCancelled(state)).toBe(true);
       expect(selectDiscrubPaused(state)).toBe(false);
+      expect(selectRateLimitStopped(state)).toBe(true);
       const last = selectStatusEntries(state).slice(-1)[0];
       expect(last?.level).toBe('error');
       expect(last?.message).toContain(RATE_LIMIT_STOP_MESSAGE);

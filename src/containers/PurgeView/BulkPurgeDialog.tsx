@@ -25,7 +25,7 @@ import {
 } from '@mui/icons-material';
 import { groupsToTypes } from '@/utils/systemMessageGroups';
 import SystemMessageTypePicker from '@components/message/SystemMessageTypePicker';
-import type { Channel } from 'discrub-core/types/discord-types';
+import type { Channel, Guild } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import TourFootnote from '@components/welcome/TourFootnote';
@@ -35,7 +35,7 @@ import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors'
 import { selectCachedUserMap } from '@features/cache/cacheSlice';
 import { selectCurrentUser } from '@features/user/userSlice';
 import { selectSelectedGuild, selectCurrentMemberRoles } from '@features/guild/guildSlice';
-import { bulkPurgeChannels, bulkPurgeDMs } from '@features/purge/purgeSlice';
+import { bulkPurgeChannels, bulkPurgeDMs, purgeGuilds } from '@features/purge/purgeSlice';
 import type { PurgeMode } from '@features/purge/purgeTypes';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import UserPicker from '@components/ui/UserPicker';
@@ -54,7 +54,15 @@ interface BulkPurgeDialogProps {
   open: boolean;
   onClose: () => void;
   channels: Channel[];
-  mode: 'channels' | 'dms';
+  /**
+   * 'channels' = selected channels of the current server
+   * 'dms'      = selected conversations
+   * 'servers'  = #255 multi-server purge: every readable channel in each
+   *              selected server, own messages only. `channels` is empty;
+   *              the servers come from `guilds`.
+   */
+  mode: 'channels' | 'dms' | 'servers';
+  guilds?: Guild[];
   guildId?: string | null;
   canManageMessages?: boolean;
 }
@@ -70,7 +78,7 @@ const deriveUiMode = (
   return 'messages';
 };
 
-const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMessages = false }: BulkPurgeDialogProps) => {
+const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, canManageMessages = false }: BulkPurgeDialogProps) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const dispatch = useAppDispatch();
@@ -109,7 +117,11 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       const rawMode = settings[DiscrubSetting.PURGE_MODE];
       const deleteAttachmentsOnlySetting =
         settings[DiscrubSetting.PURGE_DELETE_ATTACHMENTS_ONLY] === 'true';
-      setUiMode(deriveUiMode(rawMode, deleteAttachmentsOnlySetting, canManageMessages));
+      const derived = deriveUiMode(rawMode, deleteAttachmentsOnlySetting, canManageMessages);
+      // Server mode (#255) has no reaction modes; a saved reactions
+      // preference falls back to Messages instead of dispatching a mode
+      // the dialog does not show.
+      setUiMode(mode === 'servers' && (derived === 'reactions' || derived === 'clearReactions') ? 'messages' : derived);
       setRetainAttachedMedia(settings[DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA] === 'true');
       setPreserveMediaAndLinks(false);
       setSkipArchivedThreads(false);
@@ -118,11 +130,14 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       setFilterCriteria(null);
       setFilterModalOpen(false);
     }
-  }, [open, settings, currentUserId, canManageMessages]);
+  }, [open, settings, currentUserId, canManageMessages, mode]);
 
   const isDmMode = mode === 'dms';
-  const contextLabel = isDmMode ? 'conversation' : 'channel';
-  const contextLabelPlural = isDmMode ? 'conversations' : 'channels';
+  const isServerMode = mode === 'servers';
+  const contextLabel = isServerMode ? 'server' : isDmMode ? 'conversation' : 'channel';
+  const contextLabelPlural = isServerMode ? 'servers' : isDmMode ? 'conversations' : 'channels';
+  // Server mode counts servers; the other modes count channels.
+  const targetCount = isServerMode ? guilds.length : channels.length;
 
   // In DM mode, restrict UserPicker to only DM participants
   const dmParticipantUserMap = useMemo(() => {
@@ -174,8 +189,11 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   // In DM messages/attachments mode, in reactions without MANAGE_MESSAGES,
   // or in guild messages mode where any selected channel lacks MANAGE_MESSAGES,
   // the target is locked to the current user.
+  // Server mode (#255) is always self-only: permissions differ per server
+  // and the channel lists are not loaded until the run starts.
   const isTargetLockedToSelf =
-    (isDmMode && isMessagesFamily)
+    isServerMode
+    || (isDmMode && isMessagesFamily)
     || (uiMode === 'reactions' && !canManageMessages)
     || (isMessagesFamily && !isDmMode && someBlocked);
 
@@ -222,7 +240,9 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
     // message-narrowing (orthogonal to the reactor UserPicker).
     const payloadSearchCriteria = filterCriteria;
 
-    if (isDmMode) {
+    if (isServerMode) {
+      dispatch(purgeGuilds({ guilds, config: purgeConfig, searchCriteria: payloadSearchCriteria }));
+    } else if (isDmMode) {
       dispatch(bulkPurgeDMs({ channels, config: purgeConfig, searchCriteria: payloadSearchCriteria }));
     } else {
       dispatch(bulkPurgeChannels({ channels, config: purgeConfig, guildId, searchCriteria: payloadSearchCriteria }));
@@ -232,8 +252,15 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   };
 
   const getSummaryText = () => {
-    const count = channels.length;
+    const count = targetCount;
     const userCount = effectiveTargetUserIds.length;
+    if (isServerMode) {
+      const scope = `every channel you can read in ${count} ${count === 1 ? 'server' : 'servers'}`;
+      if (uiMode === 'attachmentsOnly') {
+        return `Attachments will be stripped from your messages in ${scope}. Message text is preserved.`;
+      }
+      return `Your messages in ${scope} will be permanently deleted.`;
+    }
     if (uiMode === 'messages') {
       const base = `${count} ${count === 1 ? contextLabel : contextLabelPlural} will be purged. Messages from ${userCount} user${userCount !== 1 ? 's' : ''} will be permanently deleted.`;
       const sysCount = selectedSystemGroups.length;
@@ -252,8 +279,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   };
 
   const getConfirmLabel = () => {
-    const count = channels.length;
-    const noun = isDmMode ? 'DM' : 'Ch.';
+    const count = targetCount;
+    const noun = isServerMode ? 'Server' : isDmMode ? 'DM' : 'Ch.';
     if (uiMode === 'messages') return `Purge ${count} ${noun}${count !== 1 ? 's' : ''}`;
     if (uiMode === 'attachmentsOnly') return `Strip Attachments (${count} ${noun}${count !== 1 ? 's' : ''})`;
     if (uiMode === 'clearReactions') return `Clear Reactions (${count} ${noun}${count !== 1 ? 's' : ''})`;
@@ -267,6 +294,9 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   const targetLabel = isReactionsFamily ? 'Remove reactions from' : 'Author';
 
   const getLockReasonText = () => {
+    if (isServerMode) {
+      return 'Server purges target your own messages. Every channel you can read in each selected server is included.';
+    }
     if (isDmMode && isMessagesFamily) {
       return 'You can only target your own messages in DMs.';
     }
@@ -287,9 +317,9 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
-        Purge {isDmMode ? 'DMs' : 'Channels'}
+        Purge {isServerMode ? 'Servers' : isDmMode ? 'DMs' : 'Channels'}
         <Chip
-          label={`${channels.length} selected`}
+          label={`${targetCount} selected`}
           size="small"
           sx={{
             ml: 1,
@@ -303,7 +333,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
       </DialogTitle>
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, pt: 1 }}>
-          <SelectedChannelsPill channels={channels} mode={isDmMode ? 'dms' : 'channels'} />
+          <SelectedChannelsPill channels={channels} guilds={guilds} mode={isServerMode ? 'servers' : isDmMode ? 'dms' : 'channels'} />
 
           {/* Mode selection — 4 first-class modes */}
           <Box>
@@ -323,8 +353,12 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
             >
               <ToggleButton value="messages">Messages</ToggleButton>
               <ToggleButton value="attachmentsOnly">Attachments Only</ToggleButton>
-              <ToggleButton value="reactions">Reactions</ToggleButton>
-              {canManageMessages && (
+              {/* Reaction modes stay single-server: they need per-channel
+                  Manage Messages checks that server mode cannot make up front. */}
+              {!isServerMode && (
+                <ToggleButton value="reactions">Reactions</ToggleButton>
+              )}
+              {!isServerMode && canManageMessages && (
                 <ToggleButton value="clearReactions">Clear All Reactions</ToggleButton>
               )}
             </ToggleButtonGroup>
@@ -549,7 +583,10 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
               backgrounded tab, but a tab the browser discards (memory saver /
               tab-sleep) is gone entirely — that's the one remaining caveat. */}
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            Large purges can run for a while. Discrub keeps your screen awake and keeps
+            {isServerMode
+              ? 'A server purge can run for hours. Servers are processed one at a time with the same pacing as a single-server purge, and the run stops on its own if Discord starts rate limiting. '
+              : 'Large purges can run for a while. '}
+            Discrub keeps your screen awake and keeps
             deleting at full pace even when this tab is in the background. Leave the tab
             open; a browser&rsquo;s tab-sleep or memory saver can still end a run early.
           </Typography>
@@ -562,7 +599,7 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guildId, canManageMess
           variant="contained"
           color="error"
           startIcon={<PurgeIcon />}
-          disabled={channels.length === 0 || hasNoTargetUsers || isOperationRunning}
+          disabled={targetCount === 0 || hasNoTargetUsers || isOperationRunning}
         >
           {getConfirmLabel()}
         </Button>

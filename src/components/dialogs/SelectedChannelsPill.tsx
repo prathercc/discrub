@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
 import { Box, Collapse, Typography, useTheme } from '@mui/material';
 import { ExpandMore as ExpandMoreIcon } from '@mui/icons-material';
-import type { Channel } from 'discrub-core/types/discord-types';
+import type { Channel, Guild } from 'discrub-core/types/discord-types';
 
 interface SelectedChannelsPillProps {
-  channels: Channel[];
+  channels?: Channel[];
+  /** #255 — selected servers, used when mode is 'servers'. */
+  guilds?: Guild[];
   /**
    * 'channels' = guild text channels (#name prefix)
    * 'dms'      = DMs (recipient usernames, no prefix)
+   * 'servers'  = whole servers (#255 multi-server purge)
    */
-  mode: 'channels' | 'dms';
+  mode: 'channels' | 'dms' | 'servers';
 }
 
 /**
@@ -18,13 +21,14 @@ interface SelectedChannelsPillProps {
  * inline; click to expand the full list. Keeps destructive / heavy
  * operations above the fold on standard viewports.
  */
-const SelectedChannelsPill = ({ channels, mode }: SelectedChannelsPillProps) => {
+const SelectedChannelsPill = ({ channels = [], guilds = [], mode }: SelectedChannelsPillProps) => {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
 
   const isDmMode = mode === 'dms';
-  const contextLabel = isDmMode ? 'conversation' : 'channel';
-  const contextLabelPlural = isDmMode ? 'conversations' : 'channels';
+  const isServerMode = mode === 'servers';
+  const contextLabel = isServerMode ? 'server' : isDmMode ? 'conversation' : 'channel';
+  const contextLabelPlural = isServerMode ? 'servers' : isDmMode ? 'conversations' : 'channels';
 
   const getChannelName = (channel: Channel) => {
     if (isDmMode) {
@@ -36,14 +40,21 @@ const SelectedChannelsPill = ({ channels, mode }: SelectedChannelsPillProps) => 
   const getChannelLabel = (channel: Channel) =>
     isDmMode ? getChannelName(channel) : `# ${getChannelName(channel)}`;
 
+  // Servers and channels share one label list so the rest of the pill
+  // (count, summary, expanded list) needs no mode branches.
+  const labels = isServerMode
+    ? guilds.map((g) => g.name || `server-${g.id}`)
+    : channels.map(getChannelLabel);
+  const count = labels.length;
+
   const summary = useMemo(() => {
-    const names = channels.map(getChannelLabel);
+    const names = labels;
     const visible = names.slice(0, 3);
     const remaining = names.length - visible.length;
     const joined = visible.join(', ');
     return remaining > 0 ? `${joined}, +${remaining} more` : joined;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [channels, isDmMode]);
+  }, [channels, guilds, isDmMode, isServerMode]);
 
   return (
     <Box>
@@ -58,7 +69,7 @@ const SelectedChannelsPill = ({ channels, mode }: SelectedChannelsPillProps) => 
           }
         }}
         aria-expanded={expanded}
-        aria-label={isDmMode ? 'Selected conversations' : 'Selected channels'}
+        aria-label={isServerMode ? 'Selected servers' : isDmMode ? 'Selected conversations' : 'Selected channels'}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -74,7 +85,7 @@ const SelectedChannelsPill = ({ channels, mode }: SelectedChannelsPillProps) => 
         }}
       >
         <Typography variant="body2" sx={{ fontWeight: 500, whiteSpace: 'nowrap' }}>
-          {channels.length} {channels.length === 1 ? contextLabel : contextLabelPlural}
+          {count} {count === 1 ? contextLabel : contextLabelPlural}
         </Typography>
         <Typography
           variant="body2"
@@ -108,9 +119,9 @@ const SelectedChannelsPill = ({ channels, mode }: SelectedChannelsPillProps) => 
             p: 1,
           }}
         >
-          {channels.map((channel, index) => (
+          {labels.map((label, index) => (
             <Typography
-              key={channel.id}
+              key={`${index}-${label}`}
               variant="body2"
               sx={{
                 py: 0.25,
@@ -122,7 +133,7 @@ const SelectedChannelsPill = ({ channels, mode }: SelectedChannelsPillProps) => 
                 textOverflow: 'ellipsis',
               }}
             >
-              {getChannelLabel(channel)}
+              {label}
             </Typography>
           ))}
         </Box>

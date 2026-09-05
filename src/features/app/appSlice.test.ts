@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import appReducer, {
+  setRateLimitStopped,
+  selectRateLimitStopped,
   setDiscrubPaused,
   setDiscrubCancelled,
   setMinimized,
@@ -743,6 +745,19 @@ describe('appSlice', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(getDiscordService).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('rateLimitStopped (#254)', () => {
+    it('sets and clears the flag, and resetTask clears it too', () => {
+      const store = createTestStore({ app: appReducer });
+      store.dispatch(setRateLimitStopped(true));
+      expect(selectRateLimitStopped(store.getState())).toBe(true);
+      store.dispatch(setRateLimitStopped(false));
+      expect(selectRateLimitStopped(store.getState())).toBe(false);
+      store.dispatch(setRateLimitStopped(true));
+      store.dispatch(resetTask());
+      expect(selectRateLimitStopped(store.getState())).toBe(false);
     });
   });
 });

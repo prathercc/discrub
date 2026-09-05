@@ -1,15 +1,10 @@
 import { DiscordService } from 'discrub-core/discord-service';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { addStatusEntry, showToast } from '@features/status/statusSlice';
-import { setDiscrubCancelled, setDiscrubPaused } from '@features/app/appSlice';
+import { setDiscrubCancelled, setDiscrubPaused, setRateLimitStopped } from '@features/app/appSlice';
 
-/**
- * Status-log line written when discrub-core abandons a request after
- * repeated 429s (#254). The operation is cancelled through the normal
- * cancel flag so every loop unwinds the way a user cancel would.
- */
-export const RATE_LIMIT_STOP_MESSAGE =
-  'Discord is rate limiting this account heavily. Stopped the operation to protect your account. Wait at least 10 minutes before starting another one.';
+import { RATE_LIMIT_STOP_TOAST, RATE_LIMIT_STOP_MESSAGE } from '@/constants/rateLimitMessages';
+export { RATE_LIMIT_STOP_TOAST, RATE_LIMIT_STOP_MESSAGE };
 
 /**
  * Discord service wrapper for the application
@@ -19,7 +14,28 @@ export const RATE_LIMIT_STOP_MESSAGE =
 let discordServiceInstance: DiscordService | null = null;
 
 // Lazy import to avoid circular dependency (store → slices → discordService → store)
-const getStore = () => import('@/app/store').then((m) => m.store);
+type AppStore = Awaited<ReturnType<typeof importStore>>;
+const importStore = () => import('@/app/store').then((m) => m.store);
+let cachedStore: AppStore | null = null;
+const getStore = () => importStore().then((store) => { cachedStore = store; return store; });
+/** Test hook: resolves once the store cache is warm. */
+export const storeReady = () => getStore();
+
+/**
+ * Dispatch through the cached store when it is already resolved, so the
+ * dispatch lands synchronously with the event that caused it. The
+ * rate-limit stop (#254) depends on this: the cancel flag has to be set
+ * before the failing request's rejection reaches the operation loop,
+ * or a loop on its last channel finishes as "Complete" and only then
+ * sees the cancel.
+ */
+const dispatchNow = (action: Parameters<AppStore['dispatch']>[0]) => {
+  if (cachedStore) {
+    cachedStore.dispatch(action);
+    return;
+  }
+  void getStore().then((store) => store.dispatch(action));
+};
 
 /**
  * Get or create the Discord service instance
@@ -47,16 +63,21 @@ export const getDiscordService = (settings?: AppSettings): DiscordService => {
     // back on one request) stops the whole operation instead of pausing
     // and inviting Resume. Resuming into a storm is what preceded the
     // r/discrub suspension report.
-    discordServiceInstance.onRateLimitExceeded = async (info) => {
-      const store = await getStore();
-      store.dispatch(addStatusEntry({
+    discordServiceInstance.onRateLimitExceeded = (info) => {
+      dispatchNow(addStatusEntry({
         level: 'error',
         message: `${RATE_LIMIT_STOP_MESSAGE} (Discord asked for ${Math.round(info.retryAfter)}s, ${info.consecutive} rate limit${info.consecutive === 1 ? '' : 's'} in a row)`,
       }));
-      store.dispatch(setDiscrubPaused(false));
-      store.dispatch(setDiscrubCancelled(true));
-      store.dispatch(showToast({ level: 'error', message: 'Stopped: Discord is rate limiting this account. Wait 10 minutes before trying again.' }));
+      dispatchNow(setDiscrubPaused(false));
+      dispatchNow(setDiscrubCancelled(true));
+      // MainLayout turns this into the completion toast once the
+      // operation has unwound, so the reason survives the generic
+      // "complete / cancelled" toast that would otherwise replace it.
+      dispatchNow(setRateLimitStopped(true));
+      dispatchNow(showToast({ level: 'error', message: RATE_LIMIT_STOP_TOAST }));
     };
+    // Warm the store cache so the storm hook can dispatch synchronously.
+    void getStore();
     discordServiceInstance.onDelay = async () => {
       // Intentionally empty — delay entries removed from status log
     };

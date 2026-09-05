@@ -50,7 +50,7 @@ Available as a **web app** (manual token entry) and a **Chrome/Firefox extension
 
 Navigate your Discord servers with full channel category support, permission-based visibility (locked channels shown with lock icons; channels you can reach only through a member-specific permission grant, such as ticket channels, are correctly shown as open), and direct message browsing with display names. Voice and Stage channels are first-class clickable rows since Discord rolled out persistent text chat in voice channels: select one to read its embedded message history just like any text channel.
 
-Multi-select mode is available across the Server, Channel, and DM lists, with a styled Copy button for quickly grabbing names or IDs. Shift+Click selects a whole range at once. Server multi-select lays groundwork for future cross-server bulk operations.
+Multi-select mode is available across the Server, Channel, and DM lists, with a styled Copy button for quickly grabbing names or IDs. Shift+Click selects a whole range at once. Server multi-select also carries a Purge action that clears your own messages from every selected server in one run.
 
 Group DMs are visually distinct from one-on-one conversations: they carry a Group chip in the DM list, show the group's own name when one is set, and purge confirmations label them as groups so you always know how many people a bulk action touches.
 
@@ -165,6 +165,8 @@ Delete messages and reactions across one or multiple channels with user targetin
 - **Clear All Reactions** (admin): bulk remove all reactions using a single API call per message
 
 Features: multi-channel selection with one-click "Select all", filters integration (narrow by author, content, date, has-types) for both bulk export and bulk purge, retain-attachments option, thread-aware discovery (auto-unarchives during purge and re-archives when done), DM support (own messages only), pause/resume/cancel.
+
+**Purge several servers at once.** Turn on multi-select in the server list, tick the servers, and click Purge. Discrub walks the servers one at a time: it loads each server's channels, keeps the ones you can read, and runs the same per-channel purge a single-server run uses. Server purges target your own messages (Messages or Attachments Only). The status log gets a header per server and a final "N of N servers" summary, the status bar shows "Server 2/5 · Channel 3/12", and Cancel finishes the current channel before stopping. A server whose channels can't be loaded is reported and skipped. Pacing is unchanged, so a run across many servers can take hours; the run stops on its own if Discord starts rate limiting.
 
 Two safeguard options let a purge leave things alone:
 

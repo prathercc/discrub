@@ -132,6 +132,9 @@ const appSlice = createSlice({
     setDiscrubPaused: (state, action: PayloadAction<boolean>) => {
       state.discrubPaused = action.payload;
     },
+    setRateLimitStopped: (state, action: PayloadAction<boolean>) => {
+      state.rateLimitStopped = action.payload;
+    },
     setDiscrubCancelled: (state, action: PayloadAction<boolean>) => {
       state.discrubCancelled = action.payload;
     },
@@ -163,6 +166,7 @@ const appSlice = createSlice({
       state.task = initialAppState.task;
       state.discrubPaused = false;
       state.discrubCancelled = false;
+      state.rateLimitStopped = false;
     },
   },
   extraReducers: (builder) => {
@@ -207,6 +211,7 @@ const appSlice = createSlice({
 export const {
   setDiscrubPaused,
   setDiscrubCancelled,
+  setRateLimitStopped,
   setMinimized,
   setFocusedView,
   toggleFocusedView,
@@ -222,6 +227,7 @@ export const {
 export const selectApp = (state: RootState) => state.app;
 export const selectDiscrubPaused = (state: RootState) => state.app.discrubPaused;
 export const selectDiscrubCancelled = (state: RootState) => state.app.discrubCancelled;
+export const selectRateLimitStopped = (state: RootState) => state.app.rateLimitStopped === true;
 export const selectTask = (state: RootState) => state.app.task;
 export const selectSettings = (state: RootState) => state.app.settings;
 export const selectPreviewThemeId = (state: RootState) => state.app.previewThemeId;

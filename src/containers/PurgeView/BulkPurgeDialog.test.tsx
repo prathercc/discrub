@@ -5,7 +5,7 @@ import BulkPurgeDialog from './BulkPurgeDialog';
 import type { Channel, Guild } from 'discrub-core/types/discord-types';
 import { ChannelType } from 'discrub-core/discord-enum';
 import { createAuthenticatedState } from '@/test/state-factories';
-import { bulkPurgeChannels, bulkPurgeDMs } from '@features/purge/purgeSlice';
+import { bulkPurgeChannels, bulkPurgeDMs, purgeGuilds } from '@features/purge/purgeSlice';
 
 // Permission bits for crafting test guild states
 const VIEW_CHANNEL = 1n << 10n;
@@ -21,6 +21,7 @@ vi.mock('@features/purge/purgeSlice', async () => {
     ...actual,
     bulkPurgeChannels: vi.fn(() => ({ type: 'purge/bulkPurgeChannels/mock' })),
     bulkPurgeDMs: vi.fn(() => ({ type: 'purge/bulkPurgeDMs/mock' })),
+    purgeGuilds: vi.fn(() => ({ type: 'purge/purgeGuilds/mock' })),
   };
 });
 
@@ -1082,6 +1083,102 @@ describe('BulkPurgeDialog', () => {
           }),
         }),
       );
+    });
+  });
+
+  describe('Servers mode (#255 multi-server purge)', () => {
+    const mockGuilds: Guild[] = [
+      { id: 'g1', name: 'Alpha Server', icon: null } as Guild,
+      { id: 'g2', name: 'Beta Server', icon: null } as Guild,
+      { id: 'g3', name: 'Gamma Server', icon: null } as Guild,
+    ];
+    const renderServers = (guilds = mockGuilds) =>
+      renderWithProviders(
+        <BulkPurgeDialog open channels={[]} guilds={guilds} onClose={vi.fn()} mode="servers" />,
+        { preloadedState: stateWithUser },
+      );
+
+    it('titles the dialog for servers and counts servers in the chip and pill', () => {
+      renderServers();
+      expect(screen.getByText('Purge Servers')).toBeInTheDocument();
+      expect(screen.getByText('3 selected')).toBeInTheDocument();
+      expect(screen.getByText('3 servers')).toBeInTheDocument();
+      expect(screen.getByText(/Alpha Server, Beta Server, Gamma Server/)).toBeInTheDocument();
+    });
+
+    it('offers only Messages and Attachments Only', () => {
+      renderServers();
+      expect(screen.getByRole('button', { name: 'Messages' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Attachments Only' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Reactions' })).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Clear All Reactions' })).toBeNull();
+    });
+
+    it('locks the target to the signed-in user and explains the scope', () => {
+      renderServers();
+      expect(screen.getByText('Server purges target your own messages. Every channel you can read in each selected server is included.')).toBeInTheDocument();
+      expect(screen.getByText('Your messages in every channel you can read in 3 servers will be permanently deleted.')).toBeInTheDocument();
+      expect(screen.getByText(/A server purge can run for hours/)).toBeInTheDocument();
+    });
+
+    it('dispatches purgeGuilds with the selected servers and a self-only target', () => {
+      vi.mocked(bulkPurgeChannels).mockClear();
+      vi.mocked(bulkPurgeDMs).mockClear();
+      vi.mocked(purgeGuilds).mockClear();
+      renderServers();
+      const confirm = screen.getByRole('button', { name: 'Purge 3 Servers' });
+      expect(confirm).not.toBeDisabled();
+      fireEvent.click(confirm);
+
+      expect(purgeGuilds).toHaveBeenCalledTimes(1);
+      expect(purgeGuilds).toHaveBeenCalledWith({
+        guilds: mockGuilds,
+        config: {
+          mode: 'messages',
+          targetUserIds: ['999'],
+          retainAttachedMedia: false,
+          preserveMediaAndLinks: false,
+          deleteAttachmentsOnly: false,
+          systemMessageTypesToDelete: [],
+          skipArchivedThreads: false,
+        },
+        searchCriteria: null,
+      });
+      expect(bulkPurgeChannels).not.toHaveBeenCalled();
+      expect(bulkPurgeDMs).not.toHaveBeenCalled();
+    });
+
+    it('dispatches the attachments-only variant with its own summary', () => {
+      renderServers([mockGuilds[0]]);
+      fireEvent.click(screen.getByRole('button', { name: 'Attachments Only' }));
+      expect(screen.getByText('Attachments will be stripped from your messages in every channel you can read in 1 server. Message text is preserved.')).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Strip Attachments (1 Server)' }));
+      expect(purgeGuilds).toHaveBeenCalledWith(expect.objectContaining({
+        guilds: [mockGuilds[0]],
+        config: expect.objectContaining({ deleteAttachmentsOnly: true, targetUserIds: ['999'] }),
+      }));
+    });
+
+    it('falls back to Messages when the saved purge mode is a reaction mode', () => {
+      vi.mocked(purgeGuilds).mockClear();
+      const savedReactions = {
+        ...stateWithUser,
+        app: { ...stateWithUser.app, settings: { ...stateWithUser.app.settings, purgeMode: 'reactions' } as typeof stateWithUser.app.settings },
+      };
+      renderWithProviders(
+        <BulkPurgeDialog open channels={[]} guilds={mockGuilds} onClose={vi.fn()} mode="servers" />,
+        { preloadedState: savedReactions },
+      );
+      expect(screen.getByRole('button', { name: 'Messages' })).toHaveAttribute('aria-pressed', 'true');
+      fireEvent.click(screen.getByRole('button', { name: 'Purge 3 Servers' }));
+      expect(purgeGuilds).toHaveBeenCalledWith(expect.objectContaining({
+        config: expect.objectContaining({ mode: 'messages', targetUserIds: ['999'] }),
+      }));
+    });
+
+    it('disables confirm with no servers selected', () => {
+      renderServers([]);
+      expect(screen.getByRole('button', { name: 'Purge 0 Servers' })).toBeDisabled();
     });
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
-import type { Channel, Message, User } from 'discrub-core/types/discord-types';
+import type { Channel, Guild, Message, User } from 'discrub-core/types/discord-types';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { IsPinnedType, MessageType } from 'discrub-core/discord-enum';
 import type { PurgeConfig } from './purgeTypes';
@@ -8,6 +8,7 @@ import type { PurgeConfig } from './purgeTypes';
 import purgeReducer, {
   bulkPurgeChannels,
   bulkPurgeDMs,
+  purgeGuilds,
   selectIsPurging,
   selectPurgeProgress,
   selectPurgeError,
@@ -33,6 +34,8 @@ const mockFetchActiveGuildThreads = vi.fn();
 const mockFetchPublicThreads = vi.fn();
 const mockFetchPrivateThreads = vi.fn();
 const mockFetchJoinedPrivateArchivedThreads = vi.fn();
+const mockFetchChannels = vi.fn();
+const mockFetchGuildUser = vi.fn();
 
 // Minimal reimplementation of the DiscordService.iterateSearchResults
 // generator, backed by mockFetchSearchMessageData. Mirrors the lib's
@@ -135,6 +138,8 @@ vi.mock('@services/discordService', () => ({
     fetchPublicThreads: mockFetchPublicThreads,
     fetchPrivateThreads: mockFetchPrivateThreads,
     fetchJoinedPrivateArchivedThreads: mockFetchJoinedPrivateArchivedThreads,
+    fetchChannels: mockFetchChannels,
+    fetchGuildUser: mockFetchGuildUser,
   })),
 }));
 
@@ -178,6 +183,7 @@ vi.mock('@utils/delayUtils', () => ({
 const { checkCancelled, cancellableDelay, waitWhilePaused } = await import(
   '@utils/operationLoopUtils'
 );
+const { getDiscordService } = await import('@services/discordService');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -6142,6 +6148,321 @@ describe('purgeSlice thunks', () => {
         (e) => e.message.includes('2 deleted') && e.message.includes('so far'),
       );
       expect(progressEntry).toBeDefined();
+    });
+  });
+
+  // ── Multi-server purge (#255) ─────────────────────────────────────────────
+
+  describe('purgeGuilds — multi-server purge (#255)', () => {
+    const VIEW_CHANNEL = String(1n << 10n);
+    const guild = (id: string, name: string, permissions: string | undefined = String((1n << 10n) | (1n << 16n))): Guild =>
+      ({ id, name, icon: null, permissions } as unknown as Guild);
+    const textChannel = (id: string, name: string, extra: Record<string, unknown> = {}): Channel =>
+      ({ id, name, type: 0, ...extra }) as unknown as Channel;
+    const categoryChannel = (id: string, name: string): Channel => ({ id, name, type: 4 }) as Channel;
+    const voiceChannel = (id: string, name: string): Channel => ({ id, name, type: 2 }) as Channel;
+
+    /** One page per channel keyed by channel id, then empties. */
+    const setupPerChannelSearch = (pages: Record<string, Message[]>) => {
+      const served = new Set<string>();
+      mockFetchSearchMessageData.mockImplementation((_t: string, _o: number, channelId: string) => {
+        if (!served.has(channelId) && pages[channelId]?.length) {
+          served.add(channelId);
+          return Promise.resolve({ success: true, data: { messages: [pages[channelId]] } });
+        }
+        return Promise.resolve({ success: true, data: { messages: [] } });
+      });
+    };
+
+    const channelsByGuild = (map: Record<string, Channel[] | { status: number }>) => {
+      mockFetchChannels.mockImplementation((_t: string, guildId: string) => {
+        const entry = map[guildId];
+        if (!entry) return Promise.resolve({ success: false, status: 404 });
+        if (!Array.isArray(entry)) return Promise.resolve({ success: false, status: entry.status });
+        return Promise.resolve({ success: true, status: 200, data: entry });
+      });
+    };
+
+    beforeEach(() => {
+      mockFetchChannels.mockReset();
+      mockFetchGuildUser.mockReset();
+      mockFetchGuildUser.mockResolvedValue({ success: true, status: 200, data: { roles: [] } });
+    });
+
+    it('walks the selected servers in order and purges every readable message channel in each', async () => {
+      channelsByGuild({
+        g1: [categoryChannel('cat', 'Text'), textChannel('c1', 'general'), voiceChannel('v1', 'lounge')],
+        g2: [textChannel('c2', 'chat')],
+      });
+      setupPerChannelSearch({ c1: [mockMessage('m1')], v1: [mockMessage('m2')], c2: [mockMessage('m3')] });
+
+      const result = await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      expect(purgeGuilds.fulfilled.match(result)).toBe(true);
+      expect(result.payload).toEqual({ success: true });
+      expect(mockFetchChannels.mock.calls.map((c) => c[1])).toEqual(['g1', 'g2']);
+      // Category skipped; text + voice purged; deletes in server order.
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m1', 'm2', 'm3']);
+      const searchedChannels = new Set(mockFetchSearchMessageData.mock.calls.map((c) => c[2]));
+      expect(searchedChannels.has('cat')).toBe(false);
+
+      const messages = store.getState().status.entries.map((e) => e.message);
+      expect(messages).toContain('Purge: Starting operation across 2 servers');
+      expect(messages).toContain('Purge: Server 1 of 2 · Alpha');
+      expect(messages).toContain('Purge: Alpha · 2 channels to process');
+      expect(messages).toContain('Purge: Server 2 of 2 · Beta');
+      expect(messages.some((m) => m.startsWith('Purge: Alpha complete · 2 channels'))).toBe(true);
+      expect(messages.some((m) => m.startsWith('Purge: Complete · 2 of 2 servers'))).toBe(true);
+      expect(selectIsPurging(store.getState())).toBe(false);
+      expect(selectPurgeError(store.getState())).toBeNull();
+    });
+
+    it('carries the server position on the bulk progress so the operation label can show it', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')], c2: [mockMessage('m2')] });
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const progress = selectPurgeProgress(store.getState());
+      expect(progress?.bulk?.server).toEqual({ name: 'Beta', index: 1, total: 2 });
+      expect(progress?.bulk?.totalChannels).toBe(1);
+    });
+
+    it('skips channels the user cannot read, using member roles for the overwrite check', async () => {
+      const denyEveryone = { permission_overwrites: [{ id: 'g1', type: 0, allow: '0', deny: VIEW_CHANNEL }] };
+      channelsByGuild({ g1: [textChannel('hidden', 'staff', denyEveryone), textChannel('c1', 'general')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')], hidden: [mockMessage('m9')] });
+
+      await store.dispatch(purgeGuilds({ guilds: [guild('g1', 'Alpha')], config: messagesConfig([CURRENT_USER.id]) }));
+
+      expect(mockFetchGuildUser).toHaveBeenCalledWith('g1', CURRENT_USER.id, TOKEN);
+      const searchedChannels = new Set(mockFetchSearchMessageData.mock.calls.map((c) => c[2]));
+      expect(searchedChannels.has('hidden')).toBe(false);
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m1']);
+    });
+
+    it('reports a server whose channels cannot be loaded and continues with the next one', async () => {
+      channelsByGuild({ g1: { status: 403 }, g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c2: [mockMessage('m2')] });
+
+      const result = await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      expect(result.payload).toEqual({ success: true, errors: ['Alpha: could not load channels (HTTP 403)'] });
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m2']);
+      const entries = store.getState().status.entries;
+      expect(entries.find((e) => e.level === 'error')?.message).toBe('Purge: Alpha · could not load channels (HTTP 403), skipped');
+      expect(entries.map((e) => e.message).some((m) => m.startsWith('Purge: Complete · 1 of 2 servers'))).toBe(true);
+      expect(store.getState().purge.channelErrorCount).toBe(1);
+    });
+
+    it('logs a server with no readable channels and moves on', async () => {
+      channelsByGuild({ g1: [categoryChannel('cat', 'Text')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c2: [mockMessage('m2')] });
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const messages = store.getState().status.entries.map((e) => e.message);
+      expect(messages).toContain('Purge: Alpha · no readable channels, skipped');
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m2']);
+      expect(messages.some((m) => m.startsWith('Purge: Complete · 2 of 2 servers'))).toBe(true);
+    });
+
+    it('stops after the current server when cancelled and reports a cancelled summary', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')], c2: [mockMessage('m2')] });
+      // Cancel lands during the first server's channel walk.
+      let calls = 0;
+      (checkCancelled as Mock).mockImplementation(() => {
+        calls += 1;
+        return calls > 3;
+      });
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      expect(mockFetchChannels.mock.calls.map((c) => c[1])).toEqual(['g1']);
+      const messages = store.getState().status.entries.map((e) => e.message);
+      expect(messages.some((m) => m.startsWith('Purge: Cancelled · 1 of 2 servers'))).toBe(true);
+      expect(selectIsPurging(store.getState())).toBe(false);
+    });
+
+    it('paces between servers with the search delay', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')], c2: [mockMessage('m2')] });
+      (cancellableDelay as Mock).mockClear();
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      // One between-server sleep for two servers (plus whatever the
+      // channel walks themselves sleep). It must not be zero.
+      expect((cancellableDelay as Mock).mock.calls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('honors pause at every server boundary', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')], g3: [textChannel('c3', 'misc')] });
+      setupPerChannelSearch({});
+      (waitWhilePaused as Mock).mockClear();
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'A'), guild('g2', 'B'), guild('g3', 'C')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      // At least once per server before its channels are fetched.
+      expect((waitWhilePaused as Mock).mock.calls.length).toBeGreaterThanOrEqual(3);
+    });
+
+    it('records a failure that escapes one server\'s walk and continues with the next server', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c2: [mockMessage('m2')] });
+      // The service lookup inside the first server's walk blows up,
+      // outside the per-channel handling. Call 1 is purgeGuilds' own
+      // lookup; call 2 is executeBulkPurge's.
+      const svc = getDiscordService();
+      vi.mocked(getDiscordService)
+        .mockImplementationOnce(() => svc)
+        .mockImplementationOnce(() => { throw new Error('boom'); });
+
+      const result = await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      expect(purgeGuilds.fulfilled.match(result)).toBe(true);
+      expect((result.payload as { errors?: string[] }).errors).toEqual(['Alpha: boom']);
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m2']);
+      const messages = store.getState().status.entries.map((e) => e.message);
+      expect(messages).toContain('Purge: Alpha · stopped early, boom');
+      expect(messages.some((m) => m.startsWith('Purge: Complete · 1 of 2 servers'))).toBe(true);
+    });
+
+    it('still purges when the member-roles lookup fails, using guild-level permissions', async () => {
+      mockFetchGuildUser.mockResolvedValue({ success: false, status: 404 });
+      channelsByGuild({ g1: [textChannel('c1', 'general')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')] });
+
+      await store.dispatch(purgeGuilds({ guilds: [guild('g1', 'Alpha')], config: messagesConfig([CURRENT_USER.id]) }));
+
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m1']);
+    });
+
+    it('treats a server with no permission data as fully readable', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')] });
+
+      await store.dispatch(purgeGuilds({ guilds: [guild('g1', 'Alpha', undefined)], config: messagesConfig([CURRENT_USER.id]) }));
+
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m1']);
+    });
+
+    it('retries a transient channel-list failure before giving up on a server', async () => {
+      let calls = 0;
+      mockFetchChannels.mockImplementation(() => {
+        calls += 1;
+        return Promise.resolve(calls === 1
+          ? { success: false, status: 503 }
+          : { success: true, status: 200, data: [textChannel('c1', 'general')] });
+      });
+      setupPerChannelSearch({ c1: [mockMessage('m1')] });
+
+      const result = await store.dispatch(purgeGuilds({ guilds: [guild('g1', 'Alpha')], config: messagesConfig([CURRENT_USER.id]) }));
+
+      expect(mockFetchChannels).toHaveBeenCalledTimes(2);
+      expect(result.payload).toEqual({ success: true });
+      expect(mockDeleteMessage.mock.calls.map((c) => c[1])).toEqual(['m1']);
+    });
+
+    it('passes the filter criteria through to every server\'s search and scopes each search to its server', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1')], c2: [mockMessage('m2')] });
+      const after = new Date('2025-01-01T00:00:00.000Z');
+
+      await store.dispatch(
+        purgeGuilds({
+          guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')],
+          config: messagesConfig([CURRENT_USER.id]),
+          searchCriteria: { searchAfterDate: after } as unknown as SearchCriteria,
+        }),
+      );
+
+      const calls = mockFetchSearchMessageData.mock.calls;
+      expect(calls.length).toBeGreaterThan(0);
+      for (const call of calls) {
+        expect(call[4].searchAfterDate).toEqual(after);
+        expect(call[4].userIds).toEqual([CURRENT_USER.id]);
+      }
+      const guildForChannel = new Map(calls.map((c) => [c[2], c[3]]));
+      expect(guildForChannel.get('c1')).toBe('g1');
+      expect(guildForChannel.get('c2')).toBe('g2');
+    });
+
+    it('runs thread discovery for every server\'s channels', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({});
+      mockFetchPublicThreads.mockClear();
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id]) }),
+      );
+
+      const scanned = mockFetchPublicThreads.mock.calls.map((c) => c.find((arg: unknown) => arg === 'c1' || arg === 'c2'));
+      expect(scanned).toEqual(['c1', 'c2']);
+    });
+
+    it('attachments-only mode edits instead of deleting, across servers', async () => {
+      const attachment = { id: 'att1', filename: 'photo.png', url: 'https://cdn.example.com/photo.png' };
+      channelsByGuild({ g1: [textChannel('c1', 'general')], g2: [textChannel('c2', 'chat')] });
+      setupPerChannelSearch({ c1: [mockMessage('m1', 0, [attachment])], c2: [mockMessage('m2', 0, [attachment])] });
+
+      await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha'), guild('g2', 'Beta')], config: messagesConfig([CURRENT_USER.id], false, true) }),
+      );
+
+      expect(mockDeleteMessage).not.toHaveBeenCalled();
+      expect(mockEditMessage.mock.calls.map((c) => c[1])).toEqual(['m1', 'm2']);
+    });
+
+    it('rejects up front when no target users are configured', async () => {
+      channelsByGuild({ g1: [textChannel('c1', 'general')] });
+      const result = await store.dispatch(purgeGuilds({ guilds: [guild('g1', 'Alpha')], config: messagesConfig([]) }));
+      expect(purgeGuilds.rejected.match(result)).toBe(true);
+      expect(result.payload).toBe('No target users specified');
+      expect(mockFetchChannels).not.toHaveBeenCalled();
+      expect(selectIsPurging(store.getState())).toBe(false);
+    });
+
+    it('rejects when no servers are selected or the token is missing', async () => {
+      const empty = await store.dispatch(purgeGuilds({ guilds: [], config: messagesConfig([CURRENT_USER.id]) }));
+      expect(purgeGuilds.rejected.match(empty)).toBe(true);
+      expect(empty.payload).toBe('No servers selected');
+
+      store = createStore({ token: null });
+      const noToken = await store.dispatch(purgeGuilds({ guilds: [guild('g1', 'Alpha')], config: messagesConfig([CURRENT_USER.id]) }));
+      expect(noToken.payload).toBe('Not authenticated');
+      expect(mockFetchChannels).not.toHaveBeenCalled();
+    });
+
+    it('does not fetch channels when the guild list is fine but the user has no id (falls back to guild-level permissions)', async () => {
+      store = createStore({ currentUser: { id: '', username: 'anon' } as User });
+      channelsByGuild({ g1: [textChannel('c1', 'general')] });
+      setupPerChannelSearch({});
+
+      const result = await store.dispatch(
+        purgeGuilds({ guilds: [guild('g1', 'Alpha')], config: messagesConfig(['someone']) }),
+      );
+
+      expect(mockFetchGuildUser).not.toHaveBeenCalled();
+      expect(mockFetchChannels).toHaveBeenCalledTimes(1);
+      expect(purgeGuilds.fulfilled.match(result)).toBe(true);
     });
   });
 });

@@ -14,6 +14,12 @@ export type SidebarView = 'server' | 'package';
 export interface AppState {
   discrubPaused: boolean;
   discrubCancelled: boolean;
+  /**
+   * #254 — set by the rate-limit storm hook when discrub-core gives up on
+   * a request; the current operation was cancelled for that reason.
+   * MainLayout turns it into the completion toast and clears it.
+   */
+  rateLimitStopped?: boolean;
   isMinimized: boolean;
   focusedView: boolean;
   /** Mobile-only (< md): Ko-fi feed shown as a temporary overlay. Never persisted. */
@@ -32,6 +38,7 @@ export interface AppState {
 export const initialAppState: AppState = {
   discrubPaused: false,
   discrubCancelled: false,
+  rateLimitStopped: false,
   isMinimized: false,
   focusedView: false,
   kofiOverlayOpen: false,

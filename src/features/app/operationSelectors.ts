@@ -34,12 +34,20 @@ export const selectOperationSummary = createSelector(
       const progress = purgeState.purgeProgress;
 
       if (progress?.bulk) {
-        const { currentIndex, totalChannels, currentChannelName, completedStats } = progress.bulk;
-        const channelLabel = `Channel ${currentIndex + 1}/${totalChannels}: ${currentChannelName}`;
+        const { currentIndex, totalChannels, currentChannelName, completedStats, server } = progress.bulk;
+        // #255: a multi-server run prefixes the server position and
+        // spreads the percentage across servers, so the bar does not
+        // jump back to 0 at every server boundary.
+        const channelLabel = server
+          ? `Server ${server.index + 1}/${server.total} ${server.name} · Channel ${currentIndex + 1}/${totalChannels}: ${currentChannelName}`
+          : `Channel ${currentIndex + 1}/${totalChannels}: ${currentChannelName}`;
         const isReactionsMode = progress.reactionsRemoved > 0 || completedStats.reactionsRemoved > 0;
 
-        const channelFraction = (currentIndex) / totalChannels;
-        const pct = Math.round(channelFraction * 100);
+        const channelFraction = totalChannels > 0 ? (currentIndex) / totalChannels : 0;
+        const overallFraction = server && server.total > 0
+          ? (server.index + channelFraction) / server.total
+          : channelFraction;
+        const pct = Math.round(overallFraction * 100);
 
         if (isReactionsMode) {
           const totalRemoved = completedStats.reactionsRemoved + progress.reactionsRemoved;
