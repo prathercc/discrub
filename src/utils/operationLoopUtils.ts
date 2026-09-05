@@ -110,7 +110,8 @@ export interface TransientRetryOptions<T extends RetryableResponse> {
  * retried: network errors (status undefined) and server-side
  * transients (5xx, 408 timeout, 425 too-early). 4xx (auth/perms/
  * not-found/bad-request) is permanent and not retried. 429 is
- * handled inside the lib and never bubbles here.
+ * handled inside the lib; when it does bubble here the lib has given
+ * up on a rate-limit storm (#254) and the operation is being cancelled.
  *
  * Exported so consumers can distinguish "exhausted retries on a
  * transient" (pause + ask user to fix network) from "hard fail"
@@ -118,6 +119,10 @@ export interface TransientRetryOptions<T extends RetryableResponse> {
  */
 export const isTransientApiFailure = (response: RetryableResponse): boolean => {
   if (response.success) return false;
+  // #254: a 429 only reaches here after discrub-core already gave up on
+  // it (storm). Retrying would add requests to the pile; the service's
+  // onRateLimitExceeded hook has cancelled the operation. Never transient.
+  if (response.status === 429) return false;
   if (response.status === undefined) return true;
   if (response.status >= 500) return true;
   if (response.status === 408 || response.status === 425) return true;

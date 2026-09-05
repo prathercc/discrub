@@ -4,6 +4,7 @@ import {
   checkCancelled,
   cancellableDelay,
   withTransientRetry,
+  isTransientApiFailure,
 } from './operationLoopUtils';
 import type { RootState } from '@/app/store';
 import { initialAppState } from '@features/app/appTypes';
@@ -285,5 +286,29 @@ describe('withTransientRetry', () => {
     // And the attempt counters track in step (1-indexed by design).
     const attempts = onRetry.mock.calls.map((c) => c[0]);
     expect(attempts).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('isTransientApiFailure (#254 rate-limit storms)', () => {
+  it('treats network errors and 5xx as transient', () => {
+    expect(isTransientApiFailure({ success: false })).toBe(true);
+    expect(isTransientApiFailure({ success: false, status: 503 })).toBe(true);
+    expect(isTransientApiFailure({ success: false, status: 408 })).toBe(true);
+  });
+
+  it('never treats a 429 as transient, so a storm is not re-hammered', () => {
+    expect(isTransientApiFailure({ success: false, status: 429 })).toBe(false);
+  });
+
+  it('does not retry a 429 inside withTransientRetry', async () => {
+    const getState = createMockGetState();
+    const fn = vi.fn().mockResolvedValue({ success: false, status: 429 });
+    const onRetry = vi.fn();
+
+    const result = await withTransientRetry(fn, { getState, onRetry, baseDelayMs: 1 });
+
+    expect(result).toEqual({ success: false, status: 429 });
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
   });
 });

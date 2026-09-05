@@ -1,11 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
+import type { RateLimitInfo } from 'discrub-core/discord-service';
 
 const constructorSpy = vi.fn();
 
 vi.mock('discrub-core/discord-service', () => ({
   DiscordService: class {
     onRateLimit?: unknown;
+    onRateLimitExceeded?: unknown;
     onDelay?: unknown;
     constructor(...args: unknown[]) {
       constructorSpy(...args);
@@ -46,5 +48,54 @@ describe('discordService singleton', () => {
 
     expect(first).toBe(second);
     expect(constructorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  describe('rate-limit hooks (#254)', () => {
+    const info = (overrides: Partial<RateLimitInfo> = {}): RateLimitInfo => ({
+      retryAfter: 5,
+      global: false,
+      source: 'json',
+      consecutive: 1,
+      capped: false,
+      ...overrides,
+    });
+
+    it('logs each 429 wait, noting global limits and streaks', async () => {
+      const { getDiscordService } = await import('./discordService');
+      const { store } = await import('@/app/store');
+      const { selectStatusEntries } = await import('@features/status/statusSlice');
+      const service = getDiscordService() as unknown as {
+        onRateLimit: (retryAfter: number, info: RateLimitInfo) => Promise<void>;
+      };
+
+      await service.onRateLimit(2.5, info({ global: true, consecutive: 3 }));
+
+      const last = selectStatusEntries(store.getState()).slice(-1)[0];
+      expect(last?.level).toBe('warning');
+      expect(last?.message).toBe('Rate limited by Discord (global limit), retrying in 2.5s, 3 in a row');
+    });
+
+    it('stops the operation when core gives up on a storm: error log, cancel flag, toast', async () => {
+      const { getDiscordService, RATE_LIMIT_STOP_MESSAGE } = await import('./discordService');
+      const { store } = await import('@/app/store');
+      const { selectStatusEntries, selectToast } = await import('@features/status/statusSlice');
+      const { selectDiscrubCancelled, selectDiscrubPaused, setDiscrubPaused } = await import('@features/app/appSlice');
+      const service = getDiscordService() as unknown as {
+        onRateLimitExceeded: (info: RateLimitInfo) => Promise<void>;
+      };
+      store.dispatch(setDiscrubPaused(true));
+
+      await service.onRateLimitExceeded(info({ retryAfter: 600, consecutive: 1, capped: true }));
+
+      const state = store.getState();
+      expect(selectDiscrubCancelled(state)).toBe(true);
+      expect(selectDiscrubPaused(state)).toBe(false);
+      const last = selectStatusEntries(state).slice(-1)[0];
+      expect(last?.level).toBe('error');
+      expect(last?.message).toContain(RATE_LIMIT_STOP_MESSAGE);
+      expect(last?.message).toContain('600s');
+      expect(selectToast(state).isVisible).toBe(true);
+      expect(selectToast(state).level).toBe('error');
+    });
   });
 });

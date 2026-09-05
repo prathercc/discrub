@@ -16,7 +16,9 @@ const mockDiscordService = {
   deleteDelaySecs: 0,
   delayModifierSecs: 0,
   calculateRandomNumber: vi.fn((max: number, _min: number) => max),
-  onRateLimit: vi.fn() as ((retryAfter: number) => void) | undefined,
+  onRateLimit: vi.fn() as ((retryAfter: number, info?: unknown) => void) | undefined,
+  onRateLimitExceeded: vi.fn() as ((info: unknown) => void) | undefined,
+  rateLimit: { maxWaitSecs: 60, maxConsecutive: 5, defaultWaitSecs: 5 },
 };
 
 vi.mock('@services/discordService', () => ({
@@ -78,6 +80,8 @@ beforeEach(() => {
   mockDiscordService.searchDelaySecs = 0;
   mockDiscordService.delayModifierSecs = 0;
   mockDiscordService.onRateLimit = vi.fn();
+  mockDiscordService.onRateLimitExceeded = vi.fn();
+  mockDiscordService.rateLimit = { maxWaitSecs: 60, maxConsecutive: 5, defaultWaitSecs: 5 };
 });
 
 afterEach(() => {
@@ -169,7 +173,7 @@ describe('#232 streamDownloadWithStallGuard', () => {
 
     expect(result.success).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(mockDiscordService.onRateLimit).toHaveBeenCalledWith(3);
+    expect(mockDiscordService.onRateLimit).toHaveBeenCalledWith(3, expect.objectContaining({ source: 'header', consecutive: 1 }));
   });
 
   it('applies the jittered searchDelay pacing before fetching (lib parity)', async () => {
@@ -228,7 +232,7 @@ describe('#232 streamDownloadWithStallGuard', () => {
     expect(result).toEqual({ success: false, data: null });
   });
 
-  it('waits out every 429 with no retry cap (F25: lib transport parity)', async () => {
+  it('waits out 429s below the consecutive limit (F25: lib transport parity, #254 bound)', async () => {
     let call = 0;
     const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
       call++;
@@ -251,9 +255,50 @@ describe('#232 streamDownloadWithStallGuard', () => {
     const result = await promise;
 
     // The old cap (2 retries) turned the 3rd consecutive 429 into a
-    // silently dropped file; parity behavior waits out all of them.
+    // silently dropped file; four in a row is still under the #254
+    // limit of five, so all of them are waited out.
     expect(result.success).toBe(true);
     expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(mockDiscordService.onRateLimitExceeded).not.toHaveBeenCalled();
+  });
+
+  it('gives up with a real 429 after maxConsecutive rate limits (#254)', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve({
+      ok: false,
+      status: 429,
+      headers: new Headers({ 'retry-after': '1' }),
+      body: null,
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/storm.png');
+    await vi.advanceTimersByTimeAsync(10_000);
+    const result = await promise;
+
+    expect(result).toEqual({ success: false, data: null, status: 429 });
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(mockDiscordService.onRateLimit).toHaveBeenCalledTimes(4);
+    expect(mockDiscordService.onRateLimitExceeded).toHaveBeenCalledWith(expect.objectContaining({ consecutive: 5, capped: false }));
+  });
+
+  it('gives up immediately when retry_after exceeds maxWaitSecs (#254)', async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve({
+      ok: false,
+      status: 429,
+      headers: new Headers(),
+      json: () => Promise.resolve({ retry_after: 600, global: true }),
+      body: null,
+    } as unknown as Response));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const promise = streamDownloadWithStallGuard('https://cdn.discordapp.com/long-wait.png');
+    await vi.advanceTimersByTimeAsync(100);
+    const result = await promise;
+
+    expect(result).toEqual({ success: false, data: null, status: 429 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mockDiscordService.onRateLimit).not.toHaveBeenCalled();
+    expect(mockDiscordService.onRateLimitExceeded).toHaveBeenCalledWith(expect.objectContaining({ capped: true, global: true, retryAfter: 60 }));
   });
 
   it('prefers the JSON body retry_after over the Retry-After header (F25: lib parity)', async () => {
@@ -284,7 +329,7 @@ describe('#232 streamDownloadWithStallGuard', () => {
     await vi.advanceTimersByTimeAsync(3_000);
     const result = await promise;
     expect(result.success).toBe(true);
-    expect(mockDiscordService.onRateLimit).toHaveBeenCalledWith(4);
+    expect(mockDiscordService.onRateLimit).toHaveBeenCalledWith(4, expect.objectContaining({ source: 'json' }));
   });
 
   it('does not cap an actively-arriving buffered body at the stall window (F29)', async () => {

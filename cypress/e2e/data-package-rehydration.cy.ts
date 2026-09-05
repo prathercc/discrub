@@ -239,6 +239,31 @@ describe('Data package rehydration (Tier 2)', () => {
     cy.contains(/4 enriched/i, { timeout: 15000 }).should('exist');
   });
 
+  it('stops the operation after a 429 storm instead of retrying forever (#254)', () => {
+    // Every enrichment call is rate limited with a JSON body. discrub-core
+    // gives up after five consecutive 429s on one request; the app hook
+    // then cancels the operation, logs an ERROR line and shows a toast.
+    cy.intercept(
+      'GET',
+      `${API}/channels/200/messages?limit=50&around=*`,
+      (req) => {
+        req.reply({
+          statusCode: 429,
+          headers: { 'retry-after': '0' },
+          body: { message: 'Too many requests', retry_after: 0, global: false },
+        });
+      },
+    ).as('stormCall');
+
+    cy.contains('button', /Load rich data/i).click();
+
+    cy.contains(/Stopped: Discord is rate limiting this account/i, { timeout: 15000 }).should('exist');
+    cy.get('[aria-label="Expand log"]').click();
+    cy.contains(/Stopped the operation to protect your account/i, { timeout: 10000 }).should('exist');
+    // The storm never turned into a success count.
+    cy.contains(/4 enriched/i).should('not.exist');
+  });
+
   it('short-circuits to cache on re-entry — no new API calls', () => {
     // First run — actually enrich everything.
     cy.intercept(

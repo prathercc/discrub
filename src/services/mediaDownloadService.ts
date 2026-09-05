@@ -1,4 +1,5 @@
 import { getDiscordService } from '@services/discordService';
+import type { RateLimitInfo } from 'discrub-core/discord-service';
 import { wait } from 'discrub-core/common-utils';
 import { EmbedType } from 'discrub-core/discord-enum';
 import filenamify from 'filenamify';
@@ -78,6 +79,7 @@ export async function streamDownloadWithStallGuard(
     await wait(discordService.calculateRandomNumber(max, min));
   }
 
+  let consecutive429 = 0;
   for (;;) {
     if (signal?.aborted) return { success: false, data: null };
     const controller = new AbortController();
@@ -97,19 +99,40 @@ export async function streamDownloadWithStallGuard(
       const response = await fetch(url, { signal: controller.signal });
 
       if (response.status === 429) {
-        // Parity with the lib transport this replaced: every 429 is
-        // waited out (no retry cap), reading retry_after from the JSON
-        // body like withRetry does — with the Retry-After header, then
-        // 1s, as fallbacks for CDN 429s that carry no JSON body.
+        // Parity with the lib's withRetry (#254): read retry_after from
+        // the JSON body, then the Retry-After header, then 1s for CDN
+        // 429s that carry neither. Bounded the same way the lib is:
+        // past the wait cap or the consecutive limit, give up with a
+        // real 429 and let the host stop the operation.
         clearTimeout(stallTimer);
+        consecutive429 += 1;
         let retryAfterSecs = 0;
+        let source: RateLimitInfo['source'] = 'default';
+        let global = false;
         try {
-          const body = (await response.json()) as { retry_after?: number };
-          if (typeof body?.retry_after === 'number') retryAfterSecs = body.retry_after;
+          const body = (await response.json()) as { retry_after?: number; global?: boolean };
+          if (typeof body?.retry_after === 'number') { retryAfterSecs = body.retry_after; source = 'json'; }
+          global = body?.global === true;
         } catch { /* non-JSON 429 body */ }
-        if (!retryAfterSecs) retryAfterSecs = Number(response.headers.get('retry-after')) || 1;
-        discordService.onRateLimit?.(retryAfterSecs);
-        await wait(retryAfterSecs);
+        if (!retryAfterSecs) {
+          const header = Number(response.headers.get('retry-after'));
+          if (header > 0) { retryAfterSecs = header; source = 'header'; } else { retryAfterSecs = 1; }
+        }
+        const { maxWaitSecs, maxConsecutive } = discordService.rateLimit;
+        const capped = retryAfterSecs > maxWaitSecs;
+        const info: RateLimitInfo = {
+          retryAfter: capped ? maxWaitSecs : retryAfterSecs,
+          global,
+          source,
+          consecutive: consecutive429,
+          capped,
+        };
+        if (capped || consecutive429 >= maxConsecutive) {
+          discordService.onRateLimitExceeded?.(info);
+          return { success: false, data: null, status: 429 };
+        }
+        discordService.onRateLimit?.(info.retryAfter, info);
+        await wait(info.retryAfter);
         continue;
       }
 
