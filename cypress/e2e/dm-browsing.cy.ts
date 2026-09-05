@@ -348,7 +348,8 @@ describe('DM Browsing', () => {
       // Flip to Discord's order in Settings › Display and save.
       cy.get('[aria-label="Settings"]').click();
       cy.get('[role="dialog"]').contains('button', 'Display').click();
-      cy.get('[role="dialog"]').find('[role="combobox"]').eq(2).click();
+      // Language, Date Format, Time Format, DM List Order.
+      cy.get('[role="dialog"]').find('[role="combobox"]').eq(3).click();
       cy.get('[role="listbox"]').contains("Discord's order").click();
       cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
       cy.get('[role="dialog"]').should('not.exist');

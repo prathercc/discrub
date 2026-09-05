@@ -6,6 +6,8 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { startOfDay, endOfDay } from 'date-fns';
 import { isInvalidDate } from '@/utils/dateValidation';
+import { getDateLocale } from '@/i18n/dateLocale';
+import { useTranslation } from 'react-i18next';
 
 export type DateFilterMode = 'before' | 'after' | 'during' | 'between' | null;
 
@@ -39,7 +41,8 @@ const DateRangeFilter = ({
   // Date. Mark the field so the disabled Apply button has a visible reason.
   const startInvalid = isInvalidDate(startDate);
   const endInvalid = isInvalidDate(endDate);
-  const INCOMPLETE = 'Finish the date and time, or clear the field';
+  const { t } = useTranslation();
+  const INCOMPLETE = t('filters.incompleteDateTime');
 
   const groupValue: string[] = duringActive
     ? ['during']
@@ -99,10 +102,10 @@ const DateRangeFilter = ({
 
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDateFns}>
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={getDateLocale()}>
       <Box>
         <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-          Date
+          {t('filters.date')}
         </Typography>
         {dateMode === null ? (
           <Button
@@ -111,7 +114,7 @@ const DateRangeFilter = ({
             onClick={handleAddDate}
             sx={{ textTransform: 'none', color: 'text.secondary' }}
           >
-            Add date
+            {t('filters.addDate')}
           </Button>
         ) : (
           <>
@@ -121,14 +124,14 @@ const DateRangeFilter = ({
               size="small"
               sx={{ mb: 1.5, '& .MuiToggleButton-root': { px: 2, py: 0.5, fontSize: '0.75rem' } }}
             >
-              <ToggleButton value="before">Before</ToggleButton>
-              <ToggleButton value="after">After</ToggleButton>
-              <ToggleButton value="during">During</ToggleButton>
+              <ToggleButton value="before">{t('filters.before')}</ToggleButton>
+              <ToggleButton value="after">{t('filters.after')}</ToggleButton>
+              <ToggleButton value="during">{t('filters.during')}</ToggleButton>
             </ToggleButtonGroup>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               {duringActive ? (
                 <DatePicker
-                  label="During"
+                  label={t('filters.during')}
                   value={startDate}
                   onChange={handleDuringDateChange}
                   slotProps={{
@@ -136,7 +139,7 @@ const DateRangeFilter = ({
                       size: 'small',
                       sx: { minWidth: 200 },
                       error: startInvalid,
-                      helperText: startInvalid ? 'Finish the date, or clear the field' : undefined,
+                      helperText: startInvalid ? t('filters.incompleteDate') : undefined,
                     },
                   }}
                 />
@@ -144,7 +147,7 @@ const DateRangeFilter = ({
                 <>
                   {afterActive && (
                     <DateTimePicker
-                      label="After"
+                      label={t('filters.after')}
                       value={startDate}
                       onChange={onStartDateChange}
                       slotProps={{
@@ -159,7 +162,7 @@ const DateRangeFilter = ({
                   )}
                   {beforeActive && (
                     <DateTimePicker
-                      label="Before"
+                      label={t('filters.before')}
                       value={endDate}
                       onChange={onEndDateChange}
                       slotProps={{

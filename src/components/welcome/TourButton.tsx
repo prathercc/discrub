@@ -10,9 +10,10 @@ import {
   type ButtonProps,
 } from '@mui/material';
 import { HelpOutline as HelpIcon } from '@mui/icons-material';
-import { tourCatalog } from './tourSteps';
+import { getTourEntry } from './tourSteps';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
 import type { HotkeyActionId } from '@features/hotkeys/types';
+import { useTranslation } from 'react-i18next';
 
 interface TourButtonProps extends Omit<ButtonProps, 'children'> {
   stepKey: string;
@@ -48,8 +49,9 @@ const TourButton = ({
   ...buttonProps
 }: TourButtonProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
-  const entry = tourCatalog[stepKey];
+  const entry = getTourEntry(stepKey, t);
   if (!entry) return null;
 
   const open = Boolean(anchorEl);
@@ -94,7 +96,7 @@ const TourButton = ({
         <Button
           onClick={(e) => setAnchorEl(e.currentTarget)}
           data-testid={`tour-spot-${stepKey}`}
-          aria-label={`Help: ${entry.title}`}
+          aria-label={t('tour.help', { title: entry.title })}
           sx={{
             px: 0.5,
             minWidth: 32,

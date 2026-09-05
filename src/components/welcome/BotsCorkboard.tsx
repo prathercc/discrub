@@ -12,6 +12,9 @@ import RetrostatMark from './RetrostatMark';
 import ScourMark from './ScourMark';
 import VestedMark from './VestedMark';
 import DeveloperCard from './DeveloperCard';
+import { Trans } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
 
 /**
  * "What else we make": a pinboard strip on the WelcomePanel showing the
@@ -143,7 +146,7 @@ const PinnedCard = ({ bot, index, active = true }: { bot: BotEntry; index: numbe
         rel="noopener noreferrer"
         sx={{ textTransform: 'none', fontWeight: 600 }}
       >
-        Add to Discord
+        {translate('corkboard.addToDiscord')}
       </Button>
       <Link
         href={bot.pageUrl}
@@ -267,6 +270,7 @@ const Threads = ({ threads }: { threads: Thread[] }) => (
 );
 
 const BotsCorkboard = () => {
+  const { t } = useTranslation();
   const [collapsed, setCollapsed] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -338,13 +342,13 @@ const BotsCorkboard = () => {
     <Box data-testid="bots-corkboard" sx={{ mb: 5, maxWidth: 900, mx: 'auto' }}>
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5, mb: 1 }}>
         <Typography variant="h6" sx={{ fontWeight: 600 }}>
-          From the Discrub team
+          {t('corkboard.title')}
         </Typography>
-        <Tooltip title={collapsed ? 'Show the board' : 'Hide the board'}>
+        <Tooltip title={collapsed ? t('corkboard.showBoard') : t('corkboard.hideBoard')}>
           <IconButton
             size="small"
             onClick={toggle}
-            aria-label={collapsed ? 'Show the board' : 'Hide the board'}
+            aria-label={collapsed ? t('corkboard.showBoard') : t('corkboard.hideBoard')}
             aria-expanded={!collapsed}
             sx={{
               transform: collapsed ? 'rotate(-90deg)' : 'none',
@@ -465,7 +469,7 @@ const BotsCorkboard = () => {
                 <IconButton
                   size="small"
                   onClick={() => step(-1)}
-                  aria-label="Previous bot"
+                  aria-label={t('corkboard.previousBot')}
                   data-testid="corkboard-prev"
                   sx={{
                     color: '#3d2f10',
@@ -483,7 +487,7 @@ const BotsCorkboard = () => {
                     component="button"
                     type="button"
                     onClick={() => jumpTo(index)}
-                    aria-label={`Show ${bot.name}`}
+                    aria-label={t('corkboard.showBot', { name: bot.name })}
                     aria-current={index === activeIndex}
                     data-testid={`corkboard-dot-${bot.id}`}
                     sx={{
@@ -504,7 +508,7 @@ const BotsCorkboard = () => {
                 <IconButton
                   size="small"
                   onClick={() => step(1)}
-                  aria-label="Next bot"
+                  aria-label={t('corkboard.nextBot')}
                   data-testid="corkboard-next"
                   sx={{
                     color: '#3d2f10',
@@ -575,10 +579,7 @@ const BotsCorkboard = () => {
               </Box>
             )}
             <StickyNote testId="corkboard-idea" tilt={-1.5} tint="#b9e6ff">
-              Have an idea for a bot?{' '}
-              <Link href={BOT_IDEA_MAILTO} underline="always">
-                Tell me about it.
-              </Link>
+              <Trans i18nKey="corkboard.ideaPrompt" components={{ idea: <Link href={BOT_IDEA_MAILTO} underline="always" /> }} />
             </StickyNote>
           </Box>
           <DeveloperCard pin={<Pin />} tilt={1.4} />

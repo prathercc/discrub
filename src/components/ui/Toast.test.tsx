@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderWithProviders, screen, fireEvent, act } from '../../test/test-utils';
 import Toast from './Toast';
 import { createBaseState } from '../../test/state-factories';
+import { defaultSettings } from '@features/app/appSlice';
 
 describe('Toast', () => {
   beforeEach(() => {
@@ -78,6 +79,30 @@ describe('Toast', () => {
   });
 
   describe('Action button', () => {
+    it('switchLanguage action saves the language and hides the toast (#124)', async () => {
+      const base = createBaseState();
+      const { store } = renderWithProviders(<Toast />, {
+        preloadedState: {
+          ...base,
+          app: { ...base.app, settings: defaultSettings },
+          status: {
+            ...base.status,
+            toast: {
+              isVisible: true,
+              level: 'info',
+              message: 'Discrub ist auch auf Deutsch verfügbar.',
+              duration: 3000,
+              action: { type: 'switchLanguage', language: 'de', label: 'Auf Deutsch wechseln' },
+            },
+          },
+        },
+      });
+      fireEvent.click(screen.getByText('Auf Deutsch wechseln'));
+      // updateSetting.pending applies optimistically.
+      expect(store.getState().app.settings?.appLanguage).toBe('de');
+      expect(store.getState().status.toast.isVisible).toBe(false);
+    });
+
     it('renders no action button when no action is present', () => {
       renderToast();
       expect(screen.queryByRole('button', { name: /reload/i })).toBeNull();

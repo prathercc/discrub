@@ -5,6 +5,7 @@ import {
   ContentCopy as CopyIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 export interface MultiSelectControlsProps {
   /** Whether multi-select mode is active. Component renders nothing when false. */
@@ -52,9 +53,10 @@ const MultiSelectControls = ({
   onCopyNames,
   noun,
 }: MultiSelectControlsProps) => {
+  const { t } = useTranslation();
   if (!active) return null;
 
-  const toggleLabel = allSelected ? 'Deselect all' : 'Select all';
+  const toggleLabel = allSelected ? t('nav.deselectAll') : t('nav.selectAll');
   const showActions = selectedCount > 0;
 
   return (
@@ -65,7 +67,7 @@ const MultiSelectControls = ({
           color="text.secondary"
           data-testid="multi-select-count"
         >
-          {selectedCount} of {totalCount}
+          {t('nav.selectedOf', { selected: selectedCount, total: totalCount })}
         </Typography>
         <Typography variant="caption" color="text.disabled" component="span">
           ·
@@ -76,7 +78,7 @@ const MultiSelectControls = ({
           variant="caption"
           underline="hover"
           onClick={onToggleAll}
-          aria-label={`${toggleLabel} ${noun}`}
+          aria-label={t('nav.toggleAllAria', { toggle: toggleLabel, noun })}
           sx={{ color: 'primary.main', cursor: 'pointer' }}
           data-testid="multi-select-toggle-all"
         >
@@ -95,11 +97,11 @@ const MultiSelectControls = ({
                 color="primary"
                 startIcon={<DownloadIcon fontSize="small" />}
                 onClick={onExport}
-                aria-label={`Export selected ${noun}`}
+                aria-label={t('nav.exportSelectedAria', { noun })}
                 data-testid="multi-select-export"
                 sx={{ textTransform: 'none' }}
               >
-                Export
+                {t('nav.export')}
               </Button>
             )}
             {onEdit && (
@@ -109,11 +111,11 @@ const MultiSelectControls = ({
                 color="primary"
                 startIcon={<EditIcon fontSize="small" />}
                 onClick={onEdit}
-                aria-label={`Edit selected ${noun}`}
+                aria-label={t('nav.editSelectedAria', { noun })}
                 data-testid="multi-select-edit"
                 sx={{ textTransform: 'none' }}
               >
-                Edit
+                {t('nav.edit')}
               </Button>
             )}
             {onPurge && (
@@ -123,11 +125,11 @@ const MultiSelectControls = ({
                 color="error"
                 startIcon={<PurgeIcon fontSize="small" />}
                 onClick={onPurge}
-                aria-label={`Purge selected ${noun}`}
+                aria-label={t('nav.purgeSelectedAria', { noun })}
                 data-testid="multi-select-purge"
                 sx={{ textTransform: 'none' }}
               >
-                Purge
+                {t('nav.purge')}
               </Button>
             )}
             <Button
@@ -136,11 +138,11 @@ const MultiSelectControls = ({
               color="inherit"
               startIcon={<CopyIcon fontSize="small" />}
               onClick={onCopyNames}
-              aria-label={`Copy selected ${noun} names`}
+              aria-label={t('nav.copySelectedNamesAria', { noun })}
               data-testid="multi-select-copy"
               sx={{ textTransform: 'none' }}
             >
-              Copy
+              {t('nav.copy')}
             </Button>
           </Box>
         </>

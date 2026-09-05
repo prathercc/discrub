@@ -35,6 +35,7 @@ import type { AuthorType } from 'discrub-core/discord-enum';
 import { countActiveFilters } from 'discrub-core/filtering';
 import type { RefineCriteria, SystemMessageRefineMode } from '@features/message/messageFiltering';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
+import { useTranslation } from 'react-i18next';
 
 interface FilterModalProps {
   open: boolean;
@@ -275,11 +276,12 @@ const FilterModal = ({
   });
 
   const fullScreen = useFullScreenDialog();
+  const { t } = useTranslation();
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={fullScreen}>
       <DialogTitle sx={{ pr: 5 }}>
         <Typography variant="h6" component="span" sx={{ fontWeight: 700 }}>
-          Filters
+          {t('filters.title')}
         </Typography>
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
@@ -291,13 +293,13 @@ const FilterModal = ({
           <Box sx={sectionHeaderSx(true)} onClick={() => setSearchExpanded(!searchExpanded)}>
             <SearchIcon sx={(theme) => ({ fontSize: 18, color: theme.palette.primary.main })} />
             <Typography variant="subtitle2" sx={(theme) => ({ fontWeight: 700, color: theme.palette.primary.main, flex: 1 })}>
-              {packageMode ? 'Refine' : 'Search'}
+              {packageMode ? t('filters.refine') : t('filters.search')}
             </Typography>
             {searchFilterCount > 0 && (
               <Chip label={searchFilterCount} size="small" color="primary" sx={{ height: 20, fontSize: '0.7rem', minWidth: 20 }} />
             )}
             {!packageMode && (
-              <Chip label="Discord API" size="small" variant="outlined" color="primary" sx={{ height: 18, fontSize: '0.55rem' }} />
+              <Chip label={t('filters.discordApi')} size="small" variant="outlined" color="primary" sx={{ height: 18, fontSize: '0.55rem' }} />
             )}
             <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: searchExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }} />
           </Box>
@@ -307,7 +309,7 @@ const FilterModal = ({
               {/* Content first — most common filter */}
               <ContentFilter
                 mode={packageMode ? 'refine' : 'search'}
-                placeholder="Search message content..."
+                placeholder={t('filters.searchContentPlaceholder')}
                 testId="content-filter-search"
                 terms={searchCriteria.searchMessageContents ?? []}
                 draft={searchDraft}
@@ -318,7 +320,7 @@ const FilterModal = ({
 
               {!effectiveHideAuthorFilters && (
                 <Box data-testid="filter-modal-search-from">
-                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>From</Typography>
+                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>{t('filters.from')}</Typography>
                   <UserPicker selectedUserIds={searchCriteria.userIds} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, userIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
                 </Box>
               )}
@@ -338,7 +340,7 @@ const FilterModal = ({
 
               {!packageMode && (
                 <Box>
-                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>Mentions</Typography>
+                  <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>{t('filters.mentions')}</Typography>
                   <UserPicker selectedUserIds={searchCriteria.mentionIds || []} onChange={(ids) => updateSearchCriteria((p) => ({ ...p, mentionIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
                 </Box>
               )}
@@ -366,10 +368,10 @@ const FilterModal = ({
             {/* Sticky action bar */}
             <Box sx={actionBarSx(true)}>
               <Button size="small" onClick={handleSearchClear} disabled={searchFilterCount === 0 && !searchDraft.trim()} sx={{ textTransform: 'none' }} data-testid="clear-search-filters">
-                Clear{searchFilterCount > 0 ? ` (${searchFilterCount})` : ''}
+                {searchFilterCount > 0 ? t('filters.clearCount', { count: searchFilterCount }) : t('filters.clear')}
               </Button>
               <Button variant="contained" size="small" startIcon={<SearchIcon />} onClick={() => handleSearchApply()} disabled={(searchFilterCount === 0 && !searchHasChanges) || searchDatesInvalid}>
-                {applyButtonLabel ?? 'Search'}
+                {applyButtonLabel ?? t('filters.search')}
               </Button>
             </Box>
           </Collapse>
@@ -382,7 +384,7 @@ const FilterModal = ({
           <Box sx={sectionHeaderSx(false)} onClick={() => setRefineExpanded(!refineExpanded)}>
             <RefineIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.secondary', flex: 1 }}>
-              Refine
+              {t('filters.refine')}
               <Box component="span" onClick={(e) => e.stopPropagation()}>
                 <TourFootnote stepKey="refine-section" />
               </Box>
@@ -390,7 +392,7 @@ const FilterModal = ({
             {refineFilterCount > 0 && (
               <Chip label={refineFilterCount} size="small" sx={{ height: 20, fontSize: '0.7rem', minWidth: 20, backgroundColor: 'action.selected' }} />
             )}
-            <Chip label="Loaded messages" size="small" variant="outlined" sx={{ height: 18, fontSize: '0.55rem', color: 'text.secondary', borderColor: 'divider' }} />
+            <Chip label={t('filters.loadedMessages')} size="small" variant="outlined" sx={{ height: 18, fontSize: '0.55rem', color: 'text.secondary', borderColor: 'divider' }} />
             <ExpandMoreIcon sx={{ fontSize: 18, color: 'text.secondary', transform: refineExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 200ms ease' }} />
           </Box>
 
@@ -399,7 +401,7 @@ const FilterModal = ({
               {/* Content first */}
               <ContentFilter
                 mode="refine"
-                label="Content"
+                label={t('filters.content')}
                 terms={refineCriteria.searchMessageContents ?? []}
                 draft={refineDraft}
                 onDraftChange={setRefineDraft}
@@ -408,7 +410,7 @@ const FilterModal = ({
               />
 
               <Box>
-                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>From</Typography>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>{t('filters.from')}</Typography>
                 <UserPicker selectedUserIds={refineCriteria.userIds} onChange={(ids) => updateRefineCriteria((p) => ({ ...p, userIds: ids }))} cachedUserMap={cachedUserMap} currentUserId={currentUserId} label="" />
               </Box>
 
@@ -430,7 +432,7 @@ const FilterModal = ({
                   Refine). Reuses the same 7-bucket picker as the purge dialog. */}
               <Box>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.75 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>System Messages</Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>{t('filters.systemMessages')}</Typography>
                   <ToggleButtonGroup
                     exclusive
                     size="small"
@@ -439,8 +441,8 @@ const FilterModal = ({
                       if (mode) updateRefineCriteria((p) => ({ ...p, systemMessageMode: mode }));
                     }}
                   >
-                    <ToggleButton value="only" sx={{ textTransform: 'none', py: 0.25 }}>Show only</ToggleButton>
-                    <ToggleButton value="hide" sx={{ textTransform: 'none', py: 0.25 }}>Hide</ToggleButton>
+                    <ToggleButton value="only" sx={{ textTransform: 'none', py: 0.25 }}>{t('filters.showOnly')}</ToggleButton>
+                    <ToggleButton value="hide" sx={{ textTransform: 'none', py: 0.25 }}>{t('filters.hide')}</ToggleButton>
                   </ToggleButtonGroup>
                 </Box>
                 <SystemMessageTypePicker
@@ -453,10 +455,10 @@ const FilterModal = ({
             {/* Sticky action bar */}
             <Box sx={actionBarSx(false)}>
               <Button size="small" onClick={handleRefineClear} disabled={refineFilterCount === 0 && !refineDraft.trim()} sx={{ textTransform: 'none' }} data-testid="clear-refine-filters">
-                Clear{refineFilterCount > 0 ? ` (${refineFilterCount})` : ''}
+                {refineFilterCount > 0 ? t('filters.clearCount', { count: refineFilterCount }) : t('filters.clear')}
               </Button>
               <Button variant="outlined" size="small" startIcon={<RefineIcon />} onClick={() => handleRefineApply()} disabled={refineFilterCount === 0 && !refineHasChanges}>
-                Apply Refine
+                {t('filters.applyRefine')}
               </Button>
             </Box>
           </Collapse>

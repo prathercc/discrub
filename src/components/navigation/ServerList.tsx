@@ -41,6 +41,8 @@ import EmptyState from '@components/ui/EmptyState';
 import TourButton from '@components/welcome/TourButton';
 import MultiSelectControls from './MultiSelectControls';
 import BulkPurgeDialog from '@containers/PurgeView/BulkPurgeDialog';
+import { useTranslation } from 'react-i18next';
+import { t as translate } from '@/i18n';
 
 const PAGE_SIZE = 50;
 
@@ -53,6 +55,7 @@ interface ServerListProps {
  */
 const ServerList = ({ filterText = '' }: ServerListProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const guilds = useAppSelector(selectGuilds);
   const selectedGuild = useAppSelector(selectSelectedGuild);
   const selectedGuilds = useAppSelector(selectSelectedGuilds);
@@ -80,11 +83,11 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
   useEffect(() => {
     if (token && guilds.length === 0 && !guildsFetched.current) {
       guildsFetched.current = true;
-      dispatch(addStatusEntry({ level: 'info', message: 'Loading servers...' }));
+      dispatch(addStatusEntry({ level: 'info', message: translate('nav.loadingServers') }));
       dispatch(fetchGuilds(token))
         .unwrap()
         .then((result) => {
-          dispatch(addStatusEntry({ level: 'info', message: `Loaded ${result.length} server${result.length !== 1 ? 's' : ''}` }));
+          dispatch(addStatusEntry({ level: 'info', message: translate('nav.loadedServers', { count: result.length }) }));
         })
         .catch(() => {
           // Error already handled by rejected case in guildSlice
@@ -127,7 +130,7 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
     dispatch(setSelectedChannel(null));
     dispatch(clearMessages());
     dispatch(setSelectedGuild(guild));
-    dispatch(addStatusEntry({ level: 'info', message: `Loading server: ${guild.name}` }));
+    dispatch(addStatusEntry({ level: 'info', message: t('nav.loadingServer', { name: guild.name }) }));
     // Fetch channels, current member roles, and guild roles in parallel
     dispatch(fetchCurrentMember({ guildId: guild.id, token }));
     dispatch(fetchRoles({ guildId: guild.id, token }));
@@ -141,7 +144,7 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
       .join('\n');
     if (!names) return;
     navigator.clipboard.writeText(names);
-    dispatch(showToast({ level: 'success', message: 'Copied to clipboard' }));
+    dispatch(showToast({ level: 'success', message: t('nav.copiedToClipboard') }));
   };
 
   const handleToggleMultiSelect = () => {
@@ -159,11 +162,11 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
   }
 
   if (filteredGuilds.length === 0 && filterText.trim()) {
-    return <EmptyState message={`No servers matching "${filterText}"`} icon={<FolderIcon />} />;
+    return <EmptyState message={t('nav.noServersMatching', { filter: filterText })} icon={<FolderIcon />} />;
   }
 
   if (filteredGuilds.length === 0) {
-    return <EmptyState message="No servers found" icon={<FolderIcon />} />;
+    return <EmptyState message={t('nav.noServersFound')} icon={<FolderIcon />} />;
   }
 
   return (
@@ -178,7 +181,7 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
             fontWeight: 600,
           }}
         >
-          Servers
+          {t('nav.servers')}
         </Typography>
         <TourButton
           stepKey="multi-select-toggle"
@@ -186,12 +189,12 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
           onClick={handleToggleMultiSelect}
           variant={multiSelectMode ? 'contained' : 'outlined'}
           color={multiSelectMode ? 'primary' : 'inherit'}
-          aria-label="Toggle multi-select"
+          aria-label={t('nav.toggleMultiSelect')}
           data-tour="multi-select-toggle"
           startIcon={multiSelectMode ? <SelectModeIcon fontSize="small" /> : <SelectModeOffIcon fontSize="small" />}
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
-          Multi-select
+          {t('nav.multiSelect')}
         </TourButton>
       </Box>
 
@@ -255,17 +258,17 @@ const ServerList = ({ filterText = '' }: ServerListProps) => {
                     {guild.name}
                   </Typography>
                   {guild.owner && (
-                    <Tooltip title="You own this server" enterDelay={0} arrow>
+                    <Tooltip title={t('nav.youOwnThisServer')} enterDelay={0} arrow>
                       <OwnerIcon sx={{ fontSize: 13, color: '#ffd700', flexShrink: 0 }} />
                     </Tooltip>
                   )}
                   {guild.features?.includes('VERIFIED') && (
-                    <Tooltip title="Verified server" enterDelay={0} arrow>
+                    <Tooltip title={t('nav.verifiedServer')} enterDelay={0} arrow>
                       <VerifiedIcon sx={{ fontSize: 13, color: 'primary.main', flexShrink: 0 }} />
                     </Tooltip>
                   )}
                   {guild.features?.includes('PARTNERED') && !guild.features?.includes('VERIFIED') && (
-                    <Tooltip title="Partnered server" enterDelay={0} arrow>
+                    <Tooltip title={t('nav.partneredServer')} enterDelay={0} arrow>
                       <VerifiedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
                     </Tooltip>
                   )}

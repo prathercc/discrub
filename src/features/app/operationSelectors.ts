@@ -1,5 +1,6 @@
 import { createSelector } from '@reduxjs/toolkit';
 import type { RootState } from '@/app/store';
+import { t } from '@/i18n';
 
 export type OperationTier = 'heavy' | 'light' | 'idle';
 
@@ -39,8 +40,19 @@ export const selectOperationSummary = createSelector(
         // spreads the percentage across servers, so the bar does not
         // jump back to 0 at every server boundary.
         const channelLabel = server
-          ? `Server ${server.index + 1}/${server.total} ${server.name} · Channel ${currentIndex + 1}/${totalChannels}: ${currentChannelName}`
-          : `Channel ${currentIndex + 1}/${totalChannels}: ${currentChannelName}`;
+          ? t('operation.serverChannelLabel', {
+              serverIndex: server.index + 1,
+              serverTotal: server.total,
+              serverName: server.name,
+              channelIndex: currentIndex + 1,
+              channelTotal: totalChannels,
+              channelName: currentChannelName,
+            })
+          : t('operation.channelLabel', {
+              channelIndex: currentIndex + 1,
+              channelTotal: totalChannels,
+              channelName: currentChannelName,
+            });
         const isReactionsMode = progress.reactionsRemoved > 0 || completedStats.reactionsRemoved > 0;
 
         const channelFraction = totalChannels > 0 ? (currentIndex) / totalChannels : 0;
@@ -54,8 +66,8 @@ export const selectOperationSummary = createSelector(
           return {
             isRunning: true, isPaused, tier: 'heavy',
             label: isPaused
-              ? `Paused · ${channelLabel}`
-              : `Removing reactions... ${channelLabel} · ${progress.processed} scanned (${totalRemoved} removed)`,
+              ? t('operation.paused', { label: channelLabel })
+              : t('operation.removingReactionsBulk', { label: channelLabel, processed: progress.processed, removed: totalRemoved }),
             progress: pct,
           };
         }
@@ -64,8 +76,8 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused · ${channelLabel}`
-            : `Purging... ${channelLabel} · ${progress.processed} processed (${totalDeleted} deleted)`,
+            ? t('operation.paused', { label: channelLabel })
+            : t('operation.purgingBulk', { label: channelLabel, processed: progress.processed, deleted: totalDeleted }),
           progress: pct,
         };
       }
@@ -78,7 +90,7 @@ export const selectOperationSummary = createSelector(
             : `Purging... ${progress.processed} processed (${progress.deleted} deleted)`,
         };
       }
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Purging' : 'Purging...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedPurging') : t('operation.purging') };
     }
 
     // Export
@@ -103,31 +115,31 @@ export const selectOperationSummary = createSelector(
           : 0;
         return {
           isRunning: true, isPaused, tier: 'heavy',
-          label: isPaused ? 'Paused · Exporting' : `Exporting (${progress.stage})... ${pct}%`,
+          label: isPaused ? t('operation.pausedExporting') : t('operation.exportingStage', { stage: progress.stage, pct }),
           progress: pct,
         };
       }
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Exporting' : 'Exporting...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedExporting') : t('operation.exporting') };
     }
 
     // Deleting messages (heavy — destructive)
     if (messageState.isDeleting) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Deleting messages' : 'Deleting messages...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedDeletingMessages') : t('operation.deletingMessages') };
     }
 
     // Editing messages (heavy — modifying)
     if (messageState.isEditing) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Editing messages' : 'Editing messages...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedEditingMessages') : t('operation.editingMessages') };
     }
 
     // Removing reactions (heavy — destructive, supports pause/cancel)
     if (messageState.isRemovingReactions) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Removing reactions' : 'Removing reactions...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedRemovingReactions') : t('operation.removingReactions') };
     }
 
     // Adding reactions (heavy — bulk PUT fan-out, supports pause/cancel; Backlog #202)
     if (messageState.isAddingReactions) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Adding reactions' : 'Adding reactions...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedAddingReactions') : t('operation.addingReactions') };
     }
 
     // Loading all messages (heavy — long-running, many API calls)
@@ -135,7 +147,7 @@ export const selectOperationSummary = createSelector(
     const threadLoadingAll = threadTabValues.some((tab) => tab.pagination.isLoadingAll);
 
     if (messageState.pagination.isLoadingAll || threadLoadingAll) {
-      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? 'Paused · Loading all messages' : 'Loading all messages...' };
+      return { isRunning: true, isPaused, tier: 'heavy', label: isPaused ? t('operation.pausedLoadingAllMessages') : t('operation.loadingAllMessages') };
     }
 
     // Package export (heavy — bulk media download + zip build, can
@@ -152,8 +164,8 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused · Package export (${progress.stage})`
-            : `Package export (${progress.stage})... ${pct}%`,
+            ? t('operation.pausedPackageExportStage', { stage: progress.stage })
+            : t('operation.packageExportStagePct', { stage: progress.stage, pct }),
           progress: pct,
         };
       }
@@ -161,13 +173,13 @@ export const selectOperationSummary = createSelector(
         return {
           isRunning: true, isPaused, tier: 'heavy',
           label: isPaused
-            ? `Paused · Package export (${progress.stage})`
-            : `Package export (${progress.stage})...`,
+            ? t('operation.pausedPackageExportStage', { stage: progress.stage })
+            : t('operation.packageExportStage', { stage: progress.stage }),
         };
       }
       return {
         isRunning: true, isPaused, tier: 'heavy',
-        label: isPaused ? 'Paused · Package export' : 'Package export...',
+        label: isPaused ? t('operation.pausedPackageExport') : t('operation.packageExport'),
       };
     }
 
@@ -218,37 +230,37 @@ export const selectOperationSummary = createSelector(
     const threadLoading = threadTabValues.some((tab) => tab.isLoading);
     const threadLoadingMore = threadTabValues.some((tab) => tab.pagination?.isLoadingMore);
     if (messageState.isLoading || threadLoading || messageState.pagination?.isLoadingMore || threadLoadingMore) {
-      return { isRunning: true, isPaused: false, tier: 'light', label: 'Loading messages...' };
+      return { isRunning: true, isPaused: false, tier: 'light', label: t('operation.loadingMessages') };
     }
 
     // Forum thread loading
     if (channelState.isLoadingForumThreads) {
-      return { isRunning: true, isPaused: false, tier: 'light', label: 'Loading forum posts...' };
+      return { isRunning: true, isPaused: false, tier: 'light', label: t('operation.loadingForumPosts') };
     }
 
     // Guild loading
     if (guildState?.isLoading) {
-      return { isRunning: true, isPaused: false, tier: 'light', label: 'Loading servers...' };
+      return { isRunning: true, isPaused: false, tier: 'light', label: t('operation.loadingServers') };
     }
 
     // Channel loading
     if (channelState?.isLoading) {
-      return { isRunning: true, isPaused: false, tier: 'light', label: 'Loading channels...' };
+      return { isRunning: true, isPaused: false, tier: 'light', label: t('operation.loadingChannels') };
     }
 
     // DM loading
     if (dmState?.isLoading) {
-      return { isRunning: true, isPaused: false, tier: 'light', label: 'Loading DMs...' };
+      return { isRunning: true, isPaused: false, tier: 'light', label: t('operation.loadingDms') };
     }
 
     // User enrichment (display name / nickname lookups)
     if (messageState.isEnriching) {
-      return { isRunning: true, isPaused: false, tier: 'light', label: 'Looking up users...' };
+      return { isRunning: true, isPaused: false, tier: 'light', label: t('operation.lookingUpUsers') };
     }
 
     // ── IDLE ─────────────────────────────────────────────────────
 
-    return { isRunning: false, isPaused: false, tier: 'idle', label: 'Idle' };
+    return { isRunning: false, isPaused: false, tier: 'idle', label: t('operation.idle') };
   },
 );
 

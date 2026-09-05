@@ -16,6 +16,7 @@ import EditMessageModal from '@components/modals/EditMessageModal';
 import EmbedModal from '@components/modals/EmbedModal';
 import ReactionRemovalModal from '@components/modals/ReactionRemovalModal';
 import AddReactionsModal from '@components/modals/AddReactionsModal';
+import { useTranslation } from 'react-i18next';
 
 interface MessageActionsProps {
   selectedMessages: Message[];
@@ -60,6 +61,7 @@ const MessageActions = ({
   guildEmojis,
   onFetchReactingUsers,
 }: MessageActionsProps) => {
+  const { t } = useTranslation();
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [embedModalOpen, setEmbedModalOpen] = useState(false);
@@ -85,11 +87,11 @@ const MessageActions = ({
   const hasSystemSelection = selectedMessages.some((m) => isSystemMessageType(m.type));
   const editBlocked = hasNonSelfSelection || hasSystemSelection;
   const deleteLockReason = isDm
-    ? 'You can only delete your own messages in DMs.'
-    : 'You can only delete your own messages without Manage Messages permission in this channel.';
+    ? t('messageActions.deleteLockDm')
+    : t('messageActions.deleteLockChannel');
   const editLockReason = hasSystemSelection
-    ? "System messages (pins, joins, boosts, etc.) can't be edited."
-    : 'You can only edit your own messages. Discord blocks editing other users\' messages.';
+    ? t('messageActions.editLockSystem')
+    : t('messageActions.editLockOthers');
 
   const handleDelete = async () => {
     setDeleteModalOpen(false);
@@ -110,7 +112,7 @@ const MessageActions = ({
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
           <Chip
-            label={`${selectedCount} selected`}
+            label={t('messageActions.selected', { count: selectedCount })}
             color={selectedCount > 0 ? 'primary' : 'default'}
           />
 
@@ -124,7 +126,7 @@ const MessageActions = ({
                 disabled={selectedCount === 0 || isOperationRunning || deleteBlockedByPermission}
                 onClick={() => setDeleteModalOpen(true)}
               >
-                Delete
+                {t('messageActions.delete')}
               </Button>
             </span>
           </Tooltip>
@@ -138,7 +140,7 @@ const MessageActions = ({
                 disabled={selectedCount === 0 || (selectedCount > 1 && isOperationRunning) || editBlocked}
                 onClick={() => setEditModalOpen(true)}
               >
-                Edit
+                {t('messageActions.edit')}
               </Button>
             </span>
           </Tooltip>
@@ -150,7 +152,7 @@ const MessageActions = ({
               startIcon={<CodeIcon />}
               onClick={() => setEmbedModalOpen(true)}
             >
-              Embeds ({singleMessage.embeds.length})
+              {t('messageActions.embeds', { count: singleMessage.embeds.length })}
             </Button>
           )}
 
@@ -165,7 +167,7 @@ const MessageActions = ({
               disabled={selectedCount === 0 || isOperationRunning}
               onClick={() => setAddReactionsOpen(true)}
             >
-              Add Reactions
+              {t('messageActions.addReactions')}
             </Button>
           )}
 
@@ -180,7 +182,7 @@ const MessageActions = ({
               )}
               onClick={() => setReactionRemovalOpen(true)}
             >
-              Remove Reactions
+              {t('messageActions.removeReactions')}
             </Button>
           )}
         </Box>

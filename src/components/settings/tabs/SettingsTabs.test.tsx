@@ -101,7 +101,7 @@ describe('OperationDelaysTab', () => {
   describe('Safest zone (above 10s, up to 30s)', () => {
     const config: DelaySliderConfig = {
       key: DiscrubSetting.SEARCH_DELAY,
-      label: 'x', description: 'x',
+      labelKey: 'x', descriptionKey: 'x',
       min: 0, max: 10, step: 0.1,
       recommendedMin: 1, recommendedMax: 3,
       safest: { from: 10, to: 30, step: 0.5 },
@@ -234,10 +234,10 @@ describe('ExportPreferencesTab', () => {
 });
 
 describe('DisplayTab', () => {
-  it('should render three select controls', () => {
+  it('should render four select controls', () => {
     render(<DisplayTab formValues={defaultSettings} onChange={vi.fn()} />);
     const selects = screen.getAllByRole('combobox');
-    expect(selects.length).toBe(3); // Date Format + Time Format + DM List Order
+    expect(selects.length).toBe(4); // Language + Date Format + Time Format + DM List Order
   });
 
   it('should display default format values', () => {
@@ -250,7 +250,7 @@ describe('DisplayTab', () => {
     const onChange = vi.fn();
     render(<DisplayTab formValues={defaultSettings} onChange={onChange} />);
     const selects = screen.getAllByRole('combobox');
-    fireEvent.mouseDown(selects[0]);
+    fireEvent.mouseDown(selects[1]);
     fireEvent.click(screen.getByText('DD/MM/YYYY'));
     expect(onChange).toHaveBeenCalledWith(DiscrubSetting.DATE_FORMAT, expect.any(String));
   });

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Box, useMediaQuery, useTheme } from '@mui/material';
 import { Joyride } from 'react-joyride';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
@@ -29,7 +29,14 @@ import { selectIsExporting, selectExportError, resetExport } from '@features/exp
 import { selectIsPurging, selectPurgeError, selectPurgeChannelErrorCount } from '@features/purge/purgeSlice';
 import { showToast } from '@features/status/statusSlice';
 import { RATE_LIMIT_STOP_TOAST } from '@/constants/rateLimitMessages';
-import { setDiscrubCancelled, setDiscrubPaused, setRateLimitStopped, selectRateLimitStopped } from '@features/app/appSlice';
+import {
+  setDiscrubCancelled,
+  setDiscrubPaused,
+  setRateLimitStopped,
+  selectRateLimitStopped,
+  selectSuggestedLanguage,
+  setSuggestedLanguage,
+} from '@features/app/appSlice';
 import { selectIsOperationRunning } from '@features/app/operationSelectors';
 import { selectSelectedChannel } from '@features/channel/channelSlice';
 import { selectSelectedDm } from '@features/dm/dmSlice';
@@ -52,8 +59,9 @@ import StatusPanel from '@components/ui/StatusPanel';
 import FloatingPauseControl from '@components/ui/FloatingPauseControl';
 import Toast from '@components/ui/Toast';
 import TourTooltip from '@components/welcome/TourTooltip';
-import { shellTourSteps } from '@components/welcome/tourSteps';
+import { buildShellTourSteps } from '@components/welcome/tourSteps';
 import { HotkeyProvider, useHotkey } from '@features/hotkeys/HotkeyProvider';
+import { useTranslation } from 'react-i18next';
 
 /**
  * MainLayout component - main application shell
@@ -91,6 +99,8 @@ const MainLayout = () => {
   const purgeChannelErrorCount = useAppSelector(selectPurgeChannelErrorCount);
   const isOperationRunning = useAppSelector(selectIsOperationRunning);
   const rateLimitStopped = useAppSelector(selectRateLimitStopped);
+  const suggestedLanguage = useAppSelector(selectSuggestedLanguage);
+  const { t } = useTranslation();
   const prevIsExporting = useRef(false);
   const prevIsPurging = useRef(false);
   const prevIsOperationRunning = useRef(false);
@@ -144,10 +154,31 @@ const MainLayout = () => {
     prevIsOperationRunning.current = isOperationRunning;
   }, [isOperationRunning, rateLimitStopped, dispatch]);
 
+  // #124: existing install whose browser prefers a supported language.
+  // One toast, in that language, offering the switch; the setting was
+  // already pinned to English so this never repeats.
+  useEffect(() => {
+    if (!suggestedLanguage) return;
+    dispatch(setSuggestedLanguage(null));
+    dispatch(
+      showToast({
+        level: 'info',
+        message: t('language.suggestionToast', { lng: suggestedLanguage }),
+        duration: 15000,
+        action: {
+          type: 'switchLanguage',
+          language: suggestedLanguage,
+          label: t('language.suggestionAction', { lng: suggestedLanguage }),
+        },
+      }),
+    );
+  }, [suggestedLanguage, dispatch, t]);
+
   // Shell tour is user-initiated (via WelcomePanel "Take a Tour"),
   // so we DON'T mark it completed on a missing target — let the user
   // retry. All shell tour steps target global chrome (Sidebar/TopBar/
   // StatusPanel) that always renders, so a miss here is exceptional.
+  const shellTourSteps = useMemo(() => buildShellTourSteps(t), [t]);
   const shellTour = useTour('shell', { steps: shellTourSteps });
 
   useBeforeUnloadWarning();

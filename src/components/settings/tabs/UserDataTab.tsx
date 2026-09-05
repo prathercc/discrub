@@ -1,6 +1,7 @@
 import { Box, FormControl, InputLabel, MenuItem, Select, FormControlLabel, Checkbox, Typography } from '@mui/material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting, UserDataRefreshRate } from 'discrub-core/discrub-enum';
+import { useTranslation } from 'react-i18next';
 
 interface UserDataTabProps {
   formValues: AppSettings;
@@ -8,10 +9,11 @@ interface UserDataTabProps {
 }
 
 export const UserDataTab = ({ formValues, onChange }: UserDataTabProps) => {
+  const { t } = useTranslation();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Typography variant="body2" color="text.secondary">
-        Control how user data is fetched and cached from Discord.
+        {t('userData.intro')}
       </Typography>
 
       <FormControlLabel
@@ -23,7 +25,7 @@ export const UserDataTab = ({ formValues, onChange }: UserDataTabProps) => {
             }
           />
         }
-        label="Enable reactions"
+        label={t('userData.enableReactions')}
       />
 
       <FormControlLabel
@@ -35,7 +37,7 @@ export const UserDataTab = ({ formValues, onChange }: UserDataTabProps) => {
             }
           />
         }
-        label="Look up server nicknames"
+        label={t('userData.lookupNicknames')}
       />
 
       <FormControlLabel
@@ -47,23 +49,23 @@ export const UserDataTab = ({ formValues, onChange }: UserDataTabProps) => {
             }
           />
         }
-        label="Look up display names"
+        label={t('userData.lookupDisplayNames')}
       />
 
       <FormControl fullWidth>
-        <InputLabel>User Data Refresh Rate</InputLabel>
+        <InputLabel>{t('userData.refreshRate')}</InputLabel>
         <Select
           value={formValues[DiscrubSetting.APP_USER_DATA_REFRESH_RATE]}
-          label="User Data Refresh Rate"
+          label={t('userData.refreshRate')}
           onChange={(e) => onChange(DiscrubSetting.APP_USER_DATA_REFRESH_RATE, e.target.value)}
         >
-          <MenuItem value={UserDataRefreshRate.NEVER}>Never</MenuItem>
-          <MenuItem value={UserDataRefreshRate.DAILY}>Daily</MenuItem>
-          <MenuItem value={UserDataRefreshRate.WEEKLY}>Weekly</MenuItem>
-          <MenuItem value={UserDataRefreshRate.MONTHLY}>Monthly</MenuItem>
+          <MenuItem value={UserDataRefreshRate.NEVER}>{t('userData.never')}</MenuItem>
+          <MenuItem value={UserDataRefreshRate.DAILY}>{t('userData.daily')}</MenuItem>
+          <MenuItem value={UserDataRefreshRate.WEEKLY}>{t('userData.weekly')}</MenuItem>
+          <MenuItem value={UserDataRefreshRate.MONTHLY}>{t('userData.monthly')}</MenuItem>
         </Select>
         <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
-          How often to re-fetch user profiles, nicknames, and roles from Discord
+          {t('userData.refreshRateHelp')}
         </Typography>
       </FormControl>
     </Box>

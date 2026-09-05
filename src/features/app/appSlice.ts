@@ -8,6 +8,7 @@ import {
   defaultSettings as DEFAULT_SETTINGS,
   isStateSettingKey,
 } from './storageKeys';
+import { DEFAULT_LANGUAGE, detectBrowserLanguage, isLanguageCode } from '@/i18n/language';
 
 /**
  * App slice — manages global application state including settings,
@@ -30,7 +31,10 @@ import {
 export const defaultSettings = DEFAULT_SETTINGS;
 
 /** Pulls every known setting key out of its appropriate store. */
-async function loadAllSettingsFromStorage(): Promise<AppSettings> {
+async function loadAllSettingsFromStorage(): Promise<{
+  settings: AppSettings;
+  hasStoredSettings: boolean;
+}> {
   const knownKeys = Object.keys(defaultSettings);
   const settingsKeys = knownKeys.filter((k) => !isStateSettingKey(k));
   const stateKeys = knownKeys.filter((k) => isStateSettingKey(k));
@@ -41,6 +45,7 @@ async function loadAllSettingsFromStorage(): Promise<AppSettings> {
   ]);
 
   const merged: AppSettings = { ...defaultSettings };
+  const hasStoredSettings = settingsValues.some((v) => v !== null && v !== undefined);
   settingsKeys.forEach((k, i) => {
     const v = settingsValues[i];
     if (v !== null && v !== undefined) {
@@ -53,7 +58,7 @@ async function loadAllSettingsFromStorage(): Promise<AppSettings> {
       (merged as Record<string, unknown>)[k] = v;
     }
   });
-  return merged;
+  return { settings: merged, hasStoredSettings };
 }
 
 /**
@@ -62,11 +67,24 @@ async function loadAllSettingsFromStorage(): Promise<AppSettings> {
  */
 export const loadSettings = createAsyncThunk(
   'app/loadSettings',
-  async (_, { rejectWithValue }) => {
+  async (_, { dispatch, rejectWithValue }) => {
     try {
       // Idempotent: legacy JSON-blob and localStorage data → per-key.
       await migrateAllStorage();
-      return await loadAllSettingsFromStorage();
+      const { settings, hasStoredSettings } = await loadAllSettingsFromStorage();
+      // #124: resolve the UI language once. A fresh install follows the
+      // browser; an existing install keeps English and, when the browser
+      // prefers a supported language, gets a one-time offer to switch.
+      if (!isLanguageCode(settings[DiscrubSetting.APP_LANGUAGE])) {
+        const detected = detectBrowserLanguage();
+        const resolved = hasStoredSettings ? DEFAULT_LANGUAGE : detected;
+        settings[DiscrubSetting.APP_LANGUAGE] = resolved;
+        if (hasStoredSettings && detected !== DEFAULT_LANGUAGE) {
+          dispatch(appSlice.actions.setSuggestedLanguage(detected));
+        }
+        await storage.settings.set(DiscrubSetting.APP_LANGUAGE, resolved);
+      }
+      return settings;
     } catch (error) {
       console.error('Failed to load settings:', error);
       return rejectWithValue('Failed to load settings');
@@ -134,6 +152,9 @@ const appSlice = createSlice({
     },
     setRateLimitStopped: (state, action: PayloadAction<boolean>) => {
       state.rateLimitStopped = action.payload;
+    },
+    setSuggestedLanguage: (state, action: PayloadAction<string | null>) => {
+      state.suggestedLanguage = action.payload;
     },
     setDiscrubCancelled: (state, action: PayloadAction<boolean>) => {
       state.discrubCancelled = action.payload;
@@ -212,6 +233,7 @@ export const {
   setDiscrubPaused,
   setDiscrubCancelled,
   setRateLimitStopped,
+  setSuggestedLanguage,
   setMinimized,
   setFocusedView,
   toggleFocusedView,
@@ -228,6 +250,7 @@ export const selectApp = (state: RootState) => state.app;
 export const selectDiscrubPaused = (state: RootState) => state.app.discrubPaused;
 export const selectDiscrubCancelled = (state: RootState) => state.app.discrubCancelled;
 export const selectRateLimitStopped = (state: RootState) => state.app.rateLimitStopped === true;
+export const selectSuggestedLanguage = (state: RootState) => state.app.suggestedLanguage;
 export const selectTask = (state: RootState) => state.app.task;
 export const selectSettings = (state: RootState) => state.app.settings;
 export const selectPreviewThemeId = (state: RootState) => state.app.previewThemeId;

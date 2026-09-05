@@ -1,4 +1,6 @@
 import type { Step } from 'react-joyride';
+import type { TFunction } from 'i18next';
+import { t as defaultT } from '@/i18n';
 
 /**
  * Catalog entry: a piece of explanatory copy keyed by a stable
@@ -143,12 +145,32 @@ function step(
   key: keyof typeof tourCatalog,
   target: string,
   extra: Partial<Step> = {},
+  t: TFunction = defaultT,
 ): Step {
+  const entry = getTourEntry(key, t) ?? tourCatalog[key];
   return {
     target,
-    title: tourCatalog[key].title,
-    content: tourCatalog[key].content,
+    title: entry.title,
+    content: entry.content,
     ...extra,
+  };
+}
+
+/**
+ * Localized catalog entry (#124). The catalog above stays the English
+ * source; translations live under `tour.<key>` and fall back to it.
+ * Components pass their `useTranslation()` `t` so they re-render on a
+ * language change.
+ */
+export function getTourEntry(
+  key: string,
+  t: TFunction = defaultT,
+): TourCatalogEntry | undefined {
+  const entry = tourCatalog[key];
+  if (!entry) return undefined;
+  return {
+    title: t(`tour.${key}.title`, { defaultValue: entry.title }),
+    content: t(`tour.${key}.content`, { defaultValue: entry.content }),
   };
 }
 
@@ -156,17 +178,20 @@ function step(
  * Phase 1: Shell tour — visible on the idle screen before any server is selected.
  * Triggered from WelcomePanel "Take a Tour" button.
  */
-export const shellTourSteps: Step[] = [
-  step('servers-tab', '[data-tour="servers-tab"]', { placement: 'right' }),
-  step('dms-tab', '[data-tour="dms-tab"]', { placement: 'right' }),
-  step('sidebar-search', '[data-tour="sidebar-search"]', { placement: 'right' }),
-  step('settings', '[aria-label="Settings"]'),
-  step('theme', '[data-testid="gift-button"]'),
-  step('more', '[data-tour="topbar-extras"]'),
-  step('status-panel', '[data-tour="status-panel"]', { placement: 'top' }),
-  step('user-profile', '[data-tour="user-profile"]'),
-  step('logout', '[aria-label="Logout"]'),
+export const buildShellTourSteps = (t: TFunction = defaultT): Step[] => [
+  step('servers-tab', '[data-tour="servers-tab"]', { placement: 'right' }, t),
+  step('dms-tab', '[data-tour="dms-tab"]', { placement: 'right' }, t),
+  step('sidebar-search', '[data-tour="sidebar-search"]', { placement: 'right' }, t),
+  step('settings', '[aria-label="Settings"]', {}, t),
+  step('theme', '[data-testid="gift-button"]', {}, t),
+  step('more', '[data-tour="topbar-extras"]', {}, t),
+  step('status-panel', '[data-tour="status-panel"]', { placement: 'top' }, t),
+  step('user-profile', '[data-tour="user-profile"]', {}, t),
+  step('logout', '[aria-label="Logout"]', {}, t),
 ];
+
+/** English snapshot; components build a localized copy via `buildShellTourSteps(t)`. */
+export const shellTourSteps: Step[] = buildShellTourSteps();
 
 /**
  * Phase 2: Contextual tips — shown once after the user first loads messages.
@@ -177,12 +202,15 @@ export const shellTourSteps: Step[] = [
  * + #129 inline filters); added Focus mode step. Search filters copy
  * mentions Search vs Refine and the lazy "X of Y" pagination.
  */
-export const contextualTourSteps: Step[] = [
-  step('multi-select-toggle', '[data-tour="multi-select-toggle"]', { placement: 'right' }),
-  step('author-avatar', '[data-tour="author-avatar"]', { placement: 'right' }),
-  step('search-filters', '[data-tour="search-filters"]'),
-  step('export-button', '[data-tour="export-button"]'),
-  step('analytics-button', '[data-tour="analytics-button"]'),
-  step('focus-button', '[data-tour="focus-button"]'),
-  step('message-feed', '[data-tour="message-feed"]', { placement: 'top' }),
+export const buildContextualTourSteps = (t: TFunction = defaultT): Step[] => [
+  step('multi-select-toggle', '[data-tour="multi-select-toggle"]', { placement: 'right' }, t),
+  step('author-avatar', '[data-tour="author-avatar"]', { placement: 'right' }, t),
+  step('search-filters', '[data-tour="search-filters"]', {}, t),
+  step('export-button', '[data-tour="export-button"]', {}, t),
+  step('analytics-button', '[data-tour="analytics-button"]', {}, t),
+  step('focus-button', '[data-tour="focus-button"]', {}, t),
+  step('message-feed', '[data-tour="message-feed"]', { placement: 'top' }, t),
 ];
+
+/** English snapshot; components build a localized copy via `buildContextualTourSteps(t)`. */
+export const contextualTourSteps: Step[] = buildContextualTourSteps();

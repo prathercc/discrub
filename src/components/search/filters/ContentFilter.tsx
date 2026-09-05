@@ -1,4 +1,5 @@
 import { Box, Chip, TextField, Typography } from '@mui/material';
+import { useTranslation } from 'react-i18next';
 
 interface ContentFilterProps {
   terms: string[];
@@ -51,11 +52,15 @@ const ContentFilter = ({
   draft,
   onDraftChange,
   mode,
-  label = 'Message Content',
-  placeholder = mode === 'search' ? 'Search message content...' : 'Filter by content...',
+  label,
+  placeholder,
   testId = `content-filter-${mode}`,
   onSubmit,
 }: ContentFilterProps) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('filters.messageContent');
+  const resolvedPlaceholder =
+    placeholder ?? (mode === 'search' ? t('filters.searchContentPlaceholder') : t('filters.filterContentPlaceholder'));
   /** Adds the draft as a term (if new) and returns the resulting list. */
   const commitDraft = (): string[] => {
     const next = withDraft(terms, draft);
@@ -67,7 +72,7 @@ const ContentFilter = ({
   return (
     <Box data-testid={testId}>
       <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-        {label}
+        {resolvedLabel}
       </Typography>
       {terms.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
@@ -86,7 +91,7 @@ const ContentFilter = ({
       <TextField
         size="small"
         fullWidth
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         value={draft}
         onChange={(e) => onDraftChange(e.target.value)}
         onKeyDown={(e) => {
@@ -99,13 +104,13 @@ const ContentFilter = ({
           }
         }}
         onBlur={commitDraft}
-        inputProps={{ 'data-testid': `${testId}-input`, 'aria-label': 'Message content term' }}
+        inputProps={{ 'data-testid': `${testId}-input`, 'aria-label': t('filters.contentTerm') }}
         helperText={
           terms.length > 1
             ? mode === 'search'
-              ? `Any of ${terms.length} terms. Discord searches one term at a time, so this runs ${terms.length} searches and merges them.`
-              : `Messages containing any of the ${terms.length} terms.`
-            : 'Comma adds another term; matches any of them.'
+              ? t('filters.anyOfTermsSearch', { count: terms.length })
+              : t('filters.anyOfTermsRefine', { count: terms.length })
+            : t('filters.commaAddsTerm')
         }
       />
     </Box>

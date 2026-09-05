@@ -50,10 +50,11 @@ describe('Settings', () => {
     cy.get('[role="dialog"]').contains('Safest').should('be.visible');
     cy.get('[role="dialog"]').contains('Effective delay: 30s – 30.5s').should('be.visible');
     cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
+    // Store first: it settles only after the IDB write resolved, so the read below is not racing the save.
+    cy.window().its('__store__').invoke('getState').its('app.settings.searchDelay2').should('eq', '30.0');
     cy.readIdbStore('settings').then((values) => {
       expect(values).to.include('30.0');
     });
-    cy.window().its('__store__').invoke('getState').its('app.settings.searchDelay2').should('eq', '30.0');
   });
 
   // ─── Unsaved-changes prompt (#164) ───────────────────────────────

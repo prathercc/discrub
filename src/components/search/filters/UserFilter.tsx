@@ -1,5 +1,6 @@
 import { Box, Typography, TextField, Chip } from '@mui/material';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 interface UserFilterProps {
   userIds: string[];
@@ -11,7 +12,10 @@ interface UserFilterProps {
 /**
  * UserFilter - filter messages by user IDs
  */
-const UserFilter = ({ userIds, onChange, label = 'Filter by Users', placeholder = 'Enter user ID and press Enter' }: UserFilterProps) => {
+const UserFilter = ({ userIds, onChange, label, placeholder }: UserFilterProps) => {
+  const { t } = useTranslation();
+  const resolvedLabel = label ?? t('filters.filterByUsers');
+  const resolvedPlaceholder = placeholder ?? t('filters.enterUserId');
   const [inputValue, setInputValue] = useState('');
 
   const handleAddUser = () => {
@@ -36,12 +40,12 @@ const UserFilter = ({ userIds, onChange, label = 'Filter by Users', placeholder 
   return (
     <Box>
       <Typography variant="subtitle2" gutterBottom>
-        {label}
+        {resolvedLabel}
       </Typography>
       <TextField
         size="small"
         fullWidth
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyPress={handleKeyPress}

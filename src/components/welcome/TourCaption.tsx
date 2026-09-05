@@ -6,7 +6,8 @@ import {
   Link,
   useTheme,
 } from '@mui/material';
-import { tourCatalog } from './tourSteps';
+import { getTourEntry } from './tourSteps';
+import { useTranslation } from 'react-i18next';
 
 interface TourCaptionProps {
   stepKey: string;
@@ -30,8 +31,9 @@ interface TourCaptionProps {
  */
 const TourCaption = ({ stepKey, hint }: TourCaptionProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-  const entry = tourCatalog[stepKey];
+  const entry = getTourEntry(stepKey, t);
   if (!entry) return null;
 
   const open = Boolean(anchorEl);
@@ -53,7 +55,7 @@ const TourCaption = ({ stepKey, hint }: TourCaptionProps) => {
           component="button"
           onClick={(e) => setAnchorEl(e.currentTarget)}
           data-testid={`tour-caption-${stepKey}`}
-          aria-label={`Help: ${entry.title}`}
+          aria-label={t('tour.help', { title: entry.title })}
           sx={{
             verticalAlign: 'baseline',
             fontSize: 'inherit',

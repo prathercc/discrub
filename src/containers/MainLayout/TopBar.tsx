@@ -52,6 +52,7 @@ import IdeasContactDialog from '@components/dialogs/IdeasContactDialog';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
 import { useHotkey } from '@features/hotkeys/HotkeyProvider';
 import { selectIsMinimized } from '@features/app/appSlice';
+import { useTranslation } from 'react-i18next';
 
 interface TopBarProps {
   /** Opens the navigation drawer; the hamburger only renders below `md`. */
@@ -71,6 +72,7 @@ const SectionDivider = () => (
  */
 const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const theme = useTheme();
   // `md` and below: hamburger for the sidebar drawer. `sm` and below:
   // compact bar (no username/version text; Settings + Logout live in
@@ -208,7 +210,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
             color="inherit"
             edge="start"
             onClick={onMenuClick}
-            aria-label="Open navigation"
+            aria-label={t('topbar.openNavigation')}
             data-testid="sidebar-menu-button"
             sx={{ mr: -0.5 }}
           >
@@ -216,11 +218,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
           </IconButton>
         )}
         {/* Discrub Icon — click to return to WelcomePanel */}
-        <Tooltip title="Home" enterDelay={0} arrow>
+        <Tooltip title={t('topbar.home')} enterDelay={0} arrow>
           <Box
             component="img"
             src="/discrub.png"
-            alt="Discrub Home"
+            alt={t('topbar.homeAlt')}
             onClick={handleGoHome}
             sx={{
               height: 36,
@@ -353,11 +355,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               </Typography>
             </Box>
 
-            <Tooltip title={isSupporter ? 'Supporter' : 'Themes and Support'} enterDelay={0} arrow>
+            <Tooltip title={isSupporter ? t('topbar.supporter') : t('topbar.themesAndSupport')} enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={handleGiftClick}
-                aria-label={isSupporter ? 'Supporter' : 'Themes and Support'}
+                aria-label={isSupporter ? t('topbar.supporter') : t('topbar.themesAndSupport')}
                 data-testid="gift-button"
                 sx={(theme: Theme) => ({
                   color: 'cta.main',
@@ -422,22 +424,22 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
             {!isCompact && <SectionDivider />}
             {!isCompact && (
               <Box data-testid="topbar-group-app" sx={GROUP_SX}>
-              <Tooltip title="Ideas & Contact" enterDelay={0} arrow>
+              <Tooltip title={t('topbar.ideasAndContact')} enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
                   onClick={() => setIdeasOpen(true)}
-                  aria-label="Ideas & Contact"
+                  aria-label={t('topbar.ideasAndContact')}
                   data-testid="topbar-ideas"
                 >
                   <IdeasIcon />
                 </IconButton>
               </Tooltip>
               <CompatibilityPopover placement="topbar" />
-              <HotkeyTooltip actionId="openSettings" label="Settings" enterDelay={0} arrow>
+              <HotkeyTooltip actionId="openSettings" label={t('topbar.settings')} enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
                   onClick={() => setSettingsOpen(true)}
-                  aria-label="Settings"
+                  aria-label={t('topbar.settings')}
                 >
                   <SettingsIcon />
                 </IconButton>
@@ -451,11 +453,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
             <Box data-tour="topbar-extras" data-testid="topbar-group-community" sx={GROUP_SX}>
               {isWide && (
                 <>
-                  <Tooltip title="Supporter Wall" enterDelay={0} arrow>
+                  <Tooltip title={t('topbar.supporterWall')} enterDelay={0} arrow>
                     <IconButton
                       color="inherit"
                       onClick={handleToggleKofi}
-                      aria-label="Supporter Wall"
+                      aria-label={t('topbar.supporterWall')}
                       aria-pressed={showKofiFeed === 'true'}
                       data-testid="topbar-supporter-wall"
                     >
@@ -485,11 +487,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                       <RedditIcon />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title="View Announcement" enterDelay={0} arrow>
+                  <Tooltip title={t('topbar.viewAnnouncement')} enterDelay={0} arrow>
                     <IconButton
                       color="inherit"
                       onClick={handleViewAnnouncement}
-                      aria-label="View Announcement"
+                      aria-label={t('topbar.viewAnnouncement')}
                       data-testid="topbar-announcement"
                     >
                       <AnnouncementIcon />
@@ -499,11 +501,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
               )}
 
               {!isWide && (
-                <Tooltip title="More" enterDelay={0} arrow>
+                <Tooltip title={t('topbar.more')} enterDelay={0} arrow>
                   <IconButton
                     color="inherit"
                     onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
-                    aria-label="More options"
+                    aria-label={t('topbar.moreOptions')}
                   >
                     <MoreIcon />
                   </IconButton>
@@ -535,7 +537,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                     }}
                   />
                 </ListItemIcon>
-                <ListItemText>Supporter Wall</ListItemText>
+                <ListItemText>{t('topbar.supporterWall')}</ListItemText>
               </MenuItem>
               <MenuItem
                 component="a"
@@ -560,7 +562,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                   <ListItemIcon>
                     <IdeasIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Ideas & Contact</ListItemText>
+                  <ListItemText>{t('topbar.ideasAndContact')}</ListItemText>
                 </MenuItem>
               )}
               <MenuItem
@@ -572,7 +574,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                 <ListItemIcon>
                   <AnnouncementIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>View Announcement</ListItemText>
+                <ListItemText>{t('topbar.viewAnnouncement')}</ListItemText>
               </MenuItem>
               {isCompact && <Divider />}
               {isCompact && (
@@ -586,7 +588,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                   <ListItemIcon>
                     <CompatibilityIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Compatibility</ListItemText>
+                  <ListItemText>{t('topbar.compatibility')}</ListItemText>
                 </MenuItem>
               )}
               {isCompact && (
@@ -600,7 +602,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                   <ListItemIcon>
                     <SettingsIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Settings</ListItemText>
+                  <ListItemText>{t('topbar.settings')}</ListItemText>
                 </MenuItem>
               )}
               {isCompact && (
@@ -614,18 +616,18 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
                   <ListItemIcon>
                     <LogoutIcon fontSize="small" />
                   </ListItemIcon>
-                  <ListItemText>Logout</ListItemText>
+                  <ListItemText>{t('topbar.logout')}</ListItemText>
                 </MenuItem>
               )}
             </Menu>
 
             {!isCompact && <SectionDivider />}
             {!isCompact && (
-            <Tooltip title="Logout" enterDelay={0} arrow>
+            <Tooltip title={t('topbar.logout')} enterDelay={0} arrow>
               <IconButton
                 color="inherit"
                 onClick={handleLogout}
-                aria-label="Logout"
+                aria-label={t('topbar.logout')}
                 sx={{
                   transition: 'background-color 200ms ease',
                   '&:hover': {
@@ -639,11 +641,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
             )}
 
             {isOverlayMode() && (
-              <HotkeyTooltip actionId="minimize" label="Minimize to Discord" enterDelay={0} arrow>
+              <HotkeyTooltip actionId="minimize" label={t('topbar.minimizeToDiscord')} enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
                   onClick={handleMinimize}
-                  aria-label="Minimize Discrub"
+                  aria-label={t('topbar.minimizeDiscrub')}
                 >
                   <MinimizeIcon />
                 </IconButton>
@@ -651,11 +653,11 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
             )}
 
             {isOverlayMode() && (
-              <Tooltip title="Close Discrub" enterDelay={0} arrow>
+              <Tooltip title={t('topbar.closeDiscrub')} enterDelay={0} arrow>
                 <IconButton
                   color="inherit"
                   onClick={() => isOperationRunning ? setCloseDialogOpen(true) : handleCloseConfirm()}
-                  aria-label="Close Discrub"
+                  aria-label={t('topbar.closeDiscrub')}
                   sx={{
                     transition: 'background-color 200ms ease',
                     '&:hover': {
@@ -700,14 +702,14 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
           <WarningIcon sx={{ fontSize: 40, color: 'warning.main', mb: 1 }} />
 
           <Typography variant="h6" sx={{ fontWeight: 700, mb: 1 }}>
-            Operation in Progress
+            {t('topbar.operationInProgress')}
           </Typography>
 
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             {operationSummary.label}
           </Typography>
           <Typography variant="body2" color="warning.main" sx={{ mb: 3 }}>
-            Closing will cancel this operation. Progress may be lost.
+            {t('topbar.closingCancels')}
           </Typography>
 
           <Box
@@ -722,7 +724,7 @@ const TopBar = ({ onMenuClick }: TopBarProps = {}) => {
             }}
           >
             <CloseIcon sx={{ fontSize: 18, color: 'error.main' }} />
-            <Typography variant="body2">Close Anyway</Typography>
+            <Typography variant="body2">{t('topbar.closeAnyway')}</Typography>
           </Box>
         </DialogContent>
       </Dialog>

@@ -14,6 +14,8 @@ import { selectHotkeysEnabled, selectHotkeyBindings } from '@features/hotkeys/ho
 import { formatBindingForDisplay } from '@features/hotkeys/keyMatcher';
 import { buildScopeGroups } from '@features/hotkeys/scopeGroups';
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
+import { hotkeyDescription, hotkeyLabel, hotkeyScopeBlurb, hotkeyScopeTitle } from '@features/hotkeys/labels';
+import { useTranslation } from 'react-i18next';
 
 interface HotkeysReferenceModalProps {
   open: boolean;
@@ -32,6 +34,7 @@ interface HotkeysReferenceModalProps {
  */
 export const HotkeysReferenceModal = ({ open, onClose }: HotkeysReferenceModalProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const enabled = useAppSelector(selectHotkeysEnabled);
   const bindings = useAppSelector(selectHotkeyBindings);
   const groups = buildScopeGroups();
@@ -39,14 +42,13 @@ export const HotkeysReferenceModal = ({ open, onClose }: HotkeysReferenceModalPr
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pr: 5 }}>
-        Keyboard Shortcuts
+        {t('hotkeys.referenceTitle')}
         <DialogCloseIcon onClose={onClose} />
       </DialogTitle>
       <DialogContent sx={{ overflow: 'auto' }}>
         {!enabled && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            Hotkeys are currently disabled. Re-enable them in Settings → Hotkeys
-            to start using the shortcuts below.
+            {t('hotkeys.disabledNotice')}
           </Alert>
         )}
 
@@ -54,10 +56,10 @@ export const HotkeysReferenceModal = ({ open, onClose }: HotkeysReferenceModalPr
           {groups.map((group) => (
             <Box key={group.scope}>
               <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-                {group.title}
+                {hotkeyScopeTitle(group.scope)}
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-                {group.blurb}
+                {hotkeyScopeBlurb(group.scope)}
               </Typography>
               <Stack spacing={0.5}>
                 {group.actions.map((action) => {
@@ -77,14 +79,14 @@ export const HotkeysReferenceModal = ({ open, onClose }: HotkeysReferenceModalPr
                     >
                       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                          {action.label}
+                          {hotkeyLabel(action)}
                         </Typography>
                         <Typography variant="caption" color="text.secondary">
-                          {action.description}
+                          {hotkeyDescription(action)}
                         </Typography>
                       </Box>
                       <Chip
-                        label={binding ? formatBindingForDisplay(binding) : 'Unbound'}
+                        label={binding ? formatBindingForDisplay(binding) : t('hotkeys.unbound')}
                         size="small"
                         variant="outlined"
                         sx={{ minWidth: 90, fontFamily: 'monospace' }}
@@ -102,8 +104,7 @@ export const HotkeysReferenceModal = ({ open, onClose }: HotkeysReferenceModalPr
           color="text.secondary"
           sx={{ display: 'block', mt: 3, textAlign: 'center' }}
         >
-          Shortcuts are inactive while typing in inputs and forms. Customize
-          bindings in Settings → Hotkeys.
+          {t('hotkeys.referenceFootnote')}
         </Typography>
       </DialogContent>
     </Dialog>

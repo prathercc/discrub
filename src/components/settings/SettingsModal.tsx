@@ -34,6 +34,7 @@ import { forgetRememberedToken, selectTokenRemembered } from '@features/auth/aut
 import DialogCloseIcon from '@components/ui/DialogCloseIcon';
 import { hasUnsavedSettingsChanges } from './dirtyDetection';
 import { useFullScreenDialog } from '@/hooks/useFullScreenDialog';
+import { useTranslation } from 'react-i18next';
 
 interface SettingsModalProps {
   open: boolean;
@@ -61,6 +62,7 @@ const TabPanel = ({ children, value, index }: TabPanelProps) => {
 
 const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const settings = useAppSelector(selectSettings);
   const tokenRemembered = useAppSelector(selectTokenRemembered);
   const hotkeys = useAppSelector(selectHotkeys);
@@ -122,7 +124,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
       // Close modal
       onClose();
     } catch {
-      setErrors(['Failed to save settings. Try again.']);
+      setErrors([t('settings.saveFailed')]);
     } finally {
       setSaving(false);
     }
@@ -184,7 +186,7 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
       }}
     >
       <DialogTitle sx={{ pr: 5 }}>
-        Settings
+        {t('settings.title')}
         <DialogCloseIcon onClose={handleClose} disabled={saving} />
       </DialogTitle>
       <DialogContent sx={{ overflow: 'auto' }}>
@@ -202,13 +204,13 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
           variant="scrollable"
           scrollButtons="auto"
         >
-          <Tab label="Operation Delays" />
-          <Tab label="Export Preferences" />
-          <Tab label="User Data" />
-          <Tab label="Display" />
-          <Tab label="Purge Behavior" />
-          <Tab label="Hotkeys" />
-          <Tab label="Reset Discrub" />
+          <Tab label={t('settings.tabOperationDelays')} />
+          <Tab label={t('settings.tabExportPreferences')} />
+          <Tab label={t('settings.tabUserData')} />
+          <Tab label={t('settings.tabDisplay')} />
+          <Tab label={t('settings.tabPurgeBehavior')} />
+          <Tab label={t('settings.tabHotkeys')} />
+          <Tab label={t('settings.tabReset')} />
         </Tabs>
 
         <TabPanel value={activeTab} index={0}>
@@ -239,10 +241,10 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
           {tokenRemembered && (
             <Stack spacing={2} sx={{ pt: 1, pb: 3 }} data-testid="settings-saved-token">
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Saved token
+                {t('settings.savedToken')}
               </Typography>
               <Typography variant="body2" color="text.secondary">
-                Your Discord token is saved on this device so you stay logged in between visits. Forgetting it won't log you out right now, but you'll need to paste your token again next visit.
+                {t('settings.savedTokenHelp')}
               </Typography>
               <Box>
                 <Button
@@ -250,17 +252,17 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
                   onClick={() => dispatch(forgetRememberedToken())}
                   data-testid="settings-forget-token"
                 >
-                  Forget saved token
+                  {t('settings.forgetSavedToken')}
                 </Button>
               </Box>
             </Stack>
           )}
           <Stack spacing={2} sx={{ pt: 1 }}>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              Reset
+              {t('settings.reset')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Clear all data Discrub stores in your browser. Useful if you're hitting persistent issues that signing out and back in doesn't fix. You'll be returned to the sign-in screen afterward.
+              {t('settings.resetHelp')}
             </Typography>
             <Box>
               <ResetDiscrubButton variant="button" />
@@ -271,13 +273,13 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
 
       <DialogActions sx={{ flexWrap: 'wrap', gap: 1, '& > :not(:first-of-type)': { ml: 0 } }}>
         <Button variant="outlined" onClick={handleReset} disabled={saving}>
-          Reset to defaults
+          {t('settings.resetToDefaults')}
         </Button>
         <Button variant="outlined" onClick={handleClose} disabled={saving}>
-          Cancel
+          {t('settings.cancel')}
         </Button>
         <Button onClick={handleSave} variant="contained" disabled={saving}>
-          {saving ? 'Saving...' : 'Save Settings'}
+          {saving ? t('settings.saving') : t('settings.save')}
         </Button>
       </DialogActions>
 
@@ -287,19 +289,18 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
         maxWidth="xs"
         fullWidth
       >
-        <DialogTitle>Discard unsaved changes?</DialogTitle>
+        <DialogTitle>{t('settings.discardTitle')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
-            You've made changes that haven't been saved. Closing now will
-            discard them.
+            {t('settings.discardBody')}
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDiscardPromptOpen(false)} variant="outlined">
-            Keep editing
+            {t('settings.keepEditing')}
           </Button>
           <Button onClick={performClose} variant="contained" color="error">
-            Discard
+            {t('settings.discard')}
           </Button>
         </DialogActions>
       </Dialog>

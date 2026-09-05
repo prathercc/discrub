@@ -2,6 +2,7 @@ import { Box, Slider, Typography, Alert, useTheme } from '@mui/material';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import TourFootnote from '@components/welcome/TourFootnote';
+import { t } from '@/i18n';
 
 interface OperationDelaysTabProps {
   formValues: AppSettings;
@@ -25,8 +26,8 @@ interface SafestZoneConfig {
 
 export interface DelaySliderConfig {
   key: DiscrubSetting;
-  label: string;
-  description: string;
+  labelKey: string;
+  descriptionKey: string;
   min: number;
   max: number;
   step: number;
@@ -61,8 +62,8 @@ export const SAFEST_COLOR = '#26a69a';
 
 const SEARCH_CONFIG: DelaySliderConfig = {
   key: DiscrubSetting.SEARCH_DELAY,
-  label: 'Search Delay',
-  description: 'Base delay between search/fetch operations',
+  labelKey: 'delays.searchDelay',
+  descriptionKey: 'delays.searchDelayHelp',
   min: 0, max: 10, step: 0.1,
   recommendedMin: 1, recommendedMax: 3,
   safest: SAFEST_ZONE,
@@ -70,8 +71,8 @@ const SEARCH_CONFIG: DelaySliderConfig = {
 
 const DELETE_CONFIG: DelaySliderConfig = {
   key: DiscrubSetting.DELETE_DELAY,
-  label: 'Delete / Edit Delay',
-  description: 'Base delay between delete and edit operations',
+  labelKey: 'delays.deleteDelay',
+  descriptionKey: 'delays.deleteDelayHelp',
   min: 0, max: 10, step: 0.1,
   recommendedMin: 2, recommendedMax: 4,
   safest: SAFEST_ZONE,
@@ -79,8 +80,8 @@ const DELETE_CONFIG: DelaySliderConfig = {
 
 const MODIFIER_CONFIG: DelaySliderConfig = {
   key: DiscrubSetting.DELAY_MODIFIER,
-  label: 'Delay Modifier',
-  description: 'Random variation added to base delays for more natural timing',
+  labelKey: 'delays.modifier',
+  descriptionKey: 'delays.modifierHelp',
   min: 0, max: 5, step: 0.1,
   recommendedMin: 0.5, recommendedMax: 2,
 };
@@ -102,11 +103,11 @@ export const getZoneColor = (value: number, config: DelaySliderConfig, safeColor
 };
 
 export const getZoneLabel = (value: number, config: DelaySliderConfig): string => {
-  if (value === 0) return 'Risky';
-  if (value < config.recommendedMin) return 'Low';
-  if (value <= config.recommendedMax) return 'Recommended';
-  if (config.safest && value > config.safest.from) return 'Safest';
-  return 'Safe';
+  if (value === 0) return t('delays.zoneRisky');
+  if (value < config.recommendedMin) return t('delays.zoneLow');
+  if (value <= config.recommendedMax) return t('delays.zoneRecommended');
+  if (config.safest && value > config.safest.from) return t('delays.zoneSafest');
+  return t('delays.zoneSafe');
 };
 
 /**
@@ -158,7 +159,7 @@ const DelaySlider = ({
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {config.label}
+          {t(config.labelKey)}
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Typography
@@ -206,7 +207,7 @@ const DelaySlider = ({
         }}
       />
       <Typography variant="caption" color="text.secondary" sx={{ mt: -0.5, display: 'block' }}>
-        {config.description}
+        {t(config.descriptionKey)}
       </Typography>
     </Box>
   );
@@ -226,8 +227,7 @@ export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabP
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Alert severity="info" sx={{ '& .MuiAlert-message': { display: 'flex', alignItems: 'center' } }}>
         <Box component="span">
-          These delays prevent Discord rate-limit errors. Defaults are tuned conservatively.
-          Above 10s is the Safest zone, meant for very long runs such as full-server exports.
+          {t('delays.intro')}
         </Box>
         <TourFootnote stepKey="operation-delays" />
       </Alert>

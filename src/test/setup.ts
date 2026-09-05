@@ -3,11 +3,15 @@ import '@testing-library/jest-dom';
 // on globalThis so the storage adapter (now backed by `idb-keyval`) works
 // in jsdom. Must be imported before anything that touches `storage.ts`.
 import 'fake-indexeddb/auto';
+// Boots i18next with the bundled catalogs so `t()` resolves English in
+// every test without per-file setup.
+import '../i18n';
 import { cleanup } from '@testing-library/react';
 import { afterEach, beforeAll, afterAll } from 'vitest';
 import { installChromeMocks, cleanupChromeMocks } from './chrome-mocks';
 import { server as mswServer } from './msw/server';
 import { webcrypto } from 'node:crypto';
+import { applyLanguage } from '../i18n';
 
 // jsdom's crypto has getRandomValues but no SubtleCrypto; the supporter
 // key verification needs WebCrypto Ed25519, so borrow Node's.
@@ -38,6 +42,8 @@ afterAll(() => {
 // real timers are restored.
 afterEach(() => {
   cleanup();
+  // A test that switched languages must not leak German into the next one.
+  void applyLanguage('en');
   // Drop any per-test MSW handlers registered with `server.use(...)`.
   mswServer.resetHandlers();
 });

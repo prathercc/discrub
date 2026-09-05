@@ -33,6 +33,12 @@ export interface AppState {
    * APP_THEME_MODE while set; clearing (null) falls back to the setting.
    */
   previewThemeId: string | null;
+  /**
+   * #124 — set once by loadSettings when an existing install has no saved
+   * language and the browser prefers a supported non-English one. MainLayout
+   * turns it into a one-time toast offering the switch, then clears it.
+   */
+  suggestedLanguage?: string | null;
 }
 
 export const initialAppState: AppState = {
@@ -49,4 +55,5 @@ export const initialAppState: AppState = {
   },
   settings: null,
   previewThemeId: null,
+  suggestedLanguage: null,
 };

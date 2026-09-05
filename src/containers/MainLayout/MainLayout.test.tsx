@@ -104,6 +104,30 @@ describe('MainLayout', () => {
     expect(screen.getByTestId('donation-drawer')).toBeInTheDocument();
   });
 
+  describe('language suggestion toast (#124)', () => {
+    it('offers the switch once, in the suggested language, then clears the suggestion', () => {
+      const base = createBaseState();
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: { ...base, app: { ...base.app, suggestedLanguage: 'de' } },
+      });
+      const toast = store.getState().status.toast;
+      expect(toast.isVisible).toBe(true);
+      expect(toast.level).toBe('info');
+      expect(toast.message).toBe('Discrub ist auch auf Deutsch verfügbar.');
+      expect(toast.action).toEqual({
+        type: 'switchLanguage',
+        language: 'de',
+        label: 'Auf Deutsch wechseln',
+      });
+      expect(store.getState().app.suggestedLanguage).toBeNull();
+    });
+
+    it('shows nothing when there is no suggestion', () => {
+      const { store } = renderWithProviders(<MainLayout />, { preloadedState: createBaseState() });
+      expect(store.getState().status.toast.isVisible).toBe(false);
+    });
+  });
+
   describe('purge completion toast (#250)', () => {
     // Drive the real reducers: pending puts the run in flight, fulfilled
     // ends it — MainLayout watches the isPurging transition.

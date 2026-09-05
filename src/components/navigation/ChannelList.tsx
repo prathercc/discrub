@@ -50,6 +50,7 @@ import EmptyState from '@components/ui/EmptyState';
 import BulkExportDialog from '@containers/ExportView/BulkExportDialog';
 import BulkPurgeDialog from '@containers/PurgeView/BulkPurgeDialog';
 import BulkEditDialog from '@containers/PurgeView/BulkEditDialog';
+import { useTranslation } from 'react-i18next';
 
 interface ChannelListProps {
   filterText?: string;
@@ -60,6 +61,7 @@ interface ChannelListProps {
  */
 const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const channels = useAppSelector(selectChannels);
   const selectedChannel = useAppSelector(selectSelectedChannel);
   const selectedChannels = useAppSelector(selectSelectedChannels);
@@ -122,7 +124,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     dispatch(clearMessages());
     dispatch(setSelectedChannel(channel));
     const isForumType = channel.type === ChannelType.GUILD_FORUM || channel.type === ChannelType.GUILD_MEDIA;
-    dispatch(addStatusEntry({ level: 'info', message: `Loading ${isForumType ? 'forum posts' : 'messages'} for #${channel.name}` }));
+    dispatch(addStatusEntry({ level: 'info', message: isForumType ? t('nav.loadingForumPostsFor', { name: channel.name }) : t('nav.loadingMessagesFor', { name: channel.name }) }));
 
     // Forum/media channels: fetch threads instead of messages
     if (isForumType) {
@@ -150,7 +152,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
       .join('\n');
     if (!names) return;
     navigator.clipboard.writeText(names);
-    dispatch(showToast({ level: 'success', message: 'Copied to clipboard' }));
+    dispatch(showToast({ level: 'success', message: t('nav.copiedToClipboard') }));
   };
 
   const handleToggleMultiSelect = () => {
@@ -215,11 +217,11 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
     const map: Record<string, string> = {};
     channels.forEach((ch) => {
       if (ch.type === ChannelType.GUILD_CATEGORY) {
-        map[ch.id] = ch.name || 'Unknown Category';
+        map[ch.id] = ch.name || t('nav.unknownCategory');
       }
     });
     return map;
-  }, [channels]);
+  }, [channels, t]);
 
   // Group filtered channels by category
   const groupedChannels = useMemo(() => {
@@ -295,7 +297,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   };
 
   if (!selectedGuild) {
-    return <EmptyState message="Select a server to view channels" icon="📁" />;
+    return <EmptyState message={t('nav.selectServerForChannels')} icon="📁" />;
   }
 
   if (isLoading) {
@@ -303,7 +305,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
   }
 
   if (channels.length === 0) {
-    return <EmptyState message="No channels found" icon={<TextChannelIcon />} />;
+    return <EmptyState message={t('nav.noChannelsFound')} icon={<TextChannelIcon />} />;
   }
 
   if (filteredChannels.length === 0 && filterText.trim()) {
@@ -320,11 +322,11 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
             fontWeight: 600,
           }}
         >
-          Channels
+          {t('nav.channels')}
         </Typography>
         <Divider />
         <EmptyState
-          message={`No channels matching "${filterText}"`}
+          message={t('nav.noChannelsMatching', { filter: filterText })}
           icon={<TextChannelIcon />}
         />
       </Box>
@@ -346,7 +348,7 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
             fontWeight: 600,
           }}
         >
-          Channels
+          {t('nav.channels')}
         </Typography>
         <TourButton
           stepKey="multi-select-toggle"
@@ -354,12 +356,12 @@ const ChannelList = ({ filterText = '' }: ChannelListProps) => {
           onClick={handleToggleMultiSelect}
           variant={multiSelectMode ? 'contained' : 'outlined'}
           color={multiSelectMode ? 'primary' : 'inherit'}
-          aria-label="Toggle multi-select"
+          aria-label={t('nav.toggleMultiSelect')}
           data-tour="multi-select-toggle"
           startIcon={multiSelectMode ? <SelectModeIcon fontSize="small" /> : <SelectModeOffIcon fontSize="small" />}
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
-          Multi-select
+          {t('nav.multiSelect')}
         </TourButton>
       </Box>
 

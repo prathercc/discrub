@@ -11,6 +11,7 @@ import {
   Typography,
 } from '@mui/material';
 import { resetDiscrubData } from '@/extension/storage';
+import { useTranslation } from 'react-i18next';
 
 interface ResetDiscrubButtonProps {
   /**
@@ -30,6 +31,7 @@ interface ResetDiscrubButtonProps {
  */
 const ResetDiscrubButton = ({ variant = 'button' }: ResetDiscrubButtonProps) => {
   const [open, setOpen] = useState(false);
+  const { t } = useTranslation();
   const [resetting, setResetting] = useState(false);
 
   const handleConfirm = async () => {
@@ -55,7 +57,7 @@ const ResetDiscrubButton = ({ variant = 'button' }: ResetDiscrubButtonProps) => 
         onClick={() => setOpen(true)}
         data-testid="reset-discrub-link"
       >
-        Stuck? Reset data
+        {t('resetDiscrub.stuck')}
       </Link>
     ) : (
       <Button
@@ -64,7 +66,7 @@ const ResetDiscrubButton = ({ variant = 'button' }: ResetDiscrubButtonProps) => 
         onClick={() => setOpen(true)}
         data-testid="reset-discrub-button"
       >
-        Reset data
+        {t('resetDiscrub.button')}
       </Button>
     );
 
@@ -78,28 +80,28 @@ const ResetDiscrubButton = ({ variant = 'button' }: ResetDiscrubButtonProps) => 
         fullWidth
         PaperProps={{ sx: { bgcolor: 'background.paper' } }}
       >
-        <DialogTitle>Reset all Discrub data?</DialogTitle>
+        <DialogTitle>{t('resetDiscrub.title')}</DialogTitle>
         <DialogContent>
           <Stack spacing={1.5}>
             <Typography variant="body2" color="text.secondary">
-              This will clear everything Discrub stores in your browser:
+              {t('resetDiscrub.intro')}
             </Typography>
             <Stack component="ul" spacing={0.5} sx={{ pl: 3, m: 0 }}>
               <Typography component="li" variant="body2" color="text.secondary">
-                Settings and preferences
+                {t('resetDiscrub.itemSettings')}
               </Typography>
               <Typography component="li" variant="body2" color="text.secondary">
-                Export presets and recent exports
+                {t('resetDiscrub.itemPresets')}
               </Typography>
               <Typography component="li" variant="body2" color="text.secondary">
-                Cached user info and status log
+                {t('resetDiscrub.itemCache')}
               </Typography>
               <Typography component="li" variant="body2" color="text.secondary">
-                Imported data packages and downloaded media
+                {t('resetDiscrub.itemPackages')}
               </Typography>
             </Stack>
             <Typography variant="body2" color="text.secondary">
-              You'll need to sign in again afterward. This cannot be undone, and only affects this device.
+              {t('resetDiscrub.outro')}
             </Typography>
           </Stack>
         </DialogContent>
@@ -109,7 +111,7 @@ const ResetDiscrubButton = ({ variant = 'button' }: ResetDiscrubButtonProps) => 
             disabled={resetting}
             data-testid="reset-discrub-cancel"
           >
-            Cancel
+            {t('resetDiscrub.cancel')}
           </Button>
           <Button
             variant="contained"
@@ -119,7 +121,7 @@ const ResetDiscrubButton = ({ variant = 'button' }: ResetDiscrubButtonProps) => 
             startIcon={resetting ? <CircularProgress size={16} color="inherit" /> : undefined}
             data-testid="reset-discrub-confirm"
           >
-            {resetting ? 'Resetting…' : 'Reset everything'}
+            {resetting ? t('resetDiscrub.resetting') : t('resetDiscrub.confirm')}
           </Button>
         </DialogActions>
       </Dialog>

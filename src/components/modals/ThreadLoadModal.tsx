@@ -31,6 +31,8 @@ import {
   selectDiscoveredThreadsForChannel,
 } from '@features/channel/channelSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
+import { t as translate } from '@/i18n';
+import { useTranslation } from 'react-i18next';
 
 interface ThreadLoadModalProps {
   open: boolean;
@@ -54,6 +56,7 @@ const ThreadLoadModal = ({
   channel,
   guildId,
 }: ThreadLoadModalProps) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const token = useAppSelector(selectAuthToken);
   const cached = useAppSelector(selectDiscoveredThreadsForChannel(channel?.id));
@@ -133,7 +136,7 @@ const ThreadLoadModal = ({
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ pr: 5 }}>
-        Load Thread
+        {t('threadLoad.title')}
         <DialogCloseIcon onClose={handleClose} />
       </DialogTitle>
       <DialogContent>
@@ -142,15 +145,15 @@ const ThreadLoadModal = ({
             <Box>
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
                 <Typography variant="subtitle2">
-                  Threads in this channel
+                  {t('threadLoad.threadsInChannel')}
                 </Typography>
-                <Tooltip title="Refresh thread list" arrow>
+                <Tooltip title={t('threadLoad.refresh')} arrow>
                   <span>
                     <IconButton
                       size="small"
                       onClick={() => runDiscovery(true)}
                       disabled={discovering}
-                      aria-label="Refresh thread list"
+                      aria-label={t('threadLoad.refresh')}
                       data-testid="refresh-threads"
                     >
                       <RefreshIcon fontSize="small" />
@@ -162,18 +165,18 @@ const ThreadLoadModal = ({
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
                   <CircularProgress size={16} />
                   <Typography variant="body2" color="text.secondary">
-                    Looking for threads...
+                    {t('threadLoad.looking')}
                   </Typography>
                 </Box>
               )}
               {!discovering && discoverError && (
                 <Typography variant="body2" color="error.main">
-                  Couldn't load threads: {discoverError}
+                  {t('threadLoad.loadFailed', { error: discoverError })}
                 </Typography>
               )}
               {!discovering && !discoverError && discovered.length === 0 && (
                 <Typography variant="body2" color="text.secondary">
-                  No threads found in this channel.
+                  {t('threadLoad.none')}
                 </Typography>
               )}
               {!discovering && discovered.length > 0 && (
@@ -203,21 +206,21 @@ const ThreadLoadModal = ({
             </Box>
           )}
 
-          {showDiscoveryList && <Divider>or</Divider>}
+          {showDiscoveryList && <Divider>{t('threadLoad.or')}</Divider>}
 
           <Box>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Enter a thread or forum post ID to load its messages.
+              {t('threadLoad.enterId')}
             </Typography>
             <TextField
               autoFocus
-              label="Thread / Forum Post ID"
+              label={t('threadLoad.idLabel')}
               value={threadId}
               onChange={(e) => setThreadId(e.target.value.replace(/\D/g, ''))}
               onKeyDown={handleKeyDown}
               size="small"
               fullWidth
-              placeholder="e.g. 1234567890"
+              placeholder={t('threadLoad.idPlaceholder')}
               inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
             />
           </Box>
@@ -225,14 +228,14 @@ const ThreadLoadModal = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button
           onClick={handleLoad}
           variant="contained"
           disabled={!threadId.trim()}
         >
-          Load
+          {t('threadLoad.load')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -284,7 +287,7 @@ const ThreadRow = ({
     <ListItemButton
       onClick={() => onPick(thread)}
       data-testid={`discovered-thread-${thread.id}`}
-      title={`Load ${thread.name || thread.id}`}
+      title={translate('threadLoad.loadNamed', { name: thread.name || thread.id })}
       sx={{
         gap: 1.25,
         py: 0.75,
@@ -311,7 +314,7 @@ const ThreadRow = ({
         <Icon sx={{ fontSize: 18 }} />
       </Box>
       <ListItemText
-        primary={thread.name || `Thread ${thread.id}`}
+        primary={thread.name || translate('threadLoad.threadFallback', { id: thread.id })}
         secondary={describeThread(thread)}
         primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 600, noWrap: true }}
         secondaryTypographyProps={{ fontSize: '0.75rem', noWrap: true }}

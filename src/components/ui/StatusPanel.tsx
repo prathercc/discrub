@@ -17,6 +17,7 @@ import { selectOperationSummary } from '@features/app/operationSelectors';
 import type { StatusLevel, StatusLogEntry } from '@features/status/statusTypes';
 import PauseResumeControls from './PauseResumeControls';
 import OperationTip from './OperationTip';
+import { useTranslation } from 'react-i18next';
 
 const PAGE_SIZE = 50;
 const PANEL_HEIGHT = 150;
@@ -138,6 +139,7 @@ EntryRow.displayName = 'EntryRow';
  */
 const StatusPanel = () => {
   const dispatch = useAppDispatch();
+  const { t, i18n } = useTranslation();
   const entries = useAppSelector(selectStatusEntries);
   const count = useAppSelector(selectStatusCount);
   const operationSummary = useAppSelector(selectOperationSummary);
@@ -322,7 +324,7 @@ const StatusPanel = () => {
               letterSpacing: '0.03em',
             }}
           >
-            STATUS LOG
+            {t('statusPanel.title')}
           </Typography>
           {operationSummary.isRunning && (
             <CircularProgress
@@ -334,7 +336,7 @@ const StatusPanel = () => {
                 color: operationSummary.isPaused ? '#d29922' : '#3fb950',
                 flexShrink: 0,
               }}
-              aria-label={operationSummary.isPaused ? 'Operation paused' : 'Operation in progress'}
+              aria-label={operationSummary.isPaused ? t('statusPanel.operationPaused') : t('statusPanel.operationInProgress')}
             />
           )}
           {count > 0 && (
@@ -371,7 +373,7 @@ const StatusPanel = () => {
           <Box sx={{ flexGrow: 1 }} />
           {count > 0 && (
             <>
-              <Tooltip title="Download log" enterDelay={0} arrow>
+              <Tooltip title={t('statusPanel.downloadLog')} enterDelay={0} arrow>
                 <IconButton
                   size="small"
                   onClick={(e) => {
@@ -392,12 +394,12 @@ const StatusPanel = () => {
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                   sx={{ color: '#8b949e', p: 0.25, '&:hover': { color: '#58a6ff' } }}
-                  aria-label="Download log"
+                  aria-label={t('statusPanel.downloadLog')}
                 >
                   <DownloadIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Clear log" enterDelay={0} arrow>
+              <Tooltip title={t('statusPanel.clearLog')} enterDelay={0} arrow>
                 <IconButton
                   size="small"
                   onClick={(e) => {
@@ -406,14 +408,14 @@ const StatusPanel = () => {
                   }}
                   onMouseDown={(e) => e.stopPropagation()}
                   sx={{ color: '#8b949e', p: 0.25, '&:hover': { color: '#f85149' } }}
-                  aria-label="Clear log"
+                  aria-label={t('statusPanel.clearLog')}
                 >
                   <ClearIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </Tooltip>
             </>
           )}
-          <Tooltip title={expanded ? 'Collapse' : 'Expand'} enterDelay={0} arrow>
+          <Tooltip title={expanded ? t('statusPanel.collapse') : t('statusPanel.expand')} enterDelay={0} arrow>
             <IconButton
               size="small"
               onClick={(e) => {
@@ -422,7 +424,7 @@ const StatusPanel = () => {
               }}
               onMouseDown={(e) => e.stopPropagation()}
               sx={{ color: '#8b949e', p: 0.25, '&:hover': { color: '#c9d1d9' } }}
-              aria-label={expanded ? 'Collapse log' : 'Expand log'}
+              aria-label={expanded ? t('statusPanel.collapseLog') : t('statusPanel.expandLog')}
             >
               {expanded ? <CollapseIcon sx={{ fontSize: 14 }} /> : <ExpandIcon sx={{ fontSize: 14 }} />}
             </IconButton>
@@ -442,7 +444,7 @@ const StatusPanel = () => {
             onMouseDown={handleResizeStart}
             role="separator"
             aria-orientation="horizontal"
-            aria-label="Resize status log"
+            aria-label={t('statusPanel.resize')}
             sx={{
               height: 4,
               cursor: 'ns-resize',
@@ -482,7 +484,7 @@ const StatusPanel = () => {
                     fontStyle: 'italic',
                   }}
                 >
-                  No status entries yet.
+                  {t('statusPanel.empty')}
                 </Typography>
               </Box>
             ) : (
@@ -506,12 +508,15 @@ const StatusPanel = () => {
                   const isLegacy = group.sessionId === LEGACY_SESSION_ID;
                   let headerLabel: string;
                   if (isLegacy) {
-                    headerLabel = 'Earlier activity';
+                    headerLabel = t('statusPanel.earlierActivity');
                   } else if (isCurrent) {
-                    headerLabel = 'Current session';
+                    headerLabel = t('statusPanel.currentSession');
                   } else {
                     const start = new Date(group.startTime);
-                    headerLabel = `Session of ${start.toLocaleDateString()} ${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+                    headerLabel = t('statusPanel.sessionOf', {
+                      date: start.toLocaleDateString(i18n.language),
+                      time: start.toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' }),
+                    });
                   }
                   const entryWord = group.entries.length === 1 ? 'entry' : 'entries';
 

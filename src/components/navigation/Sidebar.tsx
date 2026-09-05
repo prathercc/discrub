@@ -16,6 +16,7 @@ import { selectCurrentUser } from '@features/user/userSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import ScienceIcon from '@mui/icons-material/Science';
 import Chip from '@mui/material/Chip';
+import { useTranslation } from 'react-i18next';
 
 interface SidebarProps {
   open?: boolean;
@@ -31,6 +32,7 @@ const Sidebar = ({ open = false, onClose }: SidebarProps) => {
   const [tab, setTab] = useState(0);
   const [filterText, setFilterText] = useState('');
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const selectedGuild = useAppSelector(selectSelectedGuild);
   const sidebarView = useAppSelector(selectSidebarView);
   // Dev-tools gate (#153). Pill button below the channel header
@@ -125,7 +127,7 @@ const Sidebar = ({ open = false, onClose }: SidebarProps) => {
       {isOwner && (
         <Chip
           icon={<ScienceIcon sx={{ fontSize: 14 }} />}
-          label="Seed"
+          label={t('sidebar.seed')}
           size="small"
           variant="outlined"
           color="primary"
@@ -177,9 +179,9 @@ const Sidebar = ({ open = false, onClose }: SidebarProps) => {
           },
         }}
       >
-        <Tab label="Servers" data-tour="servers-tab" />
-        <Tab label="DMs" data-tour="dms-tab" />
-        <Tab label="Package" data-tour="package-tab" />
+        <Tab label={t('sidebar.tabServers')} data-tour="servers-tab" />
+        <Tab label={t('sidebar.tabDms')} data-tour="dms-tab" />
+        <Tab label={t('sidebar.tabPackage')} data-tour="package-tab" />
       </Tabs>
 
       <Box
@@ -195,10 +197,10 @@ const Sidebar = ({ open = false, onClose }: SidebarProps) => {
           data-tour="sidebar-search"
           placeholder={
             tab === 0
-              ? (selectedGuild ? "Search channels..." : "Search servers...")
+              ? (selectedGuild ? t('sidebar.searchChannels') : t('sidebar.searchServers'))
               : tab === 1
-                ? "Search DMs..."
-                : "Search package..."
+                ? t('sidebar.searchDms')
+                : t('sidebar.searchPackage')
           }
           value={filterText}
           onChange={(e) => setFilterText(e.target.value)}

@@ -20,6 +20,7 @@ import {
   Star as StarIcon,
   FolderZip as PackageIcon,
 } from '@mui/icons-material';
+import { useTranslation } from 'react-i18next';
 
 const GITHUB_REPO_URL = 'https://github.com/prathercc/discrub';
 
@@ -29,88 +30,65 @@ interface WelcomePanelProps {
 
 interface FeatureCard {
   icon: React.ReactNode;
-  title: string;
-  description: string;
   id: string;
 }
 
 const GETTING_STARTED_STEPS = [
-  { icon: <ServerIcon />, text: 'Select a server from the sidebar, or switch to the DMs tab' },
-  { icon: <SearchIcon />, text: 'Browse channels and load messages, then use search and filters to find specific content' },
-  { icon: <ExportIcon />, text: 'Export messages in HTML, CSV, JSON, or media-only with 9 built-in presets' },
-  { icon: <PurgeIcon />, text: 'Delete messages or remove reactions across one or multiple channels' },
+  { icon: <ServerIcon />, textKey: 'welcome.step1' },
+  { icon: <SearchIcon />, textKey: 'welcome.step2' },
+  { icon: <ExportIcon />, textKey: 'welcome.step3' },
+  { icon: <PurgeIcon />, textKey: 'welcome.step4' },
 ];
 
 const FEATURE_CARDS: FeatureCard[] = [
   {
     id: 'export',
     icon: <ExportIcon />,
-    title: 'Export',
-    description: 'HTML, CSV, JSON, or media-only. Discord layout template, 9 presets, per-type media selection, thread separation, and detailed reaction data.',
   },
   {
     id: 'purge',
     icon: <PurgeIcon />,
-    title: 'Purge',
-    description: 'Delete messages or remove reactions with user targeting. Multi-channel support, thread-aware discovery, and retain-attachments option.',
   },
   {
     id: 'search',
     icon: <SearchIcon />,
-    title: 'Search & Filter',
-    description: 'Search by content, date range, author, message type, or any combination. Automatically continues past 5,000 results.',
   },
   {
     id: 'forum',
     icon: <ForumIcon />,
-    title: 'Forum Channels',
-    description: 'Full support for forum and media channels. Browse threads, load messages, and export individually or in bulk.',
   },
   {
     id: 'package',
     icon: <PackageIcon />,
-    title: 'Data Package',
-    description: 'Drop in your Discord "Request All My Data" ZIP. Browse every server, channel, and DM in your archive. Optional rehydration fetches live reactions, replies, and CDN URLs.',
   },
   {
     id: 'analytics',
     icon: <AnalyticsIcon />,
-    title: 'Analytics',
-    description: 'Mention frequency, user engagement metrics, and CSV export. Skip replies option to exclude reply mentions.',
   },
   {
     id: 'settings',
     icon: <SettingsIcon />,
-    title: 'Settings',
-    description: 'Operation delays, export defaults, display format, purge behavior, and media type preferences, all customizable.',
   },
   {
     id: 'theme',
     icon: <ThemeIcon />,
-    title: 'Themes',
-    description: 'A growing roster of themes behind the palette icon, with live in-app previews. Exported HTML includes its own theme switcher.',
   },
   {
     id: 'status',
     icon: <StatusIcon />,
-    title: 'Status Log',
-    description: 'Terminal-style operation log with color-coded entries, real-time progress, and downloadable log file.',
   },
   {
     id: 'pause',
     icon: <PauseIcon />,
-    title: 'Pause & Resume',
-    description: 'All long-running operations support pause, resume, and cancel. Controls appear in the status bar.',
   },
   {
     id: 'donations',
     icon: <DonationIcon />,
-    title: 'Supporter Wall',
-    description: 'Ko-Fi supporter feed with tier system, leaderboard, and subscriber flame progression.',
   },
 ];
 
 const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
+  const { t } = useTranslation();
   const featureCardsRef = useRef<HTMLDivElement>(null);
   const v1Ref = useRef<HTMLDivElement>(null);
   const [guideOpen, setGuideOpen] = useState(false);
@@ -145,10 +123,10 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             mb: 1,
           }}
         >
-          Welcome to Discrub
+          {t('welcome.title')}
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3, maxWidth: 520, mx: 'auto' }}>
-          A powerful Discord data management tool for exporting, searching, and managing your messages, reactions, and media.
+          {t('welcome.subtitle')}
         </Typography>
 
         <Box sx={{ display: 'flex', gap: 1.5, justifyContent: 'center', flexWrap: 'wrap' }}>
@@ -159,21 +137,21 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             data-tour="start-tour"
             sx={{ textTransform: 'none', fontWeight: 600 }}
           >
-            Take a Tour
+            {t('welcome.takeTour')}
           </Button>
           <Button
             variant="outlined"
             onClick={() => scrollTo(featureCardsRef)}
             sx={{ textTransform: 'none', fontWeight: 600 }}
           >
-            Explore Features
+            {t('welcome.exploreFeatures')}
           </Button>
           <Button
             variant="outlined"
             onClick={() => scrollTo(v1Ref)}
             sx={{ textTransform: 'none', fontWeight: 600 }}
           >
-            Coming from Classic?
+            {t('welcome.comingFromClassic')}
           </Button>
         </Box>
 
@@ -192,7 +170,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
             rel="noopener noreferrer"
             sx={{ textTransform: 'none' }}
           >
-            Star on GitHub
+            {t('welcome.starOnGithub')}
           </Button>
         </Box>
       </Box>
@@ -203,7 +181,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
       {/* Getting Started */}
       <Box sx={{ mb: 5, maxWidth: 640, mx: 'auto' }}>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-          Getting Started
+          {t('welcome.gettingStarted')}
         </Typography>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
           {GETTING_STARTED_STEPS.map((step, i) => (
@@ -230,7 +208,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
                 {step.icon}
               </Box>
               <Typography variant="body2" color="text.primary">
-                {step.text}
+                {t(step.textKey)}
               </Typography>
             </Box>
           ))}
@@ -240,7 +218,7 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
       {/* Feature Cards */}
       <Box ref={featureCardsRef} sx={{ mb: 5, maxWidth: 900, mx: 'auto', scrollMarginTop: 16 }}>
         <Typography variant="h6" sx={{ fontWeight: 600, mb: 2 }}>
-          Features
+          {t('welcome.features')}
         </Typography>
         <Box
           sx={{
@@ -267,11 +245,11 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
                     <Box sx={{ color: 'primary.main' }}>{card.icon}</Box>
                     <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                      {card.title}
+                      {t(`welcome.feature.${card.id}.title`)}
                     </Typography>
                   </Box>
                   <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.5 }}>
-                    {card.description}
+                    {t(`welcome.feature.${card.id}.description`)}
                   </Typography>
                 </CardContent>
               </CardActionArea>
@@ -298,21 +276,18 @@ const WelcomePanel = ({ onStartTour }: WelcomePanelProps) => {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
           <ArrowIcon sx={{ color: 'primary.main' }} />
           <Typography variant="h6" sx={{ fontWeight: 600 }}>
-            Coming from Discrub Classic?
+            {t('welcome.classicTitle')}
           </Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
-          Welcome to the next major version of Discrub. Everything you know still works, plus forum channels,
-          export presets, Discord layout HTML, analytics, bulk reaction removal, and much more.
-          The extension version includes Discrub Classic as a built-in option; select your preferred version
-          from the launcher splash screen.
+          {t('welcome.classicBody')}
         </Typography>
         <Link
           component="button"
           onClick={() => setGuideOpen(true)}
           sx={{ fontWeight: 600, fontSize: '0.875rem', cursor: 'pointer' }}
         >
-          Read the full migration guide
+          {t('welcome.migrationGuide')}
         </Link>
       </Box>
     </Box>

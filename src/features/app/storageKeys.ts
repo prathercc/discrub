@@ -58,6 +58,9 @@ export const defaultSettings: AppSettings = {
   [DiscrubSetting.APP_THEME_MODE]: 'auto',
   [DiscrubSetting.APP_THEME_ANIMATIONS]: 'true',
   [DiscrubSetting.APP_DM_SORT_ORDER]: DmSortOrder.RECENT,
+  // Empty until first resolved: loadSettings detects the browser language
+  // on a fresh install and pins English for existing users (#124).
+  [DiscrubSetting.APP_LANGUAGE]: '',
 
   // Purge Behavior
   [DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA]: 'false',

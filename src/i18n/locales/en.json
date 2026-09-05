@@ -1,0 +1,722 @@
+{
+  "language": {
+    "label": "Language",
+    "help": "Language for menus, dialogs and status messages. German is a machine-drafted translation. Corrections and new languages are welcome on GitHub.",
+    "machineDrafted": "machine-drafted",
+    "suggestionToast": "Discrub ist auch auf Deutsch verfügbar.",
+    "suggestionAction": "Auf Deutsch wechseln"
+  },
+  "core": {
+    "retrievedThreads": "Retrieved {{count}} threads",
+    "retrievedSearchResults": "Retrieved {{count}} of {{total}} search results",
+    "retrievedMessages": "Retrieved {{count}} messages",
+    "retrievingThreadMessages": "Retrieving messages from thread: {{threadName}}",
+    "searchingReactions": "Searching reactions ({{index}}/{{total}})",
+    "resolvingReplyParents": "Resolving reply parents ({{index}}/{{total}})",
+    "retrievingReactionUsers": "Retrieving reaction users for {{emojiName}} ({{index}}/{{total}}) ",
+    "retrievingReactionUsersCustom": "Retrieving reaction users for {{emojiName}} ({{index}}/{{total}}) [custom]",
+    "retrievingUserAlias": "Retrieving user alias for {{user}}",
+    "retrievingServerData": "Retrieving server data for {{user}}",
+    "permissionMissingSkippingEdit": "Permission missing for message, skipping edit",
+    "noPermissionToModifyMessage": "You do not have permission to modify this message!",
+    "noPermissionToModifyLocation": "You do not have permission to modify content in this location, skipping",
+    "unableToRemoveReaction": "Unable to remove reaction from {{user}}"
+  },
+  "common": {
+    "dismissNotification": "Dismiss notification",
+    "directMessage": "Direct Message",
+    "thread": "Thread",
+    "cancel": "Cancel"
+  },
+  "sidebar": {
+    "seed": "Seed",
+    "tabServers": "Servers",
+    "tabDms": "DMs",
+    "tabPackage": "Package",
+    "searchChannels": "Search channels...",
+    "searchServers": "Search servers...",
+    "searchDms": "Search DMs...",
+    "searchPackage": "Search package..."
+  },
+  "topbar": {
+    "openNavigation": "Open navigation",
+    "home": "Home",
+    "homeAlt": "Discrub Home",
+    "supporter": "Supporter",
+    "themesAndSupport": "Themes and Support",
+    "ideasAndContact": "Ideas & Contact",
+    "settings": "Settings",
+    "supporterWall": "Supporter Wall",
+    "viewAnnouncement": "View Announcement",
+    "more": "More",
+    "moreOptions": "More options",
+    "compatibility": "Compatibility",
+    "logout": "Logout",
+    "minimizeToDiscord": "Minimize to Discord",
+    "minimizeDiscrub": "Minimize Discrub",
+    "closeDiscrub": "Close Discrub",
+    "operationInProgress": "Operation in Progress",
+    "closingCancels": "Closing will cancel this operation. Progress may be lost.",
+    "closeAnyway": "Close Anyway"
+  },
+  "pause": {
+    "operationResumed": "Operation Resumed",
+    "operationPaused": "Operation Paused",
+    "operationCancelled": "Operation Cancelled",
+    "resume": "Resume",
+    "pause": "Pause",
+    "cancel": "Cancel",
+    "help": "Help: {{title}}"
+  },
+  "statusPanel": {
+    "title": "STATUS LOG",
+    "operationPaused": "Operation paused",
+    "operationInProgress": "Operation in progress",
+    "downloadLog": "Download log",
+    "clearLog": "Clear log",
+    "collapse": "Collapse",
+    "expand": "Expand",
+    "collapseLog": "Collapse log",
+    "expandLog": "Expand log",
+    "resize": "Resize status log",
+    "empty": "No status entries yet.",
+    "earlierActivity": "Earlier activity",
+    "currentSession": "Current session",
+    "sessionOf": "Session of {{date}} {{time}}"
+  },
+  "operation": {
+    "serverChannelLabel": "Server {{serverIndex}}/{{serverTotal}} {{serverName}} · Channel {{channelIndex}}/{{channelTotal}}: {{channelName}}",
+    "channelLabel": "Channel {{channelIndex}}/{{channelTotal}}: {{channelName}}",
+    "paused": "Paused · {{label}}",
+    "removingReactionsBulk": "Removing reactions... {{label}} · {{processed}} scanned ({{removed}} removed)",
+    "purgingBulk": "Purging... {{label}} · {{processed}} processed ({{deleted}} deleted)",
+    "purging": "Purging...",
+    "pausedPurging": "Paused · Purging",
+    "exportingStage": "Exporting ({{stage}})... {{pct}}%",
+    "exporting": "Exporting...",
+    "pausedExporting": "Paused · Exporting",
+    "deletingMessages": "Deleting messages...",
+    "pausedDeletingMessages": "Paused · Deleting messages",
+    "editingMessages": "Editing messages...",
+    "pausedEditingMessages": "Paused · Editing messages",
+    "removingReactions": "Removing reactions...",
+    "pausedRemovingReactions": "Paused · Removing reactions",
+    "addingReactions": "Adding reactions...",
+    "pausedAddingReactions": "Paused · Adding reactions",
+    "loadingAllMessages": "Loading all messages...",
+    "pausedLoadingAllMessages": "Paused · Loading all messages",
+    "packageExportStagePct": "Package export ({{stage}})... {{pct}}%",
+    "packageExportStage": "Package export ({{stage}})...",
+    "pausedPackageExportStage": "Paused · Package export ({{stage}})",
+    "packageExport": "Package export...",
+    "pausedPackageExport": "Paused · Package export",
+    "loadingMessages": "Loading messages...",
+    "loadingForumPosts": "Loading forum posts...",
+    "loadingServers": "Loading servers...",
+    "loadingChannels": "Loading channels...",
+    "loadingDms": "Loading DMs...",
+    "lookingUpUsers": "Looking up users...",
+    "idle": "Idle"
+  },
+  "landing": {
+    "supporterKeyInactive": "Supporter key no longer active.",
+    "supporterKeyNoBleedingEdge": "Supporter key validated, but it doesn't include Bleeding Edge.",
+    "autoAuthNoToken": "Could not retrieve token from Discord. Make sure you are logged in to discord.com.",
+    "autoAuthFailed": "Failed to authenticate. Try manual entry.",
+    "authenticating": "Authenticating with Discord...",
+    "signingInSavedToken": "Signing in with the token saved on this device",
+    "retrievingToken": "Retrieving your authentication token from discord.com",
+    "mayTakeSeconds": "This may take a few seconds",
+    "earlyAccessBuild": "Early access build v{{version}}",
+    "welcome": "Welcome to Discrub",
+    "enterTokenExtension": "Enter your Discord token manually or try auto-authentication",
+    "enterToken": "Enter your Discord token to manage messages",
+    "usingEnvToken": "Using token from environment (.env file)",
+    "forgetMyKey": "Forget my key",
+    "supporterKeyValidated": "Supporter key validated.",
+    "keyLabel": "Key",
+    "keyHelp": "Paste the key from your Ko-fi email. Don't have one? Get one <monthly>monthly</monthly> or <yearly>yearly</yearly>.",
+    "apply": "Apply",
+    "discordToken": "Discord Token",
+    "invalidToken": "Invalid token. Check it and try again",
+    "tokenSavedUntilLogout": "Your token will be saved on this device until you log out",
+    "tokenKeptUntilClose": "Your token is only kept until you close this tab",
+    "forgetSavedToken": "Forget saved token",
+    "tokenFromLastSession": "A token from your last session is saved on this device.",
+    "keepMeLoggedIn": "Keep me logged in",
+    "trustedDeviceOnly": "Only do this on a device you trust",
+    "signIn": "Sign In",
+    "tryAutoAuthAgain": "Try Auto-Authentication Again",
+    "howToFindToken": "How to find my Discord token?",
+    "extensionModeHint": "Extension mode: Make sure you're logged into discord.com for auto-authentication",
+    "unofficialTool": "Discrub is an unofficial tool. Use at your own risk."
+  },
+  "settings": {
+    "title": "Settings",
+    "saveFailed": "Failed to save settings. Try again.",
+    "tabOperationDelays": "Operation Delays",
+    "tabExportPreferences": "Export Preferences",
+    "tabUserData": "User Data",
+    "tabDisplay": "Display",
+    "tabPurgeBehavior": "Purge Behavior",
+    "tabHotkeys": "Hotkeys",
+    "tabReset": "Reset Discrub",
+    "savedToken": "Saved token",
+    "savedTokenHelp": "Your Discord token is saved on this device so you stay logged in between visits. Forgetting it won't log you out right now, but you'll need to paste your token again next visit.",
+    "forgetSavedToken": "Forget saved token",
+    "reset": "Reset",
+    "resetHelp": "Clear all data Discrub stores in your browser. Useful if you're hitting persistent issues that signing out and back in doesn't fix. You'll be returned to the sign-in screen afterward.",
+    "resetToDefaults": "Reset to defaults",
+    "cancel": "Cancel",
+    "saving": "Saving...",
+    "save": "Save Settings",
+    "discardTitle": "Discard unsaved changes?",
+    "discardBody": "You've made changes that haven't been saved. Closing now will discard them.",
+    "keepEditing": "Keep editing",
+    "discard": "Discard",
+    "validation": {
+      "messagesPerPage": "Messages per page must be between 1 and 1000",
+      "announcementRev": "Cached announcement revision must be a non-negative number"
+    }
+  },
+  "delays": {
+    "searchDelay": "Search Delay",
+    "searchDelayHelp": "Base delay between search/fetch operations",
+    "deleteDelay": "Delete / Edit Delay",
+    "deleteDelayHelp": "Base delay between delete and edit operations",
+    "modifier": "Delay Modifier",
+    "modifierHelp": "Random variation added to base delays for more natural timing",
+    "zoneRisky": "Risky",
+    "zoneLow": "Low",
+    "zoneRecommended": "Recommended",
+    "zoneSafest": "Safest",
+    "zoneSafe": "Safe",
+    "intro": "These delays prevent Discord rate-limit errors. Defaults are tuned conservatively. Above 10s is the Safest zone, meant for very long runs such as full-server exports."
+  },
+  "exportPrefs": {
+    "intro": "These are defaults. Override per-export in the export dialog.",
+    "content": "Content",
+    "sortOrder": "Message Sort Order",
+    "oldestFirst": "Oldest First (Ascending)",
+    "newestFirst": "Newest First (Descending)",
+    "messagesPerPage": "Messages Per Page",
+    "messagesPerPageHelp": "Number of messages per HTML page. Lower values load faster in browsers.",
+    "separateThreads": "Separate threads (fetch thread messages and export each thread as its own file)",
+    "filesAndMedia": "Files & Media",
+    "downloadMedia": "Download files for offline viewing (avatars, attachments, emojis)",
+    "artistMode": "Artist mode (organize downloaded files into folders by author)",
+    "defaultMediaTypes": "Default media types",
+    "display": "Display",
+    "previewMedia": "Preview media in export (show inline image/video thumbnails in HTML)",
+    "mediaImages": "Images",
+    "mediaVideos": "Videos",
+    "mediaAudio": "Audio",
+    "mediaOther": "Other files"
+  },
+  "userData": {
+    "intro": "Control how user data is fetched and cached from Discord.",
+    "enableReactions": "Enable reactions",
+    "lookupNicknames": "Look up server nicknames",
+    "lookupDisplayNames": "Look up display names",
+    "refreshRate": "User Data Refresh Rate",
+    "never": "Never",
+    "daily": "Daily",
+    "weekly": "Weekly",
+    "monthly": "Monthly",
+    "refreshRateHelp": "How often to re-fetch user profiles, nicknames, and roles from Discord"
+  },
+  "hotkeys": {
+    "enable": "Enable hotkeys",
+    "enableHelp": "When off, all keyboard shortcuts below are inactive. System keys (Esc to close dialogs, Tab to navigate) still work.",
+    "offNotice": "Hotkeys are off. Toggle above to re-enable. The bindings below stay intact and will resume when you flip the switch back on.",
+    "search": "Find a hotkey…",
+    "resetAll": "Reset all hotkeys",
+    "unbound": "Unbound",
+    "pressKey": "Press a key…",
+    "resetToDefault": "Reset {{label}} to default",
+    "conflict": "Also bound to: {{labels}}. One of them won't fire.",
+    "noMatch": "No shortcuts match \"{{search}}\".",
+    "referenceTitle": "Keyboard Shortcuts",
+    "disabledNotice": "Hotkeys are currently disabled. Re-enable them in Settings → Hotkeys to start using the shortcuts below.",
+    "referenceFootnote": "Shortcuts are inactive while typing in inputs and forms. Customize bindings in Settings → Hotkeys.",
+    "group": {
+      "operationRunning": {
+        "title": "During an operation",
+        "blurb": "Available while a purge or export is in flight."
+      },
+      "serverViewWithChannel": {
+        "title": "In a channel",
+        "blurb": "Available when viewing a server channel with messages loaded."
+      },
+      "serverView": {
+        "title": "In a server",
+        "blurb": "Available when the server browser is active."
+      },
+      "app": {
+        "title": "App-wide",
+        "blurb": "Available anywhere Discrub is in the foreground."
+      }
+    },
+    "action": {
+      "pauseResume": {
+        "label": "Pause / Resume",
+        "description": "Pause or resume an in-flight purge or export."
+      },
+      "cancelOp": {
+        "label": "Cancel operation",
+        "description": "Cancel an in-flight purge or export."
+      },
+      "openFilters": {
+        "label": "Open Filters",
+        "description": "Search and refine messages in the current channel."
+      },
+      "openExport": {
+        "label": "Open Export",
+        "description": "Open the export dialog for the current channel."
+      },
+      "openAnalytics": {
+        "label": "Open Analytics",
+        "description": "View analytics for the current channel."
+      },
+      "loadAll": {
+        "label": "Load All messages",
+        "description": "Load every remaining message in the current channel."
+      },
+      "loadThread": {
+        "label": "Load Thread",
+        "description": "Open the thread loader for the current channel."
+      },
+      "toggleFocus": {
+        "label": "Toggle focus mode",
+        "description": "Hide the top bar and sidebar to maximize the message feed."
+      },
+      "openSettings": {
+        "label": "Open Settings",
+        "description": "Open Discrub's settings."
+      },
+      "openReference": {
+        "label": "Show keyboard shortcuts",
+        "description": "Open the reference modal listing every shortcut."
+      },
+      "minimize": {
+        "label": "Minimize to Discord",
+        "description": "Collapse Discrub back to the floating tab (extension only)."
+      },
+      "closeModalOrExitFocus": {
+        "label": "Close / exit",
+        "description": "Close the active modal, or exit focus mode if no modal is open."
+      }
+    }
+  },
+  "resetDiscrub": {
+    "stuck": "Stuck? Reset data",
+    "button": "Reset data",
+    "title": "Reset all Discrub data?",
+    "intro": "This will clear everything Discrub stores in your browser:",
+    "itemSettings": "Settings and preferences",
+    "itemPresets": "Export presets and recent exports",
+    "itemCache": "Cached user info and status log",
+    "itemPackages": "Imported data packages and downloaded media",
+    "outro": "You'll need to sign in again afterward. This cannot be undone, and only affects this device.",
+    "cancel": "Cancel",
+    "resetting": "Resetting…",
+    "confirm": "Reset everything"
+  },
+  "corkboard": {
+    "addToDiscord": "Add to Discord",
+    "title": "From the Discrub team",
+    "showBoard": "Show the board",
+    "hideBoard": "Hide the board",
+    "previousBot": "Previous bot",
+    "nextBot": "Next bot",
+    "showBot": "Show {{name}}",
+    "ideaPrompt": "Have an idea for a bot? <idea>Tell me about it.</idea>"
+  },
+  "welcome": {
+    "title": "Welcome to Discrub",
+    "subtitle": "A powerful Discord data management tool for exporting, searching, and managing your messages, reactions, and media.",
+    "takeTour": "Take a Tour",
+    "exploreFeatures": "Explore Features",
+    "comingFromClassic": "Coming from Classic?",
+    "starOnGithub": "Star on GitHub",
+    "gettingStarted": "Getting Started",
+    "step1": "Select a server from the sidebar, or switch to the DMs tab",
+    "step2": "Browse channels and load messages, then use search and filters to find specific content",
+    "step3": "Export messages in HTML, CSV, JSON, or media-only with 9 built-in presets",
+    "step4": "Delete messages or remove reactions across one or multiple channels",
+    "features": "Features",
+    "feature": {
+      "export": {
+        "title": "Export",
+        "description": "HTML, CSV, JSON, or media-only. Discord layout template, 9 presets, per-type media selection, thread separation, and detailed reaction data."
+      },
+      "purge": {
+        "title": "Purge",
+        "description": "Delete messages or remove reactions with user targeting. Multi-channel support, thread-aware discovery, and retain-attachments option."
+      },
+      "search": {
+        "title": "Search & Filter",
+        "description": "Search by content, date range, author, message type, or any combination. Automatically continues past 5,000 results."
+      },
+      "forum": {
+        "title": "Forum Channels",
+        "description": "Full support for forum and media channels. Browse threads, load messages, and export individually or in bulk."
+      },
+      "package": {
+        "title": "Data Package",
+        "description": "Drop in your Discord \"Request All My Data\" ZIP. Browse every server, channel, and DM in your archive. Optional rehydration fetches live reactions, replies, and CDN URLs."
+      },
+      "analytics": {
+        "title": "Analytics",
+        "description": "Mention frequency, user engagement metrics, and CSV export. Skip replies option to exclude reply mentions."
+      },
+      "settings": {
+        "title": "Settings",
+        "description": "Operation delays, export defaults, display format, purge behavior, and media type preferences, all customizable."
+      },
+      "theme": {
+        "title": "Themes",
+        "description": "A growing roster of themes behind the palette icon, with live in-app previews. Exported HTML includes its own theme switcher."
+      },
+      "status": {
+        "title": "Status Log",
+        "description": "Terminal-style operation log with color-coded entries, real-time progress, and downloadable log file."
+      },
+      "pause": {
+        "title": "Pause & Resume",
+        "description": "All long-running operations support pause, resume, and cancel. Controls appear in the status bar."
+      },
+      "donations": {
+        "title": "Supporter Wall",
+        "description": "Ko-Fi supporter feed with tier system, leaderboard, and subscriber flame progression."
+      }
+    },
+    "classicTitle": "Coming from Discrub Classic?",
+    "classicBody": "Welcome to the next major version of Discrub. Everything you know still works, plus forum channels, export presets, Discord layout HTML, analytics, bulk reaction removal, and much more. The extension version includes Discrub Classic as a built-in option; select your preferred version from the launcher splash screen.",
+    "migrationGuide": "Read the full migration guide"
+  },
+  "nav": {
+    "loadingServers": "Loading servers...",
+    "loadedServers_one": "Loaded {{count}} server",
+    "loadedServers_other": "Loaded {{count}} servers",
+    "loadingServer": "Loading server: {{name}}",
+    "copiedToClipboard": "Copied to clipboard",
+    "noServersMatching": "No servers matching \"{{filter}}\"",
+    "noServersFound": "No servers found",
+    "servers": "Servers",
+    "toggleMultiSelect": "Toggle multi-select",
+    "multiSelect": "Multi-select",
+    "youOwnThisServer": "You own this server",
+    "verifiedServer": "Verified server",
+    "partneredServer": "Partnered server",
+    "loadingForumPostsFor": "Loading forum posts for #{{name}}",
+    "loadingMessagesFor": "Loading messages for #{{name}}",
+    "unknownCategory": "Unknown Category",
+    "selectServerForChannels": "Select a server to view channels",
+    "noChannelsFound": "No channels found",
+    "channels": "Channels",
+    "noChannelsMatching": "No channels matching \"{{filter}}\"",
+    "deselectAll": "Deselect all",
+    "selectAll": "Select all",
+    "selectedOf": "{{selected}} of {{total}}",
+    "toggleAllAria": "{{toggle}} {{noun}}",
+    "exportSelectedAria": "Export selected {{noun}}",
+    "export": "Export",
+    "editSelectedAria": "Edit selected {{noun}}",
+    "edit": "Edit",
+    "purgeSelectedAria": "Purge selected {{noun}}",
+    "purge": "Purge",
+    "copySelectedNamesAria": "Copy selected {{noun}} names",
+    "copy": "Copy"
+  },
+  "dm": {
+    "errNoAccess": "Discord refused access to that channel. It exists, but it doesn't belong to this account's conversations.",
+    "errNotFound": "Discord has no channel with that ID. Check it for typos, or the conversation may have been deleted entirely.",
+    "errNotDm": "That ID belongs to a server channel, not a DM. Only direct message and group DM channels can be opened here.",
+    "errCannotOpenUser": "Discord couldn't open a conversation with that user. Check the ID, and note that deleted accounts can't be messaged.",
+    "errFallbackChannel": "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
+    "errFallbackUser": "Couldn't open a DM with that user. Check the ID and try again.",
+    "enterChannelId": "Enter a 17-20 digit channel ID or a discord.com/channels/@me link.",
+    "enterUserId": "Enter a 17-20 digit user ID or a discord.com/users link.",
+    "openByIdTitle": "Open DM by ID",
+    "openByIdHelp": "Closed conversations (for example, with a deleted account) never appear in the DM list, but one can be opened directly. Use the conversation's channel ID (or a discord.com/channels/@me link), or the other person's user ID to open your DM with them.",
+    "channelId": "Channel ID",
+    "userId": "User ID",
+    "channelIdOrLink": "Channel ID or link",
+    "userIdOrLink": "User ID or link",
+    "idPlaceholder": "e.g. 1029384756102938475",
+    "cancel": "Cancel",
+    "open": "Open",
+    "loadingDms": "Loading DMs...",
+    "loadedConversations_one": "Loaded {{count}} conversation",
+    "loadedConversations_other": "Loaded {{count}} conversations",
+    "loadingConversationWith": "Loading conversation with {{name}}",
+    "openedChannelById": "Opened DM channel {{id}} by ID",
+    "openedWithUser": "Opened DM with user {{id}}",
+    "noDmsMatching": "No DMs matching \"{{filter}}\"",
+    "noDmsFound": "No direct messages found",
+    "directMessages": "Direct Messages"
+  },
+  "tour": {
+    "help": "Help: {{title}}",
+    "servers-tab": {
+      "title": "Servers",
+      "content": "Your Discord servers appear here. Click one to browse its channels."
+    },
+    "dms-tab": {
+      "title": "Direct Messages",
+      "content": "Switch here to browse your direct messages and group chats."
+    },
+    "sidebar-search": {
+      "title": "Search",
+      "content": "Filter servers, channels, or DMs by name."
+    },
+    "settings": {
+      "title": "Settings",
+      "content": "Customize operation delays, export defaults, display preferences, and more."
+    },
+    "theme": {
+      "title": "Themes",
+      "content": "Pick from the full theme roster, support Discrub, and apply a supporter key, all in one place."
+    },
+    "more": {
+      "title": "Supporter Wall, r/discrub, Announcements",
+      "content": "Toggle the Supporter Wall, open r/discrub, or re-read the latest announcement. On narrower windows these fold into a More menu."
+    },
+    "status-panel": {
+      "title": "Status Log",
+      "content": "All operations show real-time progress here. Expand for full details, or download the log file."
+    },
+    "user-profile": {
+      "title": "Your Profile",
+      "content": "Click to view your account details and profile info."
+    },
+    "logout": {
+      "title": "Sign Out",
+      "content": "Sign out when you're done. Your token is cleared, including any saved copy on this device."
+    },
+    "multi-select-toggle": {
+      "title": "Multi-Select Mode",
+      "content": "Click to select more than one at a time. A \"Select all\" link picks the full visible list, and any bulk actions available for the list appear below the selection count."
+    },
+    "author-actions": {
+      "title": "Author Actions",
+      "content": "Click any author's avatar or name in the feed to open their profile. From there, you can filter the channel to just their messages, or to messages that mention them, with one click."
+    },
+    "filters": {
+      "title": "Filters",
+      "content": "Two layers in one modal: Search hits Discord's API (author, content, date, has-types, mentions, pinned, author type) and shows \"X of Y matches loaded\" as results stream in. Refine narrows the already-loaded messages purely client-side, with no API calls."
+    },
+    "export": {
+      "title": "Export",
+      "content": "Export messages in HTML, CSV, JSON, or media-only. Pick a preset (9 built-in) or roll your own with your saved settings."
+    },
+    "analytics": {
+      "title": "Analytics",
+      "content": "See mention frequency, who you talk to most, engagement over time. Export the analytics to CSV for further crunching."
+    },
+    "focus-mode": {
+      "title": "Focus Mode",
+      "content": "Hides the sidebar and status panel for distraction-free reading. Press F to toggle, Escape to exit."
+    },
+    "message-feed": {
+      "title": "Message Feed",
+      "content": "Click a message to select it, then use the toolbar to delete, edit, or manage attachments. Click reply bars or pinned-message notices to jump to the referenced message."
+    },
+    "refine-vs-search": {
+      "title": "Refine vs Search",
+      "content": "Refine narrows the messages already loaded in your feed: instant, client-side, no API calls. Search above hits Discord's API and pulls fresh results. Use Refine to slice what you have, and Search when you need to find more."
+    },
+    "quick-filter-buttons": {
+      "title": "Quick Filter Buttons",
+      "content": "These buttons narrow the channel to messages by this user, or messages that mention them. Other active filters (date, content, etc.) are preserved. Only the user scope changes."
+    },
+    "purge-modes": {
+      "title": "Purge Modes",
+      "content": "Messages deletes the whole message. Attachments Only edits the message to strip its attachments without deleting the text. Reactions removes specific reactions. Clear All Reactions wipes every reaction (requires Manage Messages permission). All four are destructive, so read the summary before confirming."
+    },
+    "pause-resume-controls": {
+      "title": "Pause & Resume",
+      "content": "Long operations can be paused mid-run and resumed later. Useful when you hit a rate-limit warning or just want to step away. Cancel ends the run entirely; partial work is preserved where it makes sense (e.g. enrichment caches)."
+    },
+    "operation-delays": {
+      "title": "Operation Delays",
+      "content": "Discord rate-limits how often user tokens can call its API. These delays insert pauses between operations to stay under the limits. Lower delays go faster but risk a 429 response (and a forced wait). The defaults are tuned conservatively, so only change them if you know what you're doing. Anything above 10s is the Safest zone, for very long runs such as a full-server export."
+    },
+    "export-presets": {
+      "title": "Export Presets",
+      "content": "A preset is a saved snapshot of every export setting: format, page size, template, media options. Pick one to apply all those settings at once. The 9 built-in presets cover common scenarios (Discord-style HTML, Spreadsheet, Media-only). Drift from a preset clears the dropdown."
+    },
+    "search-match-count": {
+      "title": "Search Match Count",
+      "content": "\"X of Y matches loaded\" means: Discord found Y messages matching your search, but only X are loaded so far. Scroll down (or click Load All) to fetch the rest in 25-message pages. Discord caps each search at 5000 matches, but Load All transparently chains queries past that."
+    },
+    "rehydrate": {
+      "title": "Rehydrate (Load Rich Data)",
+      "content": "Your data package contains the bare facts: message text, timestamps, attachment URLs. Rehydration fetches live Message objects from Discord so you also get reactions, reply previews, named mentions, embeds, and fresh signed CDN URLs. The button shows an estimated runtime on hover. A guild-wide search preflight covers most messages in a single pass before per-message lookups begin. Results persist to IndexedDB so a rehydrated channel reopens instantly."
+    },
+    "package-import": {
+      "title": "Discord Data Package",
+      "content": "Drop in the ZIP from Discord's Request All My Data export. Discrub decompresses it once into IndexedDB, so reopening the page or browsing back to a channel never re-extracts the archive. Reload the page and your package auto-resumes without re-importing. Multi-gigabyte packages and any Discord locale (English, French, German, Spanish, Simplified Chinese, Cyrillic, etc.) are supported."
+    }
+  },
+  "serverView": {
+    "loadingThread": "Loading thread...",
+    "threadLoaded": "Thread loaded successfully",
+    "threadLoadFailed": "Failed to load thread: {{error}}",
+    "moreAvailable": "More available",
+    "scrollOrLoadAll": "Scroll or Load All",
+    "allLoaded": "All loaded",
+    "loadAllMessages": "Load all messages",
+    "loadAll": "Load All",
+    "searchAndRefine": "Search and refine",
+    "filters": "Filters",
+    "loadAThread": "Load a thread",
+    "loadThread": "Load Thread",
+    "channelAnalytics": "Channel analytics",
+    "analytics": "Analytics",
+    "exitFocusMode": "Exit focus mode",
+    "enterFocusMode": "Enter focus mode",
+    "exitFocus": "Exit Focus",
+    "focus": "Focus",
+    "exportForumThreads": "Export forum threads",
+    "exportMessages": "Export messages",
+    "export": "Export",
+    "partialTitle": "Filtering Loaded Messages Only",
+    "partialBody": "You're filtering {{count}} loaded messages.",
+    "moreMayExist_channel": "More messages may exist in this channel.",
+    "moreMayExist_dm": "More messages may exist in this conversation.",
+    "partialHint": "For complete results, use server search or click \"Load All\" first.",
+    "deletedAccountTitle": "This account was deleted",
+    "deletedAccountBody_channel": "Discord's search can't find messages from deleted accounts, even though the messages still exist. To find them: clear the user filter, click \"Load All\" to load this channel's full history, then use the filter's Refine tab with the user's ID.",
+    "deletedAccountBody_dm": "Discord's search can't find messages from deleted accounts, even though the messages still exist. To find them: clear the user filter, click \"Load All\" to load this conversation's full history, then use the filter's Refine tab with the user's ID.",
+    "deletedAccountPurgeHint": " Purge handles deleted accounts automatically.",
+    "loadAllStopped_one": "Load All stopped. The {{count}} message loaded so far is still available below.",
+    "loadAllStopped_other": "Load All stopped. The {{count}} messages loaded so far are still available below.",
+    "dismiss": "Dismiss",
+    "noMessagesFound_channel": "No messages found in this channel",
+    "noMessagesFound_dm": "No messages found in this conversation"
+  },
+  "messageActions": {
+    "deleteLockDm": "You can only delete your own messages in DMs.",
+    "deleteLockChannel": "You can only delete your own messages without Manage Messages permission in this channel.",
+    "editLockSystem": "System messages (pins, joins, boosts, etc.) can't be edited.",
+    "editLockOthers": "You can only edit your own messages. Discord blocks editing other users' messages.",
+    "selected": "{{count}} selected",
+    "delete": "Delete",
+    "edit": "Edit",
+    "embeds": "Embeds ({{count}})",
+    "addReactions": "Add Reactions",
+    "removeReactions": "Remove Reactions"
+  },
+  "loadAll": {
+    "titleFiltered": "Load All Filtered Messages",
+    "title": "Load All Messages",
+    "alertFiltered_one": "This will load every message in this {{scope}} that matches your active filter ({{count}} active). Clear filters first if you want every message.",
+    "alertFiltered_other": "This will load every message in this {{scope}} that matches your active filters ({{count}} active). Clear filters first if you want every message.",
+    "alert_thread": "This will load all messages from this thread, which may take a significant amount of time for large threads.",
+    "alert_channel": "This will load all messages from this channel, which may take a significant amount of time for large channels.",
+    "alert_dm": "This will load all messages from this conversation, which may take a significant amount of time for large conversations.",
+    "scope_thread": "thread",
+    "scope_channel": "channel",
+    "scope_dm": "conversation",
+    "currentlyLoaded": "Currently loaded: <strong>{{count}}</strong> messages",
+    "willFiltered": "Loading all filtered messages will:",
+    "will": "Loading all messages will:",
+    "bulletBatches": "Fetch messages in batches of 100 with delays to avoid rate limiting",
+    "bulletMinutes_thread": "May take several minutes for threads with thousands of messages",
+    "bulletMinutes_channel": "May take several minutes for channels with thousands of messages",
+    "bulletMinutes_dm": "May take several minutes for conversations with thousands of messages",
+    "bulletScroll": "Disable infinite scroll",
+    "confirmQuestion": "Are you sure you want to continue?",
+    "confirm": "Load All"
+  },
+  "threadLoad": {
+    "title": "Load Thread",
+    "threadsInChannel": "Threads in this channel",
+    "refresh": "Refresh thread list",
+    "looking": "Looking for threads...",
+    "loadFailed": "Couldn't load threads: {{error}}",
+    "none": "No threads found in this channel.",
+    "or": "or",
+    "enterId": "Enter a thread or forum post ID to load its messages.",
+    "idLabel": "Thread / Forum Post ID",
+    "idPlaceholder": "e.g. 1234567890",
+    "load": "Load",
+    "loadNamed": "Load {{name}}",
+    "threadFallback": "Thread {{id}}"
+  },
+  "filters": {
+    "title": "Filters",
+    "refine": "Refine",
+    "search": "Search",
+    "discordApi": "Discord API",
+    "searchContentPlaceholder": "Search message content...",
+    "filterContentPlaceholder": "Filter by content...",
+    "from": "From",
+    "mentions": "Mentions",
+    "clear": "Clear",
+    "clearCount": "Clear ({{count}})",
+    "loadedMessages": "Loaded messages",
+    "content": "Content",
+    "messageContent": "Message Content",
+    "systemMessages": "System Messages",
+    "showOnly": "Show only",
+    "hide": "Hide",
+    "applyRefine": "Apply Refine",
+    "attachments": "Attachments",
+    "fileTypePlaceholder": "File type, e.g. png or pdf (Enter to add)",
+    "attachmentFileType": "Attachment file type",
+    "exactFileName": "Exact file name, e.g. report.pdf",
+    "fileNameContains": "File name contains...",
+    "attachmentFileName": "Attachment file name",
+    "exactMatchHelp": "Discord matches the full name exactly, including case.",
+    "authorType": "Author Type",
+    "any": "Any",
+    "authorUser": "user",
+    "authorBot": "bot",
+    "authorWebhook": "webhook",
+    "contentTerm": "Message content term",
+    "anyOfTermsSearch": "Any of {{count}} terms. Discord searches one term at a time, so this runs {{count}} searches and merges them.",
+    "anyOfTermsRefine": "Messages containing any of the {{count}} terms.",
+    "commaAddsTerm": "Comma adds another term; matches any of them.",
+    "incompleteDateTime": "Finish the date and time, or clear the field",
+    "incompleteDate": "Finish the date, or clear the field",
+    "date": "Date",
+    "addDate": "Add date",
+    "before": "Before",
+    "after": "After",
+    "during": "During",
+    "has": "Has",
+    "anyContent": "Any content",
+    "hasType": {
+      "image": "image",
+      "video": "video",
+      "link": "link",
+      "file": "file",
+      "embed": "embed",
+      "sound": "sound",
+      "poll": "poll",
+      "sticker": "sticker",
+      "forward": "forward"
+    },
+    "pinned": "Pinned",
+    "true": "True",
+    "false": "False",
+    "filterByUsers": "Filter by Users",
+    "enterUserId": "Enter user ID and press Enter",
+    "clearAll": "Clear all filters",
+    "chip": {
+      "from": "from: {{value}}",
+      "has": "has: {{value}}",
+      "after": "after: {{value}}",
+      "before": "before: {{value}}",
+      "pinned": "pinned: {{value}}",
+      "author": "author: {{value}}",
+      "content": "content: {{value}}",
+      "fileType": "file type: {{value}}",
+      "fileName": "file name: {{value}}",
+      "mentions": "mentions: {{value}}"
+    }
+  }
+}

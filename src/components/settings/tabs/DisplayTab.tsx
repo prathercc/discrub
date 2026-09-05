@@ -4,6 +4,8 @@ import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting, DateFormat, DmSortOrder, TimeFormat } from 'discrub-core/discrub-enum';
 import { useAppDispatch } from '@/app/hooks';
 import { setSupporterDialogOpen } from '@features/supporter/supporterSlice';
+import { useTranslation } from 'react-i18next';
+import { LANGUAGE_LABELS, SUPPORTED_LANGUAGES, normalizeLanguage } from '@/i18n/language';
 
 interface DisplayTabProps {
   formValues: AppSettings;
@@ -12,6 +14,7 @@ interface DisplayTabProps {
 
 export const DisplayTab = ({ formValues, onChange }: DisplayTabProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
       <Typography variant="body2" color="text.secondary">
@@ -33,6 +36,26 @@ export const DisplayTab = ({ formValues, onChange }: DisplayTabProps) => {
           Open the Themes hub
         </Button>
       </Box>
+
+      <FormControl fullWidth>
+        <InputLabel>{t('language.label')}</InputLabel>
+        <Select
+          value={normalizeLanguage(formValues[DiscrubSetting.APP_LANGUAGE])}
+          label={t('language.label')}
+          onChange={(e) => onChange(DiscrubSetting.APP_LANGUAGE, e.target.value)}
+          inputProps={{ 'data-testid': 'language-select' }}
+        >
+          {SUPPORTED_LANGUAGES.map((code) => (
+            <MenuItem key={code} value={code} data-testid={`language-option-${code}`}>
+              {LANGUAGE_LABELS[code]}
+              {code !== 'en' ? ` (${t('language.machineDrafted')})` : ''}
+            </MenuItem>
+          ))}
+        </Select>
+        <Typography variant="caption" sx={{ mt: 1, color: 'text.secondary' }}>
+          {t('language.help')}
+        </Typography>
+      </FormControl>
 
       <FormControl fullWidth>
         <InputLabel>Date Format</InputLabel>

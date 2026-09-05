@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Box, Chip, TextField, Typography } from '@mui/material';
 import { AttachFile as AttachFileIcon } from '@mui/icons-material';
 import { normalizeAttachmentExtension } from 'discrub-core/filtering';
+import { useTranslation } from 'react-i18next';
 
 interface AttachmentFilterProps {
   extensions: string[];
@@ -32,6 +33,7 @@ const AttachmentFilter = ({
   mode,
   onSubmit,
 }: AttachmentFilterProps) => {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState('');
 
   const commitDraft = () => {
@@ -46,7 +48,7 @@ const AttachmentFilter = ({
   return (
     <Box data-testid={`attachment-filter-${mode}`}>
       <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-        Attachments
+        {t('filters.attachments')}
       </Typography>
       {extensions.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
@@ -67,7 +69,7 @@ const AttachmentFilter = ({
         <TextField
           size="small"
           fullWidth
-          placeholder="File type, e.g. png or pdf (Enter to add)"
+          placeholder={t('filters.fileTypePlaceholder')}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {
@@ -77,21 +79,21 @@ const AttachmentFilter = ({
             }
           }}
           onBlur={commitDraft}
-          inputProps={{ 'data-testid': `attachment-extension-input-${mode}`, 'aria-label': 'Attachment file type' }}
+          inputProps={{ 'data-testid': `attachment-extension-input-${mode}`, 'aria-label': t('filters.attachmentFileType') }}
         />
         <TextField
           size="small"
           fullWidth
-          placeholder={mode === 'search' ? 'Exact file name, e.g. report.pdf' : 'File name contains...'}
+          placeholder={mode === 'search' ? t('filters.exactFileName') : t('filters.fileNameContains')}
           value={filename ?? ''}
           onChange={(e) => onFilenameChange(e.target.value || null)}
           onKeyDown={(e) => {
             if (e.key === 'Enter') onSubmit?.();
           }}
-          inputProps={{ 'data-testid': `attachment-filename-input-${mode}`, 'aria-label': 'Attachment file name' }}
+          inputProps={{ 'data-testid': `attachment-filename-input-${mode}`, 'aria-label': t('filters.attachmentFileName') }}
           helperText={
             mode === 'search'
-              ? 'Discord matches the full name exactly, including case.'
+              ? t('filters.exactMatchHelp')
               : undefined
           }
         />

@@ -6,6 +6,8 @@ import {
 } from '@mui/icons-material';
 import type { SearchCriteria } from 'discrub-core/types/discrub-types';
 import { IsPinnedType } from 'discrub-core/discord-enum';
+import { t as translate } from '@/i18n';
+import { useTranslation } from 'react-i18next';
 
 interface ActiveFilterChipsProps {
   searchCriteria: SearchCriteria;
@@ -38,43 +40,43 @@ const buildChipsFromCriteria = (criteria: SearchCriteria, layer: 'search' | 'ref
   const chips: ChipData[] = [];
 
   criteria.userIds.forEach((id) => {
-    chips.push({ key: `${layer}-from-${id}`, label: `from: ${id}`, field: 'userIds', value: id, layer });
+    chips.push({ key: `${layer}-from-${id}`, label: translate('filters.chip.from', { value: id }), field: 'userIds', value: id, layer });
   });
 
   criteria.selectedHasTypes.forEach((type) => {
-    chips.push({ key: `${layer}-has-${type}`, label: `has: ${type}`, field: 'selectedHasTypes', value: type, layer });
+    chips.push({ key: `${layer}-has-${type}`, label: translate('filters.chip.has', { value: translate(`filters.hasType.${type}`, { defaultValue: type }) }), field: 'selectedHasTypes', value: type, layer });
   });
 
   if (criteria.searchAfterDate) {
-    chips.push({ key: `${layer}-after`, label: `after: ${formatDate(criteria.searchAfterDate)}`, field: 'searchAfterDate', layer });
+    chips.push({ key: `${layer}-after`, label: translate('filters.chip.after', { value: formatDate(criteria.searchAfterDate) }), field: 'searchAfterDate', layer });
   }
 
   if (criteria.searchBeforeDate) {
-    chips.push({ key: `${layer}-before`, label: `before: ${formatDate(criteria.searchBeforeDate)}`, field: 'searchBeforeDate', layer });
+    chips.push({ key: `${layer}-before`, label: translate('filters.chip.before', { value: formatDate(criteria.searchBeforeDate) }), field: 'searchBeforeDate', layer });
   }
 
   if (criteria.isPinned !== IsPinnedType.UNSET) {
-    chips.push({ key: `${layer}-pinned`, label: `pinned: ${criteria.isPinned}`, field: 'isPinned', layer });
+    chips.push({ key: `${layer}-pinned`, label: translate('filters.chip.pinned', { value: criteria.isPinned }), field: 'isPinned', layer });
   }
 
   if (criteria.authorType) {
-    chips.push({ key: `${layer}-author`, label: `author: ${criteria.authorType}`, field: 'authorType', layer });
+    chips.push({ key: `${layer}-author`, label: translate('filters.chip.author', { value: criteria.authorType }), field: 'authorType', layer });
   }
 
   criteria.searchMessageContents?.forEach((term) => {
-    chips.push({ key: `${layer}-content-${term}`, label: `content: ${term}`, field: 'searchMessageContents', value: term, layer });
+    chips.push({ key: `${layer}-content-${term}`, label: translate('filters.chip.content', { value: term }), field: 'searchMessageContents', value: term, layer });
   });
 
   criteria.attachmentExtensions?.forEach((ext) => {
-    chips.push({ key: `${layer}-ext-${ext}`, label: `file type: ${ext}`, field: 'attachmentExtensions', value: ext, layer });
+    chips.push({ key: `${layer}-ext-${ext}`, label: translate('filters.chip.fileType', { value: ext }), field: 'attachmentExtensions', value: ext, layer });
   });
 
   if (criteria.attachmentFilename) {
-    chips.push({ key: `${layer}-filename`, label: `file name: ${criteria.attachmentFilename}`, field: 'attachmentFilename', layer });
+    chips.push({ key: `${layer}-filename`, label: translate('filters.chip.fileName', { value: criteria.attachmentFilename }), field: 'attachmentFilename', layer });
   }
 
   criteria.mentionIds?.forEach((id) => {
-    chips.push({ key: `${layer}-mentions-${id}`, label: `mentions: ${id}`, field: 'mentionIds', value: id, layer });
+    chips.push({ key: `${layer}-mentions-${id}`, label: translate('filters.chip.mentions', { value: id }), field: 'mentionIds', value: id, layer });
   });
 
   return chips;
@@ -84,6 +86,7 @@ const buildChipsFromCriteria = (criteria: SearchCriteria, layer: 'search' | 'ref
  * ActiveFilterChips - dual-layer chip bar showing search (blurple) and refine (gray) filters
  */
 const ActiveFilterChips = ({ searchCriteria, refineCriteria, onClearSearchFilter, onClearRefineFilter, onClearAll }: ActiveFilterChipsProps) => {
+  const { t } = useTranslation();
   const searchChips = buildChipsFromCriteria(searchCriteria, 'search');
   const refineChips = buildChipsFromCriteria(refineCriteria, 'refine');
   const allChips = [...searchChips, ...refineChips];
@@ -118,8 +121,8 @@ const ActiveFilterChips = ({ searchCriteria, refineCriteria, onClearSearchFilter
           />
         );
       })}
-      <Tooltip title="Clear all filters">
-        <IconButton size="small" onClick={onClearAll} sx={{ width: 22, height: 22 }} aria-label="Clear all filters">
+      <Tooltip title={t('filters.clearAll')}>
+        <IconButton size="small" onClick={onClearAll} sx={{ width: 22, height: 22 }} aria-label={t('filters.clearAll')}>
           <CloseIcon sx={{ fontSize: 14 }} />
         </IconButton>
       </Tooltip>

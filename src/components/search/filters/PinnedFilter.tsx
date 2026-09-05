@@ -1,5 +1,6 @@
 import { Box, Typography, Select, MenuItem } from '@mui/material';
 import { IsPinnedType } from 'discrub-core/discord-enum';
+import { useTranslation } from 'react-i18next';
 
 interface PinnedFilterProps {
   value: IsPinnedType;
@@ -10,10 +11,11 @@ interface PinnedFilterProps {
  * PinnedFilter - filter messages by pinned status using a dropdown
  */
 const PinnedFilter = ({ value, onChange }: PinnedFilterProps) => {
+  const { t } = useTranslation();
   return (
     <Box>
       <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-        Pinned
+        {t('filters.pinned')}
       </Typography>
       <Select
         value={value}
@@ -21,9 +23,9 @@ const PinnedFilter = ({ value, onChange }: PinnedFilterProps) => {
         size="small"
         fullWidth
       >
-        <MenuItem value={IsPinnedType.UNSET}>Any</MenuItem>
-        <MenuItem value={IsPinnedType.YES}>True</MenuItem>
-        <MenuItem value={IsPinnedType.NO}>False</MenuItem>
+        <MenuItem value={IsPinnedType.UNSET}>{t('filters.any')}</MenuItem>
+        <MenuItem value={IsPinnedType.YES}>{t('filters.true')}</MenuItem>
+        <MenuItem value={IsPinnedType.NO}>{t('filters.false')}</MenuItem>
       </Select>
     </Box>
   );

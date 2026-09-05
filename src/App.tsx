@@ -12,6 +12,7 @@ import { initializeSupporter } from '@features/supporter/supporterSlice';
 import { requestPersistentStorage } from '@/utils/persistentStorage';
 import { sweepStagedDownloads } from 'drip-fs';
 import { isOverlayMode } from '@/extension/messaging';
+import { useLanguageSync } from '@/i18n/useLanguageSync';
 import LandingPage from '@containers/LandingPage/LandingPage';
 import MainLayout from '@containers/MainLayout/MainLayout';
 
@@ -26,6 +27,7 @@ function App() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
   const token = useAppSelector(selectAuthToken);
+  useLanguageSync();
 
   // Load every persisted slice on app startup. loadSettings runs the
   // unified storage migration first; the other thunks are idempotent

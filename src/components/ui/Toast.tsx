@@ -12,6 +12,9 @@ import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { selectToast, hideToast } from '@features/status/statusSlice';
 import { selectAuthToken } from '@features/auth/authSlice';
 import { fetchMessages } from '@features/message/messageSlice';
+import { updateSetting } from '@features/app/appSlice';
+import { DiscrubSetting } from 'discrub-core/discrub-enum';
+import { useTranslation } from 'react-i18next';
 
 const LEVEL_ICONS: Record<string, typeof SuccessIcon> = {
   success: SuccessIcon,
@@ -38,6 +41,7 @@ const Toast = () => {
   const theme = useTheme();
   const toast = useAppSelector(selectToast);
   const token = useAppSelector(selectAuthToken);
+  const { t } = useTranslation();
 
   useEffect(() => {
     if (!toast.isVisible) return;
@@ -53,6 +57,8 @@ const Toast = () => {
   const handleAction = () => {
     if (toast.action?.type === 'reloadChannel' && token) {
       dispatch(fetchMessages({ channelId: toast.action.channelId, token }));
+    } else if (toast.action?.type === 'switchLanguage') {
+      dispatch(updateSetting({ key: DiscrubSetting.APP_LANGUAGE, value: toast.action.language }));
     }
     dispatch(hideToast());
   };
@@ -125,7 +131,7 @@ const Toast = () => {
       <IconButton
         size="small"
         onClick={() => dispatch(hideToast())}
-        aria-label="Dismiss notification"
+        aria-label={t('common.dismissNotification')}
         sx={{ color: 'text.disabled', ml: 0.5, '&:hover': { color: 'text.secondary' } }}
       >
         <CloseIcon sx={{ fontSize: 16 }} />

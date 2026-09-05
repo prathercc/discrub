@@ -1,0 +1,722 @@
+{
+  "language": {
+    "label": "Sprache",
+    "help": "Sprache für Menüs, Dialoge und Statusmeldungen. Deutsch ist eine maschinell erstellte Übersetzung. Korrekturen und weitere Sprachen sind auf GitHub willkommen.",
+    "machineDrafted": "maschinell übersetzt",
+    "suggestionToast": "Discrub ist auch auf Deutsch verfügbar.",
+    "suggestionAction": "Auf Deutsch wechseln"
+  },
+  "core": {
+    "retrievedThreads": "{{count}} Threads geladen",
+    "retrievedSearchResults": "{{count}} von {{total}} Suchergebnissen geladen",
+    "retrievedMessages": "{{count}} Nachrichten geladen",
+    "retrievingThreadMessages": "Nachrichten aus Thread werden geladen: {{threadName}}",
+    "searchingReactions": "Reaktionen werden gesucht ({{index}}/{{total}})",
+    "resolvingReplyParents": "Antwortbezüge werden aufgelöst ({{index}}/{{total}})",
+    "retrievingReactionUsers": "Reaktionsnutzer für {{emojiName}} werden geladen ({{index}}/{{total}}) ",
+    "retrievingReactionUsersCustom": "Reaktionsnutzer für {{emojiName}} werden geladen ({{index}}/{{total}}) [benutzerdefiniert]",
+    "retrievingUserAlias": "Anzeigename für {{user}} wird geladen",
+    "retrievingServerData": "Serverdaten für {{user}} werden geladen",
+    "permissionMissingSkippingEdit": "Keine Berechtigung für diese Nachricht, Bearbeitung übersprungen",
+    "noPermissionToModifyMessage": "Du hast keine Berechtigung, diese Nachricht zu ändern!",
+    "noPermissionToModifyLocation": "Du hast keine Berechtigung, Inhalte an diesem Ort zu ändern, übersprungen",
+    "unableToRemoveReaction": "Reaktion von {{user}} konnte nicht entfernt werden"
+  },
+  "common": {
+    "dismissNotification": "Benachrichtigung schließen",
+    "directMessage": "Direktnachricht",
+    "thread": "Thread",
+    "cancel": "Abbrechen"
+  },
+  "sidebar": {
+    "seed": "Befüllen",
+    "tabServers": "Server",
+    "tabDms": "DMs",
+    "tabPackage": "Paket",
+    "searchChannels": "Kanäle durchsuchen...",
+    "searchServers": "Server durchsuchen...",
+    "searchDms": "DMs durchsuchen...",
+    "searchPackage": "Paket durchsuchen..."
+  },
+  "topbar": {
+    "openNavigation": "Navigation öffnen",
+    "home": "Start",
+    "homeAlt": "Discrub Start",
+    "supporter": "Unterstützer",
+    "themesAndSupport": "Designs und Unterstützung",
+    "ideasAndContact": "Ideen & Kontakt",
+    "settings": "Einstellungen",
+    "supporterWall": "Unterstützerwand",
+    "viewAnnouncement": "Ankündigung ansehen",
+    "more": "Mehr",
+    "moreOptions": "Weitere Optionen",
+    "compatibility": "Kompatibilität",
+    "logout": "Abmelden",
+    "minimizeToDiscord": "Zu Discord minimieren",
+    "minimizeDiscrub": "Discrub minimieren",
+    "closeDiscrub": "Discrub schließen",
+    "operationInProgress": "Vorgang läuft",
+    "closingCancels": "Beim Schließen wird dieser Vorgang abgebrochen. Der Fortschritt kann verloren gehen.",
+    "closeAnyway": "Trotzdem schließen"
+  },
+  "pause": {
+    "operationResumed": "Vorgang fortgesetzt",
+    "operationPaused": "Vorgang pausiert",
+    "operationCancelled": "Vorgang abgebrochen",
+    "resume": "Fortsetzen",
+    "pause": "Pause",
+    "cancel": "Abbrechen",
+    "help": "Hilfe: {{title}}"
+  },
+  "statusPanel": {
+    "title": "STATUSPROTOKOLL",
+    "operationPaused": "Vorgang pausiert",
+    "operationInProgress": "Vorgang läuft",
+    "downloadLog": "Protokoll herunterladen",
+    "clearLog": "Protokoll leeren",
+    "collapse": "Einklappen",
+    "expand": "Ausklappen",
+    "collapseLog": "Protokoll einklappen",
+    "expandLog": "Protokoll ausklappen",
+    "resize": "Statusprotokoll vergrößern",
+    "empty": "Noch keine Statuseinträge.",
+    "earlierActivity": "Frühere Aktivität",
+    "currentSession": "Aktuelle Sitzung",
+    "sessionOf": "Sitzung vom {{date}} {{time}}"
+  },
+  "operation": {
+    "serverChannelLabel": "Server {{serverIndex}}/{{serverTotal}} {{serverName}} · Kanal {{channelIndex}}/{{channelTotal}}: {{channelName}}",
+    "channelLabel": "Kanal {{channelIndex}}/{{channelTotal}}: {{channelName}}",
+    "paused": "Pausiert · {{label}}",
+    "removingReactionsBulk": "Reaktionen werden entfernt... {{label}} · {{processed}} geprüft ({{removed}} entfernt)",
+    "purgingBulk": "Bereinigung läuft... {{label}} · {{processed}} verarbeitet ({{deleted}} gelöscht)",
+    "purging": "Bereinigung läuft...",
+    "pausedPurging": "Pausiert · Bereinigung",
+    "exportingStage": "Export läuft ({{stage}})... {{pct}}%",
+    "exporting": "Export läuft...",
+    "pausedExporting": "Pausiert · Export",
+    "deletingMessages": "Nachrichten werden gelöscht...",
+    "pausedDeletingMessages": "Pausiert · Nachrichten löschen",
+    "editingMessages": "Nachrichten werden bearbeitet...",
+    "pausedEditingMessages": "Pausiert · Nachrichten bearbeiten",
+    "removingReactions": "Reaktionen werden entfernt...",
+    "pausedRemovingReactions": "Pausiert · Reaktionen entfernen",
+    "addingReactions": "Reaktionen werden hinzugefügt...",
+    "pausedAddingReactions": "Pausiert · Reaktionen hinzufügen",
+    "loadingAllMessages": "Alle Nachrichten werden geladen...",
+    "pausedLoadingAllMessages": "Pausiert · Alle Nachrichten laden",
+    "packageExportStagePct": "Paketexport ({{stage}})... {{pct}}%",
+    "packageExportStage": "Paketexport ({{stage}})...",
+    "pausedPackageExportStage": "Pausiert · Paketexport ({{stage}})",
+    "packageExport": "Paketexport...",
+    "pausedPackageExport": "Pausiert · Paketexport",
+    "loadingMessages": "Nachrichten werden geladen...",
+    "loadingForumPosts": "Forenbeiträge werden geladen...",
+    "loadingServers": "Server werden geladen...",
+    "loadingChannels": "Kanäle werden geladen...",
+    "loadingDms": "DMs werden geladen...",
+    "lookingUpUsers": "Benutzer werden nachgeschlagen...",
+    "idle": "Bereit"
+  },
+  "landing": {
+    "supporterKeyInactive": "Unterstützerschlüssel ist nicht mehr aktiv.",
+    "supporterKeyNoBleedingEdge": "Unterstützerschlüssel geprüft, aber er enthält kein Bleeding Edge.",
+    "autoAuthNoToken": "Token konnte nicht von Discord abgerufen werden. Stelle sicher, dass du bei discord.com angemeldet bist.",
+    "autoAuthFailed": "Anmeldung fehlgeschlagen. Versuche die manuelle Eingabe.",
+    "authenticating": "Anmeldung bei Discord...",
+    "signingInSavedToken": "Anmeldung mit dem auf diesem Gerät gespeicherten Token",
+    "retrievingToken": "Dein Anmelde-Token wird von discord.com abgerufen",
+    "mayTakeSeconds": "Das kann einige Sekunden dauern",
+    "earlyAccessBuild": "Vorabversion v{{version}}",
+    "welcome": "Willkommen bei Discrub",
+    "enterTokenExtension": "Gib dein Discord-Token manuell ein oder versuche die automatische Anmeldung",
+    "enterToken": "Gib dein Discord-Token ein, um Nachrichten zu verwalten",
+    "usingEnvToken": "Token aus der Umgebung (.env-Datei) wird verwendet",
+    "forgetMyKey": "Schlüssel vergessen",
+    "supporterKeyValidated": "Unterstützerschlüssel geprüft.",
+    "keyLabel": "Schlüssel",
+    "keyHelp": "Füge den Schlüssel aus deiner Ko-fi-E-Mail ein. Noch keinen? Hol dir einen <monthly>monatlich</monthly> oder <yearly>jährlich</yearly>.",
+    "apply": "Anwenden",
+    "discordToken": "Discord-Token",
+    "invalidToken": "Ungültiges Token. Prüfe es und versuche es erneut",
+    "tokenSavedUntilLogout": "Dein Token bleibt auf diesem Gerät gespeichert, bis du dich abmeldest",
+    "tokenKeptUntilClose": "Dein Token wird nur bis zum Schließen dieses Tabs behalten",
+    "forgetSavedToken": "Gespeichertes Token vergessen",
+    "tokenFromLastSession": "Ein Token aus deiner letzten Sitzung ist auf diesem Gerät gespeichert.",
+    "keepMeLoggedIn": "Angemeldet bleiben",
+    "trustedDeviceOnly": "Nur auf einem Gerät, dem du vertraust",
+    "signIn": "Anmelden",
+    "tryAutoAuthAgain": "Automatische Anmeldung erneut versuchen",
+    "howToFindToken": "Wie finde ich mein Discord-Token?",
+    "extensionModeHint": "Erweiterungsmodus: Für die automatische Anmeldung musst du bei discord.com angemeldet sein",
+    "unofficialTool": "Discrub ist ein inoffizielles Tool. Nutzung auf eigene Gefahr."
+  },
+  "settings": {
+    "title": "Einstellungen",
+    "saveFailed": "Einstellungen konnten nicht gespeichert werden. Versuche es erneut.",
+    "tabOperationDelays": "Verzögerungen",
+    "tabExportPreferences": "Exporteinstellungen",
+    "tabUserData": "Benutzerdaten",
+    "tabDisplay": "Anzeige",
+    "tabPurgeBehavior": "Bereinigungsverhalten",
+    "tabHotkeys": "Tastenkürzel",
+    "tabReset": "Discrub zurücksetzen",
+    "savedToken": "Gespeichertes Token",
+    "savedTokenHelp": "Dein Discord-Token ist auf diesem Gerät gespeichert, damit du zwischen Besuchen angemeldet bleibst. Das Vergessen meldet dich jetzt nicht ab, aber beim nächsten Besuch musst du dein Token erneut einfügen.",
+    "forgetSavedToken": "Gespeichertes Token vergessen",
+    "reset": "Zurücksetzen",
+    "resetHelp": "Löscht alle Daten, die Discrub in deinem Browser speichert. Hilfreich bei anhaltenden Problemen, die Ab- und wieder Anmelden nicht behebt. Danach landest du wieder auf dem Anmeldebildschirm.",
+    "resetToDefaults": "Auf Standard zurücksetzen",
+    "cancel": "Abbrechen",
+    "saving": "Wird gespeichert...",
+    "save": "Einstellungen speichern",
+    "discardTitle": "Ungespeicherte Änderungen verwerfen?",
+    "discardBody": "Du hast Änderungen vorgenommen, die nicht gespeichert sind. Beim Schließen gehen sie verloren.",
+    "keepEditing": "Weiter bearbeiten",
+    "discard": "Verwerfen",
+    "validation": {
+      "messagesPerPage": "Nachrichten pro Seite müssen zwischen 1 und 1000 liegen",
+      "announcementRev": "Die zwischengespeicherte Ankündigungsrevision darf nicht negativ sein"
+    }
+  },
+  "delays": {
+    "searchDelay": "Suchverzögerung",
+    "searchDelayHelp": "Grundverzögerung zwischen Such- und Ladevorgängen",
+    "deleteDelay": "Lösch-/Bearbeitungsverzögerung",
+    "deleteDelayHelp": "Grundverzögerung zwischen Lösch- und Bearbeitungsvorgängen",
+    "modifier": "Zufallszuschlag",
+    "modifierHelp": "Zufällige Variation, die zu den Grundverzögerungen addiert wird, für natürlicheres Timing",
+    "zoneRisky": "Riskant",
+    "zoneLow": "Niedrig",
+    "zoneRecommended": "Empfohlen",
+    "zoneSafest": "Am sichersten",
+    "zoneSafe": "Sicher",
+    "intro": "Diese Verzögerungen verhindern Rate-Limit-Fehler von Discord. Die Standardwerte sind konservativ gewählt. Über 10 s liegt die sicherste Zone, gedacht für sehr lange Läufe wie komplette Serverexporte."
+  },
+  "exportPrefs": {
+    "intro": "Das sind Standardwerte. Im Exportdialog kannst du sie pro Export überschreiben.",
+    "content": "Inhalt",
+    "sortOrder": "Sortierung der Nachrichten",
+    "oldestFirst": "Älteste zuerst (aufsteigend)",
+    "newestFirst": "Neueste zuerst (absteigend)",
+    "messagesPerPage": "Nachrichten pro Seite",
+    "messagesPerPageHelp": "Anzahl der Nachrichten pro HTML-Seite. Kleinere Werte laden im Browser schneller.",
+    "separateThreads": "Threads getrennt (Thread-Nachrichten laden und jeden Thread als eigene Datei exportieren)",
+    "filesAndMedia": "Dateien & Medien",
+    "downloadMedia": "Dateien zum Offline-Ansehen herunterladen (Avatare, Anhänge, Emojis)",
+    "artistMode": "Künstlermodus (heruntergeladene Dateien nach Autor in Ordnern sortieren)",
+    "defaultMediaTypes": "Standard-Medientypen",
+    "display": "Anzeige",
+    "previewMedia": "Medienvorschau im Export (Bild-/Videovorschauen inline im HTML anzeigen)",
+    "mediaImages": "Bilder",
+    "mediaVideos": "Videos",
+    "mediaAudio": "Audio",
+    "mediaOther": "Sonstige Dateien"
+  },
+  "userData": {
+    "intro": "Lege fest, wie Benutzerdaten von Discord geladen und zwischengespeichert werden.",
+    "enableReactions": "Reaktionen aktivieren",
+    "lookupNicknames": "Server-Nicknames nachschlagen",
+    "lookupDisplayNames": "Anzeigenamen nachschlagen",
+    "refreshRate": "Aktualisierung der Benutzerdaten",
+    "never": "Nie",
+    "daily": "Täglich",
+    "weekly": "Wöchentlich",
+    "monthly": "Monatlich",
+    "refreshRateHelp": "Wie oft Profile, Nicknames und Rollen erneut von Discord geladen werden"
+  },
+  "hotkeys": {
+    "enable": "Tastenkürzel aktivieren",
+    "enableHelp": "Wenn aus, sind alle Tastenkürzel unten inaktiv. Systemtasten (Esc zum Schließen von Dialogen, Tab zum Navigieren) funktionieren weiterhin.",
+    "offNotice": "Tastenkürzel sind aus. Oben wieder einschalten. Die Belegungen unten bleiben erhalten und gelten wieder, sobald der Schalter an ist.",
+    "search": "Tastenkürzel suchen…",
+    "resetAll": "Alle Tastenkürzel zurücksetzen",
+    "unbound": "Nicht belegt",
+    "pressKey": "Taste drücken…",
+    "resetToDefault": "{{label}} auf Standard zurücksetzen",
+    "conflict": "Auch belegt mit: {{labels}}. Eines davon wird nicht ausgelöst.",
+    "noMatch": "Keine Tastenkürzel passen zu \"{{search}}\".",
+    "referenceTitle": "Tastenkürzel",
+    "disabledNotice": "Tastenkürzel sind derzeit deaktiviert. Aktiviere sie unter Einstellungen → Tastenkürzel, um die Kürzel unten zu nutzen.",
+    "referenceFootnote": "Kürzel sind beim Tippen in Eingabefeldern und Formularen inaktiv. Belegungen änderst du unter Einstellungen → Tastenkürzel.",
+    "group": {
+      "operationRunning": {
+        "title": "Während eines Vorgangs",
+        "blurb": "Verfügbar, während eine Bereinigung oder ein Export läuft."
+      },
+      "serverViewWithChannel": {
+        "title": "In einem Kanal",
+        "blurb": "Verfügbar in einem Serverkanal mit geladenen Nachrichten."
+      },
+      "serverView": {
+        "title": "In einem Server",
+        "blurb": "Verfügbar, wenn der Server-Browser aktiv ist."
+      },
+      "app": {
+        "title": "App-weit",
+        "blurb": "Überall verfügbar, solange Discrub im Vordergrund ist."
+      }
+    },
+    "action": {
+      "pauseResume": {
+        "label": "Pause / Fortsetzen",
+        "description": "Laufende Bereinigung oder laufenden Export pausieren oder fortsetzen."
+      },
+      "cancelOp": {
+        "label": "Vorgang abbrechen",
+        "description": "Laufende Bereinigung oder laufenden Export abbrechen."
+      },
+      "openFilters": {
+        "label": "Filter öffnen",
+        "description": "Nachrichten im aktuellen Kanal suchen und eingrenzen."
+      },
+      "openExport": {
+        "label": "Export öffnen",
+        "description": "Exportdialog für den aktuellen Kanal öffnen."
+      },
+      "openAnalytics": {
+        "label": "Statistiken öffnen",
+        "description": "Statistiken für den aktuellen Kanal anzeigen."
+      },
+      "loadAll": {
+        "label": "Alle Nachrichten laden",
+        "description": "Alle verbleibenden Nachrichten im aktuellen Kanal laden."
+      },
+      "loadThread": {
+        "label": "Thread laden",
+        "description": "Thread-Lader für den aktuellen Kanal öffnen."
+      },
+      "toggleFocus": {
+        "label": "Fokusmodus umschalten",
+        "description": "Obere Leiste und Seitenleiste ausblenden, um den Nachrichtenfeed zu vergrößern."
+      },
+      "openSettings": {
+        "label": "Einstellungen öffnen",
+        "description": "Die Einstellungen von Discrub öffnen."
+      },
+      "openReference": {
+        "label": "Tastenkürzel anzeigen",
+        "description": "Die Übersicht mit allen Kürzeln öffnen."
+      },
+      "minimize": {
+        "label": "Zu Discord minimieren",
+        "description": "Discrub zum schwebenden Tab einklappen (nur Erweiterung)."
+      },
+      "closeModalOrExitFocus": {
+        "label": "Schließen / verlassen",
+        "description": "Aktiven Dialog schließen oder, wenn keiner offen ist, den Fokusmodus verlassen."
+      }
+    }
+  },
+  "resetDiscrub": {
+    "stuck": "Hängt etwas? Daten zurücksetzen",
+    "button": "Daten zurücksetzen",
+    "title": "Alle Discrub-Daten zurücksetzen?",
+    "intro": "Das löscht alles, was Discrub in deinem Browser speichert:",
+    "itemSettings": "Einstellungen und Präferenzen",
+    "itemPresets": "Exportvorlagen und letzte Exporte",
+    "itemCache": "Zwischengespeicherte Benutzerdaten und Statusprotokoll",
+    "itemPackages": "Importierte Datenpakete und heruntergeladene Medien",
+    "outro": "Danach musst du dich erneut anmelden. Das lässt sich nicht rückgängig machen und betrifft nur dieses Gerät.",
+    "cancel": "Abbrechen",
+    "resetting": "Wird zurückgesetzt…",
+    "confirm": "Alles zurücksetzen"
+  },
+  "corkboard": {
+    "addToDiscord": "Zu Discord hinzufügen",
+    "title": "Vom Discrub-Team",
+    "showBoard": "Pinnwand anzeigen",
+    "hideBoard": "Pinnwand ausblenden",
+    "previousBot": "Vorheriger Bot",
+    "nextBot": "Nächster Bot",
+    "showBot": "{{name}} anzeigen",
+    "ideaPrompt": "Hast du eine Idee für einen Bot? <idea>Erzähl mir davon.</idea>"
+  },
+  "welcome": {
+    "title": "Willkommen bei Discrub",
+    "subtitle": "Ein leistungsstarkes Tool zum Exportieren, Durchsuchen und Verwalten deiner Discord-Nachrichten, Reaktionen und Medien.",
+    "takeTour": "Rundgang starten",
+    "exploreFeatures": "Funktionen entdecken",
+    "comingFromClassic": "Von Classic gewechselt?",
+    "starOnGithub": "Auf GitHub markieren",
+    "gettingStarted": "Erste Schritte",
+    "step1": "Wähle einen Server in der Seitenleiste oder wechsle zum Tab DMs",
+    "step2": "Durchstöbere Kanäle, lade Nachrichten und finde mit Suche und Filtern bestimmte Inhalte",
+    "step3": "Exportiere Nachrichten als HTML, CSV, JSON oder nur Medien mit 9 eingebauten Vorlagen",
+    "step4": "Lösche Nachrichten oder entferne Reaktionen in einem oder mehreren Kanälen",
+    "features": "Funktionen",
+    "feature": {
+      "export": {
+        "title": "Export",
+        "description": "HTML, CSV, JSON oder nur Medien. Discord-Layoutvorlage, 9 Vorlagen, Medienauswahl nach Typ, Thread-Trennung und detaillierte Reaktionsdaten."
+      },
+      "purge": {
+        "title": "Bereinigen",
+        "description": "Nachrichten löschen oder Reaktionen entfernen, gezielt nach Benutzer. Mehrere Kanäle, Thread-Erkennung und Option zum Behalten von Anhängen."
+      },
+      "search": {
+        "title": "Suche & Filter",
+        "description": "Suche nach Inhalt, Zeitraum, Autor, Nachrichtentyp oder beliebigen Kombinationen. Läuft automatisch über 5.000 Ergebnisse hinaus."
+      },
+      "forum": {
+        "title": "Forenkanäle",
+        "description": "Volle Unterstützung für Foren- und Medienkanäle. Threads durchstöbern, Nachrichten laden und einzeln oder gesammelt exportieren."
+      },
+      "package": {
+        "title": "Datenpaket",
+        "description": "Lade die ZIP-Datei aus Discords „Alle meine Daten anfordern“. Durchstöbere jeden Server, Kanal und jede DM deines Archivs. Optionale Anreicherung holt aktuelle Reaktionen, Antworten und CDN-Links."
+      },
+      "analytics": {
+        "title": "Statistiken",
+        "description": "Erwähnungshäufigkeit, Engagement-Kennzahlen und CSV-Export. Option, Erwähnungen in Antworten auszulassen."
+      },
+      "settings": {
+        "title": "Einstellungen",
+        "description": "Verzögerungen, Exportstandards, Anzeigeformat, Bereinigungsverhalten und Medientypen, alles anpassbar."
+      },
+      "theme": {
+        "title": "Designs",
+        "description": "Eine wachsende Auswahl an Designs hinter dem Palettensymbol, mit Live-Vorschau in der App. Exportiertes HTML bringt einen eigenen Designwechsler mit."
+      },
+      "status": {
+        "title": "Statusprotokoll",
+        "description": "Protokoll im Terminal-Stil mit farbigen Einträgen, Echtzeit-Fortschritt und herunterladbarer Logdatei."
+      },
+      "pause": {
+        "title": "Pause & Fortsetzen",
+        "description": "Alle langen Vorgänge lassen sich pausieren, fortsetzen und abbrechen. Die Steuerung erscheint in der Statusleiste."
+      },
+      "donations": {
+        "title": "Unterstützerwand",
+        "description": "Ko-fi-Unterstützerfeed mit Stufen, Rangliste und Flammenfortschritt für Abonnenten."
+      }
+    },
+    "classicTitle": "Von Discrub Classic gewechselt?",
+    "classicBody": "Willkommen zur nächsten großen Version von Discrub. Alles Bekannte funktioniert weiterhin, dazu kommen Forenkanäle, Exportvorlagen, Discord-Layout-HTML, Statistiken, massenhaftes Entfernen von Reaktionen und vieles mehr. Die Erweiterung enthält Discrub Classic als eingebaute Option; wähle deine bevorzugte Version im Startbildschirm.",
+    "migrationGuide": "Den vollständigen Umstiegsleitfaden lesen"
+  },
+  "nav": {
+    "loadingServers": "Server werden geladen...",
+    "loadedServers_one": "{{count}} Server geladen",
+    "loadedServers_other": "{{count}} Server geladen",
+    "loadingServer": "Server wird geladen: {{name}}",
+    "copiedToClipboard": "In die Zwischenablage kopiert",
+    "noServersMatching": "Keine Server passen zu \"{{filter}}\"",
+    "noServersFound": "Keine Server gefunden",
+    "servers": "Server",
+    "toggleMultiSelect": "Mehrfachauswahl umschalten",
+    "multiSelect": "Mehrfachauswahl",
+    "youOwnThisServer": "Dieser Server gehört dir",
+    "verifiedServer": "Verifizierter Server",
+    "partneredServer": "Partner-Server",
+    "loadingForumPostsFor": "Forenbeiträge für #{{name}} werden geladen",
+    "loadingMessagesFor": "Nachrichten für #{{name}} werden geladen",
+    "unknownCategory": "Unbekannte Kategorie",
+    "selectServerForChannels": "Wähle einen Server, um Kanäle zu sehen",
+    "noChannelsFound": "Keine Kanäle gefunden",
+    "channels": "Kanäle",
+    "noChannelsMatching": "Keine Kanäle passen zu \"{{filter}}\"",
+    "deselectAll": "Alle abwählen",
+    "selectAll": "Alle auswählen",
+    "selectedOf": "{{selected}} von {{total}}",
+    "toggleAllAria": "{{toggle}} {{noun}}",
+    "exportSelectedAria": "Ausgewählte {{noun}} exportieren",
+    "export": "Exportieren",
+    "editSelectedAria": "Ausgewählte {{noun}} bearbeiten",
+    "edit": "Bearbeiten",
+    "purgeSelectedAria": "Ausgewählte {{noun}} bereinigen",
+    "purge": "Bereinigen",
+    "copySelectedNamesAria": "Namen der ausgewählten {{noun}} kopieren",
+    "copy": "Kopieren"
+  },
+  "dm": {
+    "errNoAccess": "Discord hat den Zugriff auf diesen Kanal verweigert. Er existiert, gehört aber nicht zu den Unterhaltungen dieses Kontos.",
+    "errNotFound": "Discord kennt keinen Kanal mit dieser ID. Prüfe sie auf Tippfehler, oder die Unterhaltung wurde vollständig gelöscht.",
+    "errNotDm": "Diese ID gehört zu einem Serverkanal, nicht zu einer DM. Hier lassen sich nur Direktnachrichten und Gruppen-DMs öffnen.",
+    "errCannotOpenUser": "Discord konnte keine Unterhaltung mit diesem Benutzer öffnen. Prüfe die ID; gelöschte Konten lassen sich nicht anschreiben.",
+    "errFallbackChannel": "Dieser Kanal ließ sich nicht öffnen. Prüfe die ID und ob du Teil der Unterhaltung warst.",
+    "errFallbackUser": "Es ließ sich keine DM mit diesem Benutzer öffnen. Prüfe die ID und versuche es erneut.",
+    "enterChannelId": "Gib eine 17- bis 20-stellige Kanal-ID oder einen discord.com/channels/@me-Link ein.",
+    "enterUserId": "Gib eine 17- bis 20-stellige Benutzer-ID oder einen discord.com/users-Link ein.",
+    "openByIdTitle": "DM per ID öffnen",
+    "openByIdHelp": "Geschlossene Unterhaltungen (zum Beispiel mit einem gelöschten Konto) erscheinen nie in der DM-Liste, lassen sich aber direkt öffnen. Nutze die Kanal-ID der Unterhaltung (oder einen discord.com/channels/@me-Link) oder die Benutzer-ID der anderen Person.",
+    "channelId": "Kanal-ID",
+    "userId": "Benutzer-ID",
+    "channelIdOrLink": "Kanal-ID oder Link",
+    "userIdOrLink": "Benutzer-ID oder Link",
+    "idPlaceholder": "z. B. 1029384756102938475",
+    "cancel": "Abbrechen",
+    "open": "Öffnen",
+    "loadingDms": "DMs werden geladen...",
+    "loadedConversations_one": "{{count}} Unterhaltung geladen",
+    "loadedConversations_other": "{{count}} Unterhaltungen geladen",
+    "loadingConversationWith": "Unterhaltung mit {{name}} wird geladen",
+    "openedChannelById": "DM-Kanal {{id}} per ID geöffnet",
+    "openedWithUser": "DM mit Benutzer {{id}} geöffnet",
+    "noDmsMatching": "Keine DMs passen zu \"{{filter}}\"",
+    "noDmsFound": "Keine Direktnachrichten gefunden",
+    "directMessages": "Direktnachrichten"
+  },
+  "tour": {
+    "help": "Hilfe: {{title}}",
+    "servers-tab": {
+      "title": "Server",
+      "content": "Hier erscheinen deine Discord-Server. Klicke einen an, um seine Kanäle zu durchstöbern."
+    },
+    "dms-tab": {
+      "title": "Direktnachrichten",
+      "content": "Wechsle hierher, um deine Direktnachrichten und Gruppenchats zu durchstöbern."
+    },
+    "sidebar-search": {
+      "title": "Suche",
+      "content": "Filtere Server, Kanäle oder DMs nach Name."
+    },
+    "settings": {
+      "title": "Einstellungen",
+      "content": "Passe Verzögerungen, Exportstandards, Anzeigeeinstellungen und mehr an."
+    },
+    "theme": {
+      "title": "Designs",
+      "content": "Wähle aus allen Designs, unterstütze Discrub und aktiviere einen Unterstützerschlüssel, alles an einem Ort."
+    },
+    "more": {
+      "title": "Unterstützerwand, r/discrub, Ankündigungen",
+      "content": "Blende die Unterstützerwand ein, öffne r/discrub oder lies die letzte Ankündigung erneut. In schmalen Fenstern wandern diese in ein Menü „Mehr“."
+    },
+    "status-panel": {
+      "title": "Statusprotokoll",
+      "content": "Alle Vorgänge zeigen hier ihren Fortschritt in Echtzeit. Klappe es für Details aus oder lade die Logdatei herunter."
+    },
+    "user-profile": {
+      "title": "Dein Profil",
+      "content": "Klicke hier, um deine Kontodaten und Profilinfos zu sehen."
+    },
+    "logout": {
+      "title": "Abmelden",
+      "content": "Melde dich ab, wenn du fertig bist. Dein Token wird gelöscht, auch eine gespeicherte Kopie auf diesem Gerät."
+    },
+    "multi-select-toggle": {
+      "title": "Mehrfachauswahl",
+      "content": "Klicke hier, um mehrere gleichzeitig auszuwählen. Der Link „Alle auswählen“ nimmt die ganze sichtbare Liste, und verfügbare Sammelaktionen erscheinen unter dem Auswahlzähler."
+    },
+    "author-actions": {
+      "title": "Autor-Aktionen",
+      "content": "Klicke im Feed auf Avatar oder Namen eines Autors, um das Profil zu öffnen. Von dort filterst du den Kanal mit einem Klick auf dessen Nachrichten oder auf Nachrichten, die ihn erwähnen."
+    },
+    "filters": {
+      "title": "Filter",
+      "content": "Zwei Ebenen in einem Dialog: Suche fragt die Discord-API ab (Autor, Inhalt, Datum, Typen, Erwähnungen, angepinnt, Autortyp) und zeigt „X von Y Treffern geladen“, während Ergebnisse eintreffen. Eingrenzen filtert die bereits geladenen Nachrichten rein lokal, ohne API-Aufrufe."
+    },
+    "export": {
+      "title": "Export",
+      "content": "Exportiere Nachrichten als HTML, CSV, JSON oder nur Medien. Wähle eine Vorlage (9 eingebaut) oder nutze deine gespeicherten Einstellungen."
+    },
+    "analytics": {
+      "title": "Statistiken",
+      "content": "Sieh Erwähnungshäufigkeit, mit wem du am meisten schreibst und das Engagement über die Zeit. Exportiere die Statistiken als CSV zur weiteren Auswertung."
+    },
+    "focus-mode": {
+      "title": "Fokusmodus",
+      "content": "Blendet Seitenleiste und Statusbereich für ablenkungsfreies Lesen aus. F schaltet um, Escape beendet."
+    },
+    "message-feed": {
+      "title": "Nachrichtenfeed",
+      "content": "Klicke eine Nachricht an, um sie auszuwählen, und nutze dann die Werkzeugleiste zum Löschen, Bearbeiten oder Verwalten von Anhängen. Klicke auf Antwortleisten oder Anpinn-Hinweise, um zur referenzierten Nachricht zu springen."
+    },
+    "refine-vs-search": {
+      "title": "Eingrenzen vs. Suche",
+      "content": "Eingrenzen filtert die bereits geladenen Nachrichten im Feed: sofort, lokal, ohne API-Aufrufe. Die Suche oben fragt die Discord-API ab und holt neue Ergebnisse. Nutze Eingrenzen für das Vorhandene und Suche, wenn du mehr finden musst."
+    },
+    "quick-filter-buttons": {
+      "title": "Schnellfilter",
+      "content": "Diese Schaltflächen grenzen den Kanal auf Nachrichten dieses Benutzers oder auf Nachrichten ein, die ihn erwähnen. Andere aktive Filter (Datum, Inhalt usw.) bleiben erhalten. Nur der Benutzerbezug ändert sich."
+    },
+    "purge-modes": {
+      "title": "Bereinigungsmodi",
+      "content": "Nachrichten löscht die ganze Nachricht. Nur Anhänge bearbeitet die Nachricht und entfernt ihre Anhänge, ohne den Text zu löschen. Reaktionen entfernt bestimmte Reaktionen. Alle Reaktionen löschen entfernt jede Reaktion (benötigt die Berechtigung „Nachrichten verwalten“). Alle vier sind endgültig, lies also die Zusammenfassung vor dem Bestätigen."
+    },
+    "pause-resume-controls": {
+      "title": "Pause & Fortsetzen",
+      "content": "Lange Vorgänge lassen sich mittendrin pausieren und später fortsetzen. Praktisch bei einer Rate-Limit-Warnung oder wenn du kurz weg musst. Abbrechen beendet den Lauf ganz; Teilergebnisse bleiben erhalten, wo es sinnvoll ist (z. B. Anreicherungs-Caches)."
+    },
+    "operation-delays": {
+      "title": "Verzögerungen",
+      "content": "Discord begrenzt, wie oft Benutzer-Tokens die API aufrufen dürfen. Diese Verzögerungen fügen Pausen zwischen Vorgängen ein, um unter den Grenzen zu bleiben. Kürzere Verzögerungen sind schneller, riskieren aber eine 429-Antwort (und eine Zwangspause). Die Standardwerte sind konservativ gewählt, ändere sie also nur, wenn du weißt, was du tust. Alles über 10 s ist die sicherste Zone für sehr lange Läufe wie einen kompletten Serverexport."
+    },
+    "export-presets": {
+      "title": "Exportvorlagen",
+      "content": "Eine Vorlage ist ein gespeicherter Schnappschuss aller Exporteinstellungen: Format, Seitengröße, Template, Medienoptionen. Wähle eine, um alle Einstellungen auf einmal anzuwenden. Die 9 eingebauten Vorlagen decken gängige Fälle ab (Discord-HTML, Tabelle, nur Medien). Weicht etwas von der Vorlage ab, leert sich die Auswahl."
+    },
+    "search-match-count": {
+      "title": "Trefferzähler",
+      "content": "„X von Y Treffern geladen“ heißt: Discord hat Y passende Nachrichten gefunden, aber erst X sind geladen. Scrolle nach unten (oder klicke Alle laden), um den Rest in Seiten zu je 25 Nachrichten zu holen. Discord begrenzt jede Suche auf 5000 Treffer, aber Alle laden hängt weitere Abfragen automatisch an."
+    },
+    "rehydrate": {
+      "title": "Anreichern (vollständige Daten laden)",
+      "content": "Dein Datenpaket enthält nur die Grunddaten: Nachrichtentext, Zeitstempel, Anhang-URLs. Die Anreicherung holt aktuelle Nachrichtenobjekte von Discord, sodass du auch Reaktionen, Antwortvorschauen, benannte Erwähnungen, Embeds und frische signierte CDN-Links bekommst. Die Schaltfläche zeigt beim Überfahren eine geschätzte Laufzeit. Eine serverweite Vorab-Suche deckt die meisten Nachrichten in einem Durchgang ab, bevor Einzelabfragen beginnen. Ergebnisse bleiben in IndexedDB, sodass ein angereicherter Kanal sofort wieder öffnet."
+    },
+    "package-import": {
+      "title": "Discord-Datenpaket",
+      "content": "Lege die ZIP-Datei aus Discords Export „Alle meine Daten anfordern“ ab. Discrub entpackt sie einmal in IndexedDB, sodass ein erneutes Öffnen der Seite oder Zurückblättern zu einem Kanal das Archiv nie neu entpackt. Nach einem Neuladen der Seite wird dein Paket automatisch fortgesetzt, ohne erneuten Import. Pakete mit mehreren Gigabyte und jede Discord-Sprache (Englisch, Französisch, Deutsch, Spanisch, vereinfachtes Chinesisch, Kyrillisch usw.) werden unterstützt."
+    }
+  },
+  "serverView": {
+    "loadingThread": "Thread wird geladen...",
+    "threadLoaded": "Thread erfolgreich geladen",
+    "threadLoadFailed": "Thread konnte nicht geladen werden: {{error}}",
+    "moreAvailable": "Mehr verfügbar",
+    "scrollOrLoadAll": "Scrollen oder Alle laden",
+    "allLoaded": "Alles geladen",
+    "loadAllMessages": "Alle Nachrichten laden",
+    "loadAll": "Alle laden",
+    "searchAndRefine": "Suchen und eingrenzen",
+    "filters": "Filter",
+    "loadAThread": "Einen Thread laden",
+    "loadThread": "Thread laden",
+    "channelAnalytics": "Kanalstatistiken",
+    "analytics": "Statistiken",
+    "exitFocusMode": "Fokusmodus verlassen",
+    "enterFocusMode": "Fokusmodus starten",
+    "exitFocus": "Fokus beenden",
+    "focus": "Fokus",
+    "exportForumThreads": "Forenthreads exportieren",
+    "exportMessages": "Nachrichten exportieren",
+    "export": "Exportieren",
+    "partialTitle": "Nur geladene Nachrichten werden gefiltert",
+    "partialBody": "Du filterst {{count}} geladene Nachrichten.",
+    "moreMayExist_channel": "In diesem Kanal kann es weitere Nachrichten geben.",
+    "moreMayExist_dm": "In dieser Unterhaltung kann es weitere Nachrichten geben.",
+    "partialHint": "Für vollständige Ergebnisse nutze die Serversuche oder klicke zuerst auf „Alle laden“.",
+    "deletedAccountTitle": "Dieses Konto wurde gelöscht",
+    "deletedAccountBody_channel": "Discords Suche findet keine Nachrichten gelöschter Konten, obwohl die Nachrichten noch existieren. So findest du sie: Benutzerfilter leeren, mit „Alle laden“ den gesamten Verlauf dieses Kanals laden und dann im Filter unter Eingrenzen die Benutzer-ID verwenden.",
+    "deletedAccountBody_dm": "Discords Suche findet keine Nachrichten gelöschter Konten, obwohl die Nachrichten noch existieren. So findest du sie: Benutzerfilter leeren, mit „Alle laden“ den gesamten Verlauf dieser Unterhaltung laden und dann im Filter unter Eingrenzen die Benutzer-ID verwenden.",
+    "deletedAccountPurgeHint": " Die Bereinigung behandelt gelöschte Konten automatisch.",
+    "loadAllStopped_one": "Alle laden wurde gestoppt. Die bisher geladene {{count}} Nachricht bleibt unten verfügbar.",
+    "loadAllStopped_other": "Alle laden wurde gestoppt. Die bisher geladenen {{count}} Nachrichten bleiben unten verfügbar.",
+    "dismiss": "Ausblenden",
+    "noMessagesFound_channel": "Keine Nachrichten in diesem Kanal gefunden",
+    "noMessagesFound_dm": "Keine Nachrichten in dieser Unterhaltung gefunden"
+  },
+  "messageActions": {
+    "deleteLockDm": "In DMs kannst du nur deine eigenen Nachrichten löschen.",
+    "deleteLockChannel": "Ohne die Berechtigung „Nachrichten verwalten“ kannst du in diesem Kanal nur deine eigenen Nachrichten löschen.",
+    "editLockSystem": "Systemnachrichten (Anpinnen, Beitritte, Boosts usw.) lassen sich nicht bearbeiten.",
+    "editLockOthers": "Du kannst nur deine eigenen Nachrichten bearbeiten. Discord blockiert das Bearbeiten fremder Nachrichten.",
+    "selected": "{{count}} ausgewählt",
+    "delete": "Löschen",
+    "edit": "Bearbeiten",
+    "embeds": "Embeds ({{count}})",
+    "addReactions": "Reaktionen hinzufügen",
+    "removeReactions": "Reaktionen entfernen"
+  },
+  "loadAll": {
+    "titleFiltered": "Alle gefilterten Nachrichten laden",
+    "title": "Alle Nachrichten laden",
+    "alertFiltered_one": "Das lädt jede Nachricht in diesem Bereich ({{scope}}), die zu deinem aktiven Filter passt ({{count}} aktiv). Leere zuerst die Filter, wenn du alle Nachrichten möchtest.",
+    "alertFiltered_other": "Das lädt jede Nachricht in diesem Bereich ({{scope}}), die zu deinen aktiven Filtern passt ({{count}} aktiv). Leere zuerst die Filter, wenn du alle Nachrichten möchtest.",
+    "alert_thread": "Das lädt alle Nachrichten dieses Threads, was bei großen Threads sehr lange dauern kann.",
+    "alert_channel": "Das lädt alle Nachrichten dieses Kanals, was bei großen Kanälen sehr lange dauern kann.",
+    "alert_dm": "Das lädt alle Nachrichten dieser Unterhaltung, was bei großen Unterhaltungen sehr lange dauern kann.",
+    "scope_thread": "Thread",
+    "scope_channel": "Kanal",
+    "scope_dm": "Unterhaltung",
+    "currentlyLoaded": "Derzeit geladen: <strong>{{count}}</strong> Nachrichten",
+    "willFiltered": "Alle gefilterten Nachrichten zu laden wird:",
+    "will": "Alle Nachrichten zu laden wird:",
+    "bulletBatches": "Nachrichten in Paketen zu 100 mit Verzögerungen laden, um Rate-Limits zu vermeiden",
+    "bulletMinutes_thread": "Bei Threads mit tausenden Nachrichten mehrere Minuten dauern",
+    "bulletMinutes_channel": "Bei Kanälen mit tausenden Nachrichten mehrere Minuten dauern",
+    "bulletMinutes_dm": "Bei Unterhaltungen mit tausenden Nachrichten mehrere Minuten dauern",
+    "bulletScroll": "Das endlose Scrollen deaktivieren",
+    "confirmQuestion": "Möchtest du wirklich fortfahren?",
+    "confirm": "Alle laden"
+  },
+  "threadLoad": {
+    "title": "Thread laden",
+    "threadsInChannel": "Threads in diesem Kanal",
+    "refresh": "Threadliste aktualisieren",
+    "looking": "Threads werden gesucht...",
+    "loadFailed": "Threads konnten nicht geladen werden: {{error}}",
+    "none": "Keine Threads in diesem Kanal gefunden.",
+    "or": "oder",
+    "enterId": "Gib eine Thread- oder Forenbeitrags-ID ein, um die Nachrichten zu laden.",
+    "idLabel": "Thread-/Forenbeitrags-ID",
+    "idPlaceholder": "z. B. 1234567890",
+    "load": "Laden",
+    "loadNamed": "{{name}} laden",
+    "threadFallback": "Thread {{id}}"
+  },
+  "filters": {
+    "title": "Filter",
+    "refine": "Eingrenzen",
+    "search": "Suche",
+    "discordApi": "Discord-API",
+    "searchContentPlaceholder": "Nachrichteninhalt durchsuchen...",
+    "filterContentPlaceholder": "Nach Inhalt filtern...",
+    "from": "Von",
+    "mentions": "Erwähnungen",
+    "clear": "Leeren",
+    "clearCount": "Leeren ({{count}})",
+    "loadedMessages": "Geladene Nachrichten",
+    "content": "Inhalt",
+    "messageContent": "Nachrichteninhalt",
+    "systemMessages": "Systemnachrichten",
+    "showOnly": "Nur anzeigen",
+    "hide": "Ausblenden",
+    "applyRefine": "Eingrenzung anwenden",
+    "attachments": "Anhänge",
+    "fileTypePlaceholder": "Dateityp, z. B. png oder pdf (Enter zum Hinzufügen)",
+    "attachmentFileType": "Dateityp des Anhangs",
+    "exactFileName": "Genauer Dateiname, z. B. bericht.pdf",
+    "fileNameContains": "Dateiname enthält...",
+    "attachmentFileName": "Dateiname des Anhangs",
+    "exactMatchHelp": "Discord vergleicht den vollständigen Namen exakt, inklusive Groß-/Kleinschreibung.",
+    "authorType": "Autortyp",
+    "any": "Beliebig",
+    "authorUser": "Benutzer",
+    "authorBot": "Bot",
+    "authorWebhook": "Webhook",
+    "contentTerm": "Suchbegriff für Nachrichteninhalt",
+    "anyOfTermsSearch": "Einer von {{count}} Begriffen. Discord sucht je einen Begriff, daher laufen {{count}} Suchen, die zusammengeführt werden.",
+    "anyOfTermsRefine": "Nachrichten, die einen der {{count}} Begriffe enthalten.",
+    "commaAddsTerm": "Ein Komma fügt einen weiteren Begriff hinzu; es reicht, wenn einer passt.",
+    "incompleteDateTime": "Vervollständige Datum und Uhrzeit oder leere das Feld",
+    "incompleteDate": "Vervollständige das Datum oder leere das Feld",
+    "date": "Datum",
+    "addDate": "Datum hinzufügen",
+    "before": "Vor",
+    "after": "Nach",
+    "during": "Am",
+    "has": "Enthält",
+    "anyContent": "Beliebiger Inhalt",
+    "hasType": {
+      "image": "Bild",
+      "video": "Video",
+      "link": "Link",
+      "file": "Datei",
+      "embed": "Embed",
+      "sound": "Audio",
+      "poll": "Umfrage",
+      "sticker": "Sticker",
+      "forward": "Weiterleitung"
+    },
+    "pinned": "Angepinnt",
+    "true": "Ja",
+    "false": "Nein",
+    "filterByUsers": "Nach Benutzern filtern",
+    "enterUserId": "Benutzer-ID eingeben und Enter drücken",
+    "clearAll": "Alle Filter leeren",
+    "chip": {
+      "from": "von: {{value}}",
+      "has": "enthält: {{value}}",
+      "after": "nach: {{value}}",
+      "before": "vor: {{value}}",
+      "pinned": "angepinnt: {{value}}",
+      "author": "Autor: {{value}}",
+      "content": "Inhalt: {{value}}",
+      "fileType": "Dateityp: {{value}}",
+      "fileName": "Dateiname: {{value}}",
+      "mentions": "erwähnt: {{value}}"
+    }
+  }
+}

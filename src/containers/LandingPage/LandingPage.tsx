@@ -28,6 +28,7 @@ import {
 } from '@features/auth/authSlice';
 import { isExtensionMode, requestDiscordToken } from '@/extension/messaging';
 import ResetDiscrubButton from '@components/settings/ResetDiscrubButton';
+import LanguageLink from '@components/ui/LanguageLink';
 import { isBleedingEdgeBuild, isHostedGateEnabled } from '@services/hostedGate';
 import {
   applyPastedSupporterKey,
@@ -41,6 +42,8 @@ import { liveSupporterFeatures } from '@services/supporterKeyService';
 import { KOFI_MONTHLY_URL, KOFI_BLEEDING_EDGE_YEARLY_URL } from '@services/kofiLinks';
 import BleedingTitle from '@components/supporter/BleedingTitle';
 import CompatibilityPopover from '@components/compatibility/CompatibilityPopover';
+import { Trans } from 'react-i18next';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Landing page component - handles user authentication with Discord token
@@ -62,6 +65,7 @@ import CompatibilityPopover from '@components/compatibility/CompatibilityPopover
  */
 const LandingPage = () => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const authError = useAppSelector(selectAuthError);
   const isLoading = useAppSelector(selectAuthLoading);
   const manuallyLoggedOut = useAppSelector(selectManuallyLoggedOut);
@@ -86,9 +90,9 @@ const LandingPage = () => {
     if (hasHosted) return null;
     const live = liveSupporterFeatures(supporter.payload);
     if (supporter.keyStatus !== 'valid' || live.length === 0) {
-      return 'Supporter key no longer active.';
+      return t('landing.supporterKeyInactive');
     }
-    return "Supporter key validated, but it doesn't include Bleeding Edge.";
+    return t('landing.supporterKeyNoBleedingEdge');
   })();
 
   const [token, setToken] = useState(envToken || '');
@@ -139,11 +143,11 @@ const LandingPage = () => {
         // On success, App.tsx will automatically switch to the main layout
       } else {
         console.warn('[Discrub] Auto-auth failed:', response.error || 'No token found');
-        setAutoAuthError(response.error || 'Could not retrieve token from Discord. Make sure you are logged in to discord.com.');
+        setAutoAuthError(response.error || t('landing.autoAuthNoToken'));
       }
     } catch (error) {
       console.error('[Discrub] Auto-authentication failed:', error);
-      setAutoAuthError('Failed to authenticate. Try manual entry.');
+      setAutoAuthError(t('landing.autoAuthFailed'));
     } finally {
       setAutoAuthLoading(false);
     }
@@ -216,15 +220,15 @@ const LandingPage = () => {
           <Stack spacing={3} alignItems="center" data-testid={restoringRememberedToken ? 'landing-restoring' : undefined}>
             <CircularProgress size={60} />
             <Typography variant="h5" color="text.primary" textAlign="center">
-              Authenticating with Discord...
+              {t('landing.authenticating')}
             </Typography>
             <Typography variant="body2" color="text.secondary" textAlign="center">
               {restoringRememberedToken
-                ? 'Signing in with the token saved on this device'
-                : 'Retrieving your authentication token from discord.com'}
+                ? t('landing.signingInSavedToken')
+                : t('landing.retrievingToken')}
             </Typography>
             <Typography variant="caption" color="text.secondary" textAlign="center">
-              This may take a few seconds
+              {t('landing.mayTakeSeconds')}
             </Typography>
           </Stack>
         </Paper>
@@ -285,24 +289,24 @@ const LandingPage = () => {
             />
 
             {bleedingEdge ? (
-              <BleedingTitle caption={`Early access build v${__APP_VERSION__}`} />
+              <BleedingTitle caption={t('landing.earlyAccessBuild', { version: __APP_VERSION__ })} />
             ) : (
               <>
                 <Typography variant="h4" color="text.primary" textAlign="center">
-                  Welcome to Discrub
+                  {t('landing.welcome')}
                 </Typography>
 
                 <Typography variant="body2" color="text.secondary" textAlign="center">
                   {isExtension
-                    ? 'Enter your Discord token manually or try auto-authentication'
-                    : 'Enter your Discord token to manage messages'}
+                    ? t('landing.enterTokenExtension')
+                    : t('landing.enterToken')}
                 </Typography>
               </>
             )}
 
             {envToken && import.meta.env.DEV && (
               <Alert severity="info" sx={{ width: '100%' }}>
-                Using token from environment (.env file)
+                {t('landing.usingEnvToken')}
               </Alert>
             )}
 
@@ -332,11 +336,11 @@ const LandingPage = () => {
                         data-testid="hosted-gate-forget-key"
                         sx={{ whiteSpace: 'nowrap' }}
                       >
-                        Forget my key
+                        {t('landing.forgetMyKey')}
                       </Button>
                     }
                   >
-                    {hostedKeyMessage ?? 'Supporter key validated.'}
+                    {hostedKeyMessage ?? t('landing.supporterKeyValidated')}
                   </Alert>
                 ) : (
                   <Stack spacing={1}>
@@ -344,7 +348,7 @@ const LandingPage = () => {
                       <TextField
                         fullWidth
                         type="password"
-                        label="Key"
+                        label={t('landing.keyLabel')}
                         placeholder="PBYTE-..."
                         value={keyInput}
                         onChange={(e) => setKeyInput(e.target.value)}
@@ -358,25 +362,27 @@ const LandingPage = () => {
                         helperText={
                           keyError ?? (
                             <span data-testid="hosted-gate-help">
-                              Paste the key from your Ko-fi email. Don't have one? Get one{' '}
-                              <Link
-                                href={KOFI_MONTHLY_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                data-testid="hosted-gate-kofi-monthly"
-                              >
-                                monthly
-                              </Link>{' '}
-                              or{' '}
-                              <Link
-                                href={KOFI_BLEEDING_EDGE_YEARLY_URL}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                data-testid="hosted-gate-kofi-yearly"
-                              >
-                                yearly
-                              </Link>
-                              .
+                              <Trans
+                                i18nKey="landing.keyHelp"
+                                components={{
+                                  monthly: (
+                                    <Link
+                                      href={KOFI_MONTHLY_URL}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      data-testid="hosted-gate-kofi-monthly"
+                                    />
+                                  ),
+                                  yearly: (
+                                    <Link
+                                      href={KOFI_BLEEDING_EDGE_YEARLY_URL}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      data-testid="hosted-gate-kofi-yearly"
+                                    />
+                                  ),
+                                }}
+                              />
                             </span>
                           )
                         }
@@ -391,7 +397,7 @@ const LandingPage = () => {
                         sx={{ alignSelf: 'flex-start', height: 40, flexShrink: 0 }}
                         data-testid="hosted-gate-apply"
                       >
-                        {keyBusy ? <CircularProgress size={20} /> : 'Apply'}
+                        {keyBusy ? <CircularProgress size={20} /> : t('landing.apply')}
                       </Button>
                     </Box>
                   </Stack>
@@ -402,16 +408,16 @@ const LandingPage = () => {
             <TextField
               fullWidth
               type="password"
-              label="Discord Token"
+              label={t('landing.discordToken')}
               value={token}
               onChange={(e) => setToken(e.target.value)}
               error={Boolean(authError)}
               helperText={
                 authError
-                  ? 'Invalid token. Check it and try again'
+                  ? t('landing.invalidToken')
                   : rememberMe
-                    ? 'Your token will be saved on this device until you log out'
-                    : 'Your token is only kept until you close this tab'
+                    ? t('landing.tokenSavedUntilLogout')
+                    : t('landing.tokenKeptUntilClose')
               }
               disabled={isLoading || !gateSatisfied}
               autoFocus={!isExtension && !hostedGate}
@@ -431,11 +437,11 @@ const LandingPage = () => {
                     data-testid="landing-forget-token"
                     sx={{ whiteSpace: 'nowrap' }}
                   >
-                    Forget saved token
+                    {t('landing.forgetSavedToken')}
                   </Button>
                 }
               >
-                A token from your last session is saved on this device.
+                {t('landing.tokenFromLastSession')}
               </Alert>
             )}
 
@@ -456,10 +462,10 @@ const LandingPage = () => {
                   label={
                     <Box>
                       <Typography variant="body2" color="text.primary">
-                        Keep me logged in
+                        {t('landing.keepMeLoggedIn')}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" component="div">
-                        Only do this on a device you trust
+                        {t('landing.trustedDeviceOnly')}
                       </Typography>
                     </Box>
                   }
@@ -475,7 +481,7 @@ const LandingPage = () => {
               size="large"
               data-testid="landing-sign-in"
             >
-              {isLoading ? <CircularProgress size={24} /> : 'Sign In'}
+              {isLoading ? <CircularProgress size={24} /> : t('landing.signIn')}
             </Button>
 
             {isExtension && (
@@ -486,7 +492,7 @@ const LandingPage = () => {
                 disabled={isLoading || autoAuthLoading}
                 size="large"
               >
-                Try Auto-Authentication Again
+                {t('landing.tryAutoAuthAgain')}
               </Button>
             )}
 
@@ -498,19 +504,20 @@ const LandingPage = () => {
                 variant="caption"
                 color="primary"
               >
-                How to find my Discord token?
+                {t('landing.howToFindToken')}
               </Link>
               <ResetDiscrubButton variant="link" />
+              <LanguageLink />
             </Stack>
 
             {isExtension && (
               <Typography variant="caption" color="text.secondary" textAlign="center">
-                Extension mode: Make sure you're logged into discord.com for auto-authentication
+                {t('landing.extensionModeHint')}
               </Typography>
             )}
 
             <Typography variant="caption" color="text.secondary" textAlign="center">
-              Discrub is an unofficial tool. Use at your own risk.
+              {t('landing.unofficialTool')}
             </Typography>
           </Stack>
         </form>

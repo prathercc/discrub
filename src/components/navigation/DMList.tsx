@@ -68,6 +68,8 @@ import { timeAgo } from '@/utils/timeAgo';
 import BulkExportDialog from '@containers/ExportView/BulkExportDialog';
 import BulkPurgeDialog from '@containers/PurgeView/BulkPurgeDialog';
 import BulkEditDialog from '@containers/PurgeView/BulkEditDialog';
+import { t as translate } from '@/i18n';
+import { useTranslation } from 'react-i18next';
 
 const PAGE_SIZE = 50;
 
@@ -76,26 +78,20 @@ const PAGE_SIZE = 50;
 // Anything unrecognized (thrown Errors, transport failures) falls back to the
 // generic line.
 const OPEN_DM_ERROR_GUIDANCE: Record<string, string> = {
-  'No access to this channel':
-    "Discord refused access to that channel. It exists, but it doesn't belong to this account's conversations.",
-  'Channel not found':
-    'Discord has no channel with that ID. Check it for typos, or the conversation may have been deleted entirely.',
-  'Channel is not a DM':
-    'That ID belongs to a server channel, not a DM. Only direct message and group DM channels can be opened here.',
+  'No access to this channel': 'dm.errNoAccess',
+  'Channel not found': 'dm.errNotFound',
+  'Channel is not a DM': 'dm.errNotDm',
   // #223B user-id mode
-  'Cannot open a DM with this user':
-    "Discord couldn't open a conversation with that user. Check the ID, and note that deleted accounts can't be messaged.",
+  'Cannot open a DM with this user': 'dm.errCannotOpenUser',
 };
 
 const OPEN_DM_FALLBACK_ERROR: Record<OpenDmInputMode, string> = {
-  channel:
-    "Couldn't open that channel. Check the ID and that you were a member of the conversation.",
-  user: "Couldn't open a DM with that user. Check the ID and try again.",
+  channel: 'dm.errFallbackChannel',
+  user: 'dm.errFallbackUser',
 };
 
 const describeOpenDmError = (err: unknown, mode: OpenDmInputMode): string =>
-  (typeof err === 'string' && OPEN_DM_ERROR_GUIDANCE[err]) ||
-  OPEN_DM_FALLBACK_ERROR[mode];
+  translate((typeof err === 'string' && OPEN_DM_ERROR_GUIDANCE[err]) || OPEN_DM_FALLBACK_ERROR[mode]);
 
 type OpenDmInputMode = 'channel' | 'user';
 
@@ -126,6 +122,7 @@ const OpenDmByIdDialog = ({
   const [mode, setMode] = useState<OpenDmInputMode>('channel');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { t } = useTranslation();
 
   const handleClose = () => {
     if (busy) return;
@@ -141,8 +138,8 @@ const OpenDmByIdDialog = ({
     if (!id) {
       setError(
         mode === 'channel'
-          ? 'Enter a 17-20 digit channel ID or a discord.com/channels/@me link.'
-          : 'Enter a 17-20 digit user ID or a discord.com/users link.',
+          ? t('dm.enterChannelId')
+          : t('dm.enterUserId'),
       );
       return;
     }
@@ -162,13 +159,10 @@ const OpenDmByIdDialog = ({
 
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Open DM by ID</DialogTitle>
+      <DialogTitle>{t('dm.openByIdTitle')}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
-          Closed conversations (for example, with a deleted account) never
-          appear in the DM list, but one can be opened directly. Use the
-          conversation's channel ID (or a discord.com/channels/@me link), or
-          the other person's user ID to open your DM with them.
+          {t('dm.openByIdHelp')}
         </Typography>
         <ToggleButtonGroup
           value={mode}
@@ -188,18 +182,18 @@ const OpenDmByIdDialog = ({
             value="channel"
             data-testid="open-dm-by-id-mode-channel"
           >
-            Channel ID
+            {t('dm.channelId')}
           </ToggleButton>
           <ToggleButton value="user" data-testid="open-dm-by-id-mode-user">
-            User ID
+            {t('dm.userId')}
           </ToggleButton>
         </ToggleButtonGroup>
         <TextField
           autoFocus
           fullWidth
           size="small"
-          label={mode === 'channel' ? 'Channel ID or link' : 'User ID or link'}
-          placeholder="e.g. 1029384756102938475"
+          label={mode === 'channel' ? t('dm.channelIdOrLink') : t('dm.userIdOrLink')}
+          placeholder={t('dm.idPlaceholder')}
           value={value}
           onChange={(e) => {
             setValue(e.target.value);
@@ -222,7 +216,7 @@ const OpenDmByIdDialog = ({
       </DialogContent>
       <DialogActions>
         <Button onClick={handleClose} disabled={busy} color="inherit">
-          Cancel
+          {t('dm.cancel')}
         </Button>
         <Button
           onClick={handleConfirm}
@@ -230,7 +224,7 @@ const OpenDmByIdDialog = ({
           variant="contained"
           data-testid="open-dm-by-id-confirm"
         >
-          Open
+          {t('dm.open')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -246,6 +240,7 @@ interface DMListProps {
  */
 const DMList = ({ filterText = '' }: DMListProps) => {
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const dms = useAppSelector(selectDMs);
   const selectedDm = useAppSelector(selectSelectedDm);
   const selectedDms = useAppSelector(selectSelectedDms);
@@ -295,11 +290,11 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   useEffect(() => {
     if (token && dms.length === 0 && !dmsFetched.current) {
       dmsFetched.current = true;
-      dispatch(addStatusEntry({ level: 'info', message: 'Loading DMs...' }));
+      dispatch(addStatusEntry({ level: 'info', message: translate('dm.loadingDms') }));
       dispatch(fetchDMs(token))
         .unwrap()
         .then((result) => {
-          dispatch(addStatusEntry({ level: 'info', message: `Loaded ${result.length} conversation${result.length !== 1 ? 's' : ''}` }));
+          dispatch(addStatusEntry({ level: 'info', message: translate('dm.loadedConversations', { count: result.length }) }));
         })
         .catch(() => {
           // Error already handled by rejected case in dmSlice
@@ -324,7 +319,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
     dispatch(setSelectedChannel(null));
     dispatch(clearMessages());
     dispatch(setSelectedDm(dm));
-    dispatch(addStatusEntry({ level: 'info', message: `Loading conversation with ${getDmName(dm)}` }));
+    dispatch(addStatusEntry({ level: 'info', message: t('dm.loadingConversationWith', { name: getDmName(dm) }) }));
 
     await dispatch(
       fetchMessages({
@@ -363,7 +358,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   const handleOpenChannelById = async (channelId: string) => {
     if (!token) throw new Error('Not authenticated');
     const channel = await dispatch(fetchDmById({ channelId, token })).unwrap();
-    dispatch(addStatusEntry({ level: 'info', message: `Opened DM channel ${channel.id} by ID` }));
+    dispatch(addStatusEntry({ level: 'info', message: t('dm.openedChannelById', { id: channel.id }) }));
     void selectDmAndLoad(channel);
   };
 
@@ -373,7 +368,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
   const handleOpenUserById = async (userId: string) => {
     if (!token) throw new Error('Not authenticated');
     const channel = await dispatch(fetchDmByUserId({ userId, token })).unwrap();
-    dispatch(addStatusEntry({ level: 'info', message: `Opened DM with user ${userId}` }));
+    dispatch(addStatusEntry({ level: 'info', message: t('dm.openedWithUser', { id: userId }) }));
     void selectDmAndLoad(channel);
   };
 
@@ -384,7 +379,7 @@ const DMList = ({ filterText = '' }: DMListProps) => {
       .join('\n');
     if (!names) return;
     navigator.clipboard.writeText(names);
-    dispatch(showToast({ level: 'success', message: 'Copied to clipboard' }));
+    dispatch(showToast({ level: 'success', message: t('nav.copiedToClipboard') }));
   };
 
   const handleToggleMultiSelect = () => {
@@ -410,8 +405,8 @@ const DMList = ({ filterText = '' }: DMListProps) => {
       <EmptyState
         message={
           filterText.trim()
-            ? `No DMs matching "${filterText}"`
-            : 'No direct messages found'
+            ? t('dm.noDmsMatching', { filter: filterText })
+            : t('dm.noDmsFound')
         }
         icon={<MessageIcon />}
       />
@@ -430,12 +425,12 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           }}
           noWrap
         >
-          Direct Messages
+          {t('dm.directMessages')}
         </Typography>
-        <Tooltip title="Open DM by ID">
+        <Tooltip title={t('dm.openByIdTitle')}>
           <IconButton
             size="small"
-            aria-label="Open DM by ID"
+            aria-label={t('dm.openByIdTitle')}
             data-testid="open-dm-by-id-button"
             onClick={() => setOpenByIdOpen(true)}
             sx={{ mr: 0.5, color: 'text.secondary' }}
@@ -449,12 +444,12 @@ const DMList = ({ filterText = '' }: DMListProps) => {
           onClick={handleToggleMultiSelect}
           variant={multiSelectMode ? 'contained' : 'outlined'}
           color={multiSelectMode ? 'primary' : 'inherit'}
-          aria-label="Toggle multi-select"
+          aria-label={t('nav.toggleMultiSelect')}
           data-tour="multi-select-toggle"
           startIcon={multiSelectMode ? <SelectModeIcon fontSize="small" /> : <SelectModeOffIcon fontSize="small" />}
           sx={{ textTransform: 'none', minWidth: 0, px: 1, fontSize: '0.75rem' }}
         >
-          Multi-select
+          {t('nav.multiSelect')}
         </TourButton>
       </Box>
 

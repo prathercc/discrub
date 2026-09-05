@@ -11,6 +11,7 @@ import {
   Shortcut as ForwardIcon,
 } from '@mui/icons-material';
 import { HasType } from 'discrub-core/discord-enum';
+import { useTranslation } from 'react-i18next';
 
 interface MessageTypeFilterProps {
   selectedTypes: HasType[];
@@ -33,6 +34,7 @@ const typeConfig: { type: HasType; label: string; icon: React.ReactElement }[] =
  * MessageTypeFilter - filter messages by content type using a dropdown with checkboxes
  */
 const MessageTypeFilter = ({ selectedTypes, onChange }: MessageTypeFilterProps) => {
+  const { t } = useTranslation();
   const handleToggle = (type: HasType) => {
     const newTypes = selectedTypes.includes(type)
       ? selectedTypes.filter((t) => t !== type)
@@ -47,7 +49,7 @@ const MessageTypeFilter = ({ selectedTypes, onChange }: MessageTypeFilterProps) 
   return (
     <Box>
       <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: 600 }}>
-        Has
+        {t('filters.has')}
       </Typography>
       {selectedTypes.length > 0 && (
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1 }}>
@@ -56,7 +58,7 @@ const MessageTypeFilter = ({ selectedTypes, onChange }: MessageTypeFilterProps) 
             return (
               <Chip
                 key={type}
-                label={config?.label || type}
+                label={config ? t(`filters.hasType.${config.label}`) : type}
                 icon={config?.icon}
                 size="small"
                 color="primary"
@@ -76,7 +78,7 @@ const MessageTypeFilter = ({ selectedTypes, onChange }: MessageTypeFilterProps) 
         data-testid="has-filter-select"
         renderValue={() => (
           <Typography variant="body2" color="text.secondary">
-            Any content
+            {t('filters.anyContent')}
           </Typography>
         )}
         MenuProps={{

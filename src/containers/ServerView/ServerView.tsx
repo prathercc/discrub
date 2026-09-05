@@ -17,7 +17,7 @@ import WelcomePanel from '@components/welcome/WelcomePanel';
 import TourTooltip from '@components/welcome/TourTooltip';
 import TourButton from '@components/welcome/TourButton';
 import TourFootnote from '@components/welcome/TourFootnote';
-import { contextualTourSteps } from '@components/welcome/tourSteps';
+import { buildContextualTourSteps } from '@components/welcome/tourSteps';
 import { useTour } from '@/hooks/useTour';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
 import DmAvatar from '@components/ui/DmAvatar';
@@ -112,6 +112,7 @@ import {
   fetchForumThreads,
   selectDiscoveredThreadsForChannel,
 } from '@features/channel/channelSlice';
+import { useTranslation } from 'react-i18next';
 
 interface ServerViewProps {
   onStartShellTour?: () => void;
@@ -121,6 +122,7 @@ interface ServerViewProps {
  * ServerView container - displays messages for selected channel or DM
  */
 const ServerView = ({ onStartShellTour }: ServerViewProps) => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const selectedChannel = useAppSelector(selectSelectedChannel);
   const selectedDm = useAppSelector(selectSelectedDm);
@@ -272,6 +274,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   // The hook itself now validates the first-step target on `.start()`
   // and marks the tour completed if missing — so we don't keep auto-
   // triggering every session on a cold-boot-to-DM user.
+  const contextualTourSteps = useMemo(() => buildContextualTourSteps(t), [t]);
   const contextualTour = useTour('contextual', {
     steps: contextualTourSteps,
     markCompletedOnMissingTarget: true,
@@ -303,6 +306,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   const currentContext = selectedChannel || selectedDm;
   const isDm = !!selectedDm && !selectedChannel;
   const contextLabel = isDm ? 'conversation' : 'channel';
+  const scopeContext = isDm ? 'dm' : 'channel';
   const hasManageMessages = useMemo(() => {
     if (!selectedGuild?.id || !currentContext) return false;
     return canManageMessages(selectedGuild.permissions, memberRoles, currentContext, selectedGuild.id, currentUser?.id);
@@ -311,7 +315,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
   // Resolve active context name (thread name when on thread tab, channel/DM name otherwise)
   const activeContextName = activeTab && threadTabs[activeTab]
     ? threadTabs[activeTab].threadName
-    : currentContext?.name || 'Direct Message';
+    : currentContext?.name || t('common.directMessage');
 
 
   // #226: search criteria are per-conversation UI state, but this component
@@ -746,7 +750,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
     if (!token) return;
 
     setThreadLoadOpen(false);
-    dispatch(addStatusEntry({ level: 'info', message: 'Loading thread...' }));
+    dispatch(addStatusEntry({ level: 'info', message: t('serverView.loadingThread') }));
 
     try {
       // Fetch thread metadata to get the name
@@ -754,12 +758,12 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
 
       // Open as a tab instead of navigating away
       await dispatch(
-        openThreadTab({ threadId: channel.id, threadName: channel.name || `Thread`, token })
+        openThreadTab({ threadId: channel.id, threadName: channel.name || t('common.thread'), token })
       );
 
-      dispatch(addStatusEntry({ level: 'success', message: `Thread loaded successfully` }));
+      dispatch(addStatusEntry({ level: 'success', message: t('serverView.threadLoaded') }));
     } catch (error) {
-      dispatch(addStatusEntry({ level: 'error', message: `Failed to load thread: ${error}` }));
+      dispatch(addStatusEntry({ level: 'error', message: t('serverView.threadLoadFailed', { error: String(error) }) }));
     }
   };
 
@@ -914,7 +918,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
               {!isForumChannel && pagination.hasMore && pagination.mode === 'paginated' && (
                 <Chip
                   icon={<MoreHorizIcon />}
-                  label="More available"
+                  label={t('serverView.moreAvailable')}
                   size="small"
                   variant="outlined"
                   sx={{ height: 22, fontSize: '0.72rem', '& .MuiChip-icon': { fontSize: 14 } }}
@@ -923,7 +927,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
               {!isForumChannel && pagination.hasMore && pagination.mode === 'search' && (
                 <Chip
                   icon={<MoreHorizIcon />}
-                  label="Scroll or Load All"
+                  label={t('serverView.scrollOrLoadAll')}
                   size="small"
                   variant="outlined"
                   sx={{ height: 22, fontSize: '0.72rem', '& .MuiChip-icon': { fontSize: 14 } }}
@@ -932,7 +936,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
               {!isForumChannel && !pagination.hasMore && messages.length > 0 && (
                 <Chip
                   icon={<CheckCircleIcon />}
-                  label="All loaded"
+                  label={t('serverView.allLoaded')}
                   size="small"
                   color="success"
                   variant="outlined"
@@ -944,7 +948,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, flexWrap: 'wrap', maxWidth: { xs: '100%', md: 'none' }, whiteSpace: 'nowrap' }}>
             {!isForumChannel && pagination.hasMore &&
               (pagination.mode === 'paginated' || pagination.mode === 'search') && (
-              <HotkeyTooltip actionId="loadAll" label="Load all messages" arrow>
+              <HotkeyTooltip actionId="loadAll" label={t('serverView.loadAllMessages')} arrow>
                 <Button
                   variant="outlined"
                   size="small"
@@ -952,7 +956,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                   onClick={() => setLoadAllDialogOpen(true)}
                   disabled={isLoading || pagination.isLoadingAll || isOperationRunning}
                 >
-                  Load All
+                  {t('serverView.loadAll')}
                 </Button>
               </HotkeyTooltip>
             )}
@@ -967,23 +971,23 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                 data-tour="search-filters"
                 data-testid="search-filters-button"
                 hotkeyActionId="openFilters"
-                hotkeyLabel="Search and refine"
+                hotkeyLabel={t('serverView.searchAndRefine')}
               >
-                Filters
+                {t('serverView.filters')}
               </TourButton>
             )}
-            <HotkeyTooltip actionId="loadThread" label="Load a thread" arrow>
+            <HotkeyTooltip actionId="loadThread" label={t('serverView.loadAThread')} arrow>
               <Button
                 variant="outlined"
                 size="small"
                 startIcon={<ThreadIcon />}
                 onClick={() => setThreadLoadOpen(true)}
               >
-                Load Thread
+                {t('serverView.loadThread')}
               </Button>
             </HotkeyTooltip>
             {!isForumChannel && (
-              <HotkeyTooltip actionId="openAnalytics" label="Channel analytics" arrow>
+              <HotkeyTooltip actionId="openAnalytics" label={t('serverView.channelAnalytics')} arrow>
                 <Button
                   variant="outlined"
                   size="small"
@@ -992,7 +996,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                   disabled={messages.length === 0}
                   data-tour="analytics-button"
                 >
-                  Analytics
+                  {t('serverView.analytics')}
                 </Button>
               </HotkeyTooltip>
             )}
@@ -1006,13 +1010,13 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                 data-testid="focus-mode-toggle"
                 data-tour="focus-button"
                 hotkeyActionId="toggleFocus"
-                hotkeyLabel={focusedView ? 'Exit focus mode' : 'Enter focus mode'}
+                hotkeyLabel={focusedView ? t('serverView.exitFocusMode') : t('serverView.enterFocusMode')}
               >
-                {focusedView ? 'Exit Focus' : 'Focus'}
+                {focusedView ? t('serverView.exitFocus') : t('serverView.focus')}
               </TourButton>
             )}
             {isForumChannel ? (
-              <HotkeyTooltip actionId="openExport" label="Export forum threads" arrow>
+              <HotkeyTooltip actionId="openExport" label={t('serverView.exportForumThreads')} arrow>
                 <Button
                   variant="outlined"
                   size="small"
@@ -1021,11 +1025,11 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                   disabled={forumThreads.length === 0 || isOperationRunning}
                   data-tour="export-button"
                 >
-                  Export
+                  {t('serverView.export')}
                 </Button>
               </HotkeyTooltip>
             ) : (
-              <HotkeyTooltip actionId="openExport" label="Export messages" arrow>
+              <HotkeyTooltip actionId="openExport" label={t('serverView.exportMessages')} arrow>
                 <Button
                   variant="outlined"
                   size="small"
@@ -1034,7 +1038,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
                   data-tour="export-button"
                   disabled={messages.length === 0 || isOperationRunning}
                 >
-                  Export
+                  {t('serverView.export')}
                 </Button>
               </HotkeyTooltip>
             )}
@@ -1070,10 +1074,10 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
 
       {!isForumChannel && showPartialResultsWarning && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          <AlertTitle>Filtering Loaded Messages Only</AlertTitle>
-          You're filtering {allMessages.length} loaded messages.{' '}
-          {pagination.hasMore && `More messages may exist in this ${contextLabel}. `}
-          For complete results, use server search or click "Load All" first.
+          <AlertTitle>{t('serverView.partialTitle')}</AlertTitle>
+          {t('serverView.partialBody', { count: allMessages.length })}{' '}
+          {pagination.hasMore && `${t('serverView.moreMayExist', { context: scopeContext })} `}
+          {t('serverView.partialHint')}
         </Alert>
       )}
 
@@ -1089,18 +1093,15 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           isDeletedUserEntry(cachedUserMap[id]),
         ) && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            <AlertTitle>This account was deleted</AlertTitle>
-            Discord's search can't find messages from deleted accounts, even
-            though the messages still exist. To find them: clear the user
-            filter, click "Load All" to load this {contextLabel}'s full
-            history, then use the filter's Refine tab with the user's ID.
+            <AlertTitle>{t('serverView.deletedAccountTitle')}</AlertTitle>
+            {t('serverView.deletedAccountBody', { context: scopeContext })}
             {/* DM purges only ever target your own messages, so the scan
                 fallback never runs there — don't promise it. */}
-            {!isDm && ' Purge handles deleted accounts automatically.'}
+            {!isDm && t('serverView.deletedAccountPurgeHint')}
           </Alert>
         )}
 
-      <ThreadTabBar channelName={currentContext?.name || 'Direct Message'} />
+      <ThreadTabBar channelName={currentContext?.name || t('common.directMessage')} />
 
       {!isForumChannel && (
         <MessageActions
@@ -1148,14 +1149,14 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
           }}
         >
           <Typography sx={{ flex: 1, color: 'info.contrastText', fontSize: '0.875rem' }}>
-            Load All stopped. The {messages.length.toLocaleString()} message{messages.length === 1 ? '' : 's'} loaded so far {messages.length === 1 ? 'is' : 'are'} still available below.
+            {t('serverView.loadAllStopped', { count: messages.length })}
           </Typography>
           <Button
             size="small"
             onClick={() => dispatch(dismissLoadAllCancelled())}
             sx={{ color: 'info.contrastText', textTransform: 'none', minWidth: 'auto' }}
           >
-            Dismiss
+            {t('serverView.dismiss')}
           </Button>
         </Paper>
       )}
@@ -1199,7 +1200,7 @@ const ServerView = ({ onStartShellTour }: ServerViewProps) => {
       )}
 
       {!isForumChannel && !isLoading && !error && messages.length === 0 && (
-        <EmptyState message={`No messages found in this ${contextLabel}`} icon="💬" />
+        <EmptyState message={t('serverView.noMessagesFound', { context: scopeContext })} icon="💬" />
       )}
 
       {!isForumChannel && !isLoading && !error && messages.length > 0 && (

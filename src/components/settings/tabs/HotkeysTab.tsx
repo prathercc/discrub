@@ -19,8 +19,10 @@ import {
 import { eventToBinding, formatBindingForDisplay } from '@features/hotkeys/keyMatcher';
 import { findHotkeyConflicts } from '@features/hotkeys/conflicts';
 import { DEFAULT_HOTKEYS, getHotkeyMeta } from '@features/hotkeys/defaults';
-import { buildScopeGroups, getScopeBlurb } from '@features/hotkeys/scopeGroups';
+import { buildScopeGroups } from '@features/hotkeys/scopeGroups';
 import type { HotkeyActionId, HotkeyMeta, HotkeysState } from '@features/hotkeys/types';
+import { hotkeyDescription, hotkeyLabel, hotkeyScopeBlurb, hotkeyScopeTitle } from '@features/hotkeys/labels';
+import { useTranslation } from 'react-i18next';
 
 interface HotkeysTabProps {
   /**
@@ -45,6 +47,7 @@ interface HotkeysTabProps {
  * state.
  */
 export const HotkeysTab = ({ formHotkeys, onHotkeysChange }: HotkeysTabProps) => {
+  const { t } = useTranslation();
   const { enabled, bindings } = formHotkeys;
   const [search, setSearch] = useState('');
 
@@ -60,7 +63,9 @@ export const HotkeysTab = ({ formHotkeys, onHotkeysChange }: HotkeysTabProps) =>
         actions: g.actions.filter(
           (a) =>
             a.label.toLowerCase().includes(q) ||
+            hotkeyLabel(a).toLowerCase().includes(q) ||
             a.description.toLowerCase().includes(q) ||
+            hotkeyDescription(a).toLowerCase().includes(q) ||
             (bindings[a.id] ?? '').toLowerCase().includes(q),
         ),
       }))
@@ -86,31 +91,29 @@ export const HotkeysTab = ({ formHotkeys, onHotkeysChange }: HotkeysTabProps) =>
         <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
           <Box>
             <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-              Enable hotkeys
+              {t('hotkeys.enable')}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              When off, all keyboard shortcuts below are inactive. System keys
-              (Esc to close dialogs, Tab to navigate) still work.
+              {t('hotkeys.enableHelp')}
             </Typography>
           </Box>
           <Switch
             checked={enabled}
             onChange={(e) => setEnabled(e.target.checked)}
-            inputProps={{ 'aria-label': 'Enable hotkeys' }}
+            inputProps={{ 'aria-label': t('hotkeys.enable') }}
           />
         </Stack>
       </Box>
 
       {!enabled && (
         <Alert severity="info">
-          Hotkeys are off. Toggle above to re-enable. The bindings below stay
-          intact and will resume when you flip the switch back on.
+          {t('hotkeys.offNotice')}
         </Alert>
       )}
 
       <TextField
         size="small"
-        placeholder="Find a hotkey…"
+        placeholder={t('hotkeys.search')}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         fullWidth
@@ -119,17 +122,17 @@ export const HotkeysTab = ({ formHotkeys, onHotkeysChange }: HotkeysTabProps) =>
 
       {filteredGroups.length === 0 && (
         <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', py: 2 }}>
-          No shortcuts match "{search}".
+          {t('hotkeys.noMatch', { search })}
         </Typography>
       )}
 
       {filteredGroups.map((group) => (
         <Box key={group.scope}>
           <Typography variant="overline" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-            {group.title}
+            {hotkeyScopeTitle(group.scope)}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-            {group.blurb}
+            {hotkeyScopeBlurb(group.scope)}
           </Typography>
           <Stack spacing={0.5}>
             {group.actions.map((action) => (
@@ -156,7 +159,7 @@ export const HotkeysTab = ({ formHotkeys, onHotkeysChange }: HotkeysTabProps) =>
           startIcon={<ResetIcon />}
           onClick={resetAll}
         >
-          Reset all hotkeys
+          {t('hotkeys.resetAll')}
         </Button>
       </Stack>
     </Stack>
@@ -186,6 +189,7 @@ const HotkeyRow = ({
   onReset,
 }: HotkeyRowProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [capturing, setCapturing] = useState(false);
 
   useEffect(() => {
@@ -222,20 +226,20 @@ const HotkeyRow = ({
       <Stack direction="row" alignItems="center" spacing={2}>
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {action.label}
+            {hotkeyLabel(action)}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-            {action.description}
+            {hotkeyDescription(action)}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontStyle: 'italic' }}>
-            {getScopeBlurb(action.scope)}
+            {hotkeyScopeBlurb(action.scope)}
           </Typography>
         </Box>
 
         <Stack direction="row" spacing={0.5} alignItems="center">
           {!capturing && (
             <Chip
-              label={binding ? formatBindingForDisplay(binding) : 'Unbound'}
+              label={binding ? formatBindingForDisplay(binding) : t('hotkeys.unbound')}
               size="small"
               variant="outlined"
               icon={<EditIcon />}
@@ -248,7 +252,7 @@ const HotkeyRow = ({
           )}
           {capturing && (
             <Chip
-              label="Press a key…"
+              label={t('hotkeys.pressKey')}
               size="small"
               color="primary"
               variant="outlined"
@@ -266,8 +270,8 @@ const HotkeyRow = ({
             size="small"
             onClick={onReset}
             disabled={disabled || binding === action.defaultKey}
-            aria-label={`Reset ${action.label} to default`}
-            title={`Reset ${action.label} to default`}
+            aria-label={t('hotkeys.resetToDefault', { label: hotkeyLabel(action) })}
+            title={t('hotkeys.resetToDefault', { label: hotkeyLabel(action) })}
           >
             <ResetIcon fontSize="small" />
           </IconButton>
@@ -280,9 +284,7 @@ const HotkeyRow = ({
           icon={<ConflictIcon fontSize="small" />}
           sx={{ mt: 1, py: 0 }}
         >
-          Also bound to:{' '}
-          {conflictingActionIds.map((id) => getHotkeyMeta(id).label).join(', ')}.
-          One of them won't fire.
+          {t('hotkeys.conflict', { labels: conflictingActionIds.map((id) => hotkeyLabel(getHotkeyMeta(id))).join(', ') })}
         </Alert>
       )}
     </Box>

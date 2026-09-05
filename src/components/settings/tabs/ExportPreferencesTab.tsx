@@ -8,6 +8,7 @@ import {
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import { SortDirection } from 'discrub-core/common-enum';
+import { useTranslation } from 'react-i18next';
 
 interface ExportPreferencesTabProps {
   formValues: AppSettings;
@@ -15,10 +16,10 @@ interface ExportPreferencesTabProps {
 }
 
 const MEDIA_TYPES = [
-  { key: DiscrubSetting.EXPORT_MEDIA_IMAGES, label: 'Images', icon: <ImageIcon sx={{ fontSize: 16 }} /> },
-  { key: DiscrubSetting.EXPORT_MEDIA_VIDEOS, label: 'Videos', icon: <VideoIcon sx={{ fontSize: 16 }} /> },
-  { key: DiscrubSetting.EXPORT_MEDIA_AUDIO, label: 'Audio', icon: <AudioIcon sx={{ fontSize: 16 }} /> },
-  { key: DiscrubSetting.EXPORT_MEDIA_OTHER, label: 'Other files', icon: <FileIcon sx={{ fontSize: 16 }} /> },
+  { key: DiscrubSetting.EXPORT_MEDIA_IMAGES, labelKey: 'exportPrefs.mediaImages', icon: <ImageIcon sx={{ fontSize: 16 }} /> },
+  { key: DiscrubSetting.EXPORT_MEDIA_VIDEOS, labelKey: 'exportPrefs.mediaVideos', icon: <VideoIcon sx={{ fontSize: 16 }} /> },
+  { key: DiscrubSetting.EXPORT_MEDIA_AUDIO, labelKey: 'exportPrefs.mediaAudio', icon: <AudioIcon sx={{ fontSize: 16 }} /> },
+  { key: DiscrubSetting.EXPORT_MEDIA_OTHER, labelKey: 'exportPrefs.mediaOther', icon: <FileIcon sx={{ fontSize: 16 }} /> },
 ] as const;
 
 const MESSAGES_PER_PAGE_MIN = 10;
@@ -50,6 +51,7 @@ const buildPageGradient = (safeColor: string): string => {
 
 export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferencesTabProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const safeColor = theme.palette.cta.main;
   const messagesPerPage = parseInt(formValues[DiscrubSetting.EXPORT_MESSAGES_PER_PAGE]) || 50;
   const pageColor = getPageZoneColor(messagesPerPage, safeColor);
@@ -57,30 +59,30 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
       <Typography variant="body2" color="text.secondary">
-        These are defaults. Override per-export in the export dialog.
+        {t('exportPrefs.intro')}
       </Typography>
 
       {/* Content Section */}
       <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}>
-        Content
+        {t('exportPrefs.content')}
       </Typography>
 
       <FormControl fullWidth>
-        <InputLabel>Message Sort Order</InputLabel>
+        <InputLabel>{t('exportPrefs.sortOrder')}</InputLabel>
         <Select
           value={formValues[DiscrubSetting.EXPORT_MESSAGE_SORT_ORDER]}
-          label="Message Sort Order"
+          label={t('exportPrefs.sortOrder')}
           onChange={(e) => onChange(DiscrubSetting.EXPORT_MESSAGE_SORT_ORDER, e.target.value)}
         >
-          <MenuItem value={SortDirection.ASCENDING}>Oldest First (Ascending)</MenuItem>
-          <MenuItem value={SortDirection.DESCENDING}>Newest First (Descending)</MenuItem>
+          <MenuItem value={SortDirection.ASCENDING}>{t('exportPrefs.oldestFirst')}</MenuItem>
+          <MenuItem value={SortDirection.DESCENDING}>{t('exportPrefs.newestFirst')}</MenuItem>
         </Select>
       </FormControl>
 
       <Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Messages Per Page
+            {t('exportPrefs.messagesPerPage')}
           </Typography>
           <Typography variant="body2" sx={{ fontWeight: 700, color: pageColor }}>
             {messagesPerPage}
@@ -104,7 +106,7 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
           }}
         />
         <Typography variant="caption" color="text.secondary">
-          Number of messages per HTML page. Lower values load faster in browsers.
+          {t('exportPrefs.messagesPerPageHelp')}
         </Typography>
       </Box>
 
@@ -117,14 +119,14 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
             }
           />
         }
-        label="Separate threads (fetch thread messages and export each thread as its own file)"
+        label={t('exportPrefs.separateThreads')}
       />
 
       <Divider sx={{ opacity: 0.3 }} />
 
       {/* Media Section */}
       <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}>
-        Files & Media
+        {t('exportPrefs.filesAndMedia')}
       </Typography>
 
       <FormControlLabel
@@ -136,7 +138,7 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
             }
           />
         }
-        label="Download files for offline viewing (avatars, attachments, emojis)"
+        label={t('exportPrefs.downloadMedia')}
       />
 
       <FormControlLabel
@@ -148,21 +150,21 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
             }
           />
         }
-        label="Artist mode (organize downloaded files into folders by author)"
+        label={t('exportPrefs.artistMode')}
       />
 
       <Box>
         <Typography variant="body2" sx={{ fontWeight: 600, mb: 1 }}>
-          Default media types
+          {t('exportPrefs.defaultMediaTypes')}
         </Typography>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          {MEDIA_TYPES.map(({ key, label, icon }) => {
+          {MEDIA_TYPES.map(({ key, labelKey, icon }) => {
             const active = formValues[key] !== 'false';
             return (
               <Chip
                 key={key}
                 icon={icon}
-                label={label}
+                label={t(labelKey)}
                 size="small"
                 variant={active ? 'filled' : 'outlined'}
                 color={active ? 'primary' : 'default'}
@@ -178,7 +180,7 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
 
       {/* Display Section */}
       <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', fontSize: '0.7rem', letterSpacing: 0.5 }}>
-        Display
+        {t('exportPrefs.display')}
       </Typography>
 
       <FormControlLabel
@@ -190,7 +192,7 @@ export const ExportPreferencesTab = ({ formValues, onChange }: ExportPreferences
             }
           />
         }
-        label="Preview media in export (show inline image/video thumbnails in HTML)"
+        label={t('exportPrefs.previewMedia')}
       />
     </Box>
   );

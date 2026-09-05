@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
 import appReducer, {
+  setSuggestedLanguage,
   setRateLimitStopped,
   selectRateLimitStopped,
   setDiscrubPaused,
@@ -327,8 +328,73 @@ describe('appSlice', () => {
       await store.dispatch(loadSettings());
 
       const state = store.getState().app;
-      // Every default key should be present.
-      expect(state.settings).toEqual(defaultSettings);
+      // Every default key should be present; the language resolves from
+      // the browser on a fresh install (jsdom reports en-US).
+      expect(state.settings).toEqual({ ...defaultSettings, [DiscrubSetting.APP_LANGUAGE]: 'en' });
+    });
+
+    describe('UI language resolution (#124)', () => {
+      const setBrowserLanguages = (languages: string[]) => {
+        Object.defineProperty(navigator, 'languages', { value: languages, configurable: true });
+        Object.defineProperty(navigator, 'language', { value: languages[0], configurable: true });
+      };
+      const originalLanguages = navigator.languages;
+      const originalLanguage = navigator.language;
+      afterEach(() => {
+        Object.defineProperty(navigator, 'languages', { value: originalLanguages, configurable: true });
+        Object.defineProperty(navigator, 'language', { value: originalLanguage, configurable: true });
+      });
+
+      it('follows the browser on a fresh install and persists the choice', async () => {
+        setBrowserLanguages(['de-DE', 'en-US']);
+
+        await store.dispatch(loadSettings());
+
+        const state = store.getState().app;
+        expect(state.settings?.[DiscrubSetting.APP_LANGUAGE]).toBe('de');
+        expect(state.suggestedLanguage).toBeNull();
+        expect(await localStorageMock.get(DiscrubSetting.APP_LANGUAGE)).toBe('de');
+      });
+
+      it('keeps an existing install on English and suggests the browser language once', async () => {
+        setBrowserLanguages(['de-DE']);
+        await localStorageMock.set(DiscrubSetting.SEARCH_DELAY, '5');
+
+        await store.dispatch(loadSettings());
+
+        const state = store.getState().app;
+        expect(state.settings?.[DiscrubSetting.APP_LANGUAGE]).toBe('en');
+        expect(state.suggestedLanguage).toBe('de');
+        // Pinned, so the next boot resolves nothing and never re-suggests.
+        expect(await localStorageMock.get(DiscrubSetting.APP_LANGUAGE)).toBe('en');
+      });
+
+      it('does not suggest anything to an existing install whose browser is English', async () => {
+        setBrowserLanguages(['en-GB']);
+        await localStorageMock.set(DiscrubSetting.SEARCH_DELAY, '5');
+
+        await store.dispatch(loadSettings());
+
+        expect(store.getState().app.settings?.[DiscrubSetting.APP_LANGUAGE]).toBe('en');
+        expect(store.getState().app.suggestedLanguage).toBeNull();
+      });
+
+      it('respects a saved language regardless of the browser', async () => {
+        setBrowserLanguages(['en-US']);
+        await localStorageMock.set(DiscrubSetting.APP_LANGUAGE, 'de');
+
+        await store.dispatch(loadSettings());
+
+        expect(store.getState().app.settings?.[DiscrubSetting.APP_LANGUAGE]).toBe('de');
+        expect(store.getState().app.suggestedLanguage).toBeNull();
+      });
+
+      it('setSuggestedLanguage clears once consumed', () => {
+        store.dispatch(setSuggestedLanguage('de'));
+        expect(store.getState().app.suggestedLanguage).toBe('de');
+        store.dispatch(setSuggestedLanguage(null));
+        expect(store.getState().app.suggestedLanguage).toBeNull();
+      });
     });
 
     it('should load a per-key setting from storage', async () => {

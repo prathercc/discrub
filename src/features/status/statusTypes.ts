@@ -22,11 +22,10 @@ export interface OperationTip {
   message: string;
 }
 
-export interface ToastAction {
-  type: 'reloadChannel';
-  channelId: string;
-  label: string;
-}
+export type ToastAction =
+  | { type: 'reloadChannel'; channelId: string; label: string }
+  /** #124 one-time offer to switch the UI language. */
+  | { type: 'switchLanguage'; language: string; label: string };
 
 export interface ToastNotification {
   isVisible: boolean;

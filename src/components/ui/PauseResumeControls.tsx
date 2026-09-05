@@ -7,12 +7,13 @@ import {
   HelpOutline as HelpIcon,
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
-import { tourCatalog } from '@components/welcome/tourSteps';
+import { getTourEntry } from '@components/welcome/tourSteps';
 import { selectDiscrubPaused, setDiscrubPaused, setDiscrubCancelled } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import { addStatusEntry } from '@features/status/statusSlice';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
 import { useHotkey } from '@features/hotkeys/HotkeyProvider';
+import { useTranslation } from 'react-i18next';
 
 interface PauseResumeControlsProps {
   label?: string;
@@ -44,10 +45,11 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
     [theme],
   );
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
   const isRunning = useAppSelector(selectIsHeavyOperationRunning);
   const isPaused = useAppSelector(selectDiscrubPaused);
   const [helpAnchor, setHelpAnchor] = useState<HTMLButtonElement | null>(null);
-  const tourEntry = tourCatalog['pause-resume-controls'];
+  const tourEntry = getTourEntry('pause-resume-controls', t);
 
   // Bump a key whenever the label text changes so the Typography below
   // remounts and re-fires the pulse keyframe. Cheap visual cue that
@@ -67,12 +69,12 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
   // still scrolls the page, etc.
   const togglePause = () => {
     dispatch(setDiscrubPaused(!isPaused));
-    dispatch(addStatusEntry({ level: isPaused ? 'success' : 'warning', message: isPaused ? 'Operation Resumed' : 'Operation Paused' }));
+    dispatch(addStatusEntry({ level: isPaused ? 'success' : 'warning', message: isPaused ? t('pause.operationResumed') : t('pause.operationPaused') }));
   };
   const cancelOp = () => {
     dispatch(setDiscrubCancelled(true));
     dispatch(setDiscrubPaused(false));
-    dispatch(addStatusEntry({ level: 'warning', message: 'Operation Cancelled' }));
+    dispatch(addStatusEntry({ level: 'warning', message: t('pause.operationCancelled') }));
   };
   useHotkey('pauseResume', togglePause, isRunning);
   useHotkey('cancelOp', cancelOp, isRunning);
@@ -98,23 +100,23 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
       <ButtonGroup variant="text" size="small" color="inherit">
         <HotkeyTooltip
           actionId="pauseResume"
-          label={isPaused ? 'Resume' : 'Pause'}
+          label={isPaused ? t('pause.resume') : t('pause.pause')}
           enterDelay={0}
           arrow
         >
           <Button
             onClick={handlePauseResume}
-            aria-label={isPaused ? 'Resume' : 'Pause'}
+            aria-label={isPaused ? t('pause.resume') : t('pause.pause')}
             sx={{ minWidth: 32, px: 0.5, '&:hover': { backgroundColor: alpha(theme.palette.primary.main, 0.15) } }}
           >
             {isPaused ? <ResumeIcon /> : <PauseIcon />}
           </Button>
         </HotkeyTooltip>
 
-        <HotkeyTooltip actionId="cancelOp" label="Cancel" enterDelay={0} arrow>
+        <HotkeyTooltip actionId="cancelOp" label={t('pause.cancel')} enterDelay={0} arrow>
           <Button
             onClick={handleCancel}
-            aria-label="Cancel"
+            aria-label={t('pause.cancel')}
             sx={{ minWidth: 32, px: 0.5, '&:hover': { backgroundColor: 'rgba(240, 71, 71, 0.15)' } }}
           >
             <CancelIcon />
@@ -124,7 +126,7 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
         {tourEntry && (
           <Button
             onClick={(e) => setHelpAnchor(e.currentTarget)}
-            aria-label={`Help: ${tourEntry.title}`}
+            aria-label={t('pause.help', { title: tourEntry.title })}
             data-testid="tour-spot-pause-resume-controls"
             sx={{
               minWidth: 32,

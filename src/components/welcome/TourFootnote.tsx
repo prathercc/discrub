@@ -5,7 +5,8 @@ import {
   Typography,
   useTheme,
 } from '@mui/material';
-import { tourCatalog } from './tourSteps';
+import { getTourEntry } from './tourSteps';
+import { useTranslation } from 'react-i18next';
 
 interface TourFootnoteProps {
   stepKey: string;
@@ -24,8 +25,9 @@ interface TourFootnoteProps {
  */
 const TourFootnote = ({ stepKey }: TourFootnoteProps) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
-  const entry = tourCatalog[stepKey];
+  const entry = getTourEntry(stepKey, t);
   if (!entry) return null;
 
   const open = Boolean(anchorEl);
@@ -44,7 +46,7 @@ const TourFootnote = ({ stepKey }: TourFootnoteProps) => {
           }
         }}
         data-testid={`tour-footnote-${stepKey}`}
-        aria-label={`Help: ${entry.title}`}
+        aria-label={t('tour.help', { title: entry.title })}
         sx={{
           display: 'inline-flex',
           alignItems: 'center',
