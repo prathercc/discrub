@@ -1756,5 +1756,8 @@
     "monthlyActivity": "Monatliche Aktivität",
     "byHour": "Aktivität nach Stunde (UTC)",
     "inYear": "in {{year}}"
+  },
+  "longRun": {
+    "note": "Lange Läufe senden viele Anfragen von deinem Konto. Lass die Verzögerungen auf den Standardwerten oder höher und lass einen Vorgang enden, bevor du den nächsten startest."
   }
 }

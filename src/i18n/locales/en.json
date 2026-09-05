@@ -1756,5 +1756,8 @@
     "monthlyActivity": "Monthly activity",
     "byHour": "Activity by hour (UTC)",
     "inYear": "in {{year}}"
+  },
+  "longRun": {
+    "note": "Long runs send many requests from your account. Keep the delays at their defaults or higher, and let one operation finish before starting another."
   }
 }

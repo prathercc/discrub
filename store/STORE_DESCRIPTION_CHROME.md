@@ -60,6 +60,7 @@ Supporter themes
 - Every feature is free and always will be. Supporters unlock a pack of extra cosmetic themes as a thank you.
 
 Additional
+- Interface in English or German, auto-detected on first run and switchable in Settings
 - Theme picker with live preview, from Discord-style dark and light to terminal, high contrast, and more
 - Forum channel support showing both active and archived posts
 - Guided tour and contextual help icons

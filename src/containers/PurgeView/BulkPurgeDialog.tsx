@@ -587,7 +587,8 @@ const BulkPurgeDialog = ({ open, onClose, channels, mode, guilds = [], guildId, 
             {isServerMode
               ? t('purge.longRunServer')
               : t('purge.longRun')}
-            {t('purge.wakeLockNote')}
+            {t('purge.wakeLockNote')}{' '}
+            <span data-testid="long-run-note">{t('longRun.note')}</span>
           </Typography>
         </Box>
       </DialogContent>

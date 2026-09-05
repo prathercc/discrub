@@ -252,7 +252,7 @@ Exports work identically to live exports (same dialog, all presets, all template
 
 Comprehensive settings across multiple tabs:
 
-- **Display**: date and time format, DM list ordering (most recent first, alphabetical, or Discord's own order)
+- **Display**: language (English or German; a fresh install follows your browser, and the sign-in screen has a one-word Deutsch / English link), date and time format, DM list ordering (most recent first, alphabetical, or Discord's own order)
 - **User Data**: display name and nickname lookup toggles, reaction enrichment, user data refresh rate
 - **Operation Delays**: configurable search and delete delays with randomization modifier (with a built-in `?` explainer covering Discord rate limits)
 - **Export Preferences**: default format, template, media types, and all export options
@@ -285,6 +285,10 @@ Supporters unlock eight more cosmetic themes (AMOLED Void, Synthwave, Bytecraft,
 
 ![Dark Theme](docs/screenshots/ui/theme-dark.png)
 ![Light Theme](docs/screenshots/ui/theme-light.png)
+
+### Language
+
+Discrub runs in English or German. A fresh install follows the browser language; an existing install stays English and, when the browser prefers German, offers the switch once. Change it any time in Settings > Display or with the link on the sign-in screen. The German catalog is machine-drafted: corrections and new languages are welcome as issues or pull requests against `src/i18n/locales/`.
 
 ### Additional Features
 

@@ -114,6 +114,11 @@ describe('ExportDialog', () => {
   }
 
   describe('Rendering', () => {
+    it('carries the long-run risk note (#124 slot D)', () => {
+      renderDialog();
+      expect(screen.getByTestId('long-run-note')).toHaveTextContent('Long runs send many requests from your account.');
+    });
+
     it('should render dialog when open', () => {
       renderDialog();
 

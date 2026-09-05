@@ -193,6 +193,10 @@ const BulkExportDialog = ({ open, onClose, channels, mode, guildId }: BulkExport
 
           <ExportSettingsAccordion isBulk={true} />
 
+          <Typography variant="caption" color="text.secondary" data-testid="long-run-note">
+            {t('longRun.note')}
+          </Typography>
+
           {exportState.exportError && (
             <Typography color="error" variant="body2">
               {t('export.error', { error: exportState.exportError })}

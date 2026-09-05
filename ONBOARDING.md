@@ -158,6 +158,7 @@ Settings location has moved:
 - **Discrub:** Settings are in a gear icon in the top bar, organized across tabs (Display, Operation Delays, Export Preferences, Purge)
 
 All settings from Discrub Classic have been migrated. New settings include:
+- UI language (English or German; auto-detected on a fresh install)
 - Date/time format customization
 - Operation delays up to 30 seconds, with a Safest zone above 10 seconds for very long runs
 - User data refresh rate

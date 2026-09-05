@@ -279,6 +279,10 @@ const ExportDialog = ({ open, onClose, exportContext = { source: 'live' } }: Exp
               {t('export.error', { error: exportState.exportError })}
             </Typography>
           )}
+
+          <Typography variant="caption" color="text.secondary" data-testid="long-run-note">
+            {t('longRun.note')}
+          </Typography>
         </Box>
       </DialogContent>
       <DialogActions sx={{ flexDirection: 'column', alignItems: 'stretch', gap: 0.5, px: 2, py: 1 }}>

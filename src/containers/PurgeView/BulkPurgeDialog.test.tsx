@@ -82,6 +82,14 @@ const stateWithUserNoManage = {
 
 describe('BulkPurgeDialog', () => {
   describe('Channel mode', () => {
+    it('carries the long-run risk note (#124 slot D)', () => {
+      renderWithProviders(
+        <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="g1" />,
+        { preloadedState: stateWithUser },
+      );
+      expect(screen.getByTestId('long-run-note')).toHaveTextContent('Long runs send many requests from your account.');
+    });
+
     it('renders dialog title with channel count', () => {
       renderWithProviders(
         <BulkPurgeDialog open channels={mockChannels} onClose={vi.fn()} mode="channels" guildId="g1" />,
