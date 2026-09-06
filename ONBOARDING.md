@@ -82,7 +82,8 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Media Breakdown | None | Per-type counts and sizes with preview |
 | Media File Dates | Downloaded files carried the message's date | Same behavior, restored: media files are stamped with the original message date |
 | Failing Message Mid-Export | Could abort the whole run | Placeholder row + warning with the message ID; the export keeps going |
-| Dropped Connection Mid-Export | Ended that channel's export | Page fetch retried with backoff; if the network stays down the export pauses so you can Resume from the same page |
+| Dropped Connection Mid-Export | Ended that channel's export | Page fetch retried with backoff; if you're offline the export pauses so you can Resume from the same page. If Discord stops answering while your connection is up, the run stops and asks you to wait |
+| Day-Long Runs | Ran flat out until done | Rest breaks: after every 45 minutes of activity the run pauses for 10 minutes, then continues (on by default; Resume skips one) |
 | Slow Media Downloads | Flat timeout could cut off large files | Aborts only on a true stall, so slow connections finish large attachments |
 | Forum Channels in Bulk Export | N/A | Forums expand into their posts automatically, grouped under the forum's name in the shell |
 | README in Export | No | Yes. Bundled guide explaining file structure |
@@ -106,7 +107,7 @@ Discrub 2.0 is the next major version of Discrub. Here's what you get that Discr
 | Pinned Message Preservation | No | Setting the FilterModal Pinned dropdown to "False" actually preserves pinned messages, with the count reported in the status log |
 | Progress Visibility | Static counter | Status log progress label pulses on each update with adaptive milestones (5 / 25 / 100) so progress is always obvious |
 | Deleted Accounts | Search finds nothing, so nothing is purged | Detects the empty search, warns you, and falls back to a full message-history scan so a deleted user's messages are still removed |
-| Dropped Connection Mid-Scan | Scan ended quietly | Page fetch retried with backoff; a scan that still can't continue is reported as incomplete instead of finishing silently |
+| Dropped Connection Mid-Scan | Scan ended quietly | Page fetch retried with backoff while you're offline; a scan that still can't continue is reported as incomplete instead of finishing silently. If Discord stops answering while your connection is up, the run stops |
 | Multi-Server Purge | No | Select servers in the server list and purge your own messages from every readable channel in each, one operation with per-server progress, pause, and cancel |
 | Rate-Limit Storms | Waited forever | Five 429s in a row, or a retry_after past 60 seconds, stop the operation with a clear status-log line instead of pausing for Resume |
 
