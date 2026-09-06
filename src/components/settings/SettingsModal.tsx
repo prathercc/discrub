@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -82,13 +82,34 @@ const SettingsModal = ({ open, onClose }: SettingsModalProps) => {
   // flow stays one click.
   const [discardPromptOpen, setDiscardPromptOpen] = useState(false);
 
-  // Sync form values with Redux state when settings change or modal opens
+  // Seed the form from Redux when the modal opens, and follow later
+  // settings changes only while the form is untouched. A background
+  // setting write while the dialog is open (the announcement fetch
+  // caching its revision right after login, a user-map refresh) used to
+  // reseed the form and silently drop an in-progress edit (#256).
+  const formValuesRef = useRef(formValues);
+  const formHotkeysRef = useRef(formHotkeys);
+  formValuesRef.current = formValues;
+  formHotkeysRef.current = formHotkeys;
+  const seededRef = useRef<{ settings: AppSettings; hotkeys: HotkeysState } | null>(null);
   useEffect(() => {
-    if (open) {
-      setFormValues(settings || defaultSettings);
-      setFormHotkeys(hotkeys);
-      setErrors([]);
+    if (!open) {
+      seededRef.current = null;
+      return;
     }
+    const next = settings || defaultSettings;
+    const seeded = seededRef.current;
+    const edited = seeded !== null && hasUnsavedSettingsChanges({
+      formValues: formValuesRef.current,
+      settings: seeded.settings,
+      formHotkeys: formHotkeysRef.current,
+      hotkeys: seeded.hotkeys,
+    });
+    if (edited) return;
+    setFormValues(next);
+    setFormHotkeys(hotkeys);
+    setErrors([]);
+    seededRef.current = { settings: next, hotkeys };
   }, [settings, hotkeys, open]);
 
   const handleChange = (key: DiscrubSetting, value: string) => {

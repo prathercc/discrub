@@ -167,6 +167,34 @@ describe('SettingsModal', () => {
     });
   });
 
+  describe('Background settings writes while open (#256)', () => {
+    it('keeps an in-progress edit when an unrelated setting changes underneath the form', async () => {
+      const { store } = renderSettings();
+      const toggle = screen.getByRole('checkbox', { name: 'Rest breaks' });
+      expect(toggle).toBeChecked();
+      fireEvent.click(toggle);
+      expect(toggle).not.toBeChecked();
+
+      // What the announcement fetch does right after login.
+      const { setSettings } = await import('@features/app/appSlice');
+      store.dispatch(setSettings({ ...defaultSettings, [DiscrubSetting.CACHED_ANNOUNCEMENT_REV]: '99' }));
+
+      expect(screen.getByRole('checkbox', { name: 'Rest breaks' })).not.toBeChecked();
+    });
+
+    it('still follows a settings change while the form is untouched', async () => {
+      const { store } = renderSettings();
+      expect(screen.getByRole('checkbox', { name: 'Rest breaks' })).toBeChecked();
+
+      const { setSettings } = await import('@features/app/appSlice');
+      store.dispatch(setSettings({ ...defaultSettings, [DiscrubSetting.REST_BREAKS]: 'false' }));
+
+      await waitFor(() => {
+        expect(screen.getByRole('checkbox', { name: 'Rest breaks' })).not.toBeChecked();
+      });
+    });
+  });
+
   describe('Settings Initialization', () => {
     it('should use defaultSettings when settings are null', () => {
       renderSettings(null);
