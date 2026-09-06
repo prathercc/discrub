@@ -153,6 +153,12 @@ const appSlice = createSlice({
     setRateLimitStopped: (state, action: PayloadAction<boolean>) => {
       state.rateLimitStopped = action.payload;
     },
+    setRequestsRefusedStopped: (state, action: PayloadAction<boolean>) => {
+      state.requestsRefusedStopped = action.payload;
+    },
+    setRestBreakUntil: (state, action: PayloadAction<number | null>) => {
+      state.restBreakUntil = action.payload;
+    },
     setSuggestedLanguage: (state, action: PayloadAction<string | null>) => {
       state.suggestedLanguage = action.payload;
     },
@@ -188,6 +194,8 @@ const appSlice = createSlice({
       state.discrubPaused = false;
       state.discrubCancelled = false;
       state.rateLimitStopped = false;
+      state.requestsRefusedStopped = false;
+      state.restBreakUntil = null;
     },
   },
   extraReducers: (builder) => {
@@ -233,6 +241,8 @@ export const {
   setDiscrubPaused,
   setDiscrubCancelled,
   setRateLimitStopped,
+  setRequestsRefusedStopped,
+  setRestBreakUntil,
   setSuggestedLanguage,
   setMinimized,
   setFocusedView,
@@ -250,6 +260,10 @@ export const selectApp = (state: RootState) => state.app;
 export const selectDiscrubPaused = (state: RootState) => state.app.discrubPaused;
 export const selectDiscrubCancelled = (state: RootState) => state.app.discrubCancelled;
 export const selectRateLimitStopped = (state: RootState) => state.app.rateLimitStopped === true;
+export const selectRequestsRefusedStopped = (state: RootState) => state.app.requestsRefusedStopped === true;
+export const selectRestBreakUntil = (state: RootState) => state.app.restBreakUntil ?? null;
+export const selectRestBreaksEnabled = (state: RootState) =>
+  (state.app.settings?.[DiscrubSetting.REST_BREAKS] ?? defaultSettings[DiscrubSetting.REST_BREAKS]) !== 'false';
 export const selectSuggestedLanguage = (state: RootState) => state.app.suggestedLanguage;
 export const selectTask = (state: RootState) => state.app.task;
 export const selectSettings = (state: RootState) => state.app.settings;

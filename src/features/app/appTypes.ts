@@ -20,6 +20,18 @@ export interface AppState {
    * MainLayout turns it into the completion toast and clears it.
    */
   rateLimitStopped?: boolean;
+  /**
+   * Set by the network-failure streak hook when discrub-core saw several
+   * thrown fetches in a row while the browser was online: Discord (or its
+   * edge) is refusing this account's requests. The operation was cancelled
+   * for that reason; MainLayout turns it into the completion toast.
+   */
+  requestsRefusedStopped?: boolean;
+  /**
+   * Wall-clock ms at which the current automatic rest break ends
+   * (`useRestBreaks`). Null when the pause, if any, is the user's own.
+   */
+  restBreakUntil?: number | null;
   isMinimized: boolean;
   focusedView: boolean;
   /** Mobile-only (< md): Ko-fi feed shown as a temporary overlay. Never persisted. */
@@ -45,6 +57,8 @@ export const initialAppState: AppState = {
   discrubPaused: false,
   discrubCancelled: false,
   rateLimitStopped: false,
+  requestsRefusedStopped: false,
+  restBreakUntil: null,
   isMinimized: false,
   focusedView: false,
   kofiOverlayOpen: false,

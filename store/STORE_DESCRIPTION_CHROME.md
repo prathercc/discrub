@@ -66,7 +66,7 @@ Additional
 - Guided tour and contextual help icons
 - Pause, resume, and cancel for long operations
 - Status log with real-time operation feedback
-- Configurable operation delays
+- Configurable operation delays and automatic rest breaks on long runs
 - Discrub Classic (v1) built in for legacy users
 
 Click the Discrub icon while using Discord in your browser to start.

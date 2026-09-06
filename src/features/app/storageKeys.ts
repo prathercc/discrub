@@ -61,6 +61,8 @@ export const defaultSettings: AppSettings = {
   // Empty until first resolved: loadSettings detects the browser language
   // on a fresh install and pins English for existing users (#124).
   [DiscrubSetting.APP_LANGUAGE]: '',
+  // Pause long operations for a rest break on a fixed cadence (useRestBreaks).
+  [DiscrubSetting.REST_BREAKS]: 'true',
 
   // Purge Behavior
   [DiscrubSetting.PURGE_RETAIN_ATTACHED_MEDIA]: 'false',

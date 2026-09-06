@@ -1,7 +1,8 @@
 import { DiscordService } from 'discrub-core/discord-service';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { addStatusEntry, showToast } from '@features/status/statusSlice';
-import { setDiscrubCancelled, setDiscrubPaused, setRateLimitStopped } from '@features/app/appSlice';
+import { setDiscrubCancelled, setDiscrubPaused, setRateLimitStopped, setRequestsRefusedStopped, selectRequestsRefusedStopped } from '@features/app/appSlice';
+import { isBrowserOnline } from '@/utils/operationLoopUtils';
 
 import { RATE_LIMIT_STOP_TOAST, RATE_LIMIT_STOP_MESSAGE } from '@/constants/rateLimitMessages';
 import { t } from '@/i18n';
@@ -76,6 +77,23 @@ export const getDiscordService = (settings?: AppSettings): DiscordService => {
       // "complete / cancelled" toast that would otherwise replace it.
       dispatchNow(setRateLimitStopped(true));
       dispatchNow(showToast({ level: 'error', message: t('rateLimit.toast') }));
+    };
+    // Several thrown fetches in a row while the browser says it is online:
+    // Discord or its edge is refusing this account, not the network
+    // dropping. Retrying, or resuming into it, is what preceded the
+    // day-long-export suspension report (GH #14). Stop instead. A real
+    // outage (navigator.onLine false) keeps the pause-and-Resume path.
+    discordServiceInstance.onNetworkFailureStreak = (consecutive) => {
+      if (!isBrowserOnline()) return;
+      if (cachedStore && selectRequestsRefusedStopped(cachedStore.getState())) return;
+      dispatchNow(addStatusEntry({
+        level: 'error',
+        message: t('requestsRefused.message', { count: consecutive }),
+      }));
+      dispatchNow(setDiscrubPaused(false));
+      dispatchNow(setDiscrubCancelled(true));
+      dispatchNow(setRequestsRefusedStopped(true));
+      dispatchNow(showToast({ level: 'error', message: t('requestsRefused.toast') }));
     };
     // Warm the store cache so the storm hook can dispatch synchronously.
     void getStore();

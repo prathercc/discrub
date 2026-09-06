@@ -96,7 +96,8 @@ export interface TransientRetryOptions<T extends RetryableResponse> {
   /** Backoff cap. Default 30000 (30s). */
   maxDelayMs?: number;
   /** Predicate to decide whether a failed response is transient. */
-  shouldRetry?: (response: T) => boolean;
+  /** Decide whether to retry; `attempt` is the zero-based retry count so far. */
+  shouldRetry?: (response: T, attempt: number) => boolean;
   /** Fires before each backoff sleep with (1-indexed retry number, delayMs, response). */
   onRetry?: (retryNumber: number, delayMs: number, response: T) => void;
   /** State accessor so backoff sleep can honor Pause/Cancel. */
@@ -117,13 +118,21 @@ export interface TransientRetryOptions<T extends RetryableResponse> {
  * transient" (pause + ask user to fix network) from "hard fail"
  * (reject the thunk) after withTransientRetry returns.
  */
-export const isTransientApiFailure = (response: RetryableResponse): boolean => {
+export const isTransientApiFailure = (response: RetryableResponse, attempt = Infinity): boolean => {
   if (response.success) return false;
   // #254: a 429 only reaches here after discrub-core already gave up on
   // it (storm). Retrying would add requests to the pile; the service's
   // onRateLimitExceeded hook has cancelled the operation. Never transient.
   if (response.status === 429) return false;
-  if (response.status === undefined) return true;
+  // No HTTP status: the fetch threw. Offline, that is the network and the
+  // full retry-then-pause path applies. Online, a thrown fetch is Discord
+  // or its edge refusing the request (a block page carries no CORS
+  // headers, so the browser reports it as a failed fetch). That gets
+  // `ONLINE_NETWORK_RETRIES` quick retries for a genuine blip and then
+  // counts as permanent, so callers stop instead of pausing and inviting
+  // Resume; the service's network-failure streak hook has already
+  // cancelled the run by then.
+  if (response.status === undefined) return !isBrowserOnline() || attempt < ONLINE_NETWORK_RETRIES;
   if (response.status >= 500) return true;
   if (response.status === 408 || response.status === 425) return true;
   return false;
@@ -137,6 +146,17 @@ export const isTransientApiFailure = (response: RetryableResponse): boolean => {
  * the caller decides what to do with terminal failure (e.g. pause
  * the operation so the user can fix the network).
  */
+/** Retries allowed for a thrown fetch while the browser reports itself online. */
+export const ONLINE_NETWORK_RETRIES = 2;
+
+/**
+ * `navigator.onLine` is only trustworthy when false: true means "not
+ * known to be offline". That is enough here, because the question is
+ * whether a thrown fetch could be the user's own connection.
+ */
+export const isBrowserOnline = (): boolean =>
+  typeof navigator === 'undefined' || navigator.onLine !== false;
+
 export const withTransientRetry = async <T extends RetryableResponse>(
   fn: () => Promise<T>,
   opts: TransientRetryOptions<T>,
@@ -151,8 +171,11 @@ export const withTransientRetry = async <T extends RetryableResponse>(
     if (opts.signal?.aborted || checkCancelled(opts.getState)) return lastResponse;
 
     lastResponse = await fn();
-    if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+    if (lastResponse.success || !shouldRetry(lastResponse, attempt)) return lastResponse;
     if (attempt === maxRetries) return lastResponse;
+    // The failing request may have stopped the run (streak or storm hook);
+    // don't announce a retry that will never happen.
+    if (opts.signal?.aborted || checkCancelled(opts.getState)) return lastResponse;
 
     const delayMs = Math.min(baseDelayMs * Math.pow(2, attempt), maxDelayMs);
     opts.onRetry?.(attempt + 1, delayMs, lastResponse);

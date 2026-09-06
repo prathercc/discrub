@@ -191,7 +191,9 @@
     "zoneRecommended": "Recommended",
     "zoneSafest": "Safest",
     "zoneSafe": "Safe",
-    "intro": "These delays prevent Discord rate-limit errors. Defaults are tuned conservatively. Above 10s is the Safest zone, meant for very long runs such as full-server exports."
+    "intro": "These delays prevent Discord rate-limit errors. Defaults are tuned conservatively. Above 10s is the Safest zone, meant for very long runs such as full-server exports.",
+    "restBreaks": "Rest breaks",
+    "restBreaksHelp": "Pause for {{minutes}} minutes after every {{active}} minutes of activity. Long runs send fewer requests per day."
   },
   "exportPrefs": {
     "intro": "These are defaults. Override per-export in the export dialog.",
@@ -1675,6 +1677,16 @@
     "message": "Discord is rate limiting this account heavily. Stopped the operation to protect your account. Wait at least 10 minutes before starting another one.",
     "detail_one": " (Discord asked for {{seconds}}s, {{count}} rate limit in a row)",
     "detail_other": " (Discord asked for {{seconds}}s, {{count}} rate limits in a row)"
+  },
+  "requestsRefused": {
+    "message": "Discord stopped answering requests while your connection was up ({{count}} in a row). Stopped the operation to protect your account. Wait at least an hour before starting another one.",
+    "toast": "Stopped: Discord is refusing requests from this account. Wait an hour before trying again."
+  },
+  "restBreak": {
+    "started": "Rest break: paused for {{minutes}} minutes after {{active}} minutes of activity. Click Resume to skip it.",
+    "ended": "Rest break over, resuming",
+    "skipped": "Rest break skipped",
+    "countdown": "Rest break · resumes in {{time}}"
   },
   "donations": {
     "feed": "Feed",

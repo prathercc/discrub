@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
+
+// A status-less failure only counts as "the network" while the browser is
+// offline; online it is a refused request and stops instead of pausing.
+const setOnline = (online: boolean) =>
+  Object.defineProperty(navigator, 'onLine', { value: online, configurable: true });
+afterEach(() => setOnline(true));
+
 import messageReducer, {
   setMessages,
   setFilteredMessages,
@@ -126,7 +133,7 @@ vi.mock('@/utils/operationLoopUtils', async () => {
       let lastResponse: any = { success: false };
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         lastResponse = await fn();
-        if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+        if (lastResponse.success || !shouldRetry(lastResponse, attempt)) return lastResponse;
         if (attempt === maxRetries) return lastResponse;
         opts.onRetry?.(attempt + 1, 1000, lastResponse);
       }
@@ -4653,6 +4660,7 @@ describe('messageSlice', () => {
       });
 
       it('#245: retries transient failures then completes the thread Load All', async () => {
+        setOnline(false);
         const batch = createMockMessages(10);
         const fetchSpy = vi.fn()
           .mockResolvedValueOnce({ success: false, status: undefined })
@@ -4677,6 +4685,7 @@ describe('messageSlice', () => {
       });
 
       it('#245: pauses the thread Load All after retries are exhausted, preserves partial progress', async () => {
+        setOnline(false);
         const { waitWhilePaused, checkCancelled } = await import('@/utils/operationLoopUtils');
         vi.mocked(checkCancelled).mockImplementation(
           (getState: any) => getState().app.discrubCancelled,
@@ -6268,6 +6277,9 @@ describe('messageSlice', () => {
   });
 
   describe('#185 Bug A: transient retry on Load All thunks', () => {
+    beforeEach(() => setOnline(false));
+    afterEach(() => setOnline(true));
+
     // Pause-on-exhaustion + 4xx fail-fast contract for the two Load All
     // sites (channel + search). Mocks return controlled fail/success
     // sequences; pause behavior is verified via app.discrubPaused state.
@@ -6333,6 +6345,27 @@ describe('messageSlice', () => {
           ([p]) => p.level === 'warning' && /retrying in/.test(p.message),
         );
         expect(retryEntries).toHaveLength(2);
+      });
+
+      it('online: a status-less failure stops after two quick retries instead of pausing (GH #14)', async () => {
+        setOnline(true);
+        const batch = createMockMessages(100);
+        const fetchMessageData = vi
+          .fn()
+          .mockResolvedValueOnce({ success: true, data: batch })
+          .mockResolvedValue({ success: false, status: undefined });
+        vi.mocked(discordService.getDiscordService).mockReturnValue({ fetchMessageData } as any);
+        vi.mocked(addStatusEntry).mockClear();
+
+        const { store } = await buildStore();
+        const result = await store.dispatch(fetchAllMessages({ channelId: 'ch-1', token: 'token' }));
+
+        // One page, then the failing page plus ONLINE_NETWORK_RETRIES retries, then out.
+        expect(fetchMessageData).toHaveBeenCalledTimes(1 + 1 + 2);
+        expect(store.getState().app.discrubPaused).toBe(false);
+        expect(result.type).toBe('message/fetchAllMessages/rejected');
+        const messages = vi.mocked(addStatusEntry).mock.calls.map(([p]: any) => p.message);
+        expect(messages.some((m: string) => /paused after 5 failed retries/.test(m))).toBe(false);
       });
 
       it('pauses the operation after retries are exhausted, preserves partial progress', async () => {

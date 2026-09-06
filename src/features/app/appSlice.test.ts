@@ -3,6 +3,11 @@ import { createTestStore, TestStore } from '@/test/test-utils';
 import appReducer, {
   setSuggestedLanguage,
   setRateLimitStopped,
+  setRequestsRefusedStopped,
+  setRestBreakUntil,
+  selectRequestsRefusedStopped,
+  selectRestBreakUntil,
+  selectRestBreaksEnabled,
   selectRateLimitStopped,
   setDiscrubPaused,
   setDiscrubCancelled,
@@ -811,6 +816,26 @@ describe('appSlice', () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       expect(getDiscordService).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('requestsRefusedStopped and restBreakUntil', () => {
+    it('sets and clears both, and resetTask clears them too', () => {
+      const store = createTestStore({ app: appReducer });
+      store.dispatch(setRequestsRefusedStopped(true));
+      store.dispatch(setRestBreakUntil(123456));
+      expect(selectRequestsRefusedStopped(store.getState())).toBe(true);
+      expect(selectRestBreakUntil(store.getState())).toBe(123456);
+      store.dispatch(resetTask());
+      expect(selectRequestsRefusedStopped(store.getState())).toBe(false);
+      expect(selectRestBreakUntil(store.getState())).toBeNull();
+    });
+
+    it('rest breaks default on and read the setting', () => {
+      const store = createTestStore({ app: appReducer });
+      expect(selectRestBreaksEnabled(store.getState())).toBe(true);
+      store.dispatch(setSettings({ ...defaultSettings, [DiscrubSetting.REST_BREAKS]: 'false' }));
+      expect(selectRestBreaksEnabled(store.getState())).toBe(false);
     });
   });
 

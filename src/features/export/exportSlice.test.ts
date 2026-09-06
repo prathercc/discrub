@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { createTestStore, TestStore } from '@/test/test-utils';
+
+// A status-less failure only counts as "the network" while the browser is
+// offline; online it is a refused request and stops instead of pausing.
+const setOnline = (online: boolean) =>
+  Object.defineProperty(navigator, 'onLine', { value: online, configurable: true });
+
 import exportReducer, {
   buildUniqueFolderNames,
   createReactionProgressLogger,
@@ -107,7 +113,7 @@ vi.mock('@/utils/operationLoopUtils', async () => {
       for (let attempt = 0; attempt <= maxRetries; attempt++) {
         if (actual.checkCancelled(opts.getState)) return lastResponse;
         lastResponse = await fn();
-        if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+        if (lastResponse.success || !shouldRetry(lastResponse, attempt)) return lastResponse;
         if (attempt === maxRetries) return lastResponse;
         opts.onRetry?.(attempt + 1, 1000, lastResponse);
       }
@@ -1340,6 +1346,9 @@ describe('exportSlice', () => {
   });
 
   describe('Bulk export unfiltered walk transient retry (#245)', () => {
+    beforeEach(() => setOnline(false));
+    afterEach(() => setOnline(true));
+
     // One dropped packet mid-export used to throw "Failed to fetch messages
     // for channel" and kill that channel's export. The walk now runs under
     // withTransientRetry and pauses on exhaustion (same contract as Load All).

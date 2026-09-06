@@ -254,7 +254,7 @@ Comprehensive settings across multiple tabs:
 
 - **Display**: language (English or German; a fresh install follows your browser, and the sign-in screen has a one-word Deutsch / English link), date and time format, DM list ordering (most recent first, alphabetical, or Discord's own order)
 - **User Data**: display name and nickname lookup toggles, reaction enrichment, user data refresh rate
-- **Operation Delays**: configurable search and delete delays with randomization modifier (with a built-in `?` explainer covering Discord rate limits)
+- **Operation Delays**: configurable search and delete delays with randomization modifier (with a built-in `?` explainer covering Discord rate limits), plus rest breaks: after 45 minutes of activity a long operation pauses for 10 minutes on its own (on by default)
 - **Export Preferences**: default format, template, media types, and all export options
 - **Purge Behavior**: default mode (Delete, Strip Attachments Only, Remove Reactions) and media retention
 
@@ -487,6 +487,8 @@ Yes. Discrub runs entirely in your browser; your Discord token never leaves your
 ### Will I get rate limited?
 
 Discrub includes configurable delays between API calls (default: 1s search, 2s delete) with randomization to avoid patterns. If Discord does rate limit you (HTTP 429), Discrub automatically waits the required `retry_after` duration before retrying. You can adjust delays in Settings > Operation Delays. Search and delete delays go up to 30s; anything above 10s is marked Safest and is meant for very long runs such as a full-server export.
+
+Two more guards run on their own. When Discord keeps rate limiting the account, or stops answering requests while your connection is up, Discrub stops the operation and tells you to wait instead of retrying into it. And after every 45 minutes of activity, a long operation takes a 10 minute rest break (Settings > Operation Delays > Rest breaks, on by default; click Resume to skip one). Running day-long exports at full pace without breaks is what preceded the account suspensions users reported.
 
 ### What about Discord's Terms of Service?
 

@@ -8,6 +8,7 @@ vi.mock('discrub-core/discord-service', () => ({
   DiscordService: class {
     onRateLimit?: unknown;
     onRateLimitExceeded?: unknown;
+    onNetworkFailureStreak?: unknown;
     onDelay?: unknown;
     constructor(...args: unknown[]) {
       constructorSpy(...args);
@@ -48,6 +49,57 @@ describe('discordService singleton', () => {
 
     expect(first).toBe(second);
     expect(constructorSpy).toHaveBeenCalledTimes(1);
+  });
+
+  describe('network-failure streak hook (GH #14 refused requests)', () => {
+    const setOnline = (online: boolean) =>
+      Object.defineProperty(navigator, 'onLine', { value: online, configurable: true });
+
+    it('stops the operation when several fetches throw while online: error log, cancel flag, toast', async () => {
+      setOnline(true);
+      const { getDiscordService, storeReady } = await import('./discordService');
+      const { store } = await import('@/app/store');
+      const { selectStatusEntries, selectToast } = await import('@features/status/statusSlice');
+      const { selectDiscrubCancelled, selectDiscrubPaused, selectRequestsRefusedStopped, setDiscrubPaused } = await import('@features/app/appSlice');
+      const service = getDiscordService() as unknown as { onNetworkFailureStreak: (n: number) => void };
+      store.dispatch(setDiscrubPaused(true));
+      await storeReady();
+
+      service.onNetworkFailureStreak(3);
+
+      const state = store.getState();
+      expect(selectDiscrubCancelled(state)).toBe(true);
+      expect(selectDiscrubPaused(state)).toBe(false);
+      expect(selectRequestsRefusedStopped(state)).toBe(true);
+      const last = selectStatusEntries(state).slice(-1)[0];
+      expect(last?.level).toBe('error');
+      expect(last?.message).toContain('Discord stopped answering requests while your connection was up (3 in a row)');
+      expect(selectToast(state).level).toBe('error');
+      expect(selectToast(state).message).toBe('Stopped: Discord is refusing requests from this account. Wait an hour before trying again.');
+
+      // Later failures in the same dying run don't stack more entries.
+      const before = selectStatusEntries(store.getState()).length;
+      service.onNetworkFailureStreak(4);
+      expect(selectStatusEntries(store.getState()).length).toBe(before);
+    });
+
+    it('does nothing while the browser is offline: the pause-and-Resume path applies', async () => {
+      setOnline(false);
+      try {
+        const { getDiscordService, storeReady } = await import('./discordService');
+        const { store } = await import('@/app/store');
+        const { selectDiscrubCancelled, selectRequestsRefusedStopped } = await import('@features/app/appSlice');
+        const service = getDiscordService() as unknown as { onNetworkFailureStreak: (n: number) => void };
+        await storeReady();
+
+        service.onNetworkFailureStreak(3);
+
+        expect(selectDiscrubCancelled(store.getState())).toBe(false);
+        expect(selectRequestsRefusedStopped(store.getState())).toBe(false);
+      } finally {
+        setOnline(true);
+      }
+    });
   });
 
   describe('rate-limit hooks (#254)', () => {

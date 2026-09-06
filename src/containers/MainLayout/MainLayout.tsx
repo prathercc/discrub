@@ -33,6 +33,8 @@ import {
   setDiscrubPaused,
   setRateLimitStopped,
   selectRateLimitStopped,
+  setRequestsRefusedStopped,
+  selectRequestsRefusedStopped,
   selectSuggestedLanguage,
   setSuggestedLanguage,
 } from '@features/app/appSlice';
@@ -53,6 +55,7 @@ import { useOperationStatusBroadcast } from '@/hooks/useOperationStatusBroadcast
 import { useRestoreListener } from '@/hooks/useRestoreListener';
 import { useWakeLock } from '@/hooks/useWakeLock';
 import { useOperationThrottleOptOut } from '@/hooks/useOperationThrottleOptOut';
+import { useRestBreaks } from '@/hooks/useRestBreaks';
 import { useTour } from '@/hooks/useTour';
 import StatusPanel from '@components/ui/StatusPanel';
 import FloatingPauseControl from '@components/ui/FloatingPauseControl';
@@ -98,6 +101,7 @@ const MainLayout = () => {
   const purgeChannelErrorCount = useAppSelector(selectPurgeChannelErrorCount);
   const isOperationRunning = useAppSelector(selectIsOperationRunning);
   const rateLimitStopped = useAppSelector(selectRateLimitStopped);
+  const requestsRefusedStopped = useAppSelector(selectRequestsRefusedStopped);
   const suggestedLanguage = useAppSelector(selectSuggestedLanguage);
   const { t } = useTranslation();
   const prevIsExporting = useRef(false);
@@ -149,9 +153,13 @@ const MainLayout = () => {
         dispatch(setRateLimitStopped(false));
         dispatch(showToast({ level: 'error', message: t('rateLimit.toast'), duration: 15000 }));
       }
+      if (requestsRefusedStopped) {
+        dispatch(setRequestsRefusedStopped(false));
+        dispatch(showToast({ level: 'error', message: t('requestsRefused.toast'), duration: 15000 }));
+      }
     }
     prevIsOperationRunning.current = isOperationRunning;
-  }, [isOperationRunning, rateLimitStopped, dispatch, t]);
+  }, [isOperationRunning, rateLimitStopped, requestsRefusedStopped, dispatch, t]);
 
   // #124: existing install whose browser prefers a supported language.
   // One toast, in that language, offering the switch; the setting was
@@ -186,6 +194,7 @@ const MainLayout = () => {
   useRestoreListener();
   useWakeLock();
   useOperationThrottleOptOut();
+  useRestBreaks();
 
   // Wait for settings to load before checking the announcement gist —
   // otherwise the cached-rev comparison races against the IDB-backed

@@ -154,7 +154,7 @@ vi.mock('@utils/operationLoopUtils', () => ({
     let lastResponse: any = { success: false };
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       lastResponse = await fn();
-      if (lastResponse.success || !shouldRetry(lastResponse)) return lastResponse;
+      if (lastResponse.success || !shouldRetry(lastResponse, attempt)) return lastResponse;
       if (attempt === maxRetries) return lastResponse;
       opts.onRetry?.(attempt + 1, 1000, lastResponse);
     }

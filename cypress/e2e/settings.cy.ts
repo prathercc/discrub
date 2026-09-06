@@ -57,6 +57,24 @@ describe('Settings', () => {
     });
   });
 
+  it('shows rest breaks on by default and persists turning them off', () => {
+    cy.get('[aria-label="Settings"]').click();
+    // The switch sits below the three sliders, past the dialog's fold.
+    cy.get('[role="dialog"] input[aria-label="Rest breaks"]').scrollIntoView().should('be.checked');
+    cy.get('[role="dialog"]').contains('Rest breaks').should('be.visible');
+    cy.get('[role="dialog"]').contains('Pause for 10 minutes after every 45 minutes of activity').should('be.visible');
+    cy.get('[role="dialog"] input[aria-label="Rest breaks"]').click();
+    cy.get('[role="dialog"] input[aria-label="Rest breaks"]').should('not.be.checked');
+    cy.get('[role="dialog"]').contains('button', 'Save Settings').click();
+    cy.window().its('__store__').invoke('getState').its('app.settings.restBreaks').should('eq', 'false');
+    cy.readIdbStore('settings').then((values) => {
+      expect(values).to.include('false');
+    });
+    // Reopen: the switch reflects the saved value.
+    cy.get('[aria-label="Settings"]').click();
+    cy.get('[role="dialog"] input[aria-label="Rest breaks"]').scrollIntoView().should('not.be.checked');
+  });
+
   // ─── Unsaved-changes prompt (#164) ───────────────────────────────
   // Cancel/X/backdrop/Esc all route through handleClose; when there
   // are unsaved edits, a confirmation appears before discarding.

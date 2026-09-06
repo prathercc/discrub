@@ -38,6 +38,28 @@ describe('Pause/Resume Controls', () => {
     });
   });
 
+  describe('Rest breaks (GH #14)', () => {
+    it('counts down an automatic rest break and lets Resume skip it', () => {
+      cy.window().then((win) => {
+        const store = (win as any).__store__;
+        store.dispatch({ type: 'export/exportMessages/pending' });
+        // What useRestBreaks does after 45 minutes of activity.
+        store.dispatch({ type: 'app/setRestBreakUntil', payload: Date.now() + 10 * 60 * 1000 });
+        store.dispatch({ type: 'app/setDiscrubPaused', payload: true });
+      });
+      cy.get('[data-testid="rest-break-countdown"]').should('be.visible').and('contain', 'Rest break · resumes in 9:5');
+      cy.get('[aria-label="Resume"]').should('be.visible').click();
+      cy.window().its('__store__').invoke('getState').its('app.discrubPaused').should('eq', false);
+      // The hook notices the resume on its next tick, clears the marker, and logs the skip.
+      cy.get('[data-testid="rest-break-countdown"]', { timeout: 5000 }).should('not.exist');
+      cy.window().its('__store__').invoke('getState').its('app.restBreakUntil').should('eq', null);
+      cy.window().then((win) => {
+        const entries = (win as any).__store__.getState().status.entries.map((e: any) => e.message);
+        expect(entries.some((m: string) => /Rest break skipped/.test(m))).to.be.true;
+      });
+    });
+  });
+
   describe('Pause/Resume Actions', () => {
     beforeEach(() => {
       cy.window().then((win) => {

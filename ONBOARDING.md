@@ -161,6 +161,7 @@ All settings from Discrub Classic have been migrated. New settings include:
 - UI language (English or German; auto-detected on a fresh install)
 - Date/time format customization
 - Operation delays up to 30 seconds, with a Safest zone above 10 seconds for very long runs
+- Rest breaks: a long operation pauses for 10 minutes after every 45 minutes of activity (on by default)
 - User data refresh rate
 - Export template selection
 - Export preset management

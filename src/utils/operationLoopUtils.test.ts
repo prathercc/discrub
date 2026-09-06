@@ -1,10 +1,12 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   waitWhilePaused,
   checkCancelled,
   cancellableDelay,
   withTransientRetry,
   isTransientApiFailure,
+  isBrowserOnline,
+  ONLINE_NETWORK_RETRIES,
 } from './operationLoopUtils';
 import type { RootState } from '@/app/store';
 import { initialAppState } from '@features/app/appTypes';
@@ -152,7 +154,7 @@ describe('withTransientRetry', () => {
 
   it('returns the final failure when retries are exhausted', async () => {
     const getState = createMockGetState();
-    const fn = vi.fn().mockResolvedValue({ success: false, status: undefined });
+    const fn = vi.fn().mockResolvedValue({ success: false, status: 503 });
     const onRetry = vi.fn();
 
     const result = await withTransientRetry(fn, {
@@ -162,7 +164,7 @@ describe('withTransientRetry', () => {
       baseDelayMs: 5,
     });
 
-    expect(result).toEqual({ success: false, status: undefined });
+    expect(result).toEqual({ success: false, status: 503 });
     expect(fn).toHaveBeenCalledTimes(4);
     expect(onRetry).toHaveBeenCalledTimes(3);
   });
@@ -289,9 +291,88 @@ describe('withTransientRetry', () => {
   });
 });
 
-describe('isTransientApiFailure (#254 rate-limit storms)', () => {
-  it('treats network errors and 5xx as transient', () => {
+const setOnline = (online: boolean) =>
+  Object.defineProperty(navigator, 'onLine', { value: online, configurable: true });
+
+describe('thrown fetches while online (GH #14 refused requests)', () => {
+  afterEach(() => setOnline(true));
+
+  it('reads navigator.onLine, trusting only false', () => {
+    setOnline(true);
+    expect(isBrowserOnline()).toBe(true);
+    setOnline(false);
+    expect(isBrowserOnline()).toBe(false);
+  });
+
+  it('offline: a status-less failure stays transient at every attempt', () => {
+    setOnline(false);
+    expect(isTransientApiFailure({ success: false }, 0)).toBe(true);
+    expect(isTransientApiFailure({ success: false }, 4)).toBe(true);
     expect(isTransientApiFailure({ success: false })).toBe(true);
+  });
+
+  it('online: a status-less failure gets a couple of quick retries, then counts as permanent', () => {
+    setOnline(true);
+    for (let attempt = 0; attempt < ONLINE_NETWORK_RETRIES; attempt++) {
+      expect(isTransientApiFailure({ success: false }, attempt)).toBe(true);
+    }
+    expect(isTransientApiFailure({ success: false }, ONLINE_NETWORK_RETRIES)).toBe(false);
+    // Callers asking after the retry loop (no attempt) get the terminal answer.
+    expect(isTransientApiFailure({ success: false })).toBe(false);
+  });
+
+  it('online: 5xx is still retried the full schedule', () => {
+    setOnline(true);
+    expect(isTransientApiFailure({ success: false, status: 502 }, 4)).toBe(true);
+    expect(isTransientApiFailure({ success: false, status: 502 })).toBe(true);
+  });
+
+  it('withTransientRetry stops after the online retries for a thrown fetch', async () => {
+    setOnline(true);
+    const fn = vi.fn().mockResolvedValue({ success: false });
+    const getState = createMockGetState();
+    const onRetry = vi.fn();
+
+    const result = await withTransientRetry(fn, { getState, onRetry, baseDelayMs: 1, maxDelayMs: 2 });
+
+    expect(result.success).toBe(false);
+    expect(fn).toHaveBeenCalledTimes(ONLINE_NETWORK_RETRIES + 1);
+    expect(onRetry).toHaveBeenCalledTimes(ONLINE_NETWORK_RETRIES);
+  });
+
+  it('withTransientRetry keeps the full schedule for a thrown fetch while offline', async () => {
+    setOnline(false);
+    const fn = vi.fn().mockResolvedValue({ success: false });
+    const getState = createMockGetState();
+
+    await withTransientRetry(fn, { getState, maxRetries: 5, baseDelayMs: 1, maxDelayMs: 2 });
+
+    expect(fn).toHaveBeenCalledTimes(6);
+  });
+
+  it('withTransientRetry does not announce a retry once the failing request cancelled the run', async () => {
+    setOnline(false);
+    let cancelled = false;
+    const getState = () => ({ app: { ...initialAppState, discrubCancelled: cancelled } }) as RootState;
+    const fn = vi.fn().mockImplementation(async () => {
+      // What the streak hook does from inside the request.
+      cancelled = true;
+      return { success: false };
+    });
+    const onRetry = vi.fn();
+
+    await withTransientRetry(fn, { getState, onRetry, baseDelayMs: 1 });
+
+    expect(fn).toHaveBeenCalledTimes(1);
+    expect(onRetry).not.toHaveBeenCalled();
+  });
+});
+
+describe('isTransientApiFailure (#254 rate-limit storms)', () => {
+  it('treats network errors (offline) and 5xx as transient', () => {
+    setOnline(false);
+    expect(isTransientApiFailure({ success: false })).toBe(true);
+    setOnline(true);
     expect(isTransientApiFailure({ success: false, status: 503 })).toBe(true);
     expect(isTransientApiFailure({ success: false, status: 408 })).toBe(true);
   });

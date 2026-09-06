@@ -1,10 +1,41 @@
-import { describe, it, expect } from 'vitest';
-import { renderWithProviders, screen, fireEvent } from '@/test/test-utils';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { renderWithProviders, screen, fireEvent, act } from '@/test/test-utils';
 import { createBaseState } from '@/test/state-factories';
 import PauseResumeControls from './PauseResumeControls';
 import { initialExportState } from '@features/export/exportTypes';
 
 describe('PauseResumeControls', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('shows a ticking rest-break countdown while an automatic break holds the run', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-05T12:00:00Z'));
+    renderWithProviders(<PauseResumeControls />, {
+      preloadedState: createBaseState({
+        export: { ...initialExportState, isExporting: true },
+        app: {
+          discrubPaused: true,
+          discrubCancelled: false,
+          restBreakUntil: Date.now() + 9 * 60 * 1000 + 32 * 1000,
+          isMinimized: false,
+          focusedView: false,
+          kofiOverlayOpen: false,
+          sidebarView: 'server' as const,
+          task: { status: 'idle', message: '' },
+          settings: null,
+          previewThemeId: null,
+        },
+      }),
+    });
+    expect(screen.getByTestId('rest-break-countdown')).toHaveTextContent('Rest break · resumes in 9:32');
+    act(() => { vi.advanceTimersByTime(2000); });
+    expect(screen.getByTestId('rest-break-countdown')).toHaveTextContent('Rest break · resumes in 9:30');
+    // Resume is what skips the break.
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeInTheDocument();
+  });
+
   it('renders nothing when no operation running', () => {
     const { container } = renderWithProviders(<PauseResumeControls />, {
       preloadedState: createBaseState(),

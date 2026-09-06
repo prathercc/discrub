@@ -173,6 +173,28 @@ describe('MainLayout', () => {
       expect(store.getState().app.discrubCancelled).toBe(false);
     });
 
+    it('keeps the refused-requests stop reason as the final toast (GH #14)', () => {
+      const { store } = renderWithProviders(<MainLayout />, {
+        preloadedState: createBaseState(),
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/purgeGuilds/pending' });
+      });
+      act(() => {
+        store.dispatch({ type: 'app/setDiscrubCancelled', payload: true });
+        store.dispatch({ type: 'app/setRequestsRefusedStopped', payload: true });
+      });
+      act(() => {
+        store.dispatch({ type: 'purge/purgeGuilds/fulfilled', payload: { success: true, errors: [] } });
+      });
+      const toast = store.getState().status.toast;
+      expect(toast.isVisible).toBe(true);
+      expect(toast.level).toBe('error');
+      expect(toast.message).toBe('Stopped: Discord is refusing requests from this account. Wait an hour before trying again.');
+      expect(store.getState().app.requestsRefusedStopped).toBe(false);
+      expect(store.getState().app.discrubCancelled).toBe(false);
+    });
+
     it('still celebrates a clean run', () => {
       const { store } = renderWithProviders(<MainLayout />, {
         preloadedState: createBaseState(),

@@ -8,7 +8,7 @@ import {
 } from '@mui/icons-material';
 import { useAppDispatch, useAppSelector } from '@/app/hooks';
 import { getTourEntry } from '@components/welcome/tourSteps';
-import { selectDiscrubPaused, setDiscrubPaused, setDiscrubCancelled } from '@features/app/appSlice';
+import { selectDiscrubPaused, selectRestBreakUntil, setDiscrubPaused, setDiscrubCancelled } from '@features/app/appSlice';
 import { selectIsHeavyOperationRunning } from '@features/app/operationSelectors';
 import { addStatusEntry } from '@features/status/statusSlice';
 import { HotkeyTooltip } from '@components/ui/HotkeyTooltip';
@@ -34,6 +34,26 @@ const buildLabelPulse = (pulseColor: string, restColor: string) => keyframes`
 `;
 
 /**
+ * "Rest break · resumes in m:ss", ticking once a second while an automatic
+ * rest break (`useRestBreaks`) holds the operation. Empty otherwise.
+ */
+const useRestBreakCountdown = (restBreakUntil: number | null): string => {
+  const { t } = useTranslation();
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (restBreakUntil == null) return;
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [restBreakUntil]);
+  if (restBreakUntil == null) return '';
+  const remaining = Math.max(0, Math.ceil((restBreakUntil - now) / 1000));
+  const minutes = Math.floor(remaining / 60);
+  const seconds = String(remaining % 60).padStart(2, '0');
+  return t('restBreak.countdown', { time: `${minutes}:${seconds}` });
+};
+
+/**
  * Pause/Resume/Cancel controls for long-running operations.
  * Only visible when an operation is running.
  */
@@ -48,6 +68,8 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
   const { t } = useTranslation();
   const isRunning = useAppSelector(selectIsHeavyOperationRunning);
   const isPaused = useAppSelector(selectDiscrubPaused);
+  const restBreakUntil = useAppSelector(selectRestBreakUntil);
+  const restBreakLabel = useRestBreakCountdown(restBreakUntil);
   const [helpAnchor, setHelpAnchor] = useState<HTMLButtonElement | null>(null);
   const tourEntry = getTourEntry('pause-resume-controls', t);
 
@@ -173,6 +195,16 @@ const PauseResumeControls = ({ label, progress }: PauseResumeControlsProps) => {
             </Typography>
           </Box>
         </Popover>
+      )}
+
+      {restBreakLabel && (
+        <Typography
+          variant="caption"
+          data-testid="rest-break-countdown"
+          sx={{ color: 'warning.main', whiteSpace: 'nowrap', ml: 0.5 }}
+        >
+          {restBreakLabel}
+        </Typography>
       )}
 
       {label && (

@@ -31,6 +31,26 @@ describe('OperationDelaysTab', () => {
     expect(sliders.length).toBe(3);
   });
 
+  it('renders the rest-breaks switch on by default and reports a toggle as "false"', () => {
+    const onChange = vi.fn();
+    render(<OperationDelaysTab formValues={defaultSettings} onChange={onChange} />);
+    const toggle = screen.getByRole('checkbox', { name: 'Rest breaks' });
+    expect(toggle).toBeChecked();
+    expect(screen.getByText(/Pause for 10 minutes after every 45 minutes of activity/)).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(onChange).toHaveBeenCalledWith(DiscrubSetting.REST_BREAKS, 'false');
+  });
+
+  it('shows the rest-breaks switch off when the setting is "false"', () => {
+    render(
+      <OperationDelaysTab
+        formValues={{ ...defaultSettings, [DiscrubSetting.REST_BREAKS]: 'false' }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.getByRole('checkbox', { name: 'Rest breaks' })).not.toBeChecked();
+  });
+
   it('should render rate-limiting info alert', () => {
     render(<OperationDelaysTab formValues={defaultSettings} onChange={vi.fn()} />);
     expect(screen.getByText(/These delays prevent Discord rate-limit errors/)).toBeInTheDocument();

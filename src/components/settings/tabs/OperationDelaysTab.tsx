@@ -1,4 +1,5 @@
-import { Box, Slider, Typography, Alert, useTheme } from '@mui/material';
+import { Box, Slider, Typography, Alert, Stack, Switch, useTheme } from '@mui/material';
+import { REST_BREAK_AFTER_MS, REST_BREAK_LENGTH_MS } from '@/hooks/useRestBreaks';
 import type { AppSettings } from 'discrub-core/types/discrub-types';
 import { DiscrubSetting } from 'discrub-core/discrub-enum';
 import TourFootnote from '@components/welcome/TourFootnote';
@@ -222,6 +223,7 @@ export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabP
   const searchDelay = parseFloat(formValues[DiscrubSetting.SEARCH_DELAY]) || 0;
   const deleteDelay = parseFloat(formValues[DiscrubSetting.DELETE_DELAY]) || 0;
   const modifier = parseFloat(formValues[DiscrubSetting.DELAY_MODIFIER]) || 0;
+  const restBreaks = formValues[DiscrubSetting.REST_BREAKS] !== 'false';
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
@@ -243,6 +245,23 @@ export const OperationDelaysTab = ({ formValues, onChange }: OperationDelaysTabP
       </Typography>
 
       <DelaySlider config={MODIFIER_CONFIG} value={modifier} onChange={onChange} />
+
+      <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={2}>
+        <Box>
+          <Typography variant="subtitle2">{t('delays.restBreaks')}</Typography>
+          <Typography variant="caption" color="text.secondary">
+            {t('delays.restBreaksHelp', {
+              active: Math.round(REST_BREAK_AFTER_MS / 60000),
+              minutes: Math.round(REST_BREAK_LENGTH_MS / 60000),
+            })}
+          </Typography>
+        </Box>
+        <Switch
+          checked={restBreaks}
+          onChange={(e) => onChange(DiscrubSetting.REST_BREAKS, e.target.checked ? 'true' : 'false')}
+          inputProps={{ 'aria-label': t('delays.restBreaks') }}
+        />
+      </Stack>
     </Box>
   );
 };
